@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Chỉnh sửa Thiết Bị{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <h2 class="card-title">Chỉnh sửa Thiết Bị: {{ device.name }}</h2>
+        <form method="POST">
+             <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label required">Mã thiết bị</label>
+                        <input type="text" name="device_code" class="form-control" value="{{ device.device_code }}" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label required">Tên thiết bị</label>
+                        <input type="text" name="name" class="form-control" value="{{ device.name }}" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label required">Loại thiết bị</label>
+                        <select name="device_type" class="form-control" required>
+                            <option value="">-- Chọn --</option>
+                            <option value="Laptop" {% if device.device_type == 'Laptop' %}selected{% endif %}>Laptop</option>
+                            <option value="Case máy tính" {% if device.device_type == 'Case máy tính' %}selected{% endif %}>Case máy tính</option>
+                            <option value="Màn hình" {% if device.device_type == 'Màn hình' %}selected{% endif %}>Màn hình</option>
+                            <option value="Bàn phím" {% if device.device_type == 'Bàn phím' %}selected{% endif %}>Bàn phím</option>
+                            <option value="Chuột" {% if device.device_type == 'Chuột' %}selected{% endif %}>Chuột</option>
+                            <option value="Ổ cứng" {% if device.device_type == 'Ổ cứng' %}selected{% endif %}>Ổ cứng</option>
+                            <option value="Ram" {% if device.device_type == 'Ram' %}selected{% endif %}>Ram</option>
+                            <option value="Card màn hình" {% if device.device_type == 'Card màn hình' %}selected{% endif %}>Card màn hình</option>
+                            <option value="Máy in" {% if device.device_type == 'Máy in' %}selected{% endif %}>Máy in</option>
+                            <option value="Thiết bị mạng" {% if device.device_type == 'Thiết bị mạng' %}selected{% endif %}>Thiết bị mạng</option>
+                            <option value="Thiết bị khác" {% if device.device_type == 'Thiết bị khác' %}selected{% endif %}>Thiết bị khác</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Số serial</label>
+                        <input type="text" name="serial_number" class="form-control" value="{{ device.serial_number or '' }}">
+                    </div>
+                     <div class="form-group mb-3">
+                        <label class="form-label">Thương hiệu</label>
+                        <input type="text" name="brand" class="form-control" value="{{ device.brand or '' }}" placeholder="VD: Dell, HP, Apple">
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Nhà cung cấp</label>
+                        <input type="text" name="supplier" class="form-control" value="{{ device.supplier or '' }}" placeholder="VD: FPT, Phong Vũ">
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Bảo hành</label>
+                        <input type="text" name="warranty" class="form-control" value="{{ device.warranty or '' }}" placeholder="VD: 12 tháng, 36 tháng">
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Cấu hình chi tiết</label>
+                        <textarea name="configuration" class="form-control" rows="3">{{ device.configuration or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                     <div class="form-group mb-3">
+                        <label class="form-label required">Ngày mua</label>
+                        <input type="date" name="purchase_date" class="form-control" value="{{ device.purchase_date.strftime('%Y-%m-%d') }}" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label required">Ngày nhập kho</label>
+                        <input type="date" name="import_date" class="form-control" value="{{ device.import_date.strftime('%Y-%m-%d') }}" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label required">Tình trạng</label>
+                        <select name="condition" class="form-control" required>
+                            <option value="Mới" {% if device.condition == 'Mới' %}selected{% endif %}>Mới</option>
+                            <option value="Sử dụng bình thường" {% if device.condition == 'Sử dụng bình thường' %}selected{% endif %}>Sử dụng bình thường</option>
+                            <option value="Cần bảo trì" {% if device.condition == 'Cần bảo trì' %}selected{% endif %}>Cần bảo trì</option>
+                            <option value="Hỏng" {% if device.condition == 'Hỏng' %}selected{% endif %}>Hỏng</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label required">Trạng thái</label>
+                        <select name="status" class="form-control" required>
+                            <option value="Sẵn sàng" {% if device.status == 'Sẵn sàng' %}selected{% endif %}>Sẵn sàng</option>
+                            <option value="Đã cấp phát" {% if device.status == 'Đã cấp phát' %}selected{% endif %}>Đã cấp phát</option>
+                            <option value="Bảo trì" {% if device.status == 'Bảo trì' %}selected{% endif %}>Bảo trì</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Người sử dụng</label>
+                        <select name="manager_id" class="form-control">
+                            <option value="">-- Chọn --</option>
+                            {% for manager in managers %}<option value="{{ manager.id }}" {% if device.manager_id == manager.id %}selected{% endif %}>{{ manager.full_name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Ngày cấp phát</label>
+                        <input type="date" name="assign_date" class="form-control" value="{{ device.assign_date.strftime('%Y-%m-%d') if device.assign_date else '' }}">
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Ghi chú</label>
+                        <textarea name="notes" class="form-control" rows="4">{{ device.notes or '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mt-3">
+                <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Hủy bỏ</a>
+                <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

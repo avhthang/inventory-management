@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from '_pagination.html' import render_pagination %}
+{% block title %}Bàn giao thiết bị{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2 class="card-title mb-0">Bàn giao thiết bị</h2>
+            <div>
+                <a href="{{ url_for('add_handover') }}" class="btn btn-primary">+ Tạo phiếu bàn giao</a>
+                <a href="{{ url_for('export_handovers_excel') }}" class="btn btn-success">Xuất Excel</a>
+            </div>
+        </div>
+        <hr>
+        <form method="GET" class="mb-4">
+            <div class="row g-3">
+                <div class="col-md-3"><label class="form-label">Mã thiết bị</label><input type="text" name="filter_device_code" class="form-control" placeholder="Tìm mã thiết bị..." value="{{ filter_device_code }}"></div>
+                <div class="col-md-3"><label class="form-label">Người giao</label><select name="filter_giver_id" class="form-control"><option value="">-- Tất cả --</option>{% for user in users %}<option value="{{ user.id }}" {% if filter_giver_id == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}</select></div>
+                <div class="col-md-3"><label class="form-label">Người nhận</label><select name="filter_receiver_id" class="form-control"><option value="">-- Tất cả --</option>{% for user in users %}<option value="{{ user.id }}" {% if filter_receiver_id == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}</select></div>
+                <div class="col-md-3"><label class="form-label">Loại thiết bị</label><select name="filter_device_type" class="form-control"><option value="">-- Tất cả --</option>{% for dt in device_types %}<option value="{{ dt }}" {% if filter_device_type == dt %}selected{% endif %}>{{ dt }}</option>{% endfor %}</select></div>
+            </div>
+            <div class="row g-3 mt-2">
+                <div class="col-md-3"><label class="form-label">Bàn giao từ ngày</label><input type="date" name="filter_start_date" class="form-control" value="{{ filter_start_date }}"></div>
+                <div class="col-md-3"><label class="form-label">Đến ngày</label><input type="date" name="filter_end_date" class="form-control" value="{{ filter_end_date }}"></div>
+                <div class="col-md-3 align-self-end"><button type="submit" class="btn btn-primary">Lọc</button><a href="{{ url_for('handover_list') }}" class="btn btn-secondary ms-2">Reset</a></div>
+            </div>
+        </form>
+        <div class="table-responsive"><table class="table table-striped table-hover mt-3">
+            <thead><tr><th>STT</th><th>Ngày Bàn Giao</th><th>Mã Thiết Bị</th><th>Tên Thiết Bị</th><th>Cấu hình</th><th>Người Giao</th><th>Người Nhận</th><th>Phòng ban</th><th>Tình Trạng</th><th>Hành động</th></tr></thead>
+            <tbody>
+                {% for handover in handovers.items %}
+                <tr>
+                    <td>{{ handovers.first + loop.index - 1 }}</td>
+                    <td>{{ handover.handover_date.strftime('%d-%m-%Y') }}</td>
+                    <td><a href="{{ url_for('device_detail', device_id=handover.device.id) }}">{{ handover.device.device_code }}</a></td>
+                    <td>{{ handover.device.name }}</td>
+                    <td><button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#configModal{{ handover.device.id }}">Xem</button></td>
+                    <td><a href="{{ url_for('edit_user', user_id=handover.giver.id) }}">{{ handover.giver.full_name }}</a></td>
+                    <td><a href="{{ url_for('edit_user', user_id=handover.receiver.id) }}">{{ handover.receiver.full_name }}</a></td>
+                    <td>{{ handover.receiver.department or '' }}</td>
+                    <td>{{ handover.device_condition }}</td>
+                    <td><a href="{{ url_for('edit_handover', handover_id=handover.id) }}" class="btn btn-sm btn-warning">Sửa</a><form method="POST" action="{{ url_for('delete_handover', handover_id=handover.id) }}" style="display:inline;" onsubmit="return confirm('Bạn chắc chắn muốn xóa phiếu bàn giao này?')"><button type="submit" class="btn btn-sm btn-danger">Xóa</button></form></td>
+                </tr>
+                <div class="modal fade" id="configModal{{ handover.device.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Cấu hình: {{ handover.device.name }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><pre>{{ handover.device.configuration or 'Chưa có thông tin cấu hình.' }}</pre></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button></div></div></div></div>
+                {% else %}<tr><td colspan="10" class="text-center">Không có dữ liệu bàn giao.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
+        {% set filters = {'filter_device_code': filter_device_code, 'filter_giver_id': filter_giver_id, 'filter_receiver_id': filter_receiver_id, 'filter_device_type': filter_device_type, 'filter_start_date': filter_start_date, 'filter_end_date': filter_end_date} %}
+        {{ render_pagination(handovers, 'handover_list', filters=filters) }}
+    </div>
+</div>
+{% endblock %}

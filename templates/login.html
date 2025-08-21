@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Đăng nhập{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <h3 class="card-title text-center mb-4">Đăng nhập hệ thống</h3>
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Tên đăng nhập</label>
+                        <input type="text" name="username" id="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Mật khẩu</label>
+                        <input type="password" name="password" id="password" class="form-control" required>
+                    </div>
+                    <div class="mb-3 form-check d-flex justify-content-between">
+                        <div>
+                           <input type="checkbox" name="remember" id="remember" class="form-check-input">
+                           <label class="form-check-label" for="remember">Nhớ mật khẩu</label>
+                        </div>
+                        <a href="{{ url_for('forgot_password') }}">Quên mật khẩu?</a>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Đăng nhập</button>
+                    </div>
+                </form>
+                <hr>
+                <div class="text-center">
+                    <span>Chưa có tài khoản?</span>
+                    <a href="{{ url_for('register') }}">Đăng ký tại đây</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

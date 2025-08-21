@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Chi tiết Thiết Bị{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header"><h2 class="card-title mb-0">Chi tiết: {{ device.name }}</h2></div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h5>Thông tin cơ bản</h5>
+                <p><strong>Mã thiết bị:</strong> {{ device.device_code }}</p>
+                <p><strong>Loại thiết bị:</strong> {{ device.device_type }}</p>
+                <p><strong>Thương hiệu:</strong> {{ device.brand or 'Chưa có' }}</p>
+                <p><strong>Nhà cung cấp:</strong> {{ device.supplier or 'Chưa có' }}</p>
+                <p><strong>Bảo hành:</strong> {{ device.warranty or 'Chưa có' }}</p>
+                <p><strong>Số serial:</strong> {{ device.serial_number or 'Chưa có' }}</p>
+            </div>
+            <div class="col-md-6">
+                <h5>Tình trạng & Bàn giao</h5>
+                <p><strong>Tình trạng:</strong> <span class="badge bg-info">{{ device.condition }}</span></p>
+                <p><strong>Trạng thái:</strong> <span class="badge bg-primary">{{ device.status }}</span></p>
+                <p><strong>Người sử dụng:</strong> {{ device.manager.full_name if device.manager else 'Chưa cấp phát' }}</p>
+                <p><strong>Ngày bàn giao:</strong> {{ device.assign_date.strftime('%d-%m-%Y') if device.assign_date else 'Chưa cấp phát' }}</p>
+                <p><strong>Ngày mua:</strong> {{ device.purchase_date.strftime('%d-%m-%Y') }}</p>
+                <p><strong>Ngày nhập kho:</strong> {{ device.import_date.strftime('%d-%m-%Y') }}</p>
+            </div>
+        </div><hr>
+        <div>
+            <h5>Cấu hình chi tiết</h5>
+            <pre>{{ device.configuration or 'Không có thông tin cấu hình.' }}</pre>
+        </div><hr>
+        <div>
+            <h5>Ghi chú</h5>
+            <p>{{ device.notes or 'Không có ghi chú.' }}</p>
+        </div>
+    </div>
+    <div class="card-footer">
+        <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Quay lại</a>
+        <a href="{{ url_for('edit_device', device_id=device.id) }}" class="btn btn-warning">Chỉnh sửa</a>
+    </div>
+</div>
+{% endblock %}
