@@ -178,27 +178,6 @@ def forgot_password():
 
     return render_template('forgot_password.html')
 
-
-@app.route('/change_password', methods=['GET', 'POST'])
-def change_password():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    user = User.query.get(session['user_id'])
-    if request.method == 'POST':
-        current_password = request.form['current_password']
-        new_password = request.form['new_password']
-        confirm_password = request.form['confirm_password']
-        if not check_password_hash(user.password, current_password):
-            flash('Mật khẩu hiện tại không đúng.', 'danger'); return redirect(url_for('change_password'))
-        if not new_password:
-            flash('Mật khẩu mới không được để trống.', 'danger'); return redirect(url_for('change_password'))
-        if new_password != confirm_password:
-            flash('Mật khẩu mới và xác nhận mật khẩu không khớp.', 'danger'); return redirect(url_for('change_password'))
-        user.password = generate_password_hash(new_password)
-        db.session.commit()
-        flash('Đổi mật khẩu thành công!', 'success')
-        return redirect(url_for('home'))
-    return render_template('change_password.html')
-
 @app.route('/change_password', methods=['GET', 'POST'])
 def change_password():
     if 'user_id' not in session: return redirect(url_for('login'))
