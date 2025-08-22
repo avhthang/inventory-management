@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
@@ -6,16 +7,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
 import pandas as pd
 import io
+import click
 
-app = Flask(__name__)
+# --- Cấu hình ứng dụng ---
+instance_path = os.path.join('/var/www/inventory-management', 'instance')
+os.makedirs(instance_path, exist_ok=True)
+
+app = Flask(__name__, instance_path=instance_path)
 app.config['SECRET_KEY'] = 'your_super_secret_key_change_this_please'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db' # Sẽ tự động lưu trong thư mục instance
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.permanent_session_lifetime = timedelta(days=30) # <<< THỜI GIAN LƯU PHIÊN ĐĂNG NHẬP
+app.permanent_session_lifetime = timedelta(days=30)
 
 db = SQLAlchemy(app)
 
-# --- Models (Không thay đổi) ---
+# --- Models ---
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -67,6 +73,7 @@ class DeviceHandover(db.Model):
     location = db.Column(db.String(255))
     notes = db.Column(db.Text)
 
+# --- Context Processor ---
 @app.context_processor
 def inject_user():
     if 'user_id' in session:
@@ -85,6 +92,7 @@ def home():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if 'user_id' in session: return redirect(url_for('home'))
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -107,97 +115,46 @@ def logout():
     flash('Bạn đã đăng xuất.', 'info')
     return redirect(url_for('login'))
 
-# <<< ROUTE MỚI: ĐĂNG KÝ TÀI KHOẢN >>>
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if 'user_id' in session:
-        return redirect(url_for('home'))
+    if 'user_id' in session: return redirect(url_for('home'))
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         full_name = request.form.get('full_name')
         email = request.form.get('email')
-
         if not username or not password or not confirm_password:
-            flash('Tên đăng nhập và mật khẩu là bắt buộc.', 'danger')
-            return render_template('register.html')
-        
+            flash('Tên đăng nhập và mật khẩu là bắt buộc.', 'danger'); return render_template('register.html')
         if password != confirm_password:
-            flash('Mật khẩu xác nhận không khớp.', 'danger')
-            return render_template('register.html')
-
+            flash('Mật khẩu xác nhận không khớp.', 'danger'); return render_template('register.html')
         if User.query.filter_by(username=username).first():
-            flash('Tên đăng nhập đã tồn tại.', 'danger')
-            return render_template('register.html')
-        
+            flash('Tên đăng nhập đã tồn tại.', 'danger'); return render_template('register.html')
         if email and User.query.filter_by(email=email).first():
-            flash('Email đã được sử dụng.', 'danger')
-            return render_template('register.html')
-
-        new_user = User(
-            username=username,
-            password=generate_password_hash(password),
-            full_name=full_name,
-            email=email,
-            role='user' # Mặc định tài khoản mới là 'user'
-        )
-        db.session.add(new_user)
-        db.session.commit()
-        
-        # Tự động đăng nhập sau khi đăng ký
-        session['user_id'] = new_user.id
-        session.permanent = True
-        flash('Đăng ký tài khoản thành công!', 'success')
+            flash('Email đã được sử dụng.', 'danger'); return render_template('register.html')
+        new_user = User(username=username, password=generate_password_hash(password), full_name=full_name, email=email, role='user')
+        db.session.add(new_user); db.session.commit()
+        session['user_id'] = new_user.id; session.permanent = True
+        flash('Đăng ký tài khoản thành công! Bạn đã được đăng nhập.', 'success')
         return redirect(url_for('home'))
-
     return render_template('register.html')
 
-# <<< ROUTE MỚI: QUÊN MẬT KHẨU >>>
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
         username = request.form.get('username')
         email = request.form.get('email')
-
         if not username or not email:
-            flash('Vui lòng nhập tên đăng nhập và email.', 'danger')
-            return redirect(url_for('forgot_password'))
-
+            flash('Vui lòng nhập tên đăng nhập và email.', 'danger'); return redirect(url_for('forgot_password'))
         user = User.query.filter_by(username=username, email=email).first()
-
         if user:
-            # Reset mật khẩu về giá trị mặc định
             user.password = generate_password_hash('SecretPassword')
             db.session.commit()
             flash('Mật khẩu của bạn đã được reset về "SecretPassword". Vui lòng đăng nhập và đổi lại mật khẩu ngay.', 'success')
             return redirect(url_for('login'))
         else:
-            flash('Thông tin Tên đăng nhập hoặc Email không chính xác. Vui lòng nhập lại.', 'warning')
-            return redirect(url_for('forgot_password'))
-
+            flash('Thông tin Tên đăng nhập hoặc Email không chính xác. Vui lòng nhập lại.', 'warning'); return redirect(url_for('forgot_password'))
     return render_template('forgot_password.html')
-
-
-@app.route('/change_password', methods=['GET', 'POST'])
-def change_password():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    user = User.query.get(session['user_id'])
-    if request.method == 'POST':
-        current_password = request.form['current_password']
-        new_password = request.form['new_password']
-        confirm_password = request.form['confirm_password']
-        if not check_password_hash(user.password, current_password):
-            flash('Mật khẩu hiện tại không đúng.', 'danger'); return redirect(url_for('change_password'))
-        if not new_password:
-            flash('Mật khẩu mới không được để trống.', 'danger'); return redirect(url_for('change_password'))
-        if new_password != confirm_password:
-            flash('Mật khẩu mới và xác nhận mật khẩu không khớp.', 'danger'); return redirect(url_for('change_password'))
-        user.password = generate_password_hash(new_password)
-        db.session.commit()
-        flash('Đổi mật khẩu thành công!', 'success')
-        return redirect(url_for('home'))
-    return render_template('change_password.html')
 
 @app.route('/change_password', methods=['GET', 'POST'])
 def change_password():
@@ -250,12 +207,7 @@ def add_user():
         if email and User.query.filter_by(email=email).first():
             flash('Email đã tồn tại!', 'danger'); return render_template('add_user.html')
         dob_str = request.form.get('date_of_birth')
-        new_user=User(
-            username=username, password=generate_password_hash(password),
-            full_name=request.form.get('full_name'), email=email, role=request.form.get('role'),
-            department=request.form.get('department'), position=request.form.get('position'),
-            date_of_birth=(datetime.strptime(dob_str, '%Y-%m-%d').date() if dob_str else None),
-            phone_number=request.form.get('phone_number'), notes=request.form.get('notes'))
+        new_user=User(username=username, password=generate_password_hash(password), full_name=request.form.get('full_name'), email=email, role=request.form.get('role'), department=request.form.get('department'), position=request.form.get('position'), date_of_birth=(datetime.strptime(dob_str, '%Y-%m-%d').date() if dob_str else None), phone_number=request.form.get('phone_number'), notes=request.form.get('notes'))
         db.session.add(new_user); db.session.commit()
         flash('Thêm người dùng thành công!', 'success')
         return redirect(url_for('user_list'))
@@ -522,19 +474,28 @@ def export_handovers_excel():
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'handover_history_{datetime.now().strftime("%Y%m%d")}.xlsx')
 
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        # Create a default admin user if no users exist
-        if not User.query.first():
-            admin_user = User(
-                username='admin',
-                password=generate_password_hash('admin123'),
-                full_name='Quản Trị Viên',
-                email='admin@example.com',
-                role='admin',
-                department='IT'
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-    app.run(debug=False) # Changed to False for production readiness
+# <<< CÁC LỆNH QUẢN TRỊ MỚI >>>
+@app.cli.command("init-db")
+def init_db_command():
+    """Tạo mới các bảng trong cơ sở dữ liệu."""
+    db.create_all()
+    click.echo("Đã khởi tạo cơ sở dữ liệu.")
+
+@app.cli.command("create-admin")
+def create_admin_command():
+    """Tạo tài khoản admin mặc định."""
+    if User.query.filter_by(username='admin').first():
+        click.echo("Tài khoản admin đã tồn tại.")
+        return
+    
+    admin_user = User(
+        username='admin',
+        password=generate_password_hash('admin123'),
+        full_name='Quản Trị Viên',
+        email='admin@example.com',
+        role='admin',
+        department='IT'
+    )
+    db.session.add(admin_user)
+    db.session.commit()
+    click.echo("Đã tạo tài khoản admin thành công (Pass: admin123).")

@@ -1,0 +1,17 @@
+# Bỏ qua môi trường ảo
+venv/
+
+# Bỏ qua các file cache của Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Bỏ qua các file cấu hình của Git và IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Bỏ qua file database, vì sẽ được quản lý bằng Volume
+instance/
+inventory.db

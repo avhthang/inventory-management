@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # Dịch vụ cho ứng dụng Flask
+  web:
+    build: .
+    # Lệnh này sẽ ghi đè CMD trong Dockerfile nếu cần, nhưng chúng ta giữ nguyên
+    command: gunicorn --workers 4 --bind 0.0.0.0:8000 app:app
+    volumes:
+      # Volume để lưu trữ database một cách bền bỉ bên ngoài container
+      - inventory_data:/app/instance
+    expose:
+      # Mở cổng 8000 chỉ trong mạng nội bộ của Docker
+      - "8000"
+
+  # Dịch vụ cho Nginx
+  nginx:
+    image: nginx:latest
+    ports:
+      # Ánh xạ cổng 80 của server vào cổng 80 của container Nginx
+      - "80:80"
+    volumes:
+      # Gắn file cấu hình nginx.conf vào đúng vị trí trong container Nginx
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      # Khởi động Nginx chỉ sau khi dịch vụ 'web' đã sẵn sàng
+      - web
+
+# Định nghĩa volume để lưu trữ dữ liệu database
+volumes:
+  inventory_data:
