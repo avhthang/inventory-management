@@ -2,41 +2,79 @@
 {% from '_pagination.html' import render_pagination %}
 {% block title %}Danh sách Thiết Bị{% endblock %}
 {% block content %}
-<div class="card">
-    <div class="card-body">
-        <h2 class="card-title">Danh sách Thiết Bị</h2>
-        <div class="mb-3"><a href="{{ url_for('add_device') }}" class="btn btn-primary me-2">+ Thêm thiết bị</a><a href="{{ url_for('export_devices_excel') }}" class="btn btn-success me-2">Xuất Excel</a><a href="{{ url_for('import_devices_excel') }}" class="btn btn-warning">Nhập Excel</a></div>
-        <form method="GET" class="mt-3">
-            <div class="row g-3">
-                <div class="col-md-3"><label class="form-label">Mã hoặc Tên</label><input type="text" name="filter_code" class="form-control" placeholder="Tìm mã hoặc tên..." value="{{ filter_code }}"></div>
-                <div class="col-md-3"><label class="form-label">Người sử dụng</label><select name="filter_manager" class="form-control"><option value="">-- Tất cả --</option>{% for manager in managers %}<option value="{{ manager.id }}" {% if filter_manager == manager.id|string %}selected{% endif %}>{{ manager.full_name }}</option>{% endfor %}</select></div>
-                <div class="col-md-3"><label class="form-label">Loại thiết bị</label><select name="filter_device_type" class="form-control"><option value="">-- Tất cả --</option>{% for dt in device_types %}<option value="{{ dt }}" {% if filter_device_type == dt %}selected{% endif %}>{{ dt }}</option>{% endfor %}</select></div>
-                <div class="col-md-3"><label class="form-label">Tình trạng</label><select name="filter_condition" class="form-control"><option value="">-- Tất cả --</option><option value="Mới" {% if filter_condition == 'Mới' %}selected{% endif %}>Mới</option><option value="Sử dụng bình thường" {% if filter_condition == 'Sử dụng bình thường' %}selected{% endif %}>Sử dụng bình thường</option><option value="Cần bảo trì" {% if filter_condition == 'Cần bảo trì' %}selected{% endif %}>Cần bảo trì</option><option value="Hỏng" {% if filter_condition == 'Hỏng' %}selected{% endif %}>Hỏng</option></select></div>
-            </div>
-            <div class="row g-3 mt-2">
-                <div class="col-md-3"><label class="form-label">Trạng thái</label><select name="filter_status" class="form-control"><option value="">-- Tất cả --</option><option value="Sẵn sàng" {% if filter_status == 'Sẵn sàng' %}selected{% endif %}>Sẵn sàng</option><option value="Đã cấp phát" {% if filter_status == 'Đã cấp phát' %}selected{% endif %}>Đã cấp phát</option><option value="Bảo trì" {% if filter_status == 'Bảo trì' %}selected{% endif %}>Bảo trì</option></select></div>
-                <div class="col-md-3 align-self-end"><button type="submit" class="btn btn-primary">Tìm kiếm</button><a href="{{ url_for('device_list') }}" class="btn btn-secondary ms-2">Reset</a></div>
-            </div>
-        </form>
-        <div class="table-responsive"><table class="table table-striped table-hover mt-3">
-            <thead><tr><th>STT</th><th>Mã Thiết bị</th><th>Tên thiết bị</th><th>Loại TB</th><th>Trạng thái</th><th>Cấu hình</th><th>Người quản lý</th><th>Hành động</th></tr></thead>
+
+    
+        
+            Danh sách Thiết Bị
+
+            <a href="{{ url_for('add_device') }}" class="btn btn-primary">+ Thêm thiết bị</a>
+            <a href="{{ url_for('import_devices') }}" class="btn btn-primary">Nhập từ Excel</a>
+            <a href="{{ url_for('export_devices_excel') }}" class="btn btn-success">Xuất Excel</a>
+        
+
+        
+
+        
+            
+                <input type="text" name="filter_device_code" value="{{ filter_device_code }}" placeholder="Mã thiết bị">
+                <input type="text" name="filter_name" value="{{ filter_name }}" placeholder="Tên thiết bị">
+                <select name="filter_device_type">
+                    <option value="">-- Tất cả --</option>
+                    {% for type in device_types %}
+                        <option value="{{ type }}" {% if type == filter_device_type %}selected{% endif %}>{{ type }}</option>
+                    {% endfor %}
+                </select>
+                <select name="filter_status">
+                    <option value="">-- Tất cả --</option>
+                    {% for status in statuses %}
+                        <option value="{{ status }}" {% if status == filter_status %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">Tìm kiếm</button>
+                <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Reset</a>
+            
+
+        
+
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Mã thiết bị</th>
+                    <th>Tên thiết bị</th>
+                    <th>Loại thiết bị</th>
+                    <th>Tình trạng</th>
+                    <th>Trạng thái</th>
+                    <th>Người quản lý</th>
+                    <th>Hành động</th>
+                </tr>
+            </thead>
             <tbody>
                 {% for device in devices.items %}
                 <tr>
                     <td>{{ devices.first + loop.index - 1 }}</td>
-                    <td><a href="{{ url_for('device_detail', device_id=device.id) }}">{{ device.device_code }}</a></td>
-                    <td>{{ device.name }}</td><td>{{ device.device_type }}</td>
-                    <td><span class="badge bg-primary">{{ device.status }}</span></td>
-                    <td><button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#configModal{{ device.id }}">Xem</button></td>
+                    <td>{{ device.device_code }}</td>
+                    <td>{{ device.name }}</td>
+                    <td>{{ device.device_type }}</td>
+                    <td>{{ device.condition }}</td>
+                    <td>{{ device.status }}</td>
                     <td>{{ device.manager.full_name if device.manager else '' }}</td>
-                    <td><a href="{{ url_for('edit_device', device_id=device.id) }}" class="btn btn-sm btn-warning" title="Sửa">Sửa</a><form method="POST" action="{{ url_for('delete_device', device_id=device.id) }}" style="display:inline;" onsubmit="return confirm('Bạn chắc chắn muốn xóa thiết bị này?')"><button type="submit" class="btn btn-sm btn-danger" title="Xóa">Xóa</button></form></td>
+                    <td>
+                        <a href="{{ url_for('device_detail', device_id=device.id) }}" class="btn btn-info btn-sm">Chi tiết</a>
+                        <a href="{{ url_for('edit_device', device_id=device.id) }}" class="btn btn-warning btn-sm">Sửa</a>
+                        <form action="{{ url_for('delete_device', device_id=device.id) }}" method="POST" style="display:inline;">
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa thiết bị này?');">Xóa</button>
+                        </form>
+                    </td>
                 </tr>
-                <div class="modal fade" id="configModal{{ device.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Cấu hình: {{ device.name }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><pre>{{ device.configuration or 'Chưa có thông tin cấu hình.' }}</pre></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button></div></div></div></div>
                 {% endfor %}
             </tbody>
-        </table></div>
-        {% set filters = {'filter_code': filter_code, 'filter_device_type': filter_device_type, 'filter_condition': filter_condition, 'filter_status': filter_status, 'filter_manager': filter_manager} %}
+        </table>
+
+        {% set filters = {'filter_device_code': filter_device_code, 'filter_name': filter_name, 'filter_device_type': filter_device_type, 'filter_status': filter_status} %}
         {{ render_pagination(devices, 'device_list', filters=filters) }}
-    </div>
-</div>
+    
+
+
+
 {% endblock %}

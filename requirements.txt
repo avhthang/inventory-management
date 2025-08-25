@@ -1,3 +1,6 @@
 flask
 flask-sqlalchemy
 werkzeug
+gunicorn
+pandas
+openpyxl
