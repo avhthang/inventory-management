@@ -1,6 +1,7 @@
-flask
-flask-sqlalchemy
-werkzeug
+Flask
+Flask-SQLAlchemy
+Werkzeug
 gunicorn
 pandas
 openpyxl
+click

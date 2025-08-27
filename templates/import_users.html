@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Nhập Người Dùng từ Excel{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title mb-0"><i class="bi bi-upload"></i> Nhập Dữ Liệu Người Dùng từ Excel</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Chọn file Excel (.xls, .xlsx)</label>
+                        <input type="file" id="file" name="file" accept=".xls,.xlsx" class="form-control" required>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <a href="{{ url_for('user_list') }}" class="btn btn-secondary me-2">Hủy bỏ</a>
+                        <button type="submit" class="btn btn-primary">Bắt đầu nhập</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="bi bi-info-circle"></i> Hướng dẫn định dạng file Excel</h5>
+            </div>
+            <div class="card-body">
+                <p>Cột bắt buộc: <strong>Tên đăng nhập, Mật khẩu, Họ và tên, Email, Vai trò</strong>.</p>
+                <p>Cột không bắt buộc: <strong>Phòng ban, Chức vụ, SĐT, Ghi chú, Trạng thái, Ngày Onboard, Ngày Offboard</strong>.</p>
+                <hr>
+                <h6>Các giá trị hợp lệ:</h6>
+                <ul>
+                    <li><strong>Tên đăng nhập, Email:</strong> Không được trùng với tên đã có.</li>
+                    <li><strong>Vai trò:</strong> <code>user</code> hoặc <code>admin</code>. Mặc định là <code>user</code>.</li>
+                    <li><strong>Trạng thái:</strong> <code>Đang làm</code>, <code>Thử việc</code>, <code>Đã nghỉ</code>, <code>Khác</code>. Mặc định là <code>Đang làm</code>.</li>
+                    <li><strong>Ngày Onboard, Ngày Offboard:</strong> Định dạng <code>dd-mm-yyyy</code> (ví dụ: 25-08-2025).</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

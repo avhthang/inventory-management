@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Nhập Bàn Giao từ Excel{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title mb-0"><i class="bi bi-upload"></i> Nhập Dữ Liệu Bàn Giao từ Excel</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Chọn file Excel (.xls, .xlsx)</label>
+                        <input type="file" id="file" name="file" accept=".xls,.xlsx" class="form-control" required>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <a href="{{ url_for('handover_list') }}" class="btn btn-secondary me-2">Hủy bỏ</a>
+                        <button type="submit" class="btn btn-primary">Bắt đầu nhập</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="bi bi-info-circle"></i> Hướng dẫn định dạng file Excel</h5>
+            </div>
+            <div class="card-body">
+                <p>File Excel phải chứa các cột bắt buộc sau: <strong>Mã thiết bị, Tên đăng nhập người giao, Tên đăng nhập người nhận, Ngày bàn giao, Tình trạng thiết bị</strong>.</p>
+                <p>Các cột không bắt buộc: <strong>Lý do bàn giao, Nơi đặt thiết bị, Ghi chú</strong>.</p>
+                <hr>
+                <h6>Lưu ý quan trọng:</h6>
+                <ul>
+                    <li><strong>Mã thiết bị:</strong> Phải là mã của một thiết bị đã tồn tại và đang ở trạng thái "Sẵn sàng".</li>
+                    <li><strong>Tên đăng nhập người giao/nhận:</strong> Phải là tên đăng nhập của người dùng đã tồn tại trong hệ thống.</li>
+                    <li><strong>Ngày bàn giao:</strong> Định dạng <code>dd-mm-yyyy</code> (ví dụ: 25-08-2025).</li>
+                    <li><strong>Tình trạng thiết bị:</strong> Tình trạng của thiết bị tại thời điểm bàn giao (VD: Mới, Sử dụng bình thường).</li>
+                </ul>
+                <div class="alert alert-warning mt-3">
+                    <strong>Chú ý:</strong> Sau khi nhập thành công, trạng thái của thiết bị sẽ tự động chuyển thành "Đã cấp phát" và người nhận sẽ trở thành người quản lý mới của thiết bị.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

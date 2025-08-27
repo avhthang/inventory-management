@@ -1,3 +1,5 @@
+/* static/style.css */
+
 body {
     padding-top: 20px;
     background-color: #f8f9fa;
@@ -16,7 +18,7 @@ body {
     padding: 0.5em 0.75em;
 }
 
-.form-label.required:after {
+.form-label.required::after {
     content: " *";
     color: red;
 }

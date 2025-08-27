@@ -16,7 +16,7 @@
                     <label class="form-label required">Tình trạng thiết bị</label>
                     <select name="device_condition" class="form-control" required>
                         <option value="Mới">Mới</option>
-                        <option value="Sử dụng bình thường">Sử dụng bình thường</option>
+                        <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
                         <option value="Cần bảo trì">Cần bảo trì</option>
                     </select>
                 </div>
@@ -25,10 +25,12 @@
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="device_id" class="form-label required">Mã thiết bị</label>
-                    <select id="device_id" name="device_id" class="form-control" required>
-                        <option value="">-- Chọn mã thiết bị --</option>
+                    <select id="device_id" name="device_id" class="form-select" required>
+                        <option value="">-- Chọn hoặc tìm kiếm mã thiết bị --</option>
                         {% for device in devices %}
-                        <option value="{{ device.id }}">{{ device.device_code }}</option>
+                        <option value="{{ device.id }}" {% if preselected_device_id and device.id == preselected_device_id %}selected{% endif %}>
+                            {{ device.device_code }} - {{ device.name }}
+                        </option>
                         {% endfor %}
                     </select>
                 </div>
@@ -40,20 +42,22 @@
 
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label class="form-label required">Người giao</label>
-                    <select name="giver_id" class="form-control" required>
-                        <option value="">-- Chọn người giao --</option>
+                    <label for="giver_id_select" class="form-label required">Người giao</label>
+                    <select id="giver_id_select" name="giver_id" class="form-select" required>
+                        <option value="">-- Chọn hoặc tìm kiếm người giao --</option>
                         {% for user in users %}
-                        <option value="{{ user.id }}">{{ user.full_name }}</option>
+                        <option value="{{ user.id }}" {% if current_user and user.id == current_user.id %}selected{% endif %}>
+                            {{ user.full_name or user.username }}
+                        </option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label class="form-label required">Người nhận</label>
-                    <select name="receiver_id" class="form-control" required>
-                        <option value="">-- Chọn người nhận --</option>
+                    <label for="receiver_id_select" class="form-label required">Người nhận</label>
+                    <select id="receiver_id_select" name="receiver_id" class="form-select" required>
+                        <option value="">-- Chọn hoặc tìm kiếm người nhận --</option>
                         {% for user in users %}
-                        <option value="{{ user.id }}">{{ user.full_name }}</option>
+                        <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -82,24 +86,49 @@
         </form>
     </div>
 </div>
+{% endblock %}
 
-<script>
-document.getElementById('device_id').addEventListener('change', function() {
-    const deviceId = this.value;
-    const deviceNameInput = document.getElementById('device_name');
-    
-    if (deviceId) {
-        fetch(`/api/device_info/${deviceId}`)
-            .then(response => response.json())
-            .then(data => {
-                deviceNameInput.value = data.name;
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                deviceNameInput.value = 'Không tìm thấy tên';
-            });
-    } else {
-        deviceNameInput.value = '';
+{% block scripts %}
+{{ super() }} <script>
+$(document).ready(function() {
+    // Khởi tạo Select2 cho các trường chọn với theme Bootstrap 5
+    $('#device_id, #giver_id_select, #receiver_id_select').select2({
+        theme: "bootstrap-5",
+        placeholder: "Chọn một mục",
+    });
+
+    // ----- Logic để lấy tên thiết bị tự động -----
+    const deviceSelect = $('#device_id');
+    const deviceNameInput = $('#device_name');
+
+    function fetchDeviceName(deviceId) {
+        if (deviceId) {
+            fetch(`/api/device_info/${deviceId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.name) {
+                        deviceNameInput.val(data.name); // Sử dụng .val() của jQuery
+                    } else {
+                        deviceNameInput.val('Không tìm thấy tên');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    deviceNameInput.val('Lỗi khi tải');
+                });
+        } else {
+            deviceNameInput.val('');
+        }
+    }
+
+    // Gắn sự kiện 'change' vào dropdown thiết bị
+    deviceSelect.on('change', function() {
+        fetchDeviceName(this.value);
+    });
+
+    // Tự động chạy khi tải trang nếu có thiết bị được chọn sẵn
+    if (deviceSelect.val()) {
+        fetchDeviceName(deviceSelect.val());
     }
 });
 </script>

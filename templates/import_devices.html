@@ -3,35 +3,44 @@
 {% block title %}Nhập Thiết Bị từ Excel{% endblock %}
 
 {% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title mb-0"><i class="bi bi-upload"></i> Nhập Dữ Liệu Thiết Bị từ Excel</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Chọn file Excel (.xls, .xlsx)</label>
+                        <input type="file" id="file" name="file" accept=".xls,.xlsx" class="form-control" required>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <a href="{{ url_for('device_list') }}" class="btn btn-secondary me-2">Hủy bỏ</a>
+                        <button type="submit" class="btn btn-primary">Bắt đầu nhập</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
-    
-        Nhập Thiết Bị từ Excel
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
-            <form method="POST" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label>Chọn file Excel (.xls, .xlsx)</label>
-                    <input type="file" name="file" accept=".xls,.xlsx" class="form-control" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Nhập dữ liệu</button>
-                <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Quay lại</a>
-            </form>
-        
-
-        <p>File Excel cần có các cột: Mã thiết bị, Tên thiết bị, Loại thiết bị, Số serial, Ngày mua, Ngày nhập, Tình trạng, Trạng thái, Người quản lý, Ngày cấp phát, Cấu hình, Ghi chú, Người mua, Người nhập, Thương hiệu, Nhà cung cấp, Bảo hành.</p>
-        <p>Định dạng ngày: dd-mm-yyyy (ví dụ: 25-08-2025).</p>
-        <p>Tình trạng: Mới, Sử dụng bình thường, Cần bảo trì, Hỏng.</p>
-        <p>Trạng thái: Sẵn sàng, Đã cấp phát, Bảo trì.</p>
-        <p>Loại thiết bị: Laptop, Case máy tính, Màn hình, Bàn phím, Chuột, Ổ cứng, Ram, Card màn hình, Máy in, Thiết bị mạng, Thiết bị khác.</p>
-    
-
-
-
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="bi bi-info-circle"></i> Hướng dẫn định dạng file Excel</h5>
+            </div>
+            <div class="card-body">
+                <p>File Excel của bạn cần có các cột với tiêu đề chính xác như sau:</p>
+                <p><code>Mã thiết bị, Tên thiết bị, Loại thiết bị, Số serial, Ngày mua, Ngày nhập, Tình trạng, Trạng thái, Người quản lý, Ngày cấp phát, Cấu hình, Ghi chú, Người mua, Người nhập, Thương hiệu, Nhà cung cấp, Bảo hành</code></p>
+                <hr>
+                <h6>Các giá trị hợp lệ:</h6>
+                <ul>
+                    <li><strong>Định dạng ngày:</strong> <code>dd-mm-yyyy</code> (ví dụ: 25-08-2025).</li>
+                    <li><strong>Tình trạng:</strong> <code>Mới</code>, <code>Sử dụng bình thường</code>, <code>Cần bảo trì</code>, <code>Hỏng</code>.</li>
+                    <li><strong>Trạng thái:</strong> <code>Sẵn sàng</code>, <code>Đã cấp phát</code>, <code>Bảo trì</code>.</li>
+                    <li><strong>Loại thiết bị:</strong> <code>Laptop</code>, <code>Case máy tính</code>, <code>Màn hình</code>, <code>Bàn phím</code>, <code>Chuột</code>, <code>Ổ cứng</code>, <code>Ram</code>, <code>Card màn hình</code>, <code>Máy in</code>, <code>Thiết bị mạng</code>, <code>Thiết bị khác</code>.</li>
+                    <li><strong>Người quản lý:</strong> Phải là "Họ và tên" đầy đủ của một người dùng đã có trong hệ thống.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -10,12 +10,12 @@ import io
 import click
 
 # --- Cấu hình ứng dụng ---
-instance_path = os.path.join('/var/www/inventory-management', 'instance')
+instance_path = os.path.join(os.getcwd(), 'instance')
 os.makedirs(instance_path, exist_ok=True)
 
 app = Flask(__name__, instance_path=instance_path)
 app.config['SECRET_KEY'] = 'your_super_secret_key_change_this_please'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db' # Sẽ tự động lưu trong thư mục instance
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.permanent_session_lifetime = timedelta(days=30)
 
@@ -37,6 +37,21 @@ class User(db.Model):
     phone_number = db.Column(db.String(20))
     notes = db.Column(db.Text)
 
+    # --- BỔ SUNG CÁC TRƯỜNG MỚI ---
+    status = db.Column(db.String(50), default='Đang làm') # Trạng thái: Đang làm, Thử việc, Đã nghỉ, Khác
+    onboard_date = db.Column(db.Date) # Ngày onboard
+    offboard_date = db.Column(db.Date) # Ngày offboard
+    # --- KẾT THÚC BỔ SUNG ---
+
+    given_handovers = db.relationship('DeviceHandover',
+                                      foreign_keys='DeviceHandover.giver_id',
+                                      back_populates='giver',
+                                      lazy='dynamic')
+    received_handovers = db.relationship('DeviceHandover',
+                                         foreign_keys='DeviceHandover.receiver_id',
+                                         back_populates='receiver',
+                                         lazy='dynamic')
+
 class Device(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     device_code = db.Column(db.String(50), unique=True, nullable=False)
@@ -46,7 +61,7 @@ class Device(db.Model):
     purchase_date = db.Column(db.Date, nullable=False)
     import_date = db.Column(db.Date, nullable=False)
     condition = db.Column(db.String(50), nullable=False)
-    status = db.Column(db.String(20), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='Sẵn sàng')
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     assign_date = db.Column(db.Date)
     configuration = db.Column(db.Text)
@@ -65,15 +80,17 @@ class DeviceHandover(db.Model):
     device_id = db.Column(db.Integer, db.ForeignKey('device.id'), nullable=False)
     device = db.relationship('Device', backref='handovers')
     giver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    giver = db.relationship('User', foreign_keys=[giver_id])
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    receiver = db.relationship('User', foreign_keys=[receiver_id])
+    
+    giver = db.relationship('User', foreign_keys=[giver_id], back_populates='given_handovers')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], back_populates='received_handovers')
+
     device_condition = db.Column(db.String(100), nullable=False)
     reason = db.Column(db.String(255))
     location = db.Column(db.String(255))
     notes = db.Column(db.Text)
 
-# --- Context Processor ---
+# ... (Các hàm context_processor, home, login, logout, register, change_password, và toàn bộ Device/Handover Routes giữ nguyên) ...
 @app.context_processor
 def inject_user():
     if 'user_id' in session:
@@ -138,16 +155,39 @@ def register():
         flash('Đăng ký tài khoản thành công! Bạn đã được đăng nhập.', 'success')
         return redirect(url_for('home'))
     return render_template('register.html')
+    
+@app.route('/change_password', methods=['GET', 'POST'])
+def change_password():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    if request.method == 'POST':
+        current_password = request.form.get('current_password')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        if not check_password_hash(user.password, current_password):
+            flash('Mật khẩu hiện tại không đúng.', 'danger')
+        elif new_password != confirm_password:
+            flash('Mật khẩu mới không khớp.', 'danger')
+        else:
+            user.password = generate_password_hash(new_password)
+            db.session.commit()
+            flash('Đổi mật khẩu thành công.', 'success')
+            return redirect(url_for('home'))
+    return render_template('change_password.html')
 
-@app.route('/devices', methods=['GET', 'POST'])
+
+# --- Device Routes ---
+@app.route('/devices')
 def device_list():
     if 'user_id' not in session: return redirect(url_for('login'))
     page = request.args.get('page', 1, type=int)
-    per_page = 10
+    per_page = request.args.get('per_page', 10, type=int)
     filter_device_code = request.args.get('filter_device_code', '')
     filter_name = request.args.get('filter_name', '')
     filter_device_type = request.args.get('filter_device_type', '')
     filter_status = request.args.get('filter_status', '')
+    # BỔ SUNG: Lấy tham số lọc theo người quản lý
+    filter_manager_id = request.args.get('filter_manager_id', '')
     
     query = Device.query
     if filter_device_code:
@@ -158,21 +198,505 @@ def device_list():
         query = query.filter_by(device_type=filter_device_type)
     if filter_status:
         query = query.filter_by(status=filter_status)
+    # BỔ SUNG: Xử lý logic lọc theo người quản lý
+    if filter_manager_id:
+        query = query.filter(Device.manager_id == filter_manager_id)
     
-    devices_pagination = query.order_by(Device.device_code).paginate(page=page, per_page=per_page, error_out=False)
+    devices_pagination = query.order_by(Device.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
-    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì']
+    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
+    # BỔ SUNG: Lấy danh sách người dùng để đưa vào bộ lọc
+    users = User.query.order_by(User.full_name).all()
+
     return render_template(
         'devices.html',
         devices=devices_pagination,
         device_types=device_types,
         statuses=statuses,
+        users=users, # Truyền danh sách người dùng sang template
         filter_device_code=filter_device_code,
         filter_name=filter_name,
         filter_device_type=filter_device_type,
-        filter_status=filter_status
+        filter_status=filter_status,
+        filter_manager_id=filter_manager_id # Truyền ID người quản lý đã lọc
     )
+    
+@app.route('/add_device', methods=['GET', 'POST'])
+def add_device():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if request.method == 'POST':
+        device_code = request.form.get('device_code')
+        if not device_code:
+            last_device = Device.query.order_by(Device.id.desc()).first()
+            last_id = last_device.id if last_device else 0
+            device_code = f"TB{last_id + 1:05d}"
+            
+        if Device.query.filter_by(device_code=device_code).first():
+            flash(f'Mã thiết bị {device_code} đã tồn tại.', 'danger')
+            return redirect(url_for('add_device'))
+            
+        new_device = Device(
+            device_code=device_code,
+            name=request.form['name'],
+            device_type=request.form['device_type'],
+            purchase_date=datetime.strptime(request.form['purchase_date'], '%Y-%m-%d').date(),
+            import_date=datetime.strptime(request.form['import_date'], '%Y-%m-%d').date(),
+            condition=request.form['condition'],
+            status='Sẵn sàng',
+            configuration=request.form.get('configuration'),
+            warranty=request.form.get('warranty'),
+            supplier=request.form.get('supplier'),
+            importer=request.form.get('importer'),
+            notes=request.form.get('notes'),
+            manager_id=request.form.get('manager_id') if request.form.get('manager_id') else None,
+            assign_date=datetime.strptime(request.form['assign_date'], '%Y-%m-%d').date() if request.form.get('assign_date') else None
+        )
+        db.session.add(new_device)
+        db.session.commit()
+        flash('Thêm thiết bị mới thành công!', 'success')
+        return redirect(url_for('device_list'))
+        
+    managers = User.query.order_by(User.full_name).all()
+    return render_template('add_device.html', managers=managers)
+    
+@app.route('/edit_device/<int:device_id>', methods=['GET', 'POST'])
+def edit_device(device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device = Device.query.get_or_404(device_id)
+    if request.method == 'POST':
+        device.name = request.form['name']
+        device.device_type = request.form['device_type']
+        device.serial_number = request.form.get('serial_number')
+        device.purchase_date = datetime.strptime(request.form['purchase_date'], '%Y-%m-%d').date()
+        device.import_date = datetime.strptime(request.form['import_date'], '%Y-%m-%d').date()
+        device.condition = request.form['condition']
+        device.status = request.form['status']
+        device.manager_id = request.form.get('manager_id') if request.form.get('manager_id') else None
+        device.assign_date = datetime.strptime(request.form['assign_date'], '%Y-%m-%d').date() if request.form.get('assign_date') else None
+        device.configuration = request.form.get('configuration')
+        device.notes = request.form.get('notes')
+        device.brand = request.form.get('brand')
+        device.supplier = request.form.get('supplier')
+        device.warranty = request.form.get('warranty')
+        
+        db.session.commit()
+        flash('Cập nhật thông tin thiết bị thành công!', 'success')
+        return redirect(url_for('device_list'))
+        
+    managers = User.query.order_by(User.full_name).all()
+    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
+    return render_template('edit_device.html', device=device, managers=managers, statuses=statuses)
 
+@app.route('/delete_device/<int:device_id>', methods=['POST'])
+def delete_device(device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device = Device.query.get_or_404(device_id)
+    if device.handovers:
+        flash('Không thể xóa thiết bị đã có lịch sử bàn giao.', 'danger')
+        return redirect(url_for('device_list'))
+        
+    db.session.delete(device)
+    db.session.commit()
+    flash('Xóa thiết bị thành công!', 'success')
+    return redirect(url_for('device_list'))
+
+@app.route('/device/<int:device_id>')
+def device_detail(device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device = Device.query.get_or_404(device_id)
+    handovers = DeviceHandover.query.filter_by(device_id=device_id).order_by(DeviceHandover.handover_date.desc()).all()
+    return render_template('device_detail.html', device=device, handovers=handovers)
+
+# --- Handover Routes ---
+@app.route('/handover_list')
+def handover_list():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    filter_device_code = request.args.get('filter_device_code', '')
+    filter_giver_id = request.args.get('filter_giver_id', '')
+    filter_receiver_id = request.args.get('filter_receiver_id', '')
+    filter_device_type = request.args.get('filter_device_type', '')
+    filter_start_date = request.args.get('filter_start_date', '')
+    filter_end_date = request.args.get('filter_end_date', '')
+    
+    query = DeviceHandover.query.join(Device)
+
+    if filter_device_code:
+        query = query.filter(Device.device_code.ilike(f'%{filter_device_code}%'))
+    if filter_giver_id:
+        query = query.filter(DeviceHandover.giver_id == filter_giver_id)
+    if filter_receiver_id:
+        query = query.filter(DeviceHandover.receiver_id == filter_receiver_id)
+    if filter_device_type:
+        query = query.filter(Device.device_type == filter_device_type)
+    if filter_start_date:
+        query = query.filter(DeviceHandover.handover_date >= datetime.strptime(filter_start_date, '%Y-%m-%d').date())
+    if filter_end_date:
+        query = query.filter(DeviceHandover.handover_date <= datetime.strptime(filter_end_date, '%Y-%m-%d').date())
+
+    handovers_pagination = query.order_by(DeviceHandover.handover_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    users = User.query.order_by(User.full_name).all()
+    device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
+    return render_template('handovers.html', handovers=handovers_pagination, users=users, device_types=device_types, filter_device_code=filter_device_code, filter_giver_id=filter_giver_id, filter_receiver_id=filter_receiver_id, filter_device_type=filter_device_type, filter_start_date=filter_start_date, filter_end_date=filter_end_date)
+
+@app.route('/add_handover', methods=['GET', 'POST'])
+def add_handover():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        device_id = request.form.get('device_id')
+        receiver_id = request.form.get('receiver_id')
+        handover_date_str = request.form.get('handover_date')
+        
+        if not device_id or not receiver_id or not handover_date_str:
+            flash('Vui lòng điền đầy đủ các trường bắt buộc.', 'danger')
+            return redirect(url_for('add_handover'))
+            
+        handover_date = datetime.strptime(handover_date_str, '%Y-%m-%d').date()
+        
+        new_handover = DeviceHandover(
+            handover_date=handover_date, 
+            device_id=device_id, 
+            giver_id=request.form['giver_id'], 
+            receiver_id=receiver_id, 
+            device_condition=request.form['device_condition'], 
+            reason=request.form.get('reason', ''), 
+            location=request.form.get('location', ''), 
+            notes=request.form.get('notes', '')
+        )
+        
+        device_to_update = Device.query.get(device_id)
+        if device_to_update:
+            device_to_update.manager_id = int(receiver_id)
+            device_to_update.assign_date = new_handover.handover_date
+            device_to_update.status = 'Đã cấp phát'
+            
+        db.session.add(new_handover)
+        db.session.commit()
+        flash('Tạo phiếu bàn giao thành công!', 'success')
+        return redirect(url_for('handover_list'))
+    
+    preselected_device_id = request.args.get('device_id', type=int)
+    devices = Device.query.filter(or_(Device.status == 'Sẵn sàng', Device.id == preselected_device_id)).order_by(Device.device_code).all()
+    users = User.query.order_by(User.full_name).all()
+    
+    return render_template('add_handover.html', 
+                           devices=devices, 
+                           users=users, 
+                           now=datetime.now(),
+                           preselected_device_id=preselected_device_id)
+
+@app.route('/edit_handover/<int:handover_id>', methods=['GET', 'POST'])
+def edit_handover(handover_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    handover = DeviceHandover.query.get_or_404(handover_id)
+    if request.method == 'POST':
+        handover.handover_date = datetime.strptime(request.form['handover_date'], '%Y-%m-%d').date()
+        handover.device_id = request.form['device_id']
+        handover.giver_id = request.form['giver_id']
+        handover.receiver_id = request.form['receiver_id']
+        handover.device_condition = request.form['device_condition']
+        handover.reason = request.form.get('reason', '')
+        handover.location = request.form.get('location', '')
+        handover.notes = request.form.get('notes', '')
+        db.session.commit()
+        flash('Cập nhật phiếu bàn giao thành công!', 'success')
+        return redirect(url_for('handover_list'))
+        
+    devices = Device.query.order_by(Device.device_code).all()
+    users = User.query.order_by(User.full_name).all()
+    return render_template('edit_handover.html', handover=handover, devices=devices, users=users)
+
+@app.route('/delete_handover/<int:handover_id>', methods=['POST'])
+def delete_handover(handover_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    handover = DeviceHandover.query.get_or_404(handover_id)
+    db.session.delete(handover)
+    db.session.commit()
+    flash('Xóa phiếu bàn giao thành công!', 'success')
+    return redirect(url_for('handover_list'))
+
+@app.route('/import_handovers', methods=['GET', 'POST'])
+def import_handovers():
+    if 'user_id' not in session: return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if not file or not (file.filename.endswith('.xls') or file.filename.endswith('.xlsx')):
+            flash('Vui lòng chọn một file Excel hợp lệ (.xls, .xlsx).', 'danger')
+            return redirect(url_for('import_handovers'))
+
+        try:
+            df = pd.read_excel(file, engine='openpyxl')
+            required_columns = ['Mã thiết bị', 'Tên đăng nhập người giao', 'Tên đăng nhập người nhận', 'Ngày bàn giao', 'Tình trạng thiết bị']
+            if not all(col in df.columns for col in required_columns):
+                flash(f'File Excel phải chứa các cột bắt buộc: {", ".join(required_columns)}.', 'danger')
+                return redirect(url_for('import_handovers'))
+
+            errors = []
+            handovers_to_add = []
+            
+            for index, row in df.iterrows():
+                device_code = str(row['Mã thiết bị'])
+                giver_username = str(row['Tên đăng nhập người giao'])
+                receiver_username = str(row['Tên đăng nhập người nhận'])
+                handover_date_str = str(row['Ngày bàn giao'])
+
+                device = Device.query.filter_by(device_code=device_code).first()
+                giver = User.query.filter_by(username=giver_username).first()
+                receiver = User.query.filter_by(username=receiver_username).first()
+
+                current_row_errors = []
+                if not device:
+                    current_row_errors.append(f'Mã thiết bị "{device_code}" không tồn tại.')
+                if not giver:
+                    current_row_errors.append(f'Người giao "{giver_username}" không tồn tại.')
+                if not receiver:
+                    current_row_errors.append(f'Người nhận "{receiver_username}" không tồn tại.')
+                
+                if device and device.status == 'Đã cấp phát':
+                     current_row_errors.append(f'Thiết bị "{device_code}" đã được cấp phát, không thể bàn giao.')
+
+                if current_row_errors:
+                    errors.append(f"Dòng {index + 2}: " + ", ".join(current_row_errors))
+                    continue 
+
+                try:
+                    handover_date = pd.to_datetime(handover_date_str).date()
+                except (ValueError, TypeError):
+                    errors.append(f'Dòng {index + 2}: Định dạng ngày "{handover_date_str}" không hợp lệ.')
+                    continue
+
+                new_handover = DeviceHandover(
+                    device_id=device.id,
+                    giver_id=giver.id,
+                    receiver_id=receiver.id,
+                    handover_date=handover_date,
+                    device_condition=row['Tình trạng thiết bị'],
+                    reason=row.get('Lý do bàn giao'),
+                    location=row.get('Nơi đặt thiết bị'),
+                    notes=row.get('Ghi chú')
+                )
+                handovers_to_add.append(new_handover)
+                
+                device.status = 'Đã cấp phát'
+                device.manager_id = receiver.id
+                device.assign_date = handover_date
+                
+            if errors:
+                for error in errors:
+                    flash(error, 'danger')
+                db.session.rollback()
+            else:
+                db.session.add_all(handovers_to_add)
+                db.session.commit()
+                flash(f'Đã nhập thành công {len(handovers_to_add)} phiếu bàn giao!', 'success')
+                return redirect(url_for('handover_list'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Đã xảy ra lỗi trong quá trình xử lý file: {str(e)}', 'danger')
+
+    return render_template('import_handovers.html')
+
+# --- User Management Routes ---
+# CẬP NHẬT: user_list, add_user, edit_user, import_users, export_users_excel
+@app.route('/users')
+def user_list():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    filter_username = request.args.get('filter_username', '')
+    filter_role = request.args.get('filter_role', '')
+    filter_department = request.args.get('filter_department', '')
+    filter_status = request.args.get('filter_status', '') # Thêm filter status
+
+    query = User.query
+    if filter_username:
+        query = query.filter(User.username.ilike(f'%{filter_username}%'))
+    if filter_role:
+        query = query.filter_by(role=filter_role)
+    if filter_department:
+        query = query.filter(User.department == filter_department)
+    if filter_status:
+        query = query.filter(User.status == filter_status)
+
+    users_pagination = query.order_by(User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    
+    departments = [d[0] for d in db.session.query(User.department).filter(User.department.isnot(None)).distinct().order_by(User.department)]
+    statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Khác'] # Danh sách trạng thái
+
+    return render_template('users.html', 
+                           users=users_pagination, 
+                           filter_username=filter_username, 
+                           filter_role=filter_role, 
+                           filter_department=filter_department,
+                           filter_status=filter_status, # Truyền filter status
+                           departments=departments,
+                           statuses=statuses) # Truyền danh sách trạng thái
+
+
+@app.route('/add_user', methods=['GET', 'POST'])
+def add_user():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        if User.query.filter_by(username=username).first():
+            flash('Tên đăng nhập đã tồn tại.', 'danger')
+            return redirect(url_for('add_user'))
+        if email and User.query.filter_by(email=email).first():
+            flash('Email đã được sử dụng.', 'danger')
+            return redirect(url_for('add_user'))
+            
+        new_user = User(
+            username=username,
+            password=generate_password_hash(request.form['password']),
+            full_name=request.form.get('full_name'),
+            email=email,
+            date_of_birth=datetime.strptime(request.form['date_of_birth'], '%Y-%m-%d').date() if request.form.get('date_of_birth') else None,
+            role=request.form.get('role', 'user'),
+            department=request.form.get('department'),
+            position=request.form.get('position'),
+            phone_number=request.form.get('phone_number'),
+            notes=request.form.get('notes'),
+            # Xử lý các trường mới
+            status=request.form.get('status', 'Đang làm'),
+            onboard_date=datetime.strptime(request.form['onboard_date'], '%Y-%m-%d').date() if request.form.get('onboard_date') else None,
+            offboard_date=datetime.strptime(request.form['offboard_date'], '%Y-%m-%d').date() if request.form.get('offboard_date') else None,
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Thêm người dùng mới thành công!', 'success')
+        return redirect(url_for('user_list'))
+    return render_template('add_user.html')
+
+@app.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
+def edit_user(user_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get_or_404(user_id)
+    if request.method == 'POST':
+        user.full_name = request.form.get('full_name')
+        user.email = request.form.get('email')
+        user.date_of_birth = datetime.strptime(request.form['date_of_birth'], '%Y-%m-%d').date() if request.form.get('date_of_birth') else None
+        user.role = request.form.get('role')
+        user.department = request.form.get('department')
+        user.position = request.form.get('position')
+        user.phone_number = request.form.get('phone_number')
+        user.notes = request.form.get('notes')
+        
+        # Xử lý các trường mới
+        user.status = request.form.get('status')
+        user.onboard_date = datetime.strptime(request.form['onboard_date'], '%Y-%m-%d').date() if request.form.get('onboard_date') else None
+        user.offboard_date = datetime.strptime(request.form['offboard_date'], '%Y-%m-%d').date() if request.form.get('offboard_date') else None
+
+        new_password = request.form.get('password')
+        if new_password:
+            user.password = generate_password_hash(new_password)
+            
+        db.session.commit()
+        flash('Cập nhật thông tin người dùng thành công!', 'success')
+        return redirect(url_for('user_list'))
+    return render_template('edit_user.html', user=user)
+
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get_or_404(user_id)
+    if user.given_handovers.count() > 0 or user.received_handovers.count() > 0:
+        flash(f'Không thể xóa người dùng "{user.full_name}" vì họ đã có lịch sử bàn giao thiết bị.', 'danger')
+        return redirect(url_for('user_list'))
+    if user_id == session.get('user_id'):
+        flash('Bạn không thể tự xóa tài khoản của mình.', 'danger')
+        return redirect(url_for('user_list'))
+        
+    db.session.delete(user)
+    db.session.commit()
+    flash('Xóa người dùng thành công!', 'success')
+    return redirect(url_for('user_list'))
+
+@app.route('/import_users', methods=['GET', 'POST'])
+def import_users():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if not file or not (file.filename.endswith('.xls') or file.filename.endswith('.xlsx')):
+            flash('Vui lòng chọn một file Excel hợp lệ (.xls, .xlsx).', 'danger')
+            return redirect(url_for('import_users'))
+        
+        try:
+            df = pd.read_excel(file, engine='openpyxl')
+            required_columns = ['Tên đăng nhập', 'Mật khẩu', 'Họ và tên', 'Email', 'Vai trò']
+            if not all(col in df.columns for col in required_columns):
+                flash(f'File Excel phải chứa các cột bắt buộc: {", ".join(required_columns)}.', 'danger')
+                return redirect(url_for('import_users'))
+
+            errors = []
+            users_to_add = []
+            
+            for index, row in df.iterrows():
+                username = str(row['Tên đăng nhập'])
+                password = str(row['Mật khẩu'])
+                email = str(row['Email'])
+
+                if not username or not password or not email:
+                    errors.append(f'Dòng {index + 2}: Tên đăng nhập, Mật khẩu, và Email không được để trống.')
+                    continue
+                if User.query.filter_by(username=username).first():
+                    errors.append(f'Dòng {index + 2}: Tên đăng nhập "{username}" đã tồn tại.')
+                    continue
+                if User.query.filter_by(email=email).first():
+                    errors.append(f'Dòng {index + 2}: Email "{email}" đã tồn tại.')
+                    continue
+                
+                # Xử lý các trường mới từ Excel
+                onboard_date_val = row.get('Ngày Onboard')
+                offboard_date_val = row.get('Ngày Offboard')
+
+                new_user = User(
+                    username=username,
+                    password=generate_password_hash(password),
+                    full_name=row.get('Họ và tên'),
+                    email=email,
+                    role=row.get('Vai trò', 'user'),
+                    department=row.get('Phòng ban'),
+                    position=row.get('Chức vụ'),
+                    phone_number=str(row.get('SĐT', '')) if pd.notna(row.get('SĐT')) else None,
+                    notes=row.get('Ghi chú'),
+                    status=row.get('Trạng thái', 'Đang làm'),
+                    onboard_date=pd.to_datetime(onboard_date_val).date() if pd.notna(onboard_date_val) else None,
+                    offboard_date=pd.to_datetime(offboard_date_val).date() if pd.notna(offboard_date_val) else None
+                )
+                users_to_add.append(new_user)
+
+            if errors:
+                for error in errors:
+                    flash(error, 'danger')
+            else:
+                db.session.add_all(users_to_add)
+                db.session.commit()
+                flash(f'Đã nhập thành công {len(users_to_add)} người dùng mới!', 'success')
+                return redirect(url_for('user_list'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Đã xảy ra lỗi trong quá trình xử lý file: {str(e)}', 'danger')
+
+    return render_template('import_users.html')
+
+# --- API Routes ---
+@app.route('/api/device_info/<int:device_id>')
+def device_info(device_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    device = Device.query.get(device_id)
+    if device:
+        return jsonify({'id': device.id, 'name': device.name, 'device_code': device.device_code})
+    return jsonify({'error': 'Device not found'}), 404
+
+# --- Import/Export Routes ---
 @app.route('/export_devices_excel')
 def export_devices_excel():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -180,22 +704,13 @@ def export_devices_excel():
     data = []
     for device in devices:
         data.append({
-            'Mã thiết bị': device.device_code,
-            'Tên thiết bị': device.name,
-            'Loại thiết bị': device.device_type,
-            'Số serial': device.serial_number or '',
-            'Ngày mua': device.purchase_date.strftime('%d-%m-%Y') if device.purchase_date else '',
-            'Ngày nhập': device.import_date.strftime('%d-%m-%Y') if device.import_date else '',
-            'Tình trạng': device.condition,
-            'Trạng thái': device.status,
-            'Người quản lý': device.manager.full_name if device.manager else '',
+            'Mã thiết bị': device.device_code, 'Tên thiết bị': device.name, 'Loại thiết bị': device.device_type,
+            'Số serial': device.serial_number or '', 'Ngày mua': device.purchase_date.strftime('%d-%m-%Y') if device.purchase_date else '',
+            'Ngày nhập': device.import_date.strftime('%d-%m-%Y') if device.import_date else '', 'Tình trạng': device.condition,
+            'Trạng thái': device.status, 'Người quản lý': device.manager.full_name if device.manager else '',
             'Ngày cấp phát': device.assign_date.strftime('%d-%m-%Y') if device.assign_date else '',
-            'Cấu hình': device.configuration or '',
-            'Ghi chú': device.notes or '',
-            'Người mua': device.buyer or '',
-            'Người nhập': device.importer or '',
-            'Thương hiệu': device.brand or '',
-            'Nhà cung cấp': device.supplier or '',
+            'Cấu hình': device.configuration or '', 'Ghi chú': device.notes or '', 'Người mua': device.buyer or '',
+            'Người nhập': device.importer or '', 'Thương hiệu': device.brand or '', 'Nhà cung cấp': device.supplier or '',
             'Bảo hành': device.warranty or ''
         })
     df = pd.DataFrame(data)
@@ -203,13 +718,9 @@ def export_devices_excel():
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Devices')
     output.seek(0)
-    return send_file(
-        output,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        as_attachment=True,
-        download_name=f'devices_list_{datetime.now().strftime("%Y%m%d")}.xlsx'
-    )
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'devices_list_{datetime.now().strftime("%Y%m%d")}.xlsx')
 
+# Thay thế hàm này trong app.py
 @app.route('/import_devices', methods=['GET', 'POST'])
 def import_devices():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -237,82 +748,46 @@ def import_devices():
             
             valid_conditions = ['Mới', 'Sử dụng bình thường', 'Cần bảo trì', 'Hỏng']
             valid_statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì']
+            # BỔ SUNG 'Server' VÀO ĐÂY
             valid_device_types = [
                 'Laptop', 'Case máy tính', 'Màn hình', 'Bàn phím', 'Chuột', 'Ổ cứng',
-                'Ram', 'Card màn hình', 'Máy in', 'Thiết bị mạng', 'Thiết bị khác'
+                'Ram', 'Card màn hình', 'Máy in', 'Thiết bị mạng', 'Server', 'Thiết bị khác'
             ]
             
             for index, row in df.iterrows():
-                # Validate required fields
                 if not row['Mã thiết bị'] or not row['Tên thiết bị'] or not row['Loại thiết bị'] or not row['Tình trạng'] or not row['Trạng thái']:
-                    flash(f'Dòng {index+2}: Thiếu thông tin bắt buộc (Mã thiết bị, Tên thiết bị, Loại thiết bị, Tình trạng, hoặc Trạng thái).', 'danger')
-                    continue
+                    flash(f'Dòng {index+2}: Thiếu thông tin bắt buộc.', 'danger'); continue
                 if Device.query.filter_by(device_code=row['Mã thiết bị']).first():
-                    flash(f'Dòng {index+2}: Mã thiết bị {row["Mã thiết bị"]} đã tồn tại.', 'danger')
-                    continue
+                    flash(f'Dòng {index+2}: Mã thiết bị {row["Mã thiết bị"]} đã tồn tại.', 'danger'); continue
                 if row['Loại thiết bị'] not in valid_device_types:
-                    flash(f'Dòng {index+2}: Loại thiết bị {row["Loại thiết bị"]} không hợp lệ.', 'danger')
-                    continue
+                    flash(f'Dòng {index+2}: Loại thiết bị "{row["Loại thiết bị"]}" không hợp lệ.', 'danger'); continue
                 if row['Tình trạng'] not in valid_conditions:
-                    flash(f'Dòng {index+2}: Tình trạng {row["Tình trạng"]} không hợp lệ.', 'danger')
-                    continue
+                    flash(f'Dòng {index+2}: Tình trạng không hợp lệ.', 'danger'); continue
                 if row['Trạng thái'] not in valid_statuses:
-                    flash(f'Dòng {index+2}: Trạng thái {row["Trạng thái"]} không hợp lệ.', 'danger')
-                    continue
+                    flash(f'Dòng {index+2}: Trạng thái không hợp lệ.', 'danger'); continue
                 
-                # Handle manager
                 manager_id = None
                 if pd.notna(row['Người quản lý']) and row['Người quản lý']:
                     manager = User.query.filter_by(full_name=row['Người quản lý']).first()
                     if not manager:
-                        flash(f'Dòng {index+2}: Người quản lý {row["Người quản lý"]} không tồn tại.', 'danger')
-                        continue
+                        flash(f'Dòng {index+2}: Người quản lý {row["Người quản lý"]} không tồn tại.', 'danger'); continue
                     manager_id = manager.id
                 
-                # Handle dates
-                purchase_date = None
-                if pd.notna(row['Ngày mua']):
-                    try:
-                        purchase_date = pd.to_datetime(row['Ngày mua'], format='%d-%m-%Y').date()
-                    except ValueError:
-                        flash(f'Dòng {index+2}: Ngày mua {row["Ngày mua"]} không đúng định dạng (dd-mm-yyyy).', 'danger')
-                        continue
+                try:
+                    purchase_date = pd.to_datetime(row['Ngày mua']).date() if pd.notna(row['Ngày mua']) else None
+                    import_date = pd.to_datetime(row['Ngày nhập']).date() if pd.notna(row['Ngày nhập']) else None
+                    assign_date = pd.to_datetime(row['Ngày cấp phát']).date() if pd.notna(row['Ngày cấp phát']) else None
+                except ValueError:
+                    flash(f'Dòng {index+2}: Định dạng ngày không hợp lệ.', 'danger'); continue
                 
-                import_date = None
-                if pd.notna(row['Ngày nhập']):
-                    try:
-                        import_date = pd.to_datetime(row['Ngày nhập'], format='%d-%m-%Y').date()
-                    except ValueError:
-                        flash(f'Dòng {index+2}: Ngày nhập {row["Ngày nhập"]} không đúng định dạng (dd-mm-yyyy).', 'danger')
-                        continue
-                
-                assign_date = None
-                if pd.notna(row['Ngày cấp phát']):
-                    try:
-                        assign_date = pd.to_datetime(row['Ngày cấp phát'], format='%d-%m-%Y').date()
-                    except ValueError:
-                        flash(f'Dòng {index+2}: Ngày cấp phát {row["Ngày cấp phát"]} không đúng định dạng (dd-mm-yyyy).', 'danger')
-                        continue
-                
-                # Create new device
                 new_device = Device(
-                    device_code=row['Mã thiết bị'],
-                    name=row['Tên thiết bị'],
-                    device_type=row['Loại thiết bị'],
-                    serial_number=row['Số serial'] if pd.notna(row['Số serial']) else None,
-                    purchase_date=purchase_date,
-                    import_date=import_date,
-                    condition=row['Tình trạng'],
-                    status=row['Trạng thái'],
-                    manager_id=manager_id,
-                    assign_date=assign_date,
-                    configuration=row['Cấu hình'] if pd.notna(row['Cấu hình']) else None,
-                    notes=row['Ghi chú'] if pd.notna(row['Ghi chú']) else None,
-                    buyer=row['Người mua'] if pd.notna(row['Người mua']) else None,
-                    importer=row['Người nhập'] if pd.notna(row['Người nhập']) else None,
-                    brand=row['Thương hiệu'] if pd.notna(row['Thương hiệu']) else None,
-                    supplier=row['Nhà cung cấp'] if pd.notna(row['Nhà cung cấp']) else None,
-                    warranty=row['Bảo hành'] if pd.notna(row['Bảo hành']) else None
+                    device_code=row['Mã thiết bị'], name=row['Tên thiết bị'], device_type=row['Loại thiết bị'],
+                    serial_number=row['Số serial'] if pd.notna(row['Số serial']) else None, purchase_date=purchase_date,
+                    import_date=import_date, condition=row['Tình trạng'], status=row['Trạng thái'], manager_id=manager_id,
+                    assign_date=assign_date, configuration=row['Cấu hình'] if pd.notna(row['Cấu hình']) else None,
+                    notes=row['Ghi chú'] if pd.notna(row['Ghi chú']) else None, buyer=row['Người mua'] if pd.notna(row['Người mua']) else None,
+                    importer=row['Người nhập'] if pd.notna(row['Người nhập']) else None, brand=row['Thương hiệu'] if pd.notna(row['Thương hiệu']) else None,
+                    supplier=row['Nhà cung cấp'] if pd.notna(row['Nhà cung cấp']) else None, warranty=row['Bảo hành'] if pd.notna(row['Bảo hành']) else None
                 )
                 db.session.add(new_device)
             
@@ -325,84 +800,28 @@ def import_devices():
             return redirect(url_for('import_devices'))
     return render_template('import_devices.html')
 
-@app.route('/handover_list')
-def handover_list():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    page = request.args.get('page', 1, type=int)
-    per_page = 10
-    filter_device_code = request.args.get('filter_device_code', '')
-    filter_giver_id = request.args.get('filter_giver_id', '')
-    filter_receiver_id = request.args.get('filter_receiver_id', '')
-    filter_device_type = request.args.get('filter_device_type', '')
-    filter_start_date = request.args.get('filter_start_date', '')
-    filter_end_date = request.args.get('filter_end_date', '')
-    
-    query = DeviceHandover.query.join(Device).join(User, DeviceHandover.giver_id == User.id).join(User, DeviceHandover.receiver_id == User.id, aliased=True)
-    if filter_device_code:
-        query = query.filter(Device.device_code.ilike(f'%{filter_device_code}%'))
-    if filter_giver_id:
-        query = query.filter(DeviceHandover.giver_id == filter_giver_id)
-    if filter_receiver_id:
-        query = query.filter(DeviceHandover.receiver_id == filter_receiver_id)
-    if filter_device_type:
-        query = query.filter(Device.device_type == filter_device_type)
-    if filter_start_date:
-        query = query.filter(DeviceHandover.handover_date >= datetime.strptime(filter_start_date, '%Y-%m-%d').date())
-    if filter_end_date:
-        query = query.filter(DeviceHandover.handover_date <= datetime.strptime(filter_end_date, '%Y-%m-%d').date())
-    handovers_pagination=query.order_by(DeviceHandover.handover_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    users=User.query.order_by(User.full_name).all()
-    device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
-    return render_template('handovers.html', handovers=handovers_pagination, users=users, device_types=device_types, filter_device_code=filter_device_code, filter_giver_id=filter_giver_id, filter_receiver_id=filter_receiver_id, filter_device_type=filter_device_type, filter_start_date=filter_start_date, filter_end_date=filter_end_date)
-
-@app.route('/add_handover', methods=['GET', 'POST'])
-def add_handover():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    if request.method == 'POST':
-        new_handover=DeviceHandover(handover_date=datetime.strptime(request.form['handover_date'], '%Y-%m-%d').date(), device_id=request.form['device_id'], giver_id=request.form['giver_id'], receiver_id=request.form['receiver_id'], device_condition=request.form['device_condition'], reason=request.form.get('reason', ''), location=request.form.get('location', ''), notes=request.form.get('notes', ''))
-        device_to_update=Device.query.get(request.form['device_id'])
-        if device_to_update:
-            device_to_update.manager_id = request.form['receiver_id']
-            device_to_update.assign_date = new_handover.handover_date
-            device_to_update.status='Đã cấp phát'
-        db.session.add(new_handover); db.session.commit()
-        flash('Tạo phiếu bàn giao thành công!', 'success')
-        return redirect(url_for('handover_list'))
-    devices=Device.query.order_by(Device.device_code).all()
-    users=User.query.order_by(User.full_name).all()
-    return render_template('add_handover.html', devices=devices, users=users, now=datetime.now())
-
-@app.route('/edit_handover/<int:handover_id>', methods=['GET', 'POST'])
-def edit_handover(handover_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    handover=DeviceHandover.query.get_or_404(handover_id)
-    if request.method == 'POST':
-        handover.handover_date=datetime.strptime(request.form['handover_date'], '%Y-%m-%d').date()
-        handover.device_id=request.form['device_id']; handover.giver_id=request.form['giver_id']
-        handover.receiver_id=request.form['receiver_id']; handover.device_condition=request.form['device_condition']
-        handover.reason=request.form.get('reason', ''); handover.location=request.form.get('location', '')
-        handover.notes=request.form.get('notes', ''); db.session.commit()
-        flash('Cập nhật phiếu bàn giao thành công!', 'success')
-        return redirect(url_for('handover_list'))
-    devices=Device.query.order_by(Device.device_code).all()
-    users=User.query.order_by(User.full_name).all()
-    return render_template('edit_handover.html', handover=handover, devices=devices, users=users)
-
-@app.route('/delete_handover/<int:handover_id>', methods=['POST'])
-def delete_handover(handover_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    handover=DeviceHandover.query.get_or_404(handover_id)
-    db.session.delete(handover); db.session.commit()
-    flash('Xóa phiếu bàn giao thành công!', 'success')
-    return redirect(url_for('handover_list'))
-
 @app.route('/export_users_excel')
 def export_users_excel():
     if 'user_id' not in session: return redirect(url_for('login'))
     users = User.query.order_by(User.id.desc()).all()
     data = []
     for user in users:
-        data.append({'ID': user.id, 'Tên đăng nhập': user.username, 'Họ và tên': user.full_name, 'Email': user.email, 'Phòng ban': user.department, 'Chức vụ': user.position, 'SĐT': user.phone_number, 'Ngày sinh': user.date_of_birth.strftime('%d-%m-%Y') if user.date_of_birth else '', 'Vai trò': user.role, 'Ngày tạo': user.created_at.strftime('%d-%m-%Y %H:%M:%S'), 'Đăng nhập lần cuối': user.last_login.strftime('%d-%m-%Y %H:%M:%S') if user.last_login else ''})
+        data.append({
+            'ID': user.id,
+            'Tên đăng nhập': user.username,
+            'Họ và tên': user.full_name,
+            'Email': user.email,
+            'Phòng ban': user.department,
+            'Chức vụ': user.position,
+            'Trạng thái': user.status, # Cập nhật
+            'Ngày Onboard': user.onboard_date.strftime('%d-%m-%Y') if user.onboard_date else '', # Cập nhật
+            'Ngày Offboard': user.offboard_date.strftime('%d-%m-%Y') if user.offboard_date else '', # Cập nhật
+            'SĐT': user.phone_number,
+            'Ngày sinh': user.date_of_birth.strftime('%d-%m-%Y') if user.date_of_birth else '',
+            'Vai trò': user.role,
+            'Ngày tạo': user.created_at.strftime('%d-%m-%Y %H:%M:%S'),
+            'Đăng nhập lần cuối': user.last_login.strftime('%d-%m-%Y %H:%M:%S') if user.last_login else ''
+        })
     df = pd.DataFrame(data)
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Users')
@@ -422,7 +841,8 @@ def export_handovers_excel():
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'handover_history_{datetime.now().strftime("%Y%m%d")}.xlsx')
 
-# <<< CÁC LỆNH QUẢN TRỊ MỚI >>>
+
+# --- CLI Commands ---
 @app.cli.command("init-db")
 def init_db_command():
     """Tạo mới các bảng trong cơ sở dữ liệu."""
@@ -446,4 +866,48 @@ def create_admin_command():
     )
     db.session.add(admin_user)
     db.session.commit()
-    click.echo("Đã tạo tài khoản admin thành công (Pass: admin123).")
+    click.echo("Đã tạo tài khoản admin thành công (Username: admin, Pass: admin123).")
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+#
+# {
+# type: uploaded file
+# fileName: add_user.html
+# fullContent:
+# {% extends "base.html" %}
+#
+# {% block title %}Thêm Người Dùng Mới{% endblock %}
+#
+# {% block content %}
+# <div class="card">
+#     <div class="card-header"><h2 class="card-title mb-0">Thêm Người Dùng Mới</h2></div>
+#     <div class="card-body">
+#         <form method="POST">
+#             <div class="row">
+#                 <div class="col-md-6">
+#                     <div class="mb-3"><label class="form-label required">Tên đăng nhập</label><input type="text" name="username" class="form-control" required></div>
+#                     <div class="mb-3"><label class="form-label required">Mật khẩu</label><input type="password" name="password" class="form-control" required></div>
+#                     <div class="mb-3"><label class="form-label">Họ và tên</label><input type="text" name="full_name" class="form-control"></div>
+#                     <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control"></div>
+#                     <div class="mb-3"><label class="form-label">Ngày sinh</label><input type="date" name="date_of_birth" class="form-control"></div>
+#                 </div>
+#                 <div class="col-md-6">
+#                     <div class="mb-3"><label class="form-label">Vai trò</label><select name="role" class="form-control"><option value="user">Người dùng</option><option value="admin">Quản trị viên</option></select></div>
+#                     <div class="mb-3"><label class="form-label">Phòng ban</label><input type="text" name="department" class="form-control"></div>
+#                     <div class="mb-3"><label class="form-label">Chức vụ</label><input type="text" name="position" class="form-control"></div>
+#                     <div class="mb-3"><label class="form-label">Số điện thoại</label><input type="text" name="phone_number" class="form-control"></div>
+#                     <div class="mb-3"><label class="form-label">Ghi chú</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
+#                 </div>
+#             </div>
+#             <div class="form-group mt-3">
+#                 <a href="{{ url_for('user_list') }}" class="btn btn-secondary">Hủy bỏ</a>
+#                 <button type="submit" class="btn btn-primary">Lưu người dùng</button>
+#             </div>
+#         </form>
+#     </div>
+# </div>
+# {% endblock %}
+# }
+#
