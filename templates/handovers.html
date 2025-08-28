@@ -23,25 +23,33 @@
             </div>
         </form>
         <div class="table-responsive"><table class="table table-striped table-hover mt-3">
-            <thead class="table-light"><tr><th>STT</th><th>Ngày Bàn Giao</th><th>Mã Thiết Bị</th><th>Tên Thiết Bị</th><th class="text-center">Cấu hình</th><th>Người Giao</th><th>Người Nhận</th><th>Tình Trạng</th><th class="text-center">Hành động</th></tr></thead>
+            <thead class="table-light"><tr><th>STT</th><th>Ngày Bàn Giao</th><th>Mã Thiết Bị</th><th>Tên Thiết Bị</th><th>Người Giao</th><th>Người Nhận</th><th>Tình Trạng</th><th class="text-center">Hành động</th></tr></thead>
             <tbody>
                 {% for handover in handovers.items %}
                 <tr>
                     <td>{{ handovers.first + loop.index - 1 }}</td>
                     <td>{{ handover.handover_date.strftime('%d-%m-%Y') }}</td>
-                    <td><a href="{{ url_for('device_detail', device_id=handover.device.id) }}"><strong>{{ handover.device.device_code }}</strong></a></td>
-                    <td>{{ handover.device.name }}</td>
-                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#configModal{{ handover.device.id }}" title="Xem cấu hình"><i class="bi bi-card-text"></i></button></td>
-                    <td>{{ handover.giver.full_name }}</td>
-                    <td>{{ handover.receiver.full_name }}</td>
+                    
+                    <td>
+                        {% if handover.device %}
+                            <a href="{{ url_for('device_detail', device_id=handover.device.id) }}"><strong>{{ handover.device.device_code }}</strong></a>
+                        {% else %}
+                            <span class="text-danger">Đã xóa</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ handover.device.name if handover.device else '' }}</td>
+                    
+                    <td>{{ handover.giver.full_name if handover.giver else 'Đã xóa' }}</td>
+                    <td>{{ handover.receiver.full_name if handover.receiver else 'Đã xóa' }}</td>
+                    
                     <td>{{ handover.device_condition }}</td>
                     <td class="text-center">
                         <a href="{{ url_for('edit_handover', handover_id=handover.id) }}" class="btn btn-sm btn-outline-warning" title="Sửa"><i class="bi bi-pencil-square"></i></a>
                         <form method="POST" action="{{ url_for('delete_handover', handover_id=handover.id) }}" style="display:inline;" onsubmit="return confirm('Bạn chắc chắn muốn xóa phiếu bàn giao này?')"><button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i class="bi bi-trash"></i></button></form>
                     </td>
                 </tr>
-                <div class="modal fade" id="configModal{{ handover.device.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Cấu hình: {{ handover.device.name }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><pre style="white-space: pre-wrap;">{{ handover.device.configuration or 'Chưa có thông tin cấu hình.' }}</pre></div></div></div></div>
-                {% else %}<tr><td colspan="9" class="text-center">Không có dữ liệu bàn giao.</td></tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center">Không có dữ liệu bàn giao.</td></tr>
                 {% endfor %}
             </tbody>
         </table></div>
