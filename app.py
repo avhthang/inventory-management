@@ -458,23 +458,68 @@ def add_handover():
                            preselected_device_id=preselected_device_id)
 
 # ... (Các hàm edit_handover, delete_handover giữ nguyên) ...
+# Thay thế hàm này trong file app.py
+
 @app.route('/edit_handover/<int:handover_id>', methods=['GET', 'POST'])
 def edit_handover(handover_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    
     handover = DeviceHandover.query.get_or_404(handover_id)
+    
+    # Lưu lại thông tin cũ trước khi thay đổi
+    old_device_id = handover.device_id
+    
     if request.method == 'POST':
-        handover.handover_date = datetime.strptime(request.form['handover_date'], '%Y-%m-%d').date()
-        handover.device_id = request.form['device_id']
-        handover.giver_id = request.form['giver_id']
-        handover.receiver_id = request.form['receiver_id']
+        # Lấy thông tin mới từ form
+        new_device_id = int(request.form['device_id'])
+        new_receiver_id = int(request.form['receiver_id'])
+        new_handover_date = datetime.strptime(request.form['handover_date'], '%Y-%m-%d').date()
+
+        # Cập nhật thông tin trên phiếu bàn giao
+        handover.handover_date = new_handover_date
+        handover.device_id = new_device_id
+        handover.giver_id = int(request.form['giver_id'])
+        handover.receiver_id = new_receiver_id
         handover.device_condition = request.form['device_condition']
         handover.reason = request.form.get('reason', '')
         handover.location = request.form.get('location', '')
         handover.notes = request.form.get('notes', '')
+
+        # --- LOGIC CẬP NHẬT THIẾT BỊ ---
+
+        # 1. Xử lý thiết bị MỚI được chọn trong phiếu
+        new_device = Device.query.get(new_device_id)
+        if new_device:
+            new_device.status = 'Đã cấp phát'
+            new_device.manager_id = new_receiver_id
+            new_device.assign_date = new_handover_date
+
+        # 2. Xử lý thiết bị CŨ (nếu người dùng thay đổi thiết bị trong phiếu)
+        if old_device_id != new_device_id:
+            old_device = Device.query.get(old_device_id)
+            if old_device:
+                # Tìm xem thiết bị cũ này còn phiếu bàn giao nào khác không
+                last_handover_for_old_device = DeviceHandover.query \
+                    .filter(DeviceHandover.device_id == old_device_id) \
+                    .filter(DeviceHandover.id != handover_id) \
+                    .order_by(DeviceHandover.handover_date.desc()).first()
+                
+                if last_handover_for_old_device:
+                    # Nếu còn, trả nó về cho người nhận của phiếu gần nhất
+                    old_device.status = 'Đã cấp phát'
+                    old_device.manager_id = last_handover_for_old_device.receiver_id
+                    old_device.assign_date = last_handover_for_old_device.handover_date
+                else:
+                    # Nếu không còn phiếu nào khác, trả về trạng thái "Sẵn sàng"
+                    old_device.status = 'Sẵn sàng'
+                    old_device.manager_id = None
+                    old_device.assign_date = None
+        
         db.session.commit()
-        flash('Cập nhật phiếu bàn giao thành công!', 'success')
+        flash('Cập nhật phiếu bàn giao và thông tin thiết bị thành công!', 'success')
         return redirect(url_for('handover_list'))
         
+    # Phần logic cho phương thức GET giữ nguyên
     devices = Device.query.order_by(Device.device_code).all()
     users = User.query.order_by(User.full_name).all()
     return render_template('edit_handover.html', handover=handover, devices=devices, users=users)
