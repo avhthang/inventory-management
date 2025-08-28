@@ -1,43 +1,98 @@
 {% extends "base.html" %}
 
-{% block title %}Chi tiết Thiết Bị{% endblock %}
+{% block title %}Chi tiết: {{ device.device_code }}{% endblock %}
 
 {% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-md-between align-items-md-center mb-3">
+    
+    <h2 class="mb-2 mb-md-0">
+        Chi tiết Thiết bị: <strong>{{ device.name }} ({{ device.device_code }})</strong>
+    </h2>
+
+    <div class="flex-shrink-0">
+        <a href="{{ url_for('device_list') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Quay lại</a>
+        <a href="{{ url_for('edit_device', device_id=device.id) }}" class="btn btn-warning ms-2"><i class="bi bi-pencil-square"></i> Chỉnh sửa</a>
+        {% if device.status == 'Sẵn sàng' %}
+            <a href="{{ url_for('add_handover', device_id=device.id) }}" class="btn btn-primary ms-2"><i class="bi bi-arrow-right-square"></i> Tạo Phiếu Bàn Giao</a>
+        {% endif %}
+    </div>
+</div>
+
 <div class="card">
-    <div class="card-header"><h2 class="card-title mb-0">Chi tiết: {{ device.name }}</h2></div>
     <div class="card-body">
         <div class="row">
             <div class="col-md-6">
-                <h5>Thông tin cơ bản</h5>
-                <p><strong>Mã thiết bị:</strong> {{ device.device_code }}</p>
-                <p><strong>Loại thiết bị:</strong> {{ device.device_type }}</p>
-                <p><strong>Thương hiệu:</strong> {{ device.brand or 'Chưa có' }}</p>
-                <p><strong>Nhà cung cấp:</strong> {{ device.supplier or 'Chưa có' }}</p>
-                <p><strong>Bảo hành:</strong> {{ device.warranty or 'Chưa có' }}</p>
-                <p><strong>Số serial:</strong> {{ device.serial_number or 'Chưa có' }}</p>
+                <h5><i class="bi bi-info-circle-fill text-primary"></i> Thông tin chung</h5>
+                <table class="table table-sm table-borderless table-details">
+                    <tr><td width="35%"><strong>Mã thiết bị:</strong></td><td>{{ device.device_code }}</td></tr>
+                    <tr><td><strong>Loại thiết bị:</strong></td><td>{{ device.device_type }}</td></tr>
+                    <tr><td><strong>Tên thiết bị:</strong></td><td>{{ device.name }}</td></tr>
+                    <tr><td><strong>Số serial:</strong></td><td>{{ device.serial_number or 'N/A' }}</td></tr>
+                    <tr><td><strong>Thương hiệu:</strong></td><td>{{ device.brand or 'N/A' }}</td></tr>
+                </table>
+
+                <h5 class="mt-4"><i class="bi bi-cart-fill text-success"></i> Thông tin mua hàng</h5>
+                <table class="table table-sm table-borderless table-details">
+                    <tr><td width="35%"><strong>Ngày mua:</strong></td><td>{{ device.purchase_date.strftime('%d-%m-%Y') }}</td></tr>
+                    <tr><td><strong>Giá mua:</strong></td><td><strong>{{ '{:,.0f} VNĐ'.format(device.purchase_price) if device.purchase_price else 'N/A' }}</strong></td></tr>
+                    <tr><td><strong>Người mua:</strong></td><td>{{ device.buyer or 'N/A' }}</td></tr>
+                    <tr><td><strong>Nhà cung cấp:</strong></td><td>{{ device.supplier or 'N/A' }}</td></tr>
+                    <tr><td><strong>Bảo hành:</strong></td><td>{{ device.warranty or 'N/A' }}</td></tr>
+                </table>
+            </div>
+
+            <div class="col-md-6">
+                <h5><i class="bi bi-check-circle-fill text-info"></i> Tình trạng & Quản lý</h5>
+                <table class="table table-sm table-borderless table-details">
+                    <tr><td width="35%"><strong>Tình trạng:</strong></td><td><span class="badge bg-info">{{ device.condition }}</span></td></tr>
+                    <tr><td><strong>Trạng thái:</strong></td><td>
+                        {% if device.status == 'Đã cấp phát' %}<span class="badge bg-success">{{ device.status }}</span>
+                        {% elif device.status == 'Sẵn sàng' %}<span class="badge bg-primary">{{ device.status }}</span>
+                        {% elif device.status == 'Bảo trì' %}<span class="badge bg-warning text-dark">{{ device.status }}</span>
+                        {% else %}<span class="badge bg-danger">{{ device.status }}</span>
+                        {% endif %}
+                    </td></tr>
+                    <tr><td><strong>Người sử dụng:</strong></td><td>{{ device.manager.full_name if device.manager else 'Chưa cấp phát' }}</td></tr>
+                    <tr><td><strong>Ngày cấp phát:</strong></td><td>{{ device.assign_date.strftime('%d-%m-%Y') if device.assign_date else 'N/A' }}</td></tr>
+                    <tr><td><strong>Người nhập kho:</strong></td><td>{{ device.importer or 'N/A' }}</td></tr>
+                    <tr><td><strong>Ngày nhập kho:</strong></td><td>{{ device.import_date.strftime('%d-%m-%Y') }}</td></tr>
+                </table>
+            </div>
+        </div>
+        <hr>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <h5><i class="bi bi-gear-fill"></i> Cấu hình chi tiết</h5>
+                <pre class="bg-light p-2 rounded" style="font-size: 0.9rem;">{{ device.configuration or 'Không có thông tin cấu hình.' }}</pre>
             </div>
             <div class="col-md-6">
-                <h5>Tình trạng & Bàn giao</h5>
-                <p><strong>Tình trạng:</strong> <span class="badge bg-info">{{ device.condition }}</span></p>
-                <p><strong>Trạng thái:</strong> <span class="badge bg-primary">{{ device.status }}</span></p>
-                <p><strong>Người sử dụng:</strong> {{ device.manager.full_name if device.manager else 'Chưa cấp phát' }}</p>
-                <p><strong>Ngày bàn giao:</strong> {{ device.assign_date.strftime('%d-%m-%Y') if device.assign_date else 'Chưa cấp phát' }}</p>
-                <p><strong>Ngày mua:</strong> {{ device.purchase_date.strftime('%d-%m-%Y') }}</p>
-                <p><strong>Ngày nhập kho:</strong> {{ device.import_date.strftime('%d-%m-%Y') }}</p>
+                <h5><i class="bi bi-journal-text"></i> Ghi chú</h5>
+                <pre class="bg-light p-2 rounded" style="font-size: 0.9rem;">{{ device.notes or 'Không có ghi chú.' }}</pre>
             </div>
-        </div><hr>
-        <div>
-            <h5>Cấu hình chi tiết</h5>
-            <pre>{{ device.configuration or 'Không có thông tin cấu hình.' }}</pre>
-        </div><hr>
-        <div>
-            <h5>Ghi chú</h5>
-            <p>{{ device.notes or 'Không có ghi chú.' }}</p>
         </div>
     </div>
-    <div class="card-footer">
-        <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Quay lại</a>
-        <a href="{{ url_for('edit_device', device_id=device.id) }}" class="btn btn-warning">Chỉnh sửa</a>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-clock-history"></i> Lịch sử Bàn giao</h5></div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light"><tr><th>Ngày</th><th>Người Giao</th><th>Người Nhận</th><th>Tình trạng khi giao</th></tr></thead>
+                <tbody>
+                    {% for handover in handovers %}
+                    <tr>
+                        <td>{{ handover.handover_date.strftime('%d-%m-%Y') }}</td>
+                        <td>{{ handover.giver.full_name }}</td>
+                        <td>{{ handover.receiver.full_name }}</td>
+                        <td>{{ handover.device_condition }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="text-center text-muted p-3">Chưa có lịch sử bàn giao.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}

@@ -11,7 +11,7 @@
                 <div class="col-md-6">
                     <div class="form-group mb-3">
                         <label class="form-label required">Mã thiết bị</label>
-                        <input type="text" name="device_code" class="form-control" value="{{ device.device_code }}" required>
+                        <input type="text" name="device_code" class="form-control" value="{{ device.device_code }}" required readonly>
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label required">Tên thiết bị</label>
@@ -31,6 +31,7 @@
                             <option value="Card màn hình" {% if device.device_type == 'Card màn hình' %}selected{% endif %}>Card màn hình</option>
                             <option value="Máy in" {% if device.device_type == 'Máy in' %}selected{% endif %}>Máy in</option>
                             <option value="Thiết bị mạng" {% if device.device_type == 'Thiết bị mạng' %}selected{% endif %}>Thiết bị mạng</option>
+                            <option value="Server" {% if device.device_type == 'Server' %}selected{% endif %}>Server</option>
                             <option value="Thiết bị khác" {% if device.device_type == 'Thiết bị khác' %}selected{% endif %}>Thiết bị khác</option>
                         </select>
                     </div>
@@ -52,17 +53,29 @@
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label">Cấu hình chi tiết</label>
-                        <textarea name="configuration" class="form-control" rows="3">{{ device.configuration or '' }}</textarea>
+                        <textarea name="configuration" class="form-control" rows="2">{{ device.configuration or '' }}</textarea>
                     </div>
                 </div>
                 <div class="col-md-6">
                      <div class="form-group mb-3">
                         <label class="form-label required">Ngày mua</label>
-                        <input type="date" name="purchase_date" class="form-control" value="{{ device.purchase_date.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" name="purchase_date" class="form-control" value="{{ device.purchase_date.strftime('%Y-%m-%d') if device.purchase_date else '' }}" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Giá mua (VND)</label>
+                        <input type="number" step="1000" name="purchase_price" class="form-control" value="{{ device.purchase_price or '' }}" placeholder="Chỉ nhập số, VD: 15000000">
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Người mua</label>
+                        <input type="text" name="buyer" class="form-control" value="{{ device.buyer or '' }}">
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label">Người nhập kho</label>
+                        <input type="text" name="importer" class="form-control" value="{{ device.importer or '' }}">
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label required">Ngày nhập kho</label>
-                        <input type="date" name="import_date" class="form-control" value="{{ device.import_date.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" name="import_date" class="form-control" value="{{ device.import_date.strftime('%Y-%m-%d') if device.import_date else '' }}" required>
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label required">Tình trạng</label>
@@ -84,7 +97,7 @@
                     <div class="form-group mb-3">
                         <label class="form-label">Người sử dụng</label>
                         <select name="manager_id" class="form-control">
-                            <option value="">-- Chọn --</option>
+                            <option value="">-- Bỏ chọn --</option>
                             {% for manager in managers %}<option value="{{ manager.id }}" {% if device.manager_id == manager.id %}selected{% endif %}>{{ manager.full_name }}</option>{% endfor %}
                         </select>
                     </div>
@@ -94,7 +107,7 @@
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label">Ghi chú</label>
-                        <textarea name="notes" class="form-control" rows="4">{{ device.notes or '' }}</textarea>
+                        <textarea name="notes" class="form-control" rows="2">{{ device.notes or '' }}</textarea>
                     </div>
                 </div>
             </div>

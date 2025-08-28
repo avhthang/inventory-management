@@ -22,3 +22,7 @@ body {
     content: " *";
     color: red;
 }
+
+.table-details td {
+    font-size: 0.95rem; /* Giảm nhẹ cỡ chữ từ 1rem (mặc định) xuống 0.95rem */
+}
