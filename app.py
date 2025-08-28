@@ -355,6 +355,40 @@ def handover_list():
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     return render_template('handovers.html', handovers=handovers_pagination, users=users, device_types=device_types, filter_device_code=filter_device_code, filter_giver_id=filter_giver_id, filter_receiver_id=filter_receiver_id, filter_device_type=filter_device_type, filter_start_date=filter_start_date, filter_end_date=filter_end_date)
 
+# Thêm route mới này vào file app.py (trong khu vực Handover Routes)
+
+@app.route('/download_handover_template')
+def download_handover_template():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    # Định nghĩa các cột và dữ liệu mẫu
+    columns = [
+        'Mã thiết bị', 'Tên đăng nhập người giao', 'Tên đăng nhập người nhận', 
+        'Ngày bàn giao', 'Tình trạng thiết bị', 'Lý do bàn giao', 
+        'Nơi đặt thiết bị', 'Ghi chú'
+    ]
+    sample_data = [
+        ['TB00001', 'admin', 'nhanvienA', '28-08-2025', 'Sử dụng bình thường', 'Cấp mới cho nhân viên', 'Phòng Kế toán', 'Ghi chú thêm nếu có']
+    ]
+    
+    # Tạo DataFrame từ dữ liệu mẫu
+    df = pd.DataFrame(sample_data, columns=columns)
+    
+    # Tạo file Excel trong bộ nhớ
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Handover_Template')
+    output.seek(0)
+    
+    # Gửi file về cho người dùng
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='handover_import_template.xlsx'
+    )
+
 # --- CẬP NHẬT HÀM ADD_HANDOVER ---
 @app.route('/add_handover', methods=['GET', 'POST'])
 def add_handover():

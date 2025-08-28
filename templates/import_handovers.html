@@ -28,18 +28,22 @@
                 <h5 class="card-title mb-0"><i class="bi bi-info-circle"></i> Hướng dẫn định dạng file Excel</h5>
             </div>
             <div class="card-body">
-                <p>File Excel phải chứa các cột bắt buộc sau: <strong>Mã thiết bị, Tên đăng nhập người giao, Tên đăng nhập người nhận, Ngày bàn giao, Tình trạng thiết bị</strong>.</p>
-                <p>Các cột không bắt buộc: <strong>Lý do bàn giao, Nơi đặt thiết bị, Ghi chú</strong>.</p>
+                <div class="mb-3">
+                    <a href="{{ url_for('download_handover_template') }}" class="btn btn-outline-success">
+                        <i class="bi bi-file-earmark-excel"></i> Tải file Excel mẫu
+                    </a>
+                </div>
                 <hr>
+                <p>File Excel của bạn cần có các cột với tiêu đề chính xác như trong file mẫu.</p>
                 <h6>Lưu ý quan trọng:</h6>
                 <ul>
+                    <li><strong>Cột bắt buộc:</strong> <code>Mã thiết bị</code>, <code>Tên đăng nhập người giao</code>, <code>Tên đăng nhập người nhận</code>, <code>Ngày bàn giao</code>, <code>Tình trạng thiết bị</code>.</li>
                     <li><strong>Mã thiết bị:</strong> Phải là mã của một thiết bị đã tồn tại và đang ở trạng thái "Sẵn sàng".</li>
                     <li><strong>Tên đăng nhập người giao/nhận:</strong> Phải là tên đăng nhập của người dùng đã tồn tại trong hệ thống.</li>
                     <li><strong>Ngày bàn giao:</strong> Định dạng <code>dd-mm-yyyy</code> (ví dụ: 25-08-2025).</li>
-                    <li><strong>Tình trạng thiết bị:</strong> Tình trạng của thiết bị tại thời điểm bàn giao (VD: Mới, Sử dụng bình thường).</li>
                 </ul>
                 <div class="alert alert-warning mt-3">
-                    <strong>Chú ý:</strong> Sau khi nhập thành công, trạng thái của thiết bị sẽ tự động chuyển thành "Đã cấp phát" và người nhận sẽ trở thành người quản lý mới của thiết bị.
+                    <strong>Chú ý:</strong> Sau khi nhập thành công, trạng thái của các thiết bị sẽ tự động chuyển thành "Đã cấp phát" và người nhận sẽ trở thành người quản lý mới.
                 </div>
             </div>
         </div>
