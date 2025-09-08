@@ -10,6 +10,7 @@
             <h2 class="card-title mb-0">Danh sách Thiết bị</h2>
             <div>
                 <a href="{{ url_for('add_device') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Thêm mới</a>
+                <a href="{{ url_for('add_devices_bulk') }}" class="btn btn-warning ms-2"><i class="bi bi-plus-square"></i> Thêm hàng loạt</a>
                 <a href="{{ url_for('import_devices') }}" class="btn btn-info ms-2"><i class="bi bi-upload"></i> Nhập Excel</a>
                 <a href="{{ url_for('export_devices_excel') }}" class="btn btn-success ms-2"><i class="bi bi-download"></i> Xuất Excel</a>
             </div>

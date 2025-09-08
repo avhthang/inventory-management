@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Chi tiết Nhóm{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="card-title mb-0">Nhóm: {{ group.name }}</h2>
+            <a href="{{ url_for('device_groups') }}" class="btn btn-secondary">Quay lại</a>
+        </div>
+
+        <form method="POST" action="{{ url_for('edit_device_group', group_id=group.id) }}" class="row g-3 align-items-end mb-4">
+            <div class="col-md-4">
+                <label class="form-label">Tên nhóm</label>
+                <input type="text" name="name" class="form-control" value="{{ group.name }}" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Mô tả</label>
+                <input type="text" name="description" class="form-control" value="{{ group.description }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Cập nhật</button>
+            </div>
+        </form>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-header bg-light"><strong>Thiết bị trong nhóm</strong></div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('assign_devices_to_group', group_id=group.id) }}" class="mb-3">
+                            <label class="form-label">Thêm thiết bị</label>
+                            <select name="device_ids" class="form-select" multiple size="6" id="devices_select">
+                                {% for d in devices_not_in_group %}
+                                <option value="{{ d.id }}">{{ d.device_code }} - {{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Giữ Ctrl/Cmd để chọn nhiều thiết bị.</small>
+                            <div class="mt-2">
+                                <button class="btn btn-success">Thêm vào nhóm</button>
+                            </div>
+                        </form>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <thead><tr><th>Mã</th><th>Tên</th><th></th></tr></thead>
+                                <tbody>
+                                {% for d in devices_in_group %}
+                                <tr>
+                                    <td>{{ d.device_code }}</td>
+                                    <td>{{ d.name }}</td>
+                                    <td class="text-end">
+                                        <form method="POST" action="{{ url_for('remove_device_from_group', group_id=group.id, device_id=d.id) }}" onsubmit="return confirm('Gỡ thiết bị khỏi nhóm?')" class="d-inline">
+                                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-header bg-light"><strong>Người dùng trong nhóm</strong></div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('assign_users_to_group', group_id=group.id) }}" class="mb-3">
+                            <label class="form-label">Thêm người dùng</label>
+                            <select name="user_ids" class="form-select" multiple size="6" id="users_select">
+                                {% for u in users_not_in_group %}
+                                <option value="{{ u.id }}">{{ u.full_name or u.username }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <input type="text" class="form-control" name="role" placeholder="Vai trò (tùy chọn)">
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <button class="btn btn-success">Thêm vào nhóm</button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <thead><tr><th>Họ tên</th><th>Email</th><th></th></tr></thead>
+                                <tbody>
+                                {% for u in users_in_group %}
+                                <tr>
+                                    <td>{{ u.full_name or u.username }}</td>
+                                    <td>{{ u.email }}</td>
+                                    <td class="text-end">
+                                        <form method="POST" action="{{ url_for('remove_user_from_group', group_id=group.id, user_id=u.id) }}" onsubmit="return confirm('Gỡ người dùng khỏi nhóm?')" class="d-inline">
+                                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

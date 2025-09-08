@@ -79,6 +79,30 @@ class DeviceHandover(db.Model):
     location = db.Column(db.String(255))
     notes = db.Column(db.Text)
 
+# --- Device Grouping Models ---
+class DeviceGroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class DeviceGroupDevice(db.Model):
+    group_id = db.Column(db.Integer, db.ForeignKey('device_group.id'), primary_key=True)
+    device_id = db.Column(db.Integer, db.ForeignKey('device.id'), primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    group = db.relationship('DeviceGroup', backref=db.backref('device_links', cascade='all, delete-orphan'))
+    device = db.relationship('Device', backref=db.backref('group_links', cascade='all, delete-orphan'))
+
+class UserDeviceGroup(db.Model):
+    group_id = db.Column(db.Integer, db.ForeignKey('device_group.id'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), primary_key=True)
+    role = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    group = db.relationship('DeviceGroup', backref=db.backref('user_links', cascade='all, delete-orphan'))
+    user = db.relationship('User', backref=db.backref('group_links', cascade='all, delete-orphan'))
+
 # --- (Các hàm context_processor, home, auth, device routes giữ nguyên) ---
 @app.context_processor
 def inject_user():
@@ -321,6 +345,234 @@ def device_detail(device_id):
     device = Device.query.get_or_404(device_id)
     handovers = DeviceHandover.query.filter_by(device_id=device_id).order_by(DeviceHandover.handover_date.desc()).all()
     return render_template('device_detail.html', device=device, handovers=handovers)
+
+# --- Device Groups Routes ---
+@app.route('/device_groups', methods=['GET', 'POST'])
+def device_groups():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if request.method == 'POST':
+        name = request.form.get('name')
+        description = request.form.get('description')
+        if not name:
+            flash('Tên nhóm là bắt buộc.', 'danger')
+            return redirect(url_for('device_groups'))
+        group = DeviceGroup(name=name, description=description, created_by=session.get('user_id'))
+        db.session.add(group)
+        db.session.commit()
+        flash('Tạo nhóm thiết bị thành công!', 'success')
+        return redirect(url_for('device_groups'))
+    groups = DeviceGroup.query.order_by(DeviceGroup.id.desc()).all()
+    # Đếm số thiết bị và người dùng trong từng nhóm
+    group_summaries = []
+    for g in groups:
+        device_count = DeviceGroupDevice.query.filter_by(group_id=g.id).count()
+        user_count = UserDeviceGroup.query.filter_by(group_id=g.id).count()
+        group_summaries.append({'group': g, 'device_count': device_count, 'user_count': user_count})
+    return render_template('device_groups.html', group_summaries=group_summaries)
+
+@app.route('/device_groups/<int:group_id>', methods=['GET', 'POST'])
+def device_group_detail(group_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    group = DeviceGroup.query.get_or_404(group_id)
+    # Thiết bị trong nhóm
+    device_links = DeviceGroupDevice.query.filter_by(group_id=group_id).all()
+    device_ids_in_group = [l.device_id for l in device_links]
+    devices_in_group = Device.query.filter(Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all() if device_ids_in_group else []
+    if device_ids_in_group:
+        devices_not_in_group = Device.query.filter(~Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all()
+    else:
+        devices_not_in_group = Device.query.order_by(Device.device_code).all()
+    # Người dùng trong nhóm
+    user_links = UserDeviceGroup.query.filter_by(group_id=group_id).all()
+    user_ids_in_group = [l.user_id for l in user_links]
+    users_in_group = User.query.filter(User.id.in_(user_ids_in_group)).order_by(User.full_name).all() if user_ids_in_group else []
+    if user_ids_in_group:
+        users_not_in_group = User.query.filter(~User.id.in_(user_ids_in_group)).order_by(User.full_name).all()
+    else:
+        users_not_in_group = User.query.order_by(User.full_name).all()
+    return render_template('device_group_detail.html', group=group, devices_in_group=devices_in_group, devices_not_in_group=devices_not_in_group, users_in_group=users_in_group, users_not_in_group=users_not_in_group)
+
+@app.route('/device_groups/<int:group_id>/edit', methods=['POST'])
+def edit_device_group(group_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    group = DeviceGroup.query.get_or_404(group_id)
+    name = request.form.get('name')
+    description = request.form.get('description')
+    if not name:
+        flash('Tên nhóm là bắt buộc.', 'danger')
+        return redirect(url_for('device_group_detail', group_id=group_id))
+    group.name = name
+    group.description = description
+    db.session.commit()
+    flash('Cập nhật nhóm thiết bị thành công!', 'success')
+    return redirect(url_for('device_group_detail', group_id=group_id))
+
+@app.route('/device_groups/<int:group_id>/delete', methods=['POST'])
+def delete_device_group(group_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    group = DeviceGroup.query.get_or_404(group_id)
+    db.session.delete(group)
+    db.session.commit()
+    flash('Xóa nhóm thiết bị thành công!', 'success')
+    return redirect(url_for('device_groups'))
+
+@app.route('/device_groups/<int:group_id>/assign_devices', methods=['POST'])
+def assign_devices_to_group(group_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device_ids = request.form.getlist('device_ids')
+    if not device_ids:
+        flash('Vui lòng chọn ít nhất một thiết bị.', 'danger')
+        return redirect(url_for('device_group_detail', group_id=group_id))
+    created = 0
+    for d_id in device_ids:
+        if not d_id: continue
+        exists = DeviceGroupDevice.query.filter_by(group_id=group_id, device_id=int(d_id)).first()
+        if not exists:
+            db.session.add(DeviceGroupDevice(group_id=group_id, device_id=int(d_id)))
+            created += 1
+    db.session.commit()
+    flash(f'Đã thêm {created} thiết bị vào nhóm.', 'success')
+    return redirect(url_for('device_group_detail', group_id=group_id))
+
+@app.route('/device_groups/<int:group_id>/remove_device/<int:device_id>', methods=['POST'])
+def remove_device_from_group(group_id, device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    link = DeviceGroupDevice.query.filter_by(group_id=group_id, device_id=device_id).first()
+    if link:
+        db.session.delete(link)
+        db.session.commit()
+        flash('Đã gỡ thiết bị khỏi nhóm.', 'success')
+    return redirect(url_for('device_group_detail', group_id=group_id))
+
+@app.route('/device_groups/<int:group_id>/assign_users', methods=['POST'])
+def assign_users_to_group(group_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_ids = request.form.getlist('user_ids')
+    role = request.form.get('role')
+    if not user_ids:
+        flash('Vui lòng chọn ít nhất một người dùng.', 'danger')
+        return redirect(url_for('device_group_detail', group_id=group_id))
+    created = 0
+    for u_id in user_ids:
+        if not u_id: continue
+        exists = UserDeviceGroup.query.filter_by(group_id=group_id, user_id=int(u_id)).first()
+        if not exists:
+            db.session.add(UserDeviceGroup(group_id=group_id, user_id=int(u_id), role=role))
+            created += 1
+    db.session.commit()
+    flash(f'Đã thêm {created} người dùng vào nhóm.', 'success')
+    return redirect(url_for('device_group_detail', group_id=group_id))
+
+@app.route('/device_groups/<int:group_id>/remove_user/<int:user_id>', methods=['POST'])
+def remove_user_from_group(group_id, user_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    link = UserDeviceGroup.query.filter_by(group_id=group_id, user_id=user_id).first()
+    if link:
+        db.session.delete(link)
+        db.session.commit()
+        flash('Đã gỡ người dùng khỏi nhóm.', 'success')
+    return redirect(url_for('device_group_detail', group_id=group_id))
+
+@app.route('/add_devices_bulk', methods=['GET', 'POST'])
+def add_devices_bulk():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if request.method == 'POST':
+        # Trường chung
+        shared_device_type = request.form.get('shared_device_type')
+        shared_purchase_date = request.form.get('shared_purchase_date')
+        shared_import_date = request.form.get('shared_import_date')
+        shared_condition = request.form.get('shared_condition')
+        shared_status = request.form.get('shared_status', 'Sẵn sàng')
+        shared_buyer = request.form.get('shared_buyer')
+        shared_importer = request.form.get('shared_importer')
+        shared_brand = request.form.get('shared_brand')
+        shared_supplier = request.form.get('shared_supplier')
+        shared_warranty = request.form.get('shared_warranty')
+        shared_notes = request.form.get('shared_notes')
+        shared_group_ids = request.form.getlist('shared_group_ids')
+
+        # Trường riêng theo từng thiết bị (mảng)
+        names = request.form.getlist('name[]')
+        device_codes = request.form.getlist('device_code[]')
+        serial_numbers = request.form.getlist('serial_number[]')
+        configurations = request.form.getlist('configuration[]')
+        purchase_prices = request.form.getlist('purchase_price[]')
+        manager_ids = request.form.getlist('manager_id[]')
+        assign_dates = request.form.getlist('assign_date[]')
+        notes_list = request.form.getlist('notes[]')
+
+        # Validation cơ bản
+        if not shared_device_type or not shared_purchase_date or not shared_import_date or not shared_condition:
+            flash('Vui lòng nhập đầy đủ các trường chung bắt buộc.', 'danger')
+            return redirect(url_for('add_devices_bulk'))
+        if not names or not any(n.strip() for n in names):
+            flash('Vui lòng nhập ít nhất một thiết bị ở danh sách chi tiết.', 'danger')
+            return redirect(url_for('add_devices_bulk'))
+
+        try:
+            created_count = 0
+            for idx, name in enumerate(names):
+                if not name or not name.strip():
+                    continue
+                device_code = device_codes[idx].strip() if idx < len(device_codes) else ''
+                if not device_code:
+                    last_device = Device.query.order_by(Device.id.desc()).first()
+                    last_id = last_device.id if last_device else 0
+                    device_code = f"TB{last_id + 1 + created_count:05d}"
+
+                if Device.query.filter_by(device_code=device_code).first():
+                    db.session.rollback()
+                    flash(f'Mã thiết bị {device_code} đã tồn tại. Dừng thao tác.', 'danger')
+                    return redirect(url_for('add_devices_bulk'))
+
+                new_device = Device(
+                    device_code=device_code,
+                    name=name.strip(),
+                    device_type=shared_device_type,
+                    serial_number=(serial_numbers[idx] if idx < len(serial_numbers) else None) or None,
+                    brand=(shared_brand or None),
+                    supplier=(shared_supplier or None),
+                    warranty=(shared_warranty or None),
+                    configuration=(configurations[idx] if idx < len(configurations) else None) or None,
+                    purchase_date=datetime.strptime(shared_purchase_date, '%Y-%m-%d').date(),
+                    purchase_price=(float(purchase_prices[idx]) if idx < len(purchase_prices) and purchase_prices[idx] else None),
+                    buyer=(shared_buyer or None),
+                    importer=(shared_importer or None),
+                    import_date=datetime.strptime(shared_import_date, '%Y-%m-%d').date(),
+                    condition=shared_condition,
+                    status=shared_status,
+                    manager_id=(int(manager_ids[idx]) if idx < len(manager_ids) and manager_ids[idx] else None),
+                    assign_date=(datetime.strptime(assign_dates[idx], '%Y-%m-%d').date() if idx < len(assign_dates) and assign_dates[idx] else None),
+                    notes=(notes_list[idx] if idx < len(notes_list) else shared_notes)
+                )
+                db.session.add(new_device)
+                db.session.flush()  # Lấy new_device.id
+
+                # Gán nhóm mặc định nếu có
+                for gid in shared_group_ids:
+                    if not gid: continue
+                    exists = DeviceGroupDevice.query.filter_by(group_id=int(gid), device_id=new_device.id).first()
+                    if not exists:
+                        db.session.add(DeviceGroupDevice(group_id=int(gid), device_id=new_device.id))
+
+                created_count += 1
+
+            if created_count == 0:
+                db.session.rollback()
+                flash('Không có thiết bị hợp lệ để tạo.', 'danger')
+                return redirect(url_for('add_devices_bulk'))
+
+            db.session.commit()
+            flash(f'Thêm thành công {created_count} thiết bị!', 'success')
+            return redirect(url_for('device_list'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Đã xảy ra lỗi khi thêm thiết bị hàng loạt: {str(e)}', 'danger')
+            return redirect(url_for('add_devices_bulk'))
+
+    managers = User.query.order_by(User.full_name).all()
+    groups = DeviceGroup.query.order_by(DeviceGroup.name).all()
+    return render_template('add_devices_bulk.html', managers=managers, groups=groups)
 
 # --- Handover Routes ---
 @app.route('/handover_list')
