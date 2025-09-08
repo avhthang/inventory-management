@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Thêm Thiết Bị Hàng Loạt{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="card-title mb-0">Thêm Thiết Bị Hàng Loạt</h2>
+            <a href="{{ url_for('devices') }}" class="btn btn-secondary" onclick="history.back(); return false;">Quay lại</a>
+        </div>
+
+        <form method="POST">
+            <div class="row">
+                <div class="col-md-12">
+                    <h5>Trường chung</h5>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label required">Loại thiết bị</label>
+                            <select name="shared_device_type" class="form-control" required>
+                                <option value="">-- Chọn loại --</option>
+                                <option value="Laptop">Laptop</option>
+                                <option value="Case máy tính">Case máy tính</option>
+                                <option value="Màn hình">Màn hình</option>
+                                <option value="Bàn phím">Bàn phím</option>
+                                <option value="Chuột">Chuột</option>
+                                <option value="Ổ cứng">Ổ cứng</option>
+                                <option value="Ram">Ram</option>
+                                <option value="Card màn hình">Card màn hình</option>
+                                <option value="Máy in">Máy in</option>
+                                <option value="Thiết bị mạng">Thiết bị mạng</option>
+                                <option value="Server">Server</option>
+                                <option value="Thiết bị khác">Thiết bị khác</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label required">Ngày mua</label>
+                            <input type="date" name="shared_purchase_date" class="form-control" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label required">Ngày nhập kho</label>
+                            <input type="date" name="shared_import_date" class="form-control" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label required">Tình trạng</label>
+                            <select name="shared_condition" class="form-control" required>
+                                <option value="Mới">Mới</option>
+                                <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
+                                <option value="Cần bảo trì">Cần bảo trì</option>
+                                <option value="Hỏng">Hỏng</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Trạng thái</label>
+                            <select name="shared_status" class="form-control">
+                                <option value="Sẵn sàng">Sẵn sàng</option>
+                                <option value="Đã cấp phát">Đã cấp phát</option>
+                                <option value="Bảo trì">Bảo trì</option>
+                                <option value="Hỏng">Hỏng</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Người mua</label>
+                            <input type="text" name="shared_buyer" class="form-control">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Người nhập kho</label>
+                            <input type="text" name="shared_importer" class="form-control">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Thương hiệu</label>
+                            <input type="text" name="shared_brand" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Nhà cung cấp</label>
+                            <input type="text" name="shared_supplier" class="form-control">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Bảo hành</label>
+                            <input type="text" name="shared_warranty" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Ghi chú chung</label>
+                            <input type="text" name="shared_notes" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label">Gán vào nhóm (tùy chọn)</label>
+                            <select name="shared_group_ids" class="form-select" multiple size="6">
+                                {% for g in groups %}
+                                <option value="{{ g.id }}">{{ g.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Giữ Ctrl/Cmd để chọn nhiều nhóm.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
+            <h5>Danh sách chi tiết thiết bị</h5>
+            <div id="devicesRepeater">
+                <div class="device-row border rounded p-3 mb-3">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Mã thiết bị</label>
+                            <input type="text" name="device_code[]" class="form-control" placeholder="Để trống để tự tạo">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label required">Tên thiết bị</label>
+                            <input type="text" name="name[]" class="form-control" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Số serial</label>
+                            <input type="text" name="serial_number[]" class="form-control">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Giá mua (VND)</label>
+                            <input type="number" step="1000" name="purchase_price[]" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Cấu hình</label>
+                            <input type="text" name="configuration[]" class="form-control" placeholder="VD: i5/8GB/256GB">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Người quản lý</label>
+                            <select name="manager_id[]" class="form-control">
+                                <option value="">-- Chọn --</option>
+                                {% for m in managers %}<option value="{{ m.id }}">{{ m.full_name }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Ngày cấp phát</label>
+                            <input type="date" name="assign_date[]" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label">Ghi chú riêng</label>
+                            <input type="text" name="notes[]" class="form-control">
+                        </div>
+                    </div>
+                    <div class="text-end"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)"><i class="bi bi-x"></i> Xóa dòng</button></div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <button type="button" class="btn btn-outline-primary" onclick="addRow()"><i class="bi bi-plus"></i> Thêm dòng</button>
+            </div>
+
+            <div class="mt-3">
+                <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Hủy</a>
+                <button type="submit" class="btn btn-primary">Tạo thiết bị</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function addRow() {
+    const container = document.getElementById('devicesRepeater');
+    const first = container.querySelector('.device-row');
+    const clone = first.cloneNode(true);
+    clone.querySelectorAll('input').forEach(i => { i.value = ''; });
+    clone.querySelectorAll('select').forEach(s => { s.value = ''; });
+    container.appendChild(clone);
+}
+function removeRow(btn) {
+    const container = document.getElementById('devicesRepeater');
+    if (container.querySelectorAll('.device-row').length === 1) return;
+    btn.closest('.device-row').remove();
+}
+</script>
+{% endblock %}
