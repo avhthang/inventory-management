@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Phiếu nhập kho{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="card-title mb-0">Phiếu nhập kho</h2>
+            <a href="{{ url_for('add_devices_bulk') }}" class="btn btn-primary"><i class="bi bi-plus-square"></i> Thêm thiết bị hàng loạt</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Mã phiếu</th>
+                        <th>Ngày nhập</th>
+                        <th>Nhà cung cấp</th>
+                        <th>Người nhập</th>
+                        <th>Ghi chú</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in receipts %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td><a href="{{ url_for('inventory_receipt_detail', receipt_id=r.id) }}"><strong>{{ r.code }}</strong></a></td>
+                        <td>{{ r.date.strftime('%d-%m-%Y') }}</td>
+                        <td>{{ r.supplier or '' }}</td>
+                        <td>{{ r.importer or '' }}</td>
+                        <td>{{ r.notes or '' }}</td>
+                        <td class="text-end"><a href="{{ url_for('inventory_receipt_detail', receipt_id=r.id) }}" class="btn btn-sm btn-outline-info">Xem</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
