@@ -59,24 +59,19 @@
                             <label class="form-label">Nhà cung cấp</label>
                             <input type="text" name="shared_supplier" class="form-control">
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Bảo hành (áp dụng nếu không nhập ở chi tiết)</label>
-                            <input type="text" name="shared_warranty_fallback" class="form-control">
-                        </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Ghi chú</label>
                             <input type="text" name="shared_notes" class="form-control">
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-12 mb-3">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">Gán vào nhóm (tùy chọn)</label>
-                            <select name="shared_group_ids" class="form-select" multiple size="6">
+                            <select id="shared_group_ids" name="shared_group_ids" class="form-select" multiple>
                                 {% for g in groups %}
                                 <option value="{{ g.id }}">{{ g.name }}</option>
                                 {% endfor %}
                             </select>
-                            <small class="text-muted">Giữ Ctrl/Cmd để chọn nhiều nhóm.</small>
                         </div>
                     </div>
                 </div>
@@ -205,5 +200,13 @@ function updateRemoveButtons() {
     });
 }
 document.addEventListener('DOMContentLoaded', updateRemoveButtons);
+$(function(){
+  $('#shared_group_ids').select2({
+    theme: 'bootstrap-5',
+    width: '100%',
+    placeholder: 'Chọn nhóm',
+    allowClear: true
+  });
+});
 </script>
 {% endblock %}
