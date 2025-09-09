@@ -31,9 +31,34 @@
                     <div class="card-body">
                         <form method="POST" action="{{ url_for('assign_devices_to_group', group_id=group.id) }}" class="mb-3">
                             <label class="form-label">Thêm thiết bị</label>
-                            <select name="device_ids" class="form-select" multiple size="6" id="devices_select">
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control" id="filter_code" placeholder="Lọc mã thiết bị">
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control" id="filter_name" placeholder="Lọc tên thiết bị">
+                                </div>
+                                <div class="col-md-4">
+                                    <select class="form-select" id="filter_type">
+                                        <option value="">-- Loại thiết bị --</option>
+                                        <option value="Laptop">Laptop</option>
+                                        <option value="Case máy tính">Case máy tính</option>
+                                        <option value="Màn hình">Màn hình</option>
+                                        <option value="Bàn phím">Bàn phím</option>
+                                        <option value="Chuột">Chuột</option>
+                                        <option value="Ổ cứng">Ổ cứng</option>
+                                        <option value="Ram">Ram</option>
+                                        <option value="Card màn hình">Card màn hình</option>
+                                        <option value="Máy in">Máy in</option>
+                                        <option value="Thiết bị mạng">Thiết bị mạng</option>
+                                        <option value="Server">Server</option>
+                                        <option value="Thiết bị khác">Thiết bị khác</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <select name="device_ids" class="form-select" multiple size="8" id="devices_select">
                                 {% for d in devices_not_in_group %}
-                                <option value="{{ d.id }}">{{ d.device_code }} - {{ d.name }}</option>
+                                <option value="{{ d.id }}" data-code="{{ d.device_code }}" data-name="{{ d.name }}" data-type="{{ d.device_type }}">{{ d.device_code }} - {{ d.name }}</option>
                                 {% endfor %}
                             </select>
                             <small class="text-muted">Giữ Ctrl/Cmd để chọn nhiều thiết bị.</small>
@@ -44,12 +69,14 @@
 
                         <div class="table-responsive">
                             <table class="table table-sm table-striped">
-                                <thead><tr><th>Mã</th><th>Tên</th><th></th></tr></thead>
+                                <thead><tr><th>STT</th><th>Mã</th><th>Tên</th><th>Cấu hình chi tiết</th><th></th></tr></thead>
                                 <tbody>
                                 {% for d in devices_in_group %}
                                 <tr>
+                                    <td>{{ loop.index }}</td>
                                     <td>{{ d.device_code }}</td>
                                     <td>{{ d.name }}</td>
+                                    <td>{{ d.configuration }}</td>
                                     <td class="text-end">
                                         <form method="POST" action="{{ url_for('remove_device_from_group', group_id=group.id, device_id=d.id) }}" onsubmit="return confirm('Gỡ thiết bị khỏi nhóm?')" class="d-inline">
                                             <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
@@ -69,9 +96,9 @@
                     <div class="card-body">
                         <form method="POST" action="{{ url_for('assign_users_to_group', group_id=group.id) }}" class="mb-3">
                             <label class="form-label">Thêm người dùng</label>
-                            <select name="user_ids" class="form-select" multiple size="6" id="users_select">
+                            <select name="user_ids" class="form-select" multiple size="8" id="users_select">
                                 {% for u in users_not_in_group %}
-                                <option value="{{ u.id }}">{{ u.full_name or u.username }}</option>
+                                <option value="{{ u.id }}">{{ u.full_name or u.username }} - {{ u.department or '—' }}</option>
                                 {% endfor %}
                             </select>
                             <div class="row mt-2">
@@ -86,11 +113,13 @@
 
                         <div class="table-responsive">
                             <table class="table table-sm table-striped">
-                                <thead><tr><th>Họ tên</th><th>Email</th><th></th></tr></thead>
+                                <thead><tr><th>STT</th><th>Họ và tên</th><th>Phòng ban</th><th>Email</th><th></th></tr></thead>
                                 <tbody>
                                 {% for u in users_in_group %}
                                 <tr>
+                                    <td>{{ loop.index }}</td>
                                     <td>{{ u.full_name or u.username }}</td>
+                                    <td>{{ u.department or '—' }}</td>
                                     <td>{{ u.email }}</td>
                                     <td class="text-end">
                                         <form method="POST" action="{{ url_for('remove_user_from_group', group_id=group.id, user_id=u.id) }}" onsubmit="return confirm('Gỡ người dùng khỏi nhóm?')" class="d-inline">
@@ -108,4 +137,28 @@
         </div>
     </div>
 </div>
+{% block scripts %}
+{{ super() }}
+<script>
+const codeInput = document.getElementById('filter_code');
+const nameInput = document.getElementById('filter_name');
+const typeSelect = document.getElementById('filter_type');
+const selectEl = document.getElementById('devices_select');
+function applyFilter() {
+  const code = (codeInput?.value || '').toLowerCase();
+  const name = (nameInput?.value || '').toLowerCase();
+  const type = (typeSelect?.value || '').toLowerCase();
+  Array.from(selectEl.options).forEach(o => {
+    const oc = (o.dataset.code || '').toLowerCase();
+    const on = (o.dataset.name || '').toLowerCase();
+    const ot = (o.dataset.type || '').toLowerCase();
+    const match = (!code || oc.includes(code)) && (!name || on.includes(name)) && (!type || ot === type);
+    o.hidden = !match;
+  });
+}
+codeInput?.addEventListener('input', applyFilter);
+nameInput?.addEventListener('input', applyFilter);
+typeSelect?.addEventListener('change', applyFilter);
+</script>
+{% endblock %}
 {% endblock %}
