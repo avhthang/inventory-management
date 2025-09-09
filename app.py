@@ -530,6 +530,39 @@ def inventory_receipt_detail(receipt_id):
     receipt = InventoryReceipt.query.get_or_404(receipt_id)
     items = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all()
     return render_template('inventory_receipt_detail.html', receipt=receipt, items=items)
+
+@app.route('/inventory_receipts/<int:receipt_id>/edit', methods=['GET', 'POST'])
+def inventory_receipt_edit(receipt_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    receipt = InventoryReceipt.query.get_or_404(receipt_id)
+    if request.method == 'POST':
+        receipt.code = request.form.get('code') or receipt.code
+        date_str = request.form.get('date')
+        if date_str:
+            try:
+                receipt.date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                flash('Ngày nhập không hợp lệ (YYYY-MM-DD).', 'danger')
+                return redirect(url_for('inventory_receipt_edit', receipt_id=receipt_id))
+        receipt.supplier = request.form.get('supplier') or None
+        receipt.importer = request.form.get('importer') or None
+        receipt.notes = request.form.get('notes') or None
+        db.session.commit()
+        flash('Cập nhật phiếu nhập kho thành công.', 'success')
+        return redirect(url_for('inventory_receipt_detail', receipt_id=receipt.id))
+    return render_template('inventory_receipt_edit.html', receipt=receipt)
+
+@app.route('/inventory_receipts/<int:receipt_id>/delete', methods=['POST'])
+def inventory_receipt_delete(receipt_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    receipt = InventoryReceipt.query.get_or_404(receipt_id)
+    # Xóa kèm items
+    for it in InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all():
+        db.session.delete(it)
+    db.session.delete(receipt)
+    db.session.commit()
+    flash('Đã xóa phiếu nhập kho.', 'success')
+    return redirect(url_for('inventory_receipts'))
     return render_template('device_group_detail.html', group=group, devices_in_group=devices_in_group, devices_not_in_group=devices_not_in_group, users_in_group=users_in_group, users_not_in_group=users_not_in_group)
 
 @app.route('/device_groups/<int:group_id>/edit', methods=['POST'])
@@ -1063,7 +1096,7 @@ def user_list():
     filter_username = request.args.get('filter_username', '')
     filter_role = request.args.get('filter_role', '')
     filter_department = request.args.get('filter_department', '')
-    filter_status = request.args.get('filter_status', '')
+    filter_status = request.args.get('filter_status', session.get('default_user_status', 'Đang làm'))
 
     query = User.query
     if filter_username:
@@ -1075,7 +1108,8 @@ def user_list():
     if filter_status:
         query = query.filter(User.status == filter_status)
 
-    users_pagination = query.order_by(User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    # Sắp xếp theo họ và tên (tăng dần), fallback username
+    users_pagination = query.order_by(User.full_name.asc().nullslast(), User.username.asc()).paginate(page=page, per_page=per_page, error_out=False)
     
     departments = [d[0] for d in db.session.query(User.department).filter(User.department.isnot(None)).distinct().order_by(User.department)]
     statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Khác']
@@ -1088,6 +1122,14 @@ def user_list():
                            filter_status=filter_status,
                            departments=departments,
                            statuses=statuses)
+
+@app.route('/users/default_status', methods=['POST'])
+def set_users_default_status():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    status = request.form.get('status')
+    session['default_user_status'] = status or 'Đang làm'
+    flash('Đã lưu cấu hình trạng thái mặc định.', 'success')
+    return redirect(url_for('user_list'))
 
 
 @app.route('/add_user', methods=['GET', 'POST'])

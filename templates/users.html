@@ -30,12 +30,17 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Trạng thái</label>
-                    <select name="filter_status" class="form-select">
-                        <option value="">-- Tất cả --</option>
-                        {% for status in statuses %}
-                        <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
-                        {% endfor %}
-                    </select>
+                    <div class="d-flex gap-2">
+                        <select name="filter_status" class="form-select">
+                            <option value="">-- Tất cả --</option>
+                            {% for status in statuses %}
+                            <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
+                            {% endfor %}
+                        </select>
+                        <button formaction="{{ url_for('set_users_default_status') }}" formmethod="POST" name="status" value="{{ filter_status }}" class="btn btn-outline-secondary" title="Lưu làm mặc định">
+                            <i class="bi bi-bookmark-check"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-primary w-100">Tìm kiếm</button>
