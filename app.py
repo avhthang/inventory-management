@@ -121,6 +121,19 @@ class InventoryReceiptItem(db.Model):
     receipt = db.relationship('InventoryReceipt', backref=db.backref('items', cascade='all, delete-orphan'))
     device = db.relationship('Device')
 
+# --- Ensure tables exist in case CLI init wasn't run (Flask 3 compatible) ---
+_tables_initialized = False
+
+@app.before_request
+def ensure_tables_once():
+    global _tables_initialized
+    if not _tables_initialized:
+        try:
+            db.create_all()
+        except Exception:
+            pass
+        _tables_initialized = True
+
 # --- (Các hàm context_processor, home, auth, device routes giữ nguyên) ---
 @app.context_processor
 def inject_user():
