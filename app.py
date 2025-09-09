@@ -414,14 +414,67 @@ def device_groups():
         db.session.commit()
         flash('Tạo nhóm thiết bị thành công!', 'success')
         return redirect(url_for('device_groups'))
-    groups = DeviceGroup.query.order_by(DeviceGroup.id.desc()).all()
-    # Đếm số thiết bị và người dùng trong từng nhóm
+
+    # Filters
+    filter_name = request.args.get('name', '').strip()
+    filter_user_id = request.args.get('user_id', '').strip()
+    filter_device_code = request.args.get('device_code', '').strip()
+    filter_start_date = request.args.get('start_date', '').strip()
+    filter_end_date = request.args.get('end_date', '').strip()
+    filter_created_by = request.args.get('created_by', '').strip()
+
+    q = DeviceGroup.query
+    if filter_name:
+        q = q.filter(DeviceGroup.name.ilike(f"%{filter_name}%"))
+    if filter_created_by:
+        try:
+            q = q.filter(DeviceGroup.created_by == int(filter_created_by))
+        except ValueError:
+            pass
+    if filter_start_date:
+        try:
+            dt = datetime.strptime(filter_start_date, '%Y-%m-%d')
+            q = q.filter(DeviceGroup.created_at >= dt)
+        except ValueError:
+            pass
+    if filter_end_date:
+        try:
+            dt2 = datetime.strptime(filter_end_date, '%Y-%m-%d') + timedelta(days=1)
+            q = q.filter(DeviceGroup.created_at < dt2)
+        except ValueError:
+            pass
+    if filter_user_id:
+        try:
+            uid = int(filter_user_id)
+            q = q.join(UserDeviceGroup, UserDeviceGroup.group_id == DeviceGroup.id).filter(UserDeviceGroup.user_id == uid)
+        except ValueError:
+            pass
+    if filter_device_code:
+        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
+             .join(Device, Device.id == DeviceGroupDevice.device_id) \
+             .filter(Device.device_code.ilike(f"%{filter_device_code}%"))
+
+    groups = q.order_by(DeviceGroup.id.desc()).all()
     group_summaries = []
     for g in groups:
         device_count = DeviceGroupDevice.query.filter_by(group_id=g.id).count()
         user_count = UserDeviceGroup.query.filter_by(group_id=g.id).count()
         group_summaries.append({'group': g, 'device_count': device_count, 'user_count': user_count})
-    return render_template('device_groups.html', group_summaries=group_summaries)
+
+    users = User.query.order_by(User.full_name).all()
+    creators = User.query.order_by(User.full_name).all()
+    return render_template(
+        'device_groups.html',
+        group_summaries=group_summaries,
+        users=users,
+        creators=creators,
+        filter_name=filter_name,
+        filter_user_id=filter_user_id,
+        filter_device_code=filter_device_code,
+        filter_start_date=filter_start_date,
+        filter_end_date=filter_end_date,
+        filter_created_by=filter_created_by
+    )
 
 @app.route('/device_groups/<int:group_id>', methods=['GET', 'POST'])
 def device_group_detail(group_id):
@@ -429,14 +482,15 @@ def device_group_detail(group_id):
     group = DeviceGroup.query.get_or_404(group_id)
     # Thiết bị trong nhóm
     device_links = DeviceGroupDevice.query.filter_by(group_id=group_id).all()
-    device_ids_in_group = [l.device_id for l in device_links]
+    device_ids_in_group = [l.device_id for l in device_links] if device_links else []
     devices_in_group = Device.query.filter(Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all() if device_ids_in_group else []
     devices_not_in_group = Device.query.order_by(Device.device_code).all() if not device_ids_in_group else Device.query.filter(~Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all()
     # Người dùng trong nhóm
     user_links = UserDeviceGroup.query.filter_by(group_id=group_id).all()
-    user_ids_in_group = [l.user_id for l in user_links]
+    user_ids_in_group = [l.user_id for l in user_links] if user_links else []
     users_in_group = User.query.filter(User.id.in_(user_ids_in_group)).order_by(User.full_name).all() if user_ids_in_group else []
     users_not_in_group = User.query.order_by(User.full_name).all() if not user_ids_in_group else User.query.filter(~User.id.in_(user_ids_in_group)).order_by(User.full_name).all()
+    return render_template('device_group_detail.html', group=group, devices_in_group=devices_in_group, devices_not_in_group=devices_not_in_group, users_in_group=users_in_group, users_not_in_group=users_not_in_group)
 
 # --- Inventory Receipt Routes ---
 @app.route('/inventory_receipts')
