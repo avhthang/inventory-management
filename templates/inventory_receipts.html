@@ -27,7 +27,7 @@
                     <tr>
                         <td>{{ loop.index }}</td>
                         <td><a href="{{ url_for('inventory_receipt_detail', receipt_id=r.id) }}"><strong>{{ r.code }}</strong></a></td>
-                        <td>{{ r.date.strftime('%d-%m-%Y') }}</td>
+                        <td>{{ r.date.strftime('%d-%m-%Y') if r.date else '' }}</td>
                         <td>{{ r.supplier or '' }}</td>
                         <td>{{ r.importer or '' }}</td>
                         <td>{{ r.notes or '' }}</td>
