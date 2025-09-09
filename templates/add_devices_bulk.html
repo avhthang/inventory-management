@@ -15,7 +15,6 @@
                 <div class="col-md-12">
                     <h5>Thông tin chung</h5>
                     <div class="row">
-                        
                         <div class="col-md-3 mb-3">
                             <label class="form-label required">Ngày mua</label>
                             <input type="date" name="shared_purchase_date" class="form-control" required>
@@ -25,13 +24,15 @@
                             <input type="date" name="shared_import_date" class="form-control" required>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="form-label required">Tình trạng</label>
-                            <select name="shared_condition" class="form-control" required>
-                                <option value="Mới">Mới</option>
-                                <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
-                                <option value="Cần bảo trì">Cần bảo trì</option>
-                                <option value="Hỏng">Hỏng</option>
+                            <label class="form-label">Người quản lý ban đầu</label>
+                            <select name="shared_manager_id" class="form-control">
+                                <option value="">-- Chọn --</option>
+                                {% for m in managers %}<option value="{{ m.id }}">{{ m.full_name }}</option>{% endfor %}
                             </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Ngày cấp phát</label>
+                            <input type="date" name="shared_assign_date" class="form-control">
                         </div>
                     </div>
                     <div class="row">
@@ -52,10 +53,6 @@
                             <label class="form-label">Người nhập kho</label>
                             <input type="text" name="shared_importer" class="form-control">
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Thương hiệu</label>
-                            <input type="text" name="shared_brand" class="form-control">
-                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-3 mb-3">
@@ -63,8 +60,8 @@
                             <input type="text" name="shared_supplier" class="form-control">
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="form-label">Bảo hành</label>
-                            <input type="text" name="shared_warranty" class="form-control">
+                            <label class="form-label">Bảo hành (áp dụng nếu không nhập ở chi tiết)</label>
+                            <input type="text" name="shared_warranty_fallback" class="form-control">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Ghi chú</label>
@@ -129,6 +126,14 @@
                             <label class="form-label">Giá mua (VND)</label>
                             <input type="number" step="1000" name="purchase_price[]" class="form-control">
                         </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Thương hiệu</label>
+                            <input type="text" name="brand[]" class="form-control">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Bảo hành</label>
+                            <input type="text" name="warranty[]" class="form-control">
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
@@ -136,20 +141,23 @@
                             <input type="text" name="configuration[]" class="form-control" placeholder="VD: i5/8GB/256GB">
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Người quản lý</label>
-                            <select name="manager_id[]" class="form-control">
+                            <label class="form-label">Tình trạng</label>
+                            <select name="device_condition[]" class="form-control">
                                 <option value="">-- Chọn --</option>
-                                {% for m in managers %}<option value="{{ m.id }}">{{ m.full_name }}</option>{% endfor %}
+                                <option value="Mới">Mới</option>
+                                <option value="Sử dụng bình thường">Sử dụng bình thường</option>
+                                <option value="Cần bảo trì">Cần bảo trì</option>
+                                <option value="Hỏng">Hỏng</option>
                             </select>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Ngày cấp phát</label>
-                            <input type="date" name="assign_date[]" class="form-control">
+                            <label class="form-label">Nhà cung cấp</label>
+                            <input type="text" name="supplier[]" class="form-control" placeholder="Để trống để dùng Nhà cung cấp chung">
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-12 mb-3">
-                            <label class="form-label">Ghi chú riêng</label>
+                            <label class="form-label">Ghi chú thiết bị</label>
                             <input type="text" name="notes[]" class="form-control">
                         </div>
                     </div>
@@ -160,7 +168,7 @@
                 <button type="button" class="btn btn-outline-primary" onclick="addRow()"><i class="bi bi-plus"></i> Thêm dòng</button>
             </div>
 
-            <div class="mt-3">
+            <div class="mt-3 d-flex justify-content-end gap-2">
                 <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Hủy</a>
                 <button type="submit" class="btn btn-primary">Ghi lại</button>
             </div>
