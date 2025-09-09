@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, event
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
 import pandas as pd
@@ -20,6 +20,24 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.permanent_session_lifetime = timedelta(days=30)
 
 db = SQLAlchemy(app)
+
+# Register SQLite function last_token for sorting by given name
+def _register_sqlite_functions(dbapi_conn, connection_record):
+    try:
+        def last_token(s):
+            try:
+                s = (s or '').strip()
+                return s.split()[-1].lower() if s else ''
+            except Exception:
+                return ''
+        dbapi_conn.create_function('last_token', 1, last_token)
+    except Exception:
+        pass
+
+try:
+    event.listen(db.engine, 'connect', _register_sqlite_functions)
+except Exception:
+    pass
 
 # --- Models (Không thay đổi) ---
 class User(db.Model):
@@ -1108,11 +1126,11 @@ def user_list():
     if filter_status:
         query = query.filter(User.status == filter_status)
 
-    # Sắp xếp theo tên (từ cuối cùng trong họ tên), sau đó theo họ tên rồi username
+    # Sắp xếp theo tên (token cuối), sau đó theo họ tên rồi username
     users_pagination = query.order_by(
-        func.substr(User.full_name, func.length(User.full_name) - func.instr(func.reverse(User.full_name), ' ') + 2),
-        User.full_name.asc().nullslast(),
-        User.username.asc()
+        func.last_token(User.full_name),
+        func.lower(User.full_name),
+        func.lower(User.username)
     ).paginate(page=page, per_page=per_page, error_out=False)
     
     departments = [d[0] for d in db.session.query(User.department).filter(User.department.isnot(None)).distinct().order_by(User.department)]
