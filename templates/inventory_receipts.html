@@ -31,7 +31,13 @@
                         <td>{{ r.supplier or '' }}</td>
                         <td>{{ r.importer or '' }}</td>
                         <td>{{ r.notes or '' }}</td>
-                        <td class="text-end"><a href="{{ url_for('inventory_receipt_detail', receipt_id=r.id) }}" class="btn btn-sm btn-outline-info">Xem</a></td>
+                        <td class="text-end">
+                            <a href="{{ url_for('inventory_receipt_detail', receipt_id=r.id) }}" class="btn btn-sm btn-outline-info">Xem</a>
+                            <a href="{{ url_for('inventory_receipt_edit', receipt_id=r.id) }}" class="btn btn-sm btn-outline-warning ms-1">Sửa</a>
+                            <form method="POST" action="{{ url_for('inventory_receipt_delete', receipt_id=r.id) }}" class="d-inline" onsubmit="return confirm('Xóa phiếu này?')">
+                                <button class="btn btn-sm btn-outline-danger ms-1">Xóa</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
