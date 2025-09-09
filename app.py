@@ -1108,8 +1108,12 @@ def user_list():
     if filter_status:
         query = query.filter(User.status == filter_status)
 
-    # Sắp xếp theo họ và tên (tăng dần), fallback username
-    users_pagination = query.order_by(User.full_name.asc().nullslast(), User.username.asc()).paginate(page=page, per_page=per_page, error_out=False)
+    # Sắp xếp theo tên (từ cuối cùng trong họ tên), sau đó theo họ tên rồi username
+    users_pagination = query.order_by(
+        func.substr(User.full_name, func.length(User.full_name) - func.instr(func.reverse(User.full_name), ' ') + 2),
+        User.full_name.asc().nullslast(),
+        User.username.asc()
+    ).paginate(page=page, per_page=per_page, error_out=False)
     
     departments = [d[0] for d in db.session.query(User.department).filter(User.department.isnot(None)).distinct().order_by(User.department)]
     statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Khác']
@@ -1126,8 +1130,12 @@ def user_list():
 @app.route('/users/default_status', methods=['POST'])
 def set_users_default_status():
     if 'user_id' not in session: return redirect(url_for('login'))
-    status = request.form.get('status')
-    session['default_user_status'] = status or 'Đang làm'
+    # Nhận đúng giá trị từ select (filter_status) hoặc fallback 'status'
+    status = request.form.get('filter_status')
+    if status is None:
+        status = request.form.get('status')
+    # Cho phép lưu rỗng để hiển thị Tất cả
+    session['default_user_status'] = status if status is not None else session.get('default_user_status', 'Đang làm')
     flash('Đã lưu cấu hình trạng thái mặc định.', 'success')
     return redirect(url_for('user_list'))
 
