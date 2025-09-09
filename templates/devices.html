@@ -38,13 +38,39 @@
         </form>
         <hr>
 
+        <form method="POST" action="{{ url_for('devices_bulk_update') }}">
+        <div class="row g-2 align-items-end mb-2">
+            <div class="col-md-3">
+                <label class="form-label">Đổi trạng thái</label>
+                <select name="new_status" class="form-select">
+                    <option value="">-- Không đổi --</option>
+                    {% for status in statuses %}
+                    <option value="{{ status }}">{{ status }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Đổi người quản lý</label>
+                <select name="new_manager_id" class="form-select" id="bulk_manager_select">
+                    <option value="">-- Không đổi --</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Áp dụng</button>
+            </div>
+        </div>
+
         <div class="table-responsive">
-            <table class="table table-striped table-hover mt-3">
+            <table class="table table-striped table-hover mt-2">
                 <thead class="table-light">
                     <tr>
+                        <th class="text-center" style="width:36px;"><input type="checkbox" id="select_all"></th>
                         <th>STT</th>
                         <th>Mã thiết bị</th>
-                        <th>Tên thiết bị</th>
+                        <th style="max-width: 280px;">Tên thiết bị</th>
                         <th>Loại</th>
                         <th>Người quản lý</th>
                         <th>Trạng thái</th>
@@ -55,9 +81,10 @@
                 <tbody>
                     {% for device in devices.items %}
                     <tr>
+                        <td class="text-center"><input type="checkbox" name="device_ids" value="{{ device.id }}" class="row_checkbox"></td>
                         <td>{{ devices.first + loop.index - 1 }}</td>
                         <td><strong>{{ device.device_code }}</strong></td>
-                        <td>{{ device.name }}</td>
+                        <td><div class="text-truncate" style="max-width: 280px;">{{ device.name }}</div></td>
                         <td>{{ device.device_type }}</td>
                         <td>{{ device.manager.full_name if device.manager else '' }}</td>
                         <td>
@@ -74,7 +101,7 @@
                                 </button>
                             {% endif %}
                         </td>
-                        <td class="text-center">
+                        <td class="text-center text-nowrap">
                             <a href="{{ url_for('device_detail', device_id=device.id) }}" class="btn btn-sm btn-outline-info" title="Xem chi tiết"><i class="bi bi-eye"></i></a>
                             <a href="{{ url_for('edit_device', device_id=device.id) }}" class="btn btn-sm btn-outline-warning ms-1" title="Sửa"><i class="bi bi-pencil-square"></i></a>
                             <form method="POST" action="{{ url_for('delete_device', device_id=device.id) }}" onsubmit="return confirm('Bạn chắc chắn muốn xóa thiết bị này?')" class="d-inline">
@@ -86,6 +113,7 @@
                 </tbody>
             </table>
         </div>
+        </form>
 
         {% for device in devices.items %}
             {% if device.configuration %}
@@ -120,6 +148,8 @@ $(document).ready(function() {
         placeholder: "Tất cả",
         allowClear: true
     });
+    $('#bulk_manager_select').select2({ theme: 'bootstrap-5', placeholder: 'Không đổi', allowClear: true });
+    $('#select_all').on('change', function(){ $('.row_checkbox').prop('checked', this.checked); });
 });
 </script>
 {% endblock %}
