@@ -78,7 +78,7 @@
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-sm table-hover mb-0">
-                <thead class="table-light"><tr><th>Ngày</th><th>Người Giao</th><th>Người Nhận</th><th>Tình trạng khi giao</th></tr></thead>
+                <thead class="table-light"><tr><th>Ngày</th><th>Người Giao</th><th>Người Nhận</th><th>Tình trạng khi giao</th><th>Lý do</th></tr></thead>
                 <tbody>
                     {% for handover in handovers %}
                     <tr>
@@ -86,9 +86,10 @@
                         <td>{{ handover.giver.full_name }}</td>
                         <td>{{ handover.receiver.full_name }}</td>
                         <td>{{ handover.device_condition }}</td>
+                        <td>{{ handover.reason or '' }}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="4" class="text-center text-muted p-3">Chưa có lịch sử bàn giao.</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted p-3">Chưa có lịch sử bàn giao.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

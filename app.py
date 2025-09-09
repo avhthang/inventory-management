@@ -305,6 +305,31 @@ def device_list():
         filter_status=filter_status,
         filter_manager_id=filter_manager_id
     )
+
+@app.route('/devices/bulk_update', methods=['POST'])
+def devices_bulk_update():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device_ids = request.form.getlist('device_ids')
+    if not device_ids:
+        flash('Vui lòng chọn ít nhất một thiết bị.', 'warning')
+        return redirect(url_for('device_list'))
+    new_status = request.form.get('new_status')
+    new_manager_id = request.form.get('new_manager_id')
+    updated = 0
+    for did in device_ids:
+        device = Device.query.get(did)
+        if not device: continue
+        if new_status:
+            device.status = new_status
+        if new_manager_id:
+            try:
+                device.manager_id = int(new_manager_id)
+            except ValueError:
+                pass
+        updated += 1
+    db.session.commit()
+    flash(f'Đã cập nhật {updated} thiết bị.', 'success')
+    return redirect(url_for('device_list'))
     
 @app.route('/add_device', methods=['GET', 'POST'])
 def add_device():
