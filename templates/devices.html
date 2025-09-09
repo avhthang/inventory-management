@@ -39,27 +39,32 @@
         <hr>
 
         <form method="POST" action="{{ url_for('devices_bulk_update') }}">
-        <div class="row g-2 align-items-end mb-2">
-            <div class="col-md-3">
-                <label class="form-label">Đổi trạng thái</label>
-                <select name="new_status" class="form-select">
-                    <option value="">-- Không đổi --</option>
-                    {% for status in statuses %}
-                    <option value="{{ status }}">{{ status }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Đổi người quản lý</label>
-                <select name="new_manager_id" class="form-select" id="bulk_manager_select">
-                    <option value="">-- Không đổi --</option>
-                    {% for user in users %}
-                    <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2 d-grid">
-                <button type="submit" class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Áp dụng</button>
+        <div class="mb-2">
+            <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#advancedBulk" aria-expanded="false" aria-controls="advancedBulk"><i class="bi bi-sliders"></i> Nâng cao</button>
+        </div>
+        <div class="collapse" id="advancedBulk">
+            <div class="row g-2 align-items-end mb-2">
+                <div class="col-md-3">
+                    <label class="form-label">Đổi trạng thái</label>
+                    <select name="new_status" class="form-select">
+                        <option value="">-- Không đổi --</option>
+                        {% for status in statuses %}
+                        <option value="{{ status }}">{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Đổi người quản lý</label>
+                    <select name="new_manager_id" class="form-select" id="bulk_manager_select">
+                        <option value="">-- Không đổi --</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button type="submit" class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Áp dụng</button>
+                </div>
             </div>
         </div>
 
