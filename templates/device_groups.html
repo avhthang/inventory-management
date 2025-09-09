@@ -28,11 +28,11 @@
             <table class="table table-striped table-hover">
                 <thead class="table-light">
                     <tr>
-                        <th>#</th>
+                        <th>STT</th>
                         <th>Tên nhóm</th>
                         <th>Mô tả</th>
-                        <th class="text-center">Thiết bị</th>
-                        <th class="text-center">Người dùng</th>
+                        <th>Thiết bị</th>
+                        <th>Người dùng</th>
                         <th class="text-center">Hành động</th>
                     </tr>
                 </thead>
@@ -42,11 +42,37 @@
                         <td>{{ loop.index }}</td>
                         <td><a href="{{ url_for('device_group_detail', group_id=item.group.id) }}"><strong>{{ item.group.name }}</strong></a></td>
                         <td>{{ item.group.description }}</td>
-                        <td class="text-center"><span class="badge bg-secondary">{{ item.device_count }}</span></td>
-                        <td class="text-center"><span class="badge bg-secondary">{{ item.user_count }}</span></td>
+                        <td>
+                            {% set links = item.group.device_links %}
+                            {% if links %}
+                                <ul class="mb-0 ps-3">
+                                    {% for l in links[:5] %}
+                                        <li>{{ l.device.name }} ({{ l.device.device_code }})</li>
+                                    {% endfor %}
+                                    {% if links|length > 5 %}
+                                        <li>… và {{ links|length - 5 }} thiết bị khác</li>
+                                    {% endif %}
+                                </ul>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set ulinks = item.group.user_links %}
+                            {% if ulinks %}
+                                <ul class="mb-0 ps-3">
+                                    {% for l in ulinks[:5] %}
+                                        <li>{{ l.user.full_name or l.user.username }}</li>
+                                    {% endfor %}
+                                    {% if ulinks|length > 5 %}
+                                        <li>… và {{ ulinks|length - 5 }} người dùng khác</li>
+                                    {% endif %}
+                                </ul>
+                            {% endif %}
+                        </td>
                         <td class="text-center">
+                            <a href="{{ url_for('device_group_detail', group_id=item.group.id) }}" class="btn btn-sm btn-outline-info">Xem chi tiết</a>
+                            <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editGroupModal-{{ item.group.id }}">Sửa</button>
                             <form method="POST" action="{{ url_for('delete_device_group', group_id=item.group.id) }}" onsubmit="return confirm('Xóa nhóm này?')" class="d-inline">
-                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-danger">Xóa</button>
                             </form>
                         </td>
                     </tr>

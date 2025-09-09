@@ -103,6 +103,24 @@ class UserDeviceGroup(db.Model):
     group = db.relationship('DeviceGroup', backref=db.backref('user_links', cascade='all, delete-orphan'))
     user = db.relationship('User', backref=db.backref('group_links', cascade='all, delete-orphan'))
 
+# --- Inventory Receipt Models ---
+class InventoryReceipt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(50), unique=True, nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    supplier = db.Column(db.String(150))
+    importer = db.Column(db.String(120))
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class InventoryReceiptItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    receipt_id = db.Column(db.Integer, db.ForeignKey('inventory_receipt.id'), nullable=False)
+    device_id = db.Column(db.Integer, db.ForeignKey('device.id'), nullable=False)
+    receipt = db.relationship('InventoryReceipt', backref=db.backref('items', cascade='all, delete-orphan'))
+    device = db.relationship('Device')
+
 # --- (Các hàm context_processor, home, auth, device routes giữ nguyên) ---
 @app.context_processor
 def inject_user():
@@ -378,18 +396,26 @@ def device_group_detail(group_id):
     device_links = DeviceGroupDevice.query.filter_by(group_id=group_id).all()
     device_ids_in_group = [l.device_id for l in device_links]
     devices_in_group = Device.query.filter(Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all() if device_ids_in_group else []
-    if device_ids_in_group:
-        devices_not_in_group = Device.query.filter(~Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all()
-    else:
-        devices_not_in_group = Device.query.order_by(Device.device_code).all()
+    devices_not_in_group = Device.query.order_by(Device.device_code).all() if not device_ids_in_group else Device.query.filter(~Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all()
     # Người dùng trong nhóm
     user_links = UserDeviceGroup.query.filter_by(group_id=group_id).all()
     user_ids_in_group = [l.user_id for l in user_links]
     users_in_group = User.query.filter(User.id.in_(user_ids_in_group)).order_by(User.full_name).all() if user_ids_in_group else []
-    if user_ids_in_group:
-        users_not_in_group = User.query.filter(~User.id.in_(user_ids_in_group)).order_by(User.full_name).all()
-    else:
-        users_not_in_group = User.query.order_by(User.full_name).all()
+    users_not_in_group = User.query.order_by(User.full_name).all() if not user_ids_in_group else User.query.filter(~User.id.in_(user_ids_in_group)).order_by(User.full_name).all()
+
+# --- Inventory Receipt Routes ---
+@app.route('/inventory_receipts')
+def inventory_receipts():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    receipts = InventoryReceipt.query.order_by(InventoryReceipt.id.desc()).all()
+    return render_template('inventory_receipts.html', receipts=receipts)
+
+@app.route('/inventory_receipts/<int:receipt_id>')
+def inventory_receipt_detail(receipt_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    receipt = InventoryReceipt.query.get_or_404(receipt_id)
+    items = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all()
+    return render_template('inventory_receipt_detail.html', receipt=receipt, items=items)
     return render_template('device_group_detail.html', group=group, devices_in_group=devices_in_group, devices_not_in_group=devices_not_in_group, users_in_group=users_in_group, users_not_in_group=users_not_in_group)
 
 @app.route('/device_groups/<int:group_id>/edit', methods=['POST'])
@@ -478,7 +504,6 @@ def add_devices_bulk():
     if 'user_id' not in session: return redirect(url_for('login'))
     if request.method == 'POST':
         # Trường chung
-        shared_device_type = request.form.get('shared_device_type')
         shared_purchase_date = request.form.get('shared_purchase_date')
         shared_import_date = request.form.get('shared_import_date')
         shared_condition = request.form.get('shared_condition')
@@ -500,9 +525,11 @@ def add_devices_bulk():
         manager_ids = request.form.getlist('manager_id[]')
         assign_dates = request.form.getlist('assign_date[]')
         notes_list = request.form.getlist('notes[]')
+        device_types = request.form.getlist('device_type[]')
+        quantities = request.form.getlist('quantity[]')
 
         # Validation cơ bản
-        if not shared_device_type or not shared_purchase_date or not shared_import_date or not shared_condition:
+        if not shared_purchase_date or not shared_import_date or not shared_condition:
             flash('Vui lòng nhập đầy đủ các trường chung bắt buộc.', 'danger')
             return redirect(url_for('add_devices_bulk'))
         if not names or not any(n.strip() for n in names):
@@ -510,52 +537,82 @@ def add_devices_bulk():
             return redirect(url_for('add_devices_bulk'))
 
         try:
+            # Tạo phiếu nhập kho
+            today_str = datetime.utcnow().strftime('%Y%m%d')
+            last_receipt = InventoryReceipt.query.order_by(InventoryReceipt.id.desc()).first()
+            next_seq = (last_receipt.id + 1) if last_receipt else 1
+            receipt_code = f"PNK{today_str}-{next_seq:04d}"
+            receipt = InventoryReceipt(
+                code=receipt_code,
+                date=datetime.strptime(shared_import_date, '%Y-%m-%d').date(),
+                supplier=shared_supplier or None,
+                importer=shared_importer or None,
+                created_by=session.get('user_id'),
+                notes=shared_notes or None
+            )
+            db.session.add(receipt)
+            db.session.flush()
+
             created_count = 0
             for idx, name in enumerate(names):
                 if not name or not name.strip():
                     continue
-                device_code = device_codes[idx].strip() if idx < len(device_codes) else ''
-                if not device_code:
-                    last_device = Device.query.order_by(Device.id.desc()).first()
-                    last_id = last_device.id if last_device else 0
-                    device_code = f"TB{last_id + 1 + created_count:05d}"
-
-                if Device.query.filter_by(device_code=device_code).first():
+                dtype = (device_types[idx] if idx < len(device_types) else '').strip()
+                if not dtype:
                     db.session.rollback()
-                    flash(f'Mã thiết bị {device_code} đã tồn tại. Dừng thao tác.', 'danger')
+                    flash('Vui lòng chọn loại thiết bị cho từng dòng.', 'danger')
                     return redirect(url_for('add_devices_bulk'))
+                qty = 1
+                if idx < len(quantities) and quantities[idx]:
+                    try:
+                        qty = max(1, int(quantities[idx]))
+                    except ValueError:
+                        qty = 1
+                for k in range(qty):
+                    device_code = device_codes[idx].strip() if idx < len(device_codes) and device_codes[idx] and k == 0 else ''
+                    if not device_code:
+                        last_device = Device.query.order_by(Device.id.desc()).first()
+                        last_id = last_device.id if last_device else 0
+                        device_code = f"TB{last_id + 1 + created_count:05d}"
 
-                new_device = Device(
-                    device_code=device_code,
-                    name=name.strip(),
-                    device_type=shared_device_type,
-                    serial_number=(serial_numbers[idx] if idx < len(serial_numbers) else None) or None,
-                    brand=(shared_brand or None),
-                    supplier=(shared_supplier or None),
-                    warranty=(shared_warranty or None),
-                    configuration=(configurations[idx] if idx < len(configurations) else None) or None,
-                    purchase_date=datetime.strptime(shared_purchase_date, '%Y-%m-%d').date(),
-                    purchase_price=(float(purchase_prices[idx]) if idx < len(purchase_prices) and purchase_prices[idx] else None),
-                    buyer=(shared_buyer or None),
-                    importer=(shared_importer or None),
-                    import_date=datetime.strptime(shared_import_date, '%Y-%m-%d').date(),
-                    condition=shared_condition,
-                    status=shared_status,
-                    manager_id=(int(manager_ids[idx]) if idx < len(manager_ids) and manager_ids[idx] else None),
-                    assign_date=(datetime.strptime(assign_dates[idx], '%Y-%m-%d').date() if idx < len(assign_dates) and assign_dates[idx] else None),
-                    notes=(notes_list[idx] if idx < len(notes_list) else shared_notes)
-                )
-                db.session.add(new_device)
-                db.session.flush()  # Lấy new_device.id
+                    if Device.query.filter_by(device_code=device_code).first():
+                        db.session.rollback()
+                        flash(f'Mã thiết bị {device_code} đã tồn tại. Dừng thao tác.', 'danger')
+                        return redirect(url_for('add_devices_bulk'))
 
-                # Gán nhóm mặc định nếu có
-                for gid in shared_group_ids:
-                    if not gid: continue
-                    exists = DeviceGroupDevice.query.filter_by(group_id=int(gid), device_id=new_device.id).first()
-                    if not exists:
-                        db.session.add(DeviceGroupDevice(group_id=int(gid), device_id=new_device.id))
+                    new_device = Device(
+                        device_code=device_code,
+                        name=name.strip(),
+                        device_type=dtype,
+                        serial_number=(serial_numbers[idx] if idx < len(serial_numbers) else None) or None,
+                        brand=(shared_brand or None),
+                        supplier=(shared_supplier or None),
+                        warranty=(shared_warranty or None),
+                        configuration=(configurations[idx] if idx < len(configurations) else None) or None,
+                        purchase_date=datetime.strptime(shared_purchase_date, '%Y-%m-%d').date(),
+                        purchase_price=(float(purchase_prices[idx]) if idx < len(purchase_prices) and purchase_prices[idx] else None),
+                        buyer=(shared_buyer or None),
+                        importer=(shared_importer or None),
+                        import_date=datetime.strptime(shared_import_date, '%Y-%m-%d').date(),
+                        condition=shared_condition,
+                        status=shared_status,
+                        manager_id=(int(manager_ids[idx]) if idx < len(manager_ids) and manager_ids[idx] else None),
+                        assign_date=(datetime.strptime(assign_dates[idx], '%Y-%m-%d').date() if idx < len(assign_dates) and assign_dates[idx] else None),
+                        notes=(notes_list[idx] if idx < len(notes_list) else shared_notes)
+                    )
+                    db.session.add(new_device)
+                    db.session.flush()
 
-                created_count += 1
+                    db.session.add(InventoryReceiptItem(receipt_id=receipt.id, device_id=new_device.id))
+
+                    # Gán nhóm mặc định nếu có
+                    for gid in shared_group_ids:
+                        if not gid: continue
+                        exists = DeviceGroupDevice.query.filter_by(group_id=int(gid), device_id=new_device.id).first()
+                        if not exists:
+                            db.session.add(DeviceGroupDevice(group_id=int(gid), device_id=new_device.id))
+
+                    created_count += 1
 
             if created_count == 0:
                 db.session.rollback()
@@ -563,8 +620,8 @@ def add_devices_bulk():
                 return redirect(url_for('add_devices_bulk'))
 
             db.session.commit()
-            flash(f'Thêm thành công {created_count} thiết bị!', 'success')
-            return redirect(url_for('device_list'))
+            flash(f'Thêm thành công {created_count} thiết bị! Đã tạo phiếu nhập kho {receipt.code}.', 'success')
+            return redirect(url_for('inventory_receipts'))
         except Exception as e:
             db.session.rollback()
             flash(f'Đã xảy ra lỗi khi thêm thiết bị hàng loạt: {str(e)}', 'danger')
