@@ -17,7 +17,7 @@
         </div>
         <div class="table-responsive">
             <table class="table table-striped table-hover">
-                <thead class="table-light"><tr><th>#</th><th>Mã TB</th><th>Tên thiết bị</th><th>Loại</th><th>Trạng thái</th></tr></thead>
+                <thead class="table-light"><tr><th>#</th><th>Mã TB</th><th>Tên thiết bị</th><th>Loại</th><th>Số lượng</th><th>Tình trạng</th><th>Ghi chú thiết bị</th></tr></thead>
                 <tbody>
                     {% for item in items %}
                     <tr>
@@ -25,7 +25,9 @@
                         <td>{{ item.device.device_code }}</td>
                         <td>{{ item.device.name }}</td>
                         <td>{{ item.device.device_type }}</td>
-                        <td>{{ item.device.status }}</td>
+                        <td>{{ item.quantity or 1 }}</td>
+                        <td>{{ item.device_condition or item.device.condition }}</td>
+                        <td>{{ item.device_note or '' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

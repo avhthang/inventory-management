@@ -118,6 +118,9 @@ class InventoryReceiptItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     receipt_id = db.Column(db.Integer, db.ForeignKey('inventory_receipt.id'), nullable=False)
     device_id = db.Column(db.Integer, db.ForeignKey('device.id'), nullable=False)
+    quantity = db.Column(db.Integer, default=1)
+    device_condition = db.Column(db.String(100))
+    device_note = db.Column(db.Text)
     receipt = db.relationship('InventoryReceipt', backref=db.backref('items', cascade='all, delete-orphan'))
     device = db.relationship('Device')
 
@@ -130,6 +133,25 @@ def ensure_tables_once():
     if not _tables_initialized:
         try:
             db.create_all()
+            # Ensure new columns exist for InventoryReceiptItem if the table was created earlier
+            try:
+                from sqlalchemy import text
+                with db.engine.connect() as conn:
+                    info = conn.execute(text("PRAGMA table_info('inventory_receipt_item')")).fetchall()
+                    cols = {row[1] for row in info}
+                    alter_stmts = []
+                    if 'quantity' not in cols:
+                        alter_stmts.append("ALTER TABLE inventory_receipt_item ADD COLUMN quantity INTEGER DEFAULT 1")
+                    if 'device_condition' not in cols:
+                        alter_stmts.append("ALTER TABLE inventory_receipt_item ADD COLUMN device_condition VARCHAR(100)")
+                    if 'device_note' not in cols:
+                        alter_stmts.append("ALTER TABLE inventory_receipt_item ADD COLUMN device_note TEXT")
+                    for stmt in alter_stmts:
+                        conn.execute(text(stmt))
+                    if alter_stmts:
+                        conn.commit()
+            except Exception:
+                pass
         except Exception:
             pass
         _tables_initialized = True
@@ -519,15 +541,17 @@ def add_devices_bulk():
         # Trường chung
         shared_purchase_date = request.form.get('shared_purchase_date')
         shared_import_date = request.form.get('shared_import_date')
-        shared_condition = request.form.get('shared_condition')
+        shared_condition = request.form.get('shared_condition')  # deprecated: now per-device, kept for backward compat
         shared_status = request.form.get('shared_status', 'Sẵn sàng')
         shared_buyer = request.form.get('shared_buyer')
         shared_importer = request.form.get('shared_importer')
-        shared_brand = request.form.get('shared_brand')
+        shared_brand = request.form.get('shared_brand')  # deprecated: now per-device, used as fallback
         shared_supplier = request.form.get('shared_supplier')
-        shared_warranty = request.form.get('shared_warranty')
+        shared_warranty = request.form.get('shared_warranty_fallback')
         shared_notes = request.form.get('shared_notes')
         shared_group_ids = request.form.getlist('shared_group_ids')
+        shared_manager_id = request.form.get('shared_manager_id')
+        shared_assign_date = request.form.get('shared_assign_date')
 
         # Trường riêng theo từng thiết bị (mảng)
         names = request.form.getlist('name[]')
@@ -535,14 +559,16 @@ def add_devices_bulk():
         serial_numbers = request.form.getlist('serial_number[]')
         configurations = request.form.getlist('configuration[]')
         purchase_prices = request.form.getlist('purchase_price[]')
-        manager_ids = request.form.getlist('manager_id[]')
-        assign_dates = request.form.getlist('assign_date[]')
         notes_list = request.form.getlist('notes[]')
         device_types = request.form.getlist('device_type[]')
         quantities = request.form.getlist('quantity[]')
+        brands = request.form.getlist('brand[]')
+        warranties = request.form.getlist('warranty[]')
+        suppliers = request.form.getlist('supplier[]')
+        device_conditions = request.form.getlist('device_condition[]')
 
         # Validation cơ bản
-        if not shared_purchase_date or not shared_import_date or not shared_condition:
+        if not shared_purchase_date or not shared_import_date:
             flash('Vui lòng nhập đầy đủ các trường chung bắt buộc.', 'danger')
             return redirect(url_for('add_devices_bulk'))
         if not names or not any(n.strip() for n in names):
@@ -598,25 +624,31 @@ def add_devices_bulk():
                         name=name.strip(),
                         device_type=dtype,
                         serial_number=(serial_numbers[idx] if idx < len(serial_numbers) else None) or None,
-                        brand=(shared_brand or None),
-                        supplier=(shared_supplier or None),
-                        warranty=(shared_warranty or None),
+                        brand=((brands[idx] if idx < len(brands) and brands[idx] else shared_brand) or None),
+                        supplier=((suppliers[idx] if idx < len(suppliers) and suppliers[idx] else shared_supplier) or None),
+                        warranty=((warranties[idx] if idx < len(warranties) and warranties[idx] else shared_warranty) or None),
                         configuration=(configurations[idx] if idx < len(configurations) else None) or None,
                         purchase_date=datetime.strptime(shared_purchase_date, '%Y-%m-%d').date(),
                         purchase_price=(float(purchase_prices[idx]) if idx < len(purchase_prices) and purchase_prices[idx] else None),
                         buyer=(shared_buyer or None),
                         importer=(shared_importer or None),
                         import_date=datetime.strptime(shared_import_date, '%Y-%m-%d').date(),
-                        condition=shared_condition,
+                        condition=((device_conditions[idx] if idx < len(device_conditions) and device_conditions[idx] else None) or 'Sử dụng bình thường'),
                         status=shared_status,
-                        manager_id=(int(manager_ids[idx]) if idx < len(manager_ids) and manager_ids[idx] else None),
-                        assign_date=(datetime.strptime(assign_dates[idx], '%Y-%m-%d').date() if idx < len(assign_dates) and assign_dates[idx] else None),
+                        manager_id=(int(shared_manager_id) if shared_manager_id else None),
+                        assign_date=(datetime.strptime(shared_assign_date, '%Y-%m-%d').date() if shared_assign_date else None),
                         notes=(notes_list[idx] if idx < len(notes_list) else shared_notes)
                     )
                     db.session.add(new_device)
                     db.session.flush()
 
-                    db.session.add(InventoryReceiptItem(receipt_id=receipt.id, device_id=new_device.id))
+                    db.session.add(InventoryReceiptItem(
+                        receipt_id=receipt.id,
+                        device_id=new_device.id,
+                        quantity=1,
+                        device_condition=new_device.condition,
+                        device_note=new_device.notes
+                    ))
 
                     # Gán nhóm mặc định nếu có
                     for gid in shared_group_ids:
