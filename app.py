@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
 from sqlalchemy import or_, func, event
+from sqlalchemy.exc import OperationalError
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
 import pandas as pd
@@ -36,6 +37,17 @@ def _register_sqlite_functions(dbapi_conn, connection_record):
 
 try:
     event.listen(db.engine, 'connect', _register_sqlite_functions)
+except Exception:
+    pass
+
+# Eagerly register UDF on current connection as an extra safeguard (e.g., Gunicorn workers)
+try:
+    with app.app_context():
+        try:
+            with db.engine.connect() as _conn:
+                _register_sqlite_functions(_conn.connection, None)
+        except Exception:
+            pass
 except Exception:
     pass
 
@@ -1126,9 +1138,8 @@ def user_list():
     if filter_status:
         query = query.filter(User.status == filter_status)
 
-    # Sắp xếp theo tên (token cuối), sau đó theo họ tên rồi username
+    # Sắp xếp an toàn cho SQLite: theo họ tên (không phân biệt hoa thường), rồi username
     users_pagination = query.order_by(
-        func.last_token(User.full_name),
         func.lower(User.full_name),
         func.lower(User.username)
     ).paginate(page=page, per_page=per_page, error_out=False)
