@@ -57,6 +57,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     full_name = db.Column(db.String(120))
+    last_name_token = db.Column(db.String(120))
     email = db.Column(db.String(120), unique=True)
     role = db.Column(db.String(20), default='user')
     department = db.Column(db.String(80))
@@ -230,6 +231,11 @@ def ensure_tables_once():
                     if info3:
                         if 'config_proposal_id' not in cols3:
                             alter_stmts.append("ALTER TABLE inventory_receipt ADD COLUMN config_proposal_id INTEGER")
+                    # Users last_name_token for sorting by given name
+                    info4 = conn.execute(text("PRAGMA table_info('user')")).fetchall()
+                    cols4 = {row[1] for row in info4}
+                    if info4 and 'last_name_token' not in cols4:
+                        alter_stmts.append("ALTER TABLE user ADD COLUMN last_name_token VARCHAR(120)")
                     for stmt in alter_stmts:
                         conn.execute(text(stmt))
                     if alter_stmts:
@@ -383,7 +389,7 @@ def device_list():
     devices_pagination = query.order_by(Device.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
-    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
 
     return render_template(
         'devices.html',
@@ -461,7 +467,7 @@ def add_device():
         flash('Thêm thiết bị mới thành công!', 'success')
         return redirect(url_for('device_list'))
         
-    managers = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    managers = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     return render_template('add_device.html', managers=managers)
     
 @app.route('/edit_device/<int:device_id>', methods=['GET', 'POST'])
@@ -492,7 +498,7 @@ def edit_device(device_id):
         flash('Cập nhật thông tin thiết bị thành công!', 'success')
         return redirect(url_for('device_list'))
         
-    managers = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    managers = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
     return render_template('edit_device.html', device=device, managers=managers, statuses=statuses)
 
@@ -578,8 +584,8 @@ def device_groups():
         user_count = UserDeviceGroup.query.filter_by(group_id=g.id).count()
         group_summaries.append({'group': g, 'device_count': device_count, 'user_count': user_count})
 
-    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
-    creators = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    creators = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     return render_template(
         'device_groups.html',
         group_summaries=group_summaries,
@@ -605,8 +611,8 @@ def device_group_detail(group_id):
     # Người dùng trong nhóm
     user_links = UserDeviceGroup.query.filter_by(group_id=group_id).all()
     user_ids_in_group = [l.user_id for l in user_links] if user_links else []
-    users_in_group = User.query.filter(User.id.in_(user_ids_in_group)).order_by(func.lower(User.full_name), func.lower(User.username)).all() if user_ids_in_group else []
-    users_not_in_group = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all() if not user_ids_in_group else User.query.filter(~User.id.in_(user_ids_in_group)).order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    users_in_group = User.query.filter(User.id.in_(user_ids_in_group)).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all() if user_ids_in_group else []
+    users_not_in_group = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all() if not user_ids_in_group else User.query.filter(~User.id.in_(user_ids_in_group)).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     return render_template('device_group_detail.html', group=group, devices_in_group=devices_in_group, devices_not_in_group=devices_not_in_group, users_in_group=users_in_group, users_not_in_group=users_not_in_group)
 
 # --- Inventory Receipt Routes ---
@@ -883,7 +889,7 @@ def add_devices_bulk():
             flash(f'Đã xảy ra lỗi khi thêm thiết bị hàng loạt: {str(e)}', 'danger')
             return redirect(url_for('add_devices_bulk'))
 
-    managers = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    managers = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     groups = DeviceGroup.query.order_by(DeviceGroup.name).all()
     return render_template('add_devices_bulk.html', managers=managers, groups=groups)
 
@@ -916,7 +922,7 @@ def handover_list():
         query = query.filter(DeviceHandover.handover_date <= datetime.strptime(filter_end_date, '%Y-%m-%d').date())
 
     handovers_pagination = query.order_by(DeviceHandover.handover_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     return render_template('handovers.html', handovers=handovers_pagination, users=users, device_types=device_types, filter_device_code=filter_device_code, filter_giver_id=filter_giver_id, filter_receiver_id=filter_receiver_id, filter_device_type=filter_device_type, filter_start_date=filter_start_date, filter_end_date=filter_end_date)
 
@@ -1014,7 +1020,7 @@ def add_handover():
     preselected_device_id = request.args.get('device_id', type=int)
     # Chỉ hiển thị các thiết bị sẵn sàng để chọn
     devices = Device.query.filter_by(status='Sẵn sàng').order_by(Device.device_code).all()
-    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     
     return render_template('add_handover.html', 
                            devices=devices, 
@@ -1207,9 +1213,9 @@ def user_list():
     if filter_status:
         query = query.filter(User.status == filter_status)
 
-    # Sắp xếp danh sách người dùng theo tên ABC không phân biệt hoa thường, rồi theo username
+    # Sắp xếp danh sách người dùng theo token tên cuối (tên gọi) để đúng ABC theo tên
     users_pagination = query.order_by(
-        func.lower(User.full_name),
+        func.lower(User.last_name_token),
         func.lower(User.username)
     ).paginate(page=page, per_page=per_page, error_out=False)
     
@@ -1266,6 +1272,11 @@ def add_user():
             onboard_date=datetime.strptime(request.form['onboard_date'], '%Y-%m-%d').date() if request.form.get('onboard_date') else None,
             offboard_date=datetime.strptime(request.form['offboard_date'], '%Y-%m-%d').date() if request.form.get('offboard_date') else None,
         )
+        if new_user.full_name:
+            try:
+                new_user.last_name_token = (str(new_user.full_name).strip().split()[-1] or '').lower()
+            except Exception:
+                new_user.last_name_token = None
         db.session.add(new_user)
         db.session.commit()
         flash('Thêm người dùng mới thành công!', 'success')
@@ -1278,6 +1289,11 @@ def edit_user(user_id):
     user = User.query.get_or_404(user_id)
     if request.method == 'POST':
         user.full_name = request.form.get('full_name')
+        if user.full_name:
+            try:
+                user.last_name_token = (str(user.full_name).strip().split()[-1] or '').lower()
+            except Exception:
+                user.last_name_token = None
         user.email = request.form.get('email')
         user.date_of_birth = datetime.strptime(request.form['date_of_birth'], '%Y-%m-%d').date() if request.form.get('date_of_birth') else None
         user.role = request.form.get('role')
@@ -1503,6 +1519,11 @@ def import_users():
                     onboard_date=pd.to_datetime(onboard_date_val).date() if pd.notna(onboard_date_val) else None,
                     offboard_date=pd.to_datetime(offboard_date_val).date() if pd.notna(offboard_date_val) else None
                 )
+                if new_user.full_name:
+                    try:
+                        new_user.last_name_token = (str(new_user.full_name).strip().split()[-1] or '').lower()
+                    except Exception:
+                        new_user.last_name_token = None
                 users_to_add.append(new_user)
 
             if errors:
@@ -1523,7 +1544,7 @@ def import_users():
 @app.route('/export_users_excel')
 def export_users_excel():
     if 'user_id' not in session: return redirect(url_for('login'))
-    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     data = []
     for user in users:
         data.append({
