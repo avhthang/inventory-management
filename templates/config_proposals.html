@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Đề xuất cấu hình{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Đề xuất cấu hình thiết bị</h3>
+  <a class="btn btn-primary" href="{{ url_for('add_config_proposal') }}"><i class="bi bi-plus-lg"></i> Tạo đề xuất</a>
+  </div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tên đề xuất</th>
+            <th>Ngày đề xuất</th>
+            <th>Người đề xuất</th>
+            <th>Đơn vị</th>
+            <th>Phạm vi</th>
+            <th class="text-end">Tạm tính</th>
+            <th class="text-end">VAT</th>
+            <th class="text-end">Tổng</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in proposals %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ p.name }}</td>
+            <td>{{ p.proposal_date.strftime('%d-%m-%Y') }}</td>
+            <td>{{ p.proposer_name or '' }}</td>
+            <td>{{ p.proposer_unit or '' }}</td>
+            <td>{{ p.scope or '' }}</td>
+            <td class="text-end">{{ '%.0f'|format(p.subtotal or 0) }}</td>
+            <td class="text-end">{{ '%.0f'|format(p.vat_amount or 0) }}</td>
+            <td class="text-end">{{ '%.0f'|format(p.total_amount or 0) }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}">Chi tiết</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-center text-muted">Chưa có đề xuất nào.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

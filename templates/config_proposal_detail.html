@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Chi tiết đề xuất{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Chi tiết đề xuất</h3>
+  <a class="btn btn-secondary" href="{{ url_for('config_proposals') }}">Quay lại</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6"><strong>Tên đề xuất:</strong> {{ p.name }}</div>
+      <div class="col-md-3"><strong>Ngày đề xuất:</strong> {{ p.proposal_date.strftime('%d-%m-%Y') }}</div>
+      <div class="col-md-3"><strong>Phạm vi:</strong> {{ p.scope }}</div>
+      <div class="col-md-6"><strong>Người đề xuất:</strong> {{ p.proposer_name }}</div>
+      <div class="col-md-6"><strong>Đơn vị:</strong> {{ p.proposer_unit }}</div>
+    </div>
+  </div>
+  </div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="width:70px">STT</th>
+            <th>Tên sản phẩm</th>
+            <th style="width:140px">Bảo hành</th>
+            <th>Nhà cung cấp</th>
+            <th class="text-end" style="width:120px">Số lượng</th>
+            <th class="text-end" style="width:160px">Đơn giá</th>
+            <th class="text-end" style="width:180px">Thành tiền</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in items %}
+          <tr>
+            <td class="text-center">{{ it.order_no }}</td>
+            <td>{{ it.product_name }}</td>
+            <td>{{ it.warranty }}</td>
+            <td>{{ it.supplier_info }}</td>
+            <td class="text-end">{{ it.quantity }}</td>
+            <td class="text-end">{{ '%.0f'|format(it.unit_price or 0) }}</td>
+            <td class="text-end">{{ '%.0f'|format(it.line_total or 0) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted">Không có dòng nào.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" class="text-end fw-semibold">Tổng tạm tính</td>
+            <td class="text-end">{{ '%.0f'|format(p.subtotal or 0) }}</td>
+          </tr>
+          <tr>
+            <td colspan="6" class="text-end fw-semibold">VAT ({{ '%.2f'|format(p.vat_percent) }}%)</td>
+            <td class="text-end">{{ '%.0f'|format(p.vat_amount or 0) }}</td>
+          </tr>
+          <tr>
+            <td colspan="6" class="text-end fw-bold">Tổng cộng</td>
+            <td class="text-end fw-bold">{{ '%.0f'|format(p.total_amount or 0) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

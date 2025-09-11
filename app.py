@@ -154,6 +154,32 @@ class InventoryReceiptItem(db.Model):
     receipt = db.relationship('InventoryReceipt', backref=db.backref('items', cascade='all, delete-orphan'))
     device = db.relationship('Device')
 
+# --- Configuration Proposal Models ---
+class ConfigProposal(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    proposal_date = db.Column(db.Date, nullable=False)
+    proposer_name = db.Column(db.String(120))
+    proposer_unit = db.Column(db.String(120))
+    scope = db.Column(db.String(50))  # Dùng chung | Cá nhân
+    subtotal = db.Column(db.Float, default=0.0)
+    vat_percent = db.Column(db.Float, default=10.0)
+    vat_amount = db.Column(db.Float, default=0.0)
+    total_amount = db.Column(db.Float, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class ConfigProposalItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    proposal_id = db.Column(db.Integer, db.ForeignKey('config_proposal.id'), nullable=False)
+    order_no = db.Column(db.Integer, default=0)
+    product_name = db.Column(db.String(255))
+    warranty = db.Column(db.String(120))
+    supplier_info = db.Column(db.String(255))
+    quantity = db.Column(db.Integer, default=1)
+    unit_price = db.Column(db.Float, default=0.0)
+    line_total = db.Column(db.Float, default=0.0)
+    proposal = db.relationship('ConfigProposal', backref=db.backref('items', cascade='all, delete-orphan'))
+
 # --- Ensure tables exist in case CLI init wasn't run (Flask 3 compatible) ---
 _tables_initialized = False
 
@@ -1491,6 +1517,87 @@ def export_handovers_excel():
     with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Handovers')
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'handover_history_{datetime.now().strftime("%Y%m%d")}.xlsx')
+
+# --- Configuration Proposal Routes ---
+@app.route('/config_proposals')
+def config_proposals():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    proposals = ConfigProposal.query.order_by(ConfigProposal.id.desc()).all()
+    return render_template('config_proposals.html', proposals=proposals)
+
+@app.route('/config_proposals/add', methods=['GET', 'POST'])
+def add_config_proposal():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if request.method == 'POST':
+        try:
+            name = request.form.get('name')
+            proposal_date_str = request.form.get('proposal_date')
+            proposer_name = request.form.get('proposer_name')
+            proposer_unit = request.form.get('proposer_unit')
+            scope = request.form.get('scope')
+            vat_percent = request.form.get('vat_percent', type=float) or 10.0
+
+            if not name or not proposal_date_str:
+                flash('Vui lòng nhập Tên đề xuất và Ngày đề xuất.', 'danger')
+                return redirect(url_for('add_config_proposal'))
+
+            proposal_date = datetime.strptime(proposal_date_str, '%Y-%m-%d').date()
+
+            proposal = ConfigProposal(
+                name=name,
+                proposal_date=proposal_date,
+                proposer_name=proposer_name,
+                proposer_unit=proposer_unit,
+                scope=scope,
+                vat_percent=vat_percent
+            )
+            db.session.add(proposal)
+            db.session.flush()
+
+            subtotal = 0.0
+            rows = int(request.form.get('rows_count', 8))
+            for i in range(rows):
+                prefix = f'rows[{i}]'
+                product_name = request.form.get(f'{prefix}[product_name]')
+                warranty = request.form.get(f'{prefix}[warranty]')
+                supplier_info = request.form.get(f'{prefix}[supplier_info]')
+                quantity = request.form.get(f'{prefix}[quantity]', type=int) or 0
+                unit_price = request.form.get(f'{prefix}[unit_price]', type=float) or 0.0
+                if not product_name and quantity == 0 and unit_price == 0.0:
+                    continue
+                line_total = max(0, quantity) * max(0.0, unit_price)
+                subtotal += line_total
+                db.session.add(ConfigProposalItem(
+                    proposal_id=proposal.id,
+                    order_no=i + 1,
+                    product_name=product_name,
+                    warranty=warranty,
+                    supplier_info=supplier_info,
+                    quantity=max(0, quantity),
+                    unit_price=max(0.0, unit_price),
+                    line_total=line_total
+                ))
+
+            proposal.subtotal = subtotal
+            proposal.vat_amount = round(subtotal * (vat_percent / 100.0), 2)
+            proposal.total_amount = round(subtotal + proposal.vat_amount, 2)
+            db.session.commit()
+            flash('Tạo đề xuất cấu hình thiết bị thành công.', 'success')
+            return redirect(url_for('config_proposals'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi tạo đề xuất: {str(e)}', 'danger')
+            return redirect(url_for('add_config_proposal'))
+    # GET
+    default_date = datetime.utcnow().strftime('%Y-%m-%d')
+    return render_template('add_config_proposal.html', default_date=default_date)
+
+@app.route('/config_proposals/<int:proposal_id>')
+def config_proposal_detail(proposal_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    p = ConfigProposal.query.get_or_404(proposal_id)
+    items = ConfigProposalItem.query.filter_by(proposal_id=proposal_id).order_by(ConfigProposalItem.order_no).all()
+    return render_template('config_proposal_detail.html', p=p, items=items)
 
 # --- CLI Commands ---
 @app.cli.command("init-db")
