@@ -976,8 +976,19 @@ def add_handover():
     if 'user_id' not in session: return redirect(url_for('login'))
     
     if request.method == 'POST':
-        # Lấy danh sách ID thiết bị từ form
-        device_ids = request.form.getlist('device_ids') 
+        # Lấy danh sách ID thiết bị từ form và nhóm
+        raw_device_ids = request.form.getlist('device_ids')
+        group_ids = request.form.getlist('group_ids')
+        device_ids_set = set([d for d in raw_device_ids if d])
+        if group_ids:
+            try:
+                group_int_ids = [int(g) for g in group_ids if g]
+                rows = db.session.query(DeviceGroupDevice.device_id).filter(DeviceGroupDevice.group_id.in_(group_int_ids)).all()
+                for (did,) in rows:
+                    device_ids_set.add(str(did))
+            except Exception:
+                pass
+        device_ids = list(device_ids_set)
         receiver_id = request.form.get('receiver_id')
         handover_date_str = request.form.get('handover_date')
         
@@ -1031,10 +1042,12 @@ def add_handover():
     # Chỉ hiển thị các thiết bị sẵn sàng để chọn
     devices = Device.query.filter_by(status='Sẵn sàng').order_by(Device.device_code).all()
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    groups = DeviceGroup.query.order_by(DeviceGroup.name).all()
     
     return render_template('add_handover.html', 
                            devices=devices, 
-                           users=users, 
+                           users=users,
+                           groups=groups,
                            now=datetime.now(),
                            preselected_device_id=preselected_device_id)
 
