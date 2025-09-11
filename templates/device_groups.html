@@ -68,11 +68,13 @@
                             {% endif %}
                         </td>
                         <td class="text-center">
-                            <a href="{{ url_for('device_group_detail', group_id=item.group.id) }}" class="btn btn-sm btn-outline-info">Xem chi tiết</a>
-                            <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editGroupModal-{{ item.group.id }}">Sửa</button>
-                            <form method="POST" action="{{ url_for('delete_device_group', group_id=item.group.id) }}" onsubmit="return confirm('Xóa nhóm này?')" class="d-inline">
-                                <button class="btn btn-sm btn-outline-danger">Xóa</button>
-                            </form>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{{ url_for('device_group_detail', group_id=item.group.id) }}" class="btn btn-outline-secondary" title="Xem"><i class="bi bi-eye"></i></a>
+                                <button class="btn btn-outline-primary" title="Sửa" data-bs-toggle="modal" data-bs-target="#editGroupModal-{{ item.group.id }}"><i class="bi bi-pencil"></i></button>
+                                <form method="POST" action="{{ url_for('delete_device_group', group_id=item.group.id) }}" onsubmit="return confirm('Xóa nhóm này?')" class="d-inline m-0 p-0">
+                                    <button class="btn btn-outline-danger" title="Xóa"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
