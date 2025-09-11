@@ -28,6 +28,10 @@
       <label class="form-label">Đơn vị đề xuất</label>
       <input type="text" class="form-control" name="proposer_unit">
     </div>
+    <div class="col-md-6">
+      <label class="form-label">Thông tin nhà cung cấp</label>
+      <input type="text" class="form-control" name="supplier_info">
+    </div>
     <div class="col-12">
       <label class="form-label">Ghi chú chung</label>
       <textarea class="form-control" rows="2" name="notes"></textarea>
@@ -79,8 +83,8 @@
             <tr>
               <th style="width:70px">STT</th>
               <th>Tên sản phẩm</th>
+              <th style="width:160px">Mã SP</th>
               <th style="width:140px">Bảo hành</th>
-              <th>Nhà cung cấp</th>
               <th style="width:120px">Số lượng</th>
               <th style="width:160px">Đơn giá</th>
               <th style="width:180px" class="text-end">Thành tiền</th>
@@ -158,8 +162,8 @@
     tr.innerHTML = `
       <td class="text-center">${idx+1}</td>
       <td><input name="rows[${idx}][product_name]" class="form-control"/></td>
+      <td><input name="rows[${idx}][product_code]" class="form-control"/></td>
       <td><input name="rows[${idx}][warranty]" class="form-control"/></td>
-      <td><input name="rows[${idx}][supplier_info]" class="form-control"/></td>
       <td><input name="rows[${idx}][quantity]" type="number" min="0" class="form-control qty" value="0"/></td>
       <td><input name="rows[${idx}][unit_price]" type="number" min="0" step="0.01" class="form-control unit" value="0"/></td>
       <td class="text-end"><span class="line">0</span></td>

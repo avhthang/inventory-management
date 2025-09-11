@@ -14,6 +14,7 @@
       <div class="col-md-3"><strong>Phạm vi:</strong> {{ p.scope }}</div>
       <div class="col-md-6"><strong>Người đề xuất:</strong> {{ p.proposer_name }}</div>
       <div class="col-md-6"><strong>Đơn vị:</strong> {{ p.proposer_unit }}</div>
+      <div class="col-md-12"><strong>Nhà cung cấp:</strong> {{ p.supplier_info or '' }}</div>
       <div class="col-md-3"><strong>Loại tiền:</strong> {{ p.currency }}</div>
       <div class="col-md-3"><strong>Trạng thái:</strong> {{ p.status }}</div>
       <div class="col-md-6"><strong>TT mua hàng:</strong> {{ p.purchase_status }}</div>
@@ -38,8 +39,8 @@
           <tr>
             <th style="width:70px">STT</th>
             <th>Tên sản phẩm</th>
+            <th style="width:160px">Mã SP</th>
             <th style="width:140px">Bảo hành</th>
-            <th>Nhà cung cấp</th>
             <th class="text-end" style="width:120px">Số lượng</th>
             <th class="text-end" style="width:160px">Đơn giá</th>
             <th class="text-end" style="width:180px">Thành tiền</th>
@@ -50,8 +51,8 @@
           <tr>
             <td class="text-center">{{ it.order_no }}</td>
             <td>{{ it.product_name }}</td>
+            <td>{{ it.product_code }}</td>
             <td>{{ it.warranty }}</td>
-            <td>{{ it.supplier_info }}</td>
             <td class="text-end">{{ it.quantity }}</td>
             <td class="text-end">{{ '%.0f'|format(it.unit_price or 0) }}</td>
             <td class="text-end">{{ '%.0f'|format(it.line_total or 0) }}</td>

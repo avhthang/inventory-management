@@ -169,6 +169,7 @@ class ConfigProposal(db.Model):
     status = db.Column(db.String(30), default='Mới tạo')  # Mới tạo, Lưu nháp, Đang xin ý kiến, Đã xin ý kiến, Đang mua hàng, Hủy
     purchase_status = db.Column(db.String(30), default='Lấy báo giá')  # Lấy báo giá, Chờ thanh toán, Chờ giao hàng, Chờ xuất hóa đơn, Đã hoàn thành
     notes = db.Column(db.Text)
+    supplier_info = db.Column(db.String(255))
     linked_receipt_id = db.Column(db.Integer, db.ForeignKey('inventory_receipt.id'))
     subtotal = db.Column(db.Float, default=0.0)
     vat_percent = db.Column(db.Float, default=10.0)
@@ -183,7 +184,7 @@ class ConfigProposalItem(db.Model):
     order_no = db.Column(db.Integer, default=0)
     product_name = db.Column(db.String(255))
     warranty = db.Column(db.String(120))
-    supplier_info = db.Column(db.String(255))
+    product_code = db.Column(db.String(100))
     quantity = db.Column(db.Integer, default=1)
     unit_price = db.Column(db.Float, default=0.0)
     line_total = db.Column(db.Float, default=0.0)
@@ -265,6 +266,8 @@ def ensure_tables_once():
                             alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN notes TEXT")
                         if 'linked_receipt_id' not in cols2:
                             alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN linked_receipt_id INTEGER")
+                        if 'supplier_info' not in cols2:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN supplier_info VARCHAR(255)")
                     # InventoryReceipt new link column
                     info3 = conn.execute(text("PRAGMA table_info('inventory_receipt')")).fetchall()
                     cols3 = {row[1] for row in info3}
@@ -276,6 +279,13 @@ def ensure_tables_once():
                     cols4 = {row[1] for row in info4}
                     if info4 and 'last_name_token' not in cols4:
                         alter_stmts.append("ALTER TABLE user ADD COLUMN last_name_token VARCHAR(120)")
+                    # ConfigProposalItem new product_code
+                    info5 = conn.execute(text("PRAGMA table_info('config_proposal_item')")).fetchall()
+                    cols5 = {row[1] for row in info5}
+                    if info5 and 'product_code' not in cols5:
+                        alter_stmts.append("ALTER TABLE config_proposal_item ADD COLUMN product_code VARCHAR(100)")
+                    if info5 and 'supplier_info' in cols5:
+                        pass
                     # AuditLog table creation (if not exists)
                     conn.execute(text("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, entity_type VARCHAR(50) NOT NULL, entity_id INTEGER NOT NULL, changed_by INTEGER, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP, changes TEXT)"))
                     for stmt in alter_stmts:
@@ -1819,6 +1829,7 @@ def add_config_proposal():
             status = request.form.get('status') or 'Mới tạo'
             purchase_status = request.form.get('purchase_status') or 'Lấy báo giá'
             notes = request.form.get('notes')
+            supplier_info_hdr = request.form.get('supplier_info')
 
             if not name or not proposal_date_str:
                 flash('Vui lòng nhập Tên đề xuất và Ngày đề xuất.', 'danger')
@@ -1836,7 +1847,8 @@ def add_config_proposal():
                 currency=currency,
                 status=status,
                 purchase_status=purchase_status,
-                notes=notes
+                notes=notes,
+                supplier_info=supplier_info_hdr
             )
             db.session.add(proposal)
             db.session.flush()
@@ -1846,8 +1858,8 @@ def add_config_proposal():
             for i in range(rows):
                 prefix = f'rows[{i}]'
                 product_name = request.form.get(f'{prefix}[product_name]')
+                product_code = request.form.get(f'{prefix}[product_code]')
                 warranty = request.form.get(f'{prefix}[warranty]')
-                supplier_info = request.form.get(f'{prefix}[supplier_info]')
                 quantity = request.form.get(f'{prefix}[quantity]', type=int) or 0
                 unit_price = request.form.get(f'{prefix}[unit_price]', type=float) or 0.0
                 if not product_name and quantity == 0 and unit_price == 0.0:
@@ -1858,8 +1870,8 @@ def add_config_proposal():
                     proposal_id=proposal.id,
                     order_no=i + 1,
                     product_name=product_name,
+                    product_code=product_code,
                     warranty=warranty,
-                    supplier_info=supplier_info,
                     quantity=max(0, quantity),
                     unit_price=max(0.0, unit_price),
                     line_total=line_total
