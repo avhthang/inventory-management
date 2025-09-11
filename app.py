@@ -143,6 +143,7 @@ class InventoryReceipt(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    config_proposal_id = db.Column(db.Integer, db.ForeignKey('config_proposal.id'))
 
 class InventoryReceiptItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -166,11 +167,13 @@ class ConfigProposal(db.Model):
     status = db.Column(db.String(30), default='Mới tạo')  # Mới tạo, Lưu nháp, Đang xin ý kiến, Đã xin ý kiến, Đang mua hàng, Hủy
     purchase_status = db.Column(db.String(30), default='Lấy báo giá')  # Lấy báo giá, Chờ thanh toán, Chờ giao hàng, Chờ xuất hóa đơn, Đã hoàn thành
     notes = db.Column(db.Text)
+    linked_receipt_id = db.Column(db.Integer, db.ForeignKey('inventory_receipt.id'))
     subtotal = db.Column(db.Float, default=0.0)
     vat_percent = db.Column(db.Float, default=10.0)
     vat_amount = db.Column(db.Float, default=0.0)
     total_amount = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    linked_receipt = db.relationship('InventoryReceipt', foreign_keys=[linked_receipt_id])
 
 class ConfigProposalItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -219,6 +222,14 @@ def ensure_tables_once():
                             alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN purchase_status VARCHAR(30) DEFAULT 'Lấy báo giá'")
                         if 'notes' not in cols2:
                             alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN notes TEXT")
+                        if 'linked_receipt_id' not in cols2:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN linked_receipt_id INTEGER")
+                    # InventoryReceipt new link column
+                    info3 = conn.execute(text("PRAGMA table_info('inventory_receipt')")).fetchall()
+                    cols3 = {row[1] for row in info3}
+                    if info3:
+                        if 'config_proposal_id' not in cols3:
+                            alter_stmts.append("ALTER TABLE inventory_receipt ADD COLUMN config_proposal_id INTEGER")
                     for stmt in alter_stmts:
                         conn.execute(text(stmt))
                     if alter_stmts:
@@ -628,6 +639,13 @@ def inventory_receipt_edit(receipt_id):
         receipt.supplier = request.form.get('supplier') or None
         receipt.importer = request.form.get('importer') or None
         receipt.notes = request.form.get('notes') or None
+        # Optional link to proposal
+        try:
+            from sqlalchemy import text
+            cfg_id_str = request.form.get('config_proposal_id')
+            receipt.config_proposal_id = int(cfg_id_str) if cfg_id_str else None
+        except Exception:
+            pass
         db.session.commit()
         flash('Cập nhật phiếu nhập kho thành công.', 'success')
         return redirect(url_for('inventory_receipt_detail', receipt_id=receipt.id))
@@ -1547,8 +1565,29 @@ def export_handovers_excel():
 @app.route('/config_proposals')
 def config_proposals():
     if 'user_id' not in session: return redirect(url_for('login'))
-    proposals = ConfigProposal.query.order_by(ConfigProposal.id.desc()).all()
-    return render_template('config_proposals.html', proposals=proposals)
+    q = ConfigProposal.query
+    filter_name = request.args.get('name', '').strip()
+    filter_unit = request.args.get('unit', '').strip()
+    start_date = request.args.get('start_date', '').strip()
+    end_date = request.args.get('end_date', '').strip()
+    if filter_name:
+        q = q.filter(ConfigProposal.name.ilike(f"%{filter_name}%"))
+    if filter_unit:
+        q = q.filter(ConfigProposal.proposer_unit.ilike(f"%{filter_unit}%"))
+    if start_date:
+        try:
+            dt = datetime.strptime(start_date, '%Y-%m-%d')
+            q = q.filter(ConfigProposal.proposal_date >= dt)
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            dt2 = datetime.strptime(end_date, '%Y-%m-%d')
+            q = q.filter(ConfigProposal.proposal_date <= dt2)
+        except ValueError:
+            pass
+    proposals = q.order_by(ConfigProposal.id.desc()).all()
+    return render_template('config_proposals.html', proposals=proposals, filter_name=filter_name, filter_unit=filter_unit, start_date=start_date, end_date=end_date)
 
 @app.route('/config_proposals/add', methods=['GET', 'POST'])
 def add_config_proposal():
@@ -1694,6 +1733,11 @@ def edit_config_proposal(proposal_id):
             p.purchase_status = request.form.get('purchase_status') or p.purchase_status
             p.notes = request.form.get('notes')
             p.vat_percent = request.form.get('vat_percent', type=float) or p.vat_percent
+            linked_id = request.form.get('linked_receipt_id')
+            try:
+                p.linked_receipt_id = int(linked_id) if linked_id else None
+            except ValueError:
+                pass
 
             # Replace items
             for it in ConfigProposalItem.query.filter_by(proposal_id=p.id).all():

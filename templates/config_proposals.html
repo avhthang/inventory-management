@@ -6,6 +6,24 @@
   <a class="btn btn-primary" href="{{ url_for('add_config_proposal') }}"><i class="bi bi-plus-lg"></i> Tạo đề xuất</a>
   </div>
 
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-4">
+    <input type="text" class="form-control" name="name" placeholder="Tìm theo tên đề xuất" value="{{ filter_name or '' }}">
+  </div>
+  <div class="col-md-3">
+    <input type="text" class="form-control" name="unit" placeholder="Đơn vị" value="{{ filter_unit or '' }}">
+  </div>
+  <div class="col-md-2">
+    <input type="date" class="form-control" name="start_date" value="{{ start_date or '' }}">
+  </div>
+  <div class="col-md-2">
+    <input type="date" class="form-control" name="end_date" value="{{ end_date or '' }}">
+  </div>
+  <div class="col-md-1 d-grid">
+    <button class="btn btn-outline-secondary">Lọc</button>
+  </div>
+</form>
+
 <div class="card">
   <div class="card-body">
     <div class="table-responsive">
@@ -17,11 +35,8 @@
             <th class="text-center">Ngày đề xuất</th>
             <th class="text-center">Người đề xuất</th>
             <th class="text-center">Đơn vị</th>
-            <th class="text-center">Phạm vi</th>
             <th class="text-center">Trạng thái</th>
             <th class="text-center">TT mua hàng</th>
-            <th class="text-center">Tạm tính</th>
-            <th class="text-center">VAT</th>
             <th class="text-center">Tổng</th>
             <th class="text-center">Thao tác</th>
           </tr>
@@ -34,11 +49,8 @@
             <td class="text-start">{{ p.proposal_date.strftime('%d-%m-%Y') }}</td>
             <td class="text-start">{{ p.proposer_name or '' }}</td>
             <td class="text-start">{{ p.proposer_unit or '' }}</td>
-            <td class="text-start">{{ p.scope or '' }}</td>
             <td class="text-start">{{ p.status or '' }}</td>
             <td class="text-start">{{ p.purchase_status or '' }}</td>
-            <td class="text-end">{{ (p.subtotal or 0)|vnd }}</td>
-            <td class="text-end">{{ (p.vat_amount or 0)|vnd }}</td>
             <td class="text-end text-nowrap">{{ (p.total_amount or 0)|vnd }} {{ p.currency }}</td>
             <td class="text-center">
               <div class="btn-group btn-group-sm" role="group">

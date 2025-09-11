@@ -18,6 +18,14 @@
       <div class="col-md-3"><strong>Trạng thái:</strong> {{ p.status }}</div>
       <div class="col-md-6"><strong>TT mua hàng:</strong> {{ p.purchase_status }}</div>
       <div class="col-12"><strong>Ghi chú:</strong> {{ p.notes or '' }}</div>
+      <div class="col-md-6">
+        <strong>Phiếu nhập kho:</strong>
+        {% if p.linked_receipt_id %}
+          <a href="{{ url_for('inventory_receipt_detail', receipt_id=p.linked_receipt_id) }}">#{{ p.linked_receipt_id }}</a>
+        {% else %}
+          Chưa gán
+        {% endif %}
+      </div>
     </div>
   </div>
   </div>

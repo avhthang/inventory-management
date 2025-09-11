@@ -28,6 +28,10 @@
           <label class="form-label">Ghi chú</label>
           <input type="text" name="notes" class="form-control" value="{{ receipt.notes or '' }}">
         </div>
+        <div class="col-md-3">
+          <label class="form-label">Gán phiếu mua thiết bị (ID)</label>
+          <input type="number" name="config_proposal_id" class="form-control" value="{{ receipt.config_proposal_id or '' }}">
+        </div>
         <div class="col-12">
           <div class="alert alert-info mt-2">
             Nội dung thiết bị thuộc phiếu nhập kho không thể sửa tại màn hình này.

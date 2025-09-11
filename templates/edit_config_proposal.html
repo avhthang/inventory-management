@@ -60,6 +60,10 @@
       <label class="form-label">VAT (%)</label>
       <input type="number" step="0.01" class="form-control" name="vat_percent" value="{{ '%.2f'|format(p.vat_percent or 10) }}">
     </div>
+    <div class="col-md-3">
+      <label class="form-label">Gán phiếu nhập kho</label>
+      <input type="number" min="1" class="form-control" name="linked_receipt_id" value="{{ p.linked_receipt_id or '' }}" placeholder="Nhập ID phiếu nhập kho">
+    </div>
   </div>
 
   <div class="card mb-3">
