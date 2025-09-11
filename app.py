@@ -1959,6 +1959,7 @@ def edit_config_proposal(proposal_id):
             p.status = request.form.get('status') or p.status
             p.purchase_status = request.form.get('purchase_status') or p.purchase_status
             p.notes = request.form.get('notes')
+            p.supplier_info = request.form.get('supplier_info')
             p.vat_percent = request.form.get('vat_percent', type=float) or p.vat_percent
             linked_id = request.form.get('linked_receipt_id')
             try:
@@ -1976,8 +1977,8 @@ def edit_config_proposal(proposal_id):
             for i in range(rows):
                 prefix = f'rows[{i}]'
                 product_name = request.form.get(f'{prefix}[product_name]')
+                product_code = request.form.get(f'{prefix}[product_code]')
                 warranty = request.form.get(f'{prefix}[warranty]')
-                supplier_info = request.form.get(f'{prefix}[supplier_info]')
                 quantity = request.form.get(f'{prefix}[quantity]', type=int) or 0
                 unit_price = request.form.get(f'{prefix}[unit_price]', type=float) or 0.0
                 if not product_name and quantity == 0 and unit_price == 0.0:
@@ -1988,8 +1989,8 @@ def edit_config_proposal(proposal_id):
                     proposal_id=p.id,
                     order_no=i + 1,
                     product_name=product_name,
+                    product_code=product_code,
                     warranty=warranty,
-                    supplier_info=supplier_info,
                     quantity=max(0, quantity),
                     unit_price=max(0.0, unit_price),
                     line_total=line_total
