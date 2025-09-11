@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Thông tin Người dùng{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Thông tin người dùng</h3>
+  <div>
+    <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-sm btn-primary"><i class="bi bi-pencil"></i> Sửa</a>
+    <a href="{{ url_for('user_list') }}" class="btn btn-sm btn-secondary">Quay lại</a>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-4"><strong>Họ và tên:</strong> {{ user.full_name or '' }}</div>
+      <div class="col-md-4"><strong>Tên đăng nhập:</strong> {{ user.username }}</div>
+      <div class="col-md-4"><strong>Email:</strong> {{ user.email or '' }}</div>
+      <div class="col-md-4"><strong>Phòng ban:</strong> {{ user.department or '' }}</div>
+      <div class="col-md-4"><strong>Chức vụ:</strong> {{ user.position or '' }}</div>
+      <div class="col-md-4"><strong>Trạng thái:</strong> {{ user.status or '' }}</div>
+      <div class="col-md-4"><strong>Ngày onboard:</strong> {{ user.onboard_date.strftime('%d-%m-%Y') if user.onboard_date else '' }}</div>
+      <div class="col-md-4"><strong>Ngày offboard:</strong> {{ user.offboard_date.strftime('%d-%m-%Y') if user.offboard_date else '' }}</div>
+      <div class="col-md-4"><strong>SĐT:</strong> {{ user.phone_number or '' }}</div>
+      <div class="col-md-12"><strong>Ghi chú:</strong> {{ user.notes or '' }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="mb-3">Thiết bị đang quản lý</h5>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped">
+        <thead>
+          <tr>
+            <th>Mã thiết bị</th><th>Tên</th><th>Loại</th><th>Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in devices %}
+          <tr>
+            <td><a href="{{ url_for('device_detail', device_id=d.id) }}">{{ d.device_code }}</a></td>
+            <td>{{ d.name }}</td>
+            <td>{{ d.device_type }}</td>
+            <td>{{ d.status }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-center text-muted">Không có thiết bị.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="mb-3">Lịch sử bàn giao - Người giao</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-striped">
+            <thead><tr><th>Ngày</th><th>Mã TB</th><th>Người nhận</th></tr></thead>
+            <tbody>
+              {% for h in given %}
+              <tr>
+                <td>{{ h.handover_date.strftime('%d-%m-%Y') }}</td>
+                <td>{{ h.device.device_code if h.device else '' }}</td>
+                <td>{{ h.receiver.full_name if h.receiver else '' }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-center text-muted">Không có.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="mb-3">Lịch sử bàn giao - Người nhận</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-striped">
+            <thead><tr><th>Ngày</th><th>Mã TB</th><th>Người giao</th></tr></thead>
+            <tbody>
+              {% for h in received %}
+              <tr>
+                <td>{{ h.handover_date.strftime('%d-%m-%Y') }}</td>
+                <td>{{ h.device.device_code if h.device else '' }}</td>
+                <td>{{ h.giver.full_name if h.giver else '' }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-center text-muted">Không có.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

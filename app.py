@@ -475,6 +475,16 @@ def edit_device(device_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     device = Device.query.get_or_404(device_id)
     if request.method == 'POST':
+        # Cho phép sửa mã thiết bị với kiểm tra trùng lặp
+        new_device_code = request.form.get('device_code', '').strip()
+        if not new_device_code:
+            flash('Mã thiết bị không được để trống.', 'danger')
+            return redirect(url_for('edit_device', device_id=device_id))
+        if new_device_code != device.device_code:
+            if Device.query.filter_by(device_code=new_device_code).first():
+                flash(f'Mã thiết bị {new_device_code} đã tồn tại.', 'danger')
+                return redirect(url_for('edit_device', device_id=device_id))
+            device.device_code = new_device_code
         device.name = request.form['name']
         device.device_type = request.form['device_type']
         device.serial_number = request.form.get('serial_number')
@@ -1332,6 +1342,18 @@ def delete_user(user_id):
     return redirect(url_for('user_list'))
 
 # --- API Routes ---
+# Xem thông tin người dùng
+@app.route('/user/<int:user_id>')
+def user_detail(user_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get_or_404(user_id)
+    # Thiết bị đang quản lý
+    devices = Device.query.filter_by(manager_id=user.id).order_by(Device.device_code).all()
+    # Lịch sử bàn giao liên quan
+    given = DeviceHandover.query.filter_by(giver_id=user.id).order_by(DeviceHandover.handover_date.desc()).all()
+    received = DeviceHandover.query.filter_by(receiver_id=user.id).order_by(DeviceHandover.handover_date.desc()).all()
+    return render_template('user_detail.html', user=user, devices=devices, given=given, received=received)
+
 # --- CẬP NHẬT API ĐỂ TRẢ VỀ THÊM SERIAL NUMBER ---
 @app.route('/api/device_info/<int:device_id>')
 def device_info(device_id):
