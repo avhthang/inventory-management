@@ -162,6 +162,8 @@ class ConfigProposal(db.Model):
     proposer_name = db.Column(db.String(120))
     proposer_unit = db.Column(db.String(120))
     scope = db.Column(db.String(50))  # Dùng chung | Cá nhân
+    currency = db.Column(db.String(10), default='VND')
+    status = db.Column(db.String(20), default='Mới tạo')  # Mới tạo, lưu nháp, đã duyệt, đã mua
     subtotal = db.Column(db.Float, default=0.0)
     vat_percent = db.Column(db.Float, default=10.0)
     vat_amount = db.Column(db.Float, default=0.0)
@@ -193,6 +195,7 @@ def ensure_tables_once():
             try:
                 from sqlalchemy import text
                 with db.engine.connect() as conn:
+                    # InventoryReceiptItem columns
                     info = conn.execute(text("PRAGMA table_info('inventory_receipt_item')")).fetchall()
                     cols = {row[1] for row in info}
                     alter_stmts = []
@@ -202,6 +205,14 @@ def ensure_tables_once():
                         alter_stmts.append("ALTER TABLE inventory_receipt_item ADD COLUMN device_condition VARCHAR(100)")
                     if 'device_note' not in cols:
                         alter_stmts.append("ALTER TABLE inventory_receipt_item ADD COLUMN device_note TEXT")
+                    # ConfigProposal new columns
+                    info2 = conn.execute(text("PRAGMA table_info('config_proposal')")).fetchall()
+                    cols2 = {row[1] for row in info2}
+                    if info2:  # table exists
+                        if 'currency' not in cols2:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN currency VARCHAR(10) DEFAULT 'VND'")
+                        if 'status' not in cols2:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN status VARCHAR(20) DEFAULT 'Mới tạo'")
                     for stmt in alter_stmts:
                         conn.execute(text(stmt))
                     if alter_stmts:
@@ -219,6 +230,14 @@ def inject_user():
         current_user = User.query.get(session['user_id'])
         return dict(current_user=current_user)
     return dict(current_user=None)
+
+@app.template_filter('vnd')
+def format_vnd(value):
+    try:
+        n = float(value or 0)
+    except Exception:
+        n = 0
+    return f"{int(round(n, 0)):,}".replace(',', '.')
 
 @app.route('/')
 def home():
@@ -1536,6 +1555,8 @@ def add_config_proposal():
             proposer_unit = request.form.get('proposer_unit')
             scope = request.form.get('scope')
             vat_percent = request.form.get('vat_percent', type=float) or 10.0
+            currency = request.form.get('currency') or 'VND'
+            status = request.form.get('status') or 'Mới tạo'
 
             if not name or not proposal_date_str:
                 flash('Vui lòng nhập Tên đề xuất và Ngày đề xuất.', 'danger')
@@ -1549,7 +1570,9 @@ def add_config_proposal():
                 proposer_name=proposer_name,
                 proposer_unit=proposer_unit,
                 scope=scope,
-                vat_percent=vat_percent
+                vat_percent=vat_percent,
+                currency=currency,
+                status=status
             )
             db.session.add(proposal)
             db.session.flush()
@@ -1598,6 +1621,110 @@ def config_proposal_detail(proposal_id):
     p = ConfigProposal.query.get_or_404(proposal_id)
     items = ConfigProposalItem.query.filter_by(proposal_id=proposal_id).order_by(ConfigProposalItem.order_no).all()
     return render_template('config_proposal_detail.html', p=p, items=items)
+
+@app.route('/config_proposals/<int:proposal_id>/delete', methods=['POST'])
+def delete_config_proposal(proposal_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    p = ConfigProposal.query.get_or_404(proposal_id)
+    # cascade will remove items
+    db.session.delete(p)
+    db.session.commit()
+    flash('Đã xóa đề xuất.', 'success')
+    return redirect(url_for('config_proposals'))
+
+@app.route('/config_proposals/<int:proposal_id>/clone', methods=['POST'])
+def clone_config_proposal(proposal_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    p = ConfigProposal.query.get_or_404(proposal_id)
+    new_p = ConfigProposal(
+        name=f"{p.name} (bản sao)",
+        proposal_date=p.proposal_date,
+        proposer_name=p.proposer_name,
+        proposer_unit=p.proposer_unit,
+        scope=p.scope,
+        currency=p.currency,
+        status='Mới tạo',
+        subtotal=p.subtotal,
+        vat_percent=p.vat_percent,
+        vat_amount=p.vat_amount,
+        total_amount=p.total_amount
+    )
+    db.session.add(new_p)
+    db.session.flush()
+    for it in ConfigProposalItem.query.filter_by(proposal_id=p.id).all():
+        db.session.add(ConfigProposalItem(
+            proposal_id=new_p.id,
+            order_no=it.order_no,
+            product_name=it.product_name,
+            warranty=it.warranty,
+            supplier_info=it.supplier_info,
+            quantity=it.quantity,
+            unit_price=it.unit_price,
+            line_total=it.line_total
+        ))
+    db.session.commit()
+    flash('Đã nhân bản đề xuất.', 'success')
+    return redirect(url_for('config_proposals'))
+
+@app.route('/config_proposals/<int:proposal_id>/edit', methods=['GET', 'POST'])
+def edit_config_proposal(proposal_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    p = ConfigProposal.query.get_or_404(proposal_id)
+    if request.method == 'POST':
+        try:
+            p.name = request.form.get('name') or p.name
+            date_str = request.form.get('proposal_date')
+            if date_str:
+                p.proposal_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            p.proposer_name = request.form.get('proposer_name')
+            p.proposer_unit = request.form.get('proposer_unit')
+            p.scope = request.form.get('scope')
+            p.currency = request.form.get('currency') or 'VND'
+            p.status = request.form.get('status') or p.status
+            p.vat_percent = request.form.get('vat_percent', type=float) or p.vat_percent
+
+            # Replace items
+            for it in ConfigProposalItem.query.filter_by(proposal_id=p.id).all():
+                db.session.delete(it)
+            db.session.flush()
+
+            subtotal = 0.0
+            rows = int(request.form.get('rows_count', 0))
+            for i in range(rows):
+                prefix = f'rows[{i}]'
+                product_name = request.form.get(f'{prefix}[product_name]')
+                warranty = request.form.get(f'{prefix}[warranty]')
+                supplier_info = request.form.get(f'{prefix}[supplier_info]')
+                quantity = request.form.get(f'{prefix}[quantity]', type=int) or 0
+                unit_price = request.form.get(f'{prefix}[unit_price]', type=float) or 0.0
+                if not product_name and quantity == 0 and unit_price == 0.0:
+                    continue
+                line_total = max(0, quantity) * max(0.0, unit_price)
+                subtotal += line_total
+                db.session.add(ConfigProposalItem(
+                    proposal_id=p.id,
+                    order_no=i + 1,
+                    product_name=product_name,
+                    warranty=warranty,
+                    supplier_info=supplier_info,
+                    quantity=max(0, quantity),
+                    unit_price=max(0.0, unit_price),
+                    line_total=line_total
+                ))
+
+            p.subtotal = subtotal
+            p.vat_amount = round(subtotal * (p.vat_percent / 100.0), 2)
+            p.total_amount = round(subtotal + p.vat_amount, 2)
+            db.session.commit()
+            flash('Đã cập nhật đề xuất.', 'success')
+            return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi cập nhật: {str(e)}', 'danger')
+            return redirect(url_for('edit_config_proposal', proposal_id=p.id))
+    # GET
+    items = ConfigProposalItem.query.filter_by(proposal_id=p.id).order_by(ConfigProposalItem.order_no).all()
+    return render_template('edit_config_proposal.html', p=p, items=items)
 
 # --- CLI Commands ---
 @app.cli.command("init-db")

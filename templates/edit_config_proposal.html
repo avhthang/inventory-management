@@ -1,49 +1,52 @@
 {% extends 'base.html' %}
-{% block title %}Tạo đề xuất cấu hình{% endblock %}
+{% block title %}Sửa đề xuất{% endblock %}
 {% block content %}
-<h3 class="mb-3">Tạo đề xuất cấu hình thiết bị</h3>
+<h3 class="mb-3">Sửa đề xuất cấu hình</h3>
 
 <form method="post">
   <div class="row g-3 mb-3">
     <div class="col-md-6">
       <label class="form-label">Tên đề xuất</label>
-      <input type="text" class="form-control" name="name" required>
+      <input type="text" class="form-control" name="name" value="{{ p.name }}" required>
     </div>
     <div class="col-md-3">
       <label class="form-label">Ngày đề xuất</label>
-      <input type="date" class="form-control" name="proposal_date" value="{{ default_date }}" required>
+      <input type="date" class="form-control" name="proposal_date" value="{{ p.proposal_date.strftime('%Y-%m-%d') }}" required>
     </div>
     <div class="col-md-3">
       <label class="form-label">Phạm vi</label>
       <select class="form-select" name="scope">
-        <option value="Dùng chung">Dùng chung</option>
-        <option value="Cá nhân">Cá nhân</option>
+        <option value="Dùng chung" {% if p.scope=='Dùng chung' %}selected{% endif %}>Dùng chung</option>
+        <option value="Cá nhân" {% if p.scope=='Cá nhân' %}selected{% endif %}>Cá nhân</option>
       </select>
     </div>
     <div class="col-md-6">
       <label class="form-label">Người đề xuất</label>
-      <input type="text" class="form-control" name="proposer_name">
+      <input type="text" class="form-control" name="proposer_name" value="{{ p.proposer_name }}">
     </div>
     <div class="col-md-6">
       <label class="form-label">Đơn vị đề xuất</label>
-      <input type="text" class="form-control" name="proposer_unit">
+      <input type="text" class="form-control" name="proposer_unit" value="{{ p.proposer_unit }}">
     </div>
     <div class="col-md-3">
       <label class="form-label">Loại tiền</label>
       <select class="form-select" name="currency">
-        <option value="VND" selected>VND</option>
-        <option value="USD">USD</option>
-        <option value="EURO">EURO</option>
+        <option value="VND" {% if p.currency=='VND' %}selected{% endif %}>VND</option>
+        <option value="USD" {% if p.currency=='USD' %}selected{% endif %}>USD</option>
+        <option value="EURO" {% if p.currency=='EURO' %}selected{% endif %}>EURO</option>
       </select>
     </div>
     <div class="col-md-3">
       <label class="form-label">Trạng thái</label>
       <select class="form-select" name="status">
-        <option value="Mới tạo" selected>Mới tạo</option>
-        <option value="Lưu nháp">Lưu nháp</option>
-        <option value="Đã duyệt">Đã duyệt</option>
-        <option value="Đã mua">Đã mua</option>
+        {% for st in ['Mới tạo','Lưu nháp','Đã duyệt','Đã mua'] %}
+          <option value="{{ st }}" {% if p.status==st %}selected{% endif %}>{{ st }}</option>
+        {% endfor %}
       </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">VAT (%)</label>
+      <input type="number" step="0.01" class="form-control" name="vat_percent" value="{{ '%.2f'|format(p.vat_percent or 10) }}">
     </div>
   </div>
 
@@ -68,22 +71,23 @@
             </tr>
           </thead>
           <tbody>
+            {% for it in items %}
+            <tr>
+              <td class="text-center">{{ loop.index }}</td>
+              <td><input name="rows[{{ loop.index0 }}][product_name]" class="form-control" value="{{ it.product_name }}"/></td>
+              <td><input name="rows[{{ loop.index0 }}][warranty]" class="form-control" value="{{ it.warranty }}"/></td>
+              <td><input name="rows[{{ loop.index0 }}][supplier_info]" class="form-control" value="{{ it.supplier_info }}"/></td>
+              <td><input name="rows[{{ loop.index0 }}][quantity]" type="number" min="0" class="form-control qty" value="{{ it.quantity }}"/></td>
+              <td><input name="rows[{{ loop.index0 }}][unit_price]" type="number" min="0" step="0.01" class="form-control unit" value="{{ it.unit_price }}"/></td>
+              <td class="text-end"><span class="line">0</span></td>
+              <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-remove">×</button></td>
+            </tr>
+            {% endfor %}
           </tbody>
           <tfoot>
             <tr>
               <td colspan="6" class="text-end fw-semibold">Tổng tạm tính</td>
               <td class="text-end"><span id="subtotal">0</span></td>
-              <td></td>
-            </tr>
-            <tr>
-              <td colspan="5"></td>
-              <td class="text-end fw-semibold">VAT (%)</td>
-              <td class="text-end">
-                <div class="input-group">
-                  <input type="number" class="form-control" name="vat_percent" id="vat_percent" step="0.01" value="10">
-                  <span class="input-group-text">%</span>
-                </div>
-              </td>
               <td></td>
             </tr>
             <tr>
@@ -102,8 +106,8 @@
     </div>
   </div>
 
-  <input type="hidden" name="rows_count" id="rows_count" value="8">
-  <button type="submit" class="btn btn-primary">Lưu đề xuất</button>
+  <input type="hidden" name="rows_count" id="rows_count" value="{{ items|length }}">
+  <button type="submit" class="btn btn-primary">Lưu</button>
   <a href="{{ url_for('config_proposals') }}" class="btn btn-secondary">Hủy</a>
 </form>
 {% endblock %}
@@ -114,7 +118,7 @@
   const tbody = document.querySelector('#itemsTable tbody');
   const rowsCountInput = document.getElementById('rows_count');
   const subtotalEl = document.getElementById('subtotal');
-  const vatPercentEl = document.getElementById('vat_percent');
+  const vatPercentEl = document.querySelector('input[name="vat_percent"]');
   const vatAmountEl = document.getElementById('vat_amount');
   const totalAmountEl = document.getElementById('total_amount');
   const addRowBtn = document.getElementById('btnAddRow');
@@ -166,7 +170,6 @@
     tbody.addEventListener('click', (e) => {
       if (e.target.closest('.btn-remove')){
         e.target.closest('tr').remove();
-        // re-index
         const trs = [...tbody.querySelectorAll('tr')];
         trs.forEach((tr, i) => {
           tr.querySelector('td').textContent = i+1;
@@ -186,13 +189,12 @@
       newRow(idx);
       rowsCountInput.value = idx + 1;
     });
-    vatPercentEl.addEventListener('input', recalc);
   }
 
   function init(){
-    for (let i=0; i<8; i++) newRow(i);
-    bind();
+    // initialize lines
     recalc();
+    bind();
   }
   init();
 })();
