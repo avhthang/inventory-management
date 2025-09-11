@@ -1138,19 +1138,11 @@ def user_list():
     if filter_status:
         query = query.filter(User.status == filter_status)
 
-    # Sắp xếp theo tên (token cuối), sau đó theo họ tên rồi username.
-    # Nếu UDF last_token chưa được đăng ký trên kết nối SQLite, fallback về sắp xếp theo họ tên + username.
-    try:
-        users_pagination = query.order_by(
-            func.last_token(User.full_name),
-            func.lower(User.full_name),
-            func.lower(User.username)
-        ).paginate(page=page, per_page=per_page, error_out=False)
-    except Exception:
-        users_pagination = query.order_by(
-            func.lower(User.full_name),
-            func.lower(User.username)
-        ).paginate(page=page, per_page=per_page, error_out=False)
+    # Sắp xếp an toàn cho SQLite: theo họ tên (không phân biệt hoa thường), rồi username
+    users_pagination = query.order_by(
+        func.lower(User.full_name),
+        func.lower(User.username)
+    ).paginate(page=page, per_page=per_page, error_out=False)
     
     departments = [d[0] for d in db.session.query(User.department).filter(User.department.isnot(None)).distinct().order_by(User.department)]
     statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Khác']
