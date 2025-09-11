@@ -41,6 +41,10 @@
       </select>
     </div>
     <div class="col-md-3">
+      <label class="form-label">VAT (%)</label>
+      <input type="number" class="form-control" name="vat_percent" id="vat_percent" step="0.01" value="10">
+    </div>
+    <div class="col-md-3">
       <label class="form-label">Trạng thái</label>
       <select class="form-select" name="status">
         <option value="Mới tạo" selected>Mới tạo</option>
@@ -89,17 +93,6 @@
             <tr>
               <td colspan="6" class="text-end fw-semibold">Tổng tạm tính</td>
               <td class="text-end"><span id="subtotal">0</span></td>
-              <td></td>
-            </tr>
-            <tr>
-              <td colspan="5"></td>
-              <td class="text-end fw-semibold">VAT (%)</td>
-              <td class="text-end">
-                <div class="input-group">
-                  <input type="number" class="form-control" name="vat_percent" id="vat_percent" step="0.01" value="10">
-                  <span class="input-group-text">%</span>
-                </div>
-              </td>
               <td></td>
             </tr>
             <tr>

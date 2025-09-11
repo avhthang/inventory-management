@@ -39,26 +39,17 @@
             <td class="text-start">{{ p.purchase_status or '' }}</td>
             <td class="text-end">{{ (p.subtotal or 0)|vnd }}</td>
             <td class="text-end">{{ (p.vat_amount or 0)|vnd }}</td>
-            <td class="text-end">{{ (p.total_amount or 0)|vnd }} {{ p.currency }}</td>
+            <td class="text-end text-nowrap">{{ (p.total_amount or 0)|vnd }} {{ p.currency }}</td>
             <td class="text-center">
-              <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  Thao tác
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                  <li><a class="dropdown-item" href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}">Xem</a></li>
-                  <li><a class="dropdown-item" href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}">Sửa</a></li>
-                  <li>
-                    <form method="post" action="{{ url_for('clone_config_proposal', proposal_id=p.id) }}" class="px-3 py-1">
-                      <button class="btn btn-link p-0" onclick="return confirm('Nhân bản đề xuất này?')">Nhân bản</button>
-                    </form>
-                  </li>
-                  <li>
-                    <form method="post" action="{{ url_for('delete_config_proposal', proposal_id=p.id) }}" class="px-3 py-1">
-                      <button class="btn btn-link text-danger p-0" onclick="return confirm('Xóa đề xuất này?')">Xóa</button>
-                    </form>
-                  </li>
-                </ul>
+              <div class="btn-group btn-group-sm" role="group">
+                <a class="btn btn-outline-secondary" title="Xem" href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}"><i class="bi bi-eye"></i></a>
+                <a class="btn btn-outline-primary" title="Sửa" href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}"><i class="bi bi-pencil"></i></a>
+                <form method="post" action="{{ url_for('clone_config_proposal', proposal_id=p.id) }}" class="d-inline m-0 p-0">
+                  <button class="btn btn-outline-warning" title="Nhân bản" onclick="return confirm('Nhân bản đề xuất này?')"><i class="bi bi-files"></i></button>
+                </form>
+                <form method="post" action="{{ url_for('delete_config_proposal', proposal_id=p.id) }}" class="d-inline m-0 p-0">
+                  <button class="btn btn-outline-danger" title="Xóa" onclick="return confirm('Xóa đề xuất này?')"><i class="bi bi-trash"></i></button>
+                </form>
               </div>
             </td>
           </tr>
