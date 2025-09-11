@@ -28,6 +28,10 @@
       <label class="form-label">Đơn vị đề xuất</label>
       <input type="text" class="form-control" name="proposer_unit" value="{{ p.proposer_unit }}">
     </div>
+    <div class="col-12">
+      <label class="form-label">Ghi chú chung</label>
+      <textarea class="form-control" rows="2" name="notes">{{ p.notes or '' }}</textarea>
+    </div>
     <div class="col-md-3">
       <label class="form-label">Loại tiền</label>
       <select class="form-select" name="currency">
@@ -39,8 +43,16 @@
     <div class="col-md-3">
       <label class="form-label">Trạng thái</label>
       <select class="form-select" name="status">
-        {% for st in ['Mới tạo','Lưu nháp','Chờ xin ý kiến','Đang xin ý kiến','Đã xin ý kiến','Đã duyệt','Đang mua','Đã thanh toán','Chờ giao hàng','Chờ xuất hóa đơn'] %}
+        {% for st in ['Mới tạo','Lưu nháp','Đang xin ý kiến','Đã xin ý kiến','Đang mua hàng','Hủy'] %}
           <option value="{{ st }}" {% if p.status==st %}selected{% endif %}>{{ st }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Trạng thái mua hàng</label>
+      <select class="form-select" name="purchase_status">
+        {% for st in ['Lấy báo giá','Chờ thanh toán','Chờ giao hàng','Chờ xuất hóa đơn','Đã hoàn thành'] %}
+          <option value="{{ st }}" {% if p.purchase_status==st %}selected{% endif %}>{{ st }}</option>
         {% endfor %}
       </select>
     </div>

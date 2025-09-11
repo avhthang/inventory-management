@@ -163,7 +163,9 @@ class ConfigProposal(db.Model):
     proposer_unit = db.Column(db.String(120))
     scope = db.Column(db.String(50))  # Dùng chung | Cá nhân
     currency = db.Column(db.String(10), default='VND')
-    status = db.Column(db.String(20), default='Mới tạo')  # Mới tạo, lưu nháp, đã duyệt, đã mua
+    status = db.Column(db.String(30), default='Mới tạo')  # Mới tạo, Lưu nháp, Đang xin ý kiến, Đã xin ý kiến, Đang mua hàng, Hủy
+    purchase_status = db.Column(db.String(30), default='Lấy báo giá')  # Lấy báo giá, Chờ thanh toán, Chờ giao hàng, Chờ xuất hóa đơn, Đã hoàn thành
+    notes = db.Column(db.Text)
     subtotal = db.Column(db.Float, default=0.0)
     vat_percent = db.Column(db.Float, default=10.0)
     vat_amount = db.Column(db.Float, default=0.0)
@@ -212,7 +214,11 @@ def ensure_tables_once():
                         if 'currency' not in cols2:
                             alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN currency VARCHAR(10) DEFAULT 'VND'")
                         if 'status' not in cols2:
-                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN status VARCHAR(20) DEFAULT 'Mới tạo'")
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN status VARCHAR(30) DEFAULT 'Mới tạo'")
+                        if 'purchase_status' not in cols2:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN purchase_status VARCHAR(30) DEFAULT 'Lấy báo giá'")
+                        if 'notes' not in cols2:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN notes TEXT")
                     for stmt in alter_stmts:
                         conn.execute(text(stmt))
                     if alter_stmts:
@@ -1557,6 +1563,8 @@ def add_config_proposal():
             vat_percent = request.form.get('vat_percent', type=float) or 10.0
             currency = request.form.get('currency') or 'VND'
             status = request.form.get('status') or 'Mới tạo'
+            purchase_status = request.form.get('purchase_status') or 'Lấy báo giá'
+            notes = request.form.get('notes')
 
             if not name or not proposal_date_str:
                 flash('Vui lòng nhập Tên đề xuất và Ngày đề xuất.', 'danger')
@@ -1572,7 +1580,9 @@ def add_config_proposal():
                 scope=scope,
                 vat_percent=vat_percent,
                 currency=currency,
-                status=status
+                status=status,
+                purchase_status=purchase_status,
+                notes=notes
             )
             db.session.add(proposal)
             db.session.flush()
@@ -1681,6 +1691,8 @@ def edit_config_proposal(proposal_id):
             p.scope = request.form.get('scope')
             p.currency = request.form.get('currency') or 'VND'
             p.status = request.form.get('status') or p.status
+            p.purchase_status = request.form.get('purchase_status') or p.purchase_status
+            p.notes = request.form.get('notes')
             p.vat_percent = request.form.get('vat_percent', type=float) or p.vat_percent
 
             # Replace items
