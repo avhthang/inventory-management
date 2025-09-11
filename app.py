@@ -383,7 +383,7 @@ def device_list():
     devices_pagination = query.order_by(Device.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
-    users = User.query.order_by(User.full_name).all()
+    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
 
     return render_template(
         'devices.html',
@@ -461,7 +461,7 @@ def add_device():
         flash('Thêm thiết bị mới thành công!', 'success')
         return redirect(url_for('device_list'))
         
-    managers = User.query.order_by(User.full_name).all()
+    managers = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
     return render_template('add_device.html', managers=managers)
     
 @app.route('/edit_device/<int:device_id>', methods=['GET', 'POST'])
@@ -492,7 +492,7 @@ def edit_device(device_id):
         flash('Cập nhật thông tin thiết bị thành công!', 'success')
         return redirect(url_for('device_list'))
         
-    managers = User.query.order_by(User.full_name).all()
+    managers = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
     return render_template('edit_device.html', device=device, managers=managers, statuses=statuses)
 
@@ -578,8 +578,8 @@ def device_groups():
         user_count = UserDeviceGroup.query.filter_by(group_id=g.id).count()
         group_summaries.append({'group': g, 'device_count': device_count, 'user_count': user_count})
 
-    users = User.query.order_by(User.full_name).all()
-    creators = User.query.order_by(User.full_name).all()
+    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
+    creators = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
     return render_template(
         'device_groups.html',
         group_summaries=group_summaries,
@@ -605,8 +605,8 @@ def device_group_detail(group_id):
     # Người dùng trong nhóm
     user_links = UserDeviceGroup.query.filter_by(group_id=group_id).all()
     user_ids_in_group = [l.user_id for l in user_links] if user_links else []
-    users_in_group = User.query.filter(User.id.in_(user_ids_in_group)).order_by(User.full_name).all() if user_ids_in_group else []
-    users_not_in_group = User.query.order_by(User.full_name).all() if not user_ids_in_group else User.query.filter(~User.id.in_(user_ids_in_group)).order_by(User.full_name).all()
+    users_in_group = User.query.filter(User.id.in_(user_ids_in_group)).order_by(func.lower(User.full_name), func.lower(User.username)).all() if user_ids_in_group else []
+    users_not_in_group = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all() if not user_ids_in_group else User.query.filter(~User.id.in_(user_ids_in_group)).order_by(func.lower(User.full_name), func.lower(User.username)).all()
     return render_template('device_group_detail.html', group=group, devices_in_group=devices_in_group, devices_not_in_group=devices_not_in_group, users_in_group=users_in_group, users_not_in_group=users_not_in_group)
 
 # --- Inventory Receipt Routes ---
@@ -883,7 +883,7 @@ def add_devices_bulk():
             flash(f'Đã xảy ra lỗi khi thêm thiết bị hàng loạt: {str(e)}', 'danger')
             return redirect(url_for('add_devices_bulk'))
 
-    managers = User.query.order_by(User.full_name).all()
+    managers = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
     groups = DeviceGroup.query.order_by(DeviceGroup.name).all()
     return render_template('add_devices_bulk.html', managers=managers, groups=groups)
 
@@ -916,7 +916,7 @@ def handover_list():
         query = query.filter(DeviceHandover.handover_date <= datetime.strptime(filter_end_date, '%Y-%m-%d').date())
 
     handovers_pagination = query.order_by(DeviceHandover.handover_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    users = User.query.order_by(User.full_name).all()
+    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     return render_template('handovers.html', handovers=handovers_pagination, users=users, device_types=device_types, filter_device_code=filter_device_code, filter_giver_id=filter_giver_id, filter_receiver_id=filter_receiver_id, filter_device_type=filter_device_type, filter_start_date=filter_start_date, filter_end_date=filter_end_date)
 
@@ -1014,7 +1014,7 @@ def add_handover():
     preselected_device_id = request.args.get('device_id', type=int)
     # Chỉ hiển thị các thiết bị sẵn sàng để chọn
     devices = Device.query.filter_by(status='Sẵn sàng').order_by(Device.device_code).all()
-    users = User.query.order_by(User.full_name).all()
+    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
     
     return render_template('add_handover.html', 
                            devices=devices, 
@@ -1207,7 +1207,7 @@ def user_list():
     if filter_status:
         query = query.filter(User.status == filter_status)
 
-    # Sắp xếp an toàn cho SQLite: theo họ tên (không phân biệt hoa thường), rồi username
+    # Sắp xếp danh sách người dùng theo tên ABC không phân biệt hoa thường, rồi theo username
     users_pagination = query.order_by(
         func.lower(User.full_name),
         func.lower(User.username)
@@ -1523,7 +1523,7 @@ def import_users():
 @app.route('/export_users_excel')
 def export_users_excel():
     if 'user_id' not in session: return redirect(url_for('login'))
-    users = User.query.order_by(User.id.desc()).all()
+    users = User.query.order_by(func.lower(User.full_name), func.lower(User.username)).all()
     data = []
     for user in users:
         data.append({
