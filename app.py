@@ -9,6 +9,7 @@ from datetime import datetime, date, timedelta
 import pandas as pd
 import io
 import click
+import json
 
 # --- Cấu hình ứng dụng ---
 instance_path = os.path.join(os.getcwd(), 'instance')
@@ -188,6 +189,45 @@ class ConfigProposalItem(db.Model):
     line_total = db.Column(db.Float, default=0.0)
     proposal = db.relationship('ConfigProposal', backref=db.backref('items', cascade='all, delete-orphan'))
 
+# --- Audit Log ---
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    entity_type = db.Column(db.String(50), nullable=False)
+    entity_id = db.Column(db.Integer, nullable=False)
+    changed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    changes = db.Column(db.Text)  # JSON string: { field: {"from": ..., "to": ...}, ... }
+
+def _serialize_value(value):
+    if value is None:
+        return None
+    if isinstance(value, (datetime, date)):
+        try:
+            return value.strftime('%Y-%m-%d')
+        except Exception:
+            return str(value)
+    return value
+
+def _diff_changes(old_dict, new_dict):
+    diff = {}
+    for key in new_dict.keys():
+        old_v = _serialize_value(old_dict.get(key))
+        new_v = _serialize_value(new_dict.get(key))
+        if old_v != new_v:
+            diff[key] = { 'from': old_v, 'to': new_v }
+    return diff
+
+def _log_audit(entity_type, entity_id, old_dict, new_dict):
+    try:
+        changes = _diff_changes(old_dict, new_dict)
+        if not changes:
+            return
+        changed_by = session.get('user_id')
+        db.session.add(AuditLog(entity_type=entity_type, entity_id=entity_id, changed_by=changed_by, changes=json.dumps(changes, ensure_ascii=False)))
+    except Exception:
+        # Do not break main flow if logging fails
+        pass
+
 # --- Ensure tables exist in case CLI init wasn't run (Flask 3 compatible) ---
 _tables_initialized = False
 
@@ -236,6 +276,8 @@ def ensure_tables_once():
                     cols4 = {row[1] for row in info4}
                     if info4 and 'last_name_token' not in cols4:
                         alter_stmts.append("ALTER TABLE user ADD COLUMN last_name_token VARCHAR(120)")
+                    # AuditLog table creation (if not exists)
+                    conn.execute(text("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, entity_type VARCHAR(50) NOT NULL, entity_id INTEGER NOT NULL, changed_by INTEGER, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP, changes TEXT)"))
                     for stmt in alter_stmts:
                         conn.execute(text(stmt))
                     if alter_stmts:
@@ -475,6 +517,27 @@ def edit_device(device_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     device = Device.query.get_or_404(device_id)
     if request.method == 'POST':
+        # snapshot before
+        old = {
+            'device_code': device.device_code,
+            'name': device.name,
+            'device_type': device.device_type,
+            'serial_number': device.serial_number,
+            'brand': device.brand,
+            'supplier': device.supplier,
+            'warranty': device.warranty,
+            'configuration': device.configuration,
+            'purchase_date': device.purchase_date,
+            'purchase_price': device.purchase_price,
+            'buyer': device.buyer,
+            'importer': device.importer,
+            'import_date': device.import_date,
+            'condition': device.condition,
+            'status': device.status,
+            'manager_id': device.manager_id,
+            'assign_date': device.assign_date,
+            'notes': device.notes,
+        }
         # Cho phép sửa mã thiết bị với kiểm tra trùng lặp
         new_device_code = request.form.get('device_code', '').strip()
         if not new_device_code:
@@ -505,6 +568,28 @@ def edit_device(device_id):
         device.notes = request.form.get('notes')
         
         db.session.commit()
+        # snapshot after
+        new = {
+            'device_code': device.device_code,
+            'name': device.name,
+            'device_type': device.device_type,
+            'serial_number': device.serial_number,
+            'brand': device.brand,
+            'supplier': device.supplier,
+            'warranty': device.warranty,
+            'configuration': device.configuration,
+            'purchase_date': device.purchase_date,
+            'purchase_price': device.purchase_price,
+            'buyer': device.buyer,
+            'importer': device.importer,
+            'import_date': device.import_date,
+            'condition': device.condition,
+            'status': device.status,
+            'manager_id': device.manager_id,
+            'assign_date': device.assign_date,
+            'notes': device.notes,
+        }
+        _log_audit('device', device.id, old, new)
         flash('Cập nhật thông tin thiết bị thành công!', 'success')
         return redirect(url_for('device_list'))
         
@@ -644,6 +729,14 @@ def inventory_receipt_edit(receipt_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     receipt = InventoryReceipt.query.get_or_404(receipt_id)
     if request.method == 'POST':
+        old = {
+            'code': receipt.code,
+            'date': receipt.date,
+            'supplier': receipt.supplier,
+            'importer': receipt.importer,
+            'notes': receipt.notes,
+            'config_proposal_id': getattr(receipt, 'config_proposal_id', None)
+        }
         receipt.code = request.form.get('code') or receipt.code
         date_str = request.form.get('date')
         if date_str:
@@ -663,6 +756,15 @@ def inventory_receipt_edit(receipt_id):
         except Exception:
             pass
         db.session.commit()
+        new = {
+            'code': receipt.code,
+            'date': receipt.date,
+            'supplier': receipt.supplier,
+            'importer': receipt.importer,
+            'notes': receipt.notes,
+            'config_proposal_id': getattr(receipt, 'config_proposal_id', None)
+        }
+        _log_audit('inventory_receipt', receipt.id, old, new)
         flash('Cập nhật phiếu nhập kho thành công.', 'success')
         return redirect(url_for('inventory_receipt_detail', receipt_id=receipt.id))
     return render_template('inventory_receipt_edit.html', receipt=receipt)
@@ -684,6 +786,10 @@ def inventory_receipt_delete(receipt_id):
 def edit_device_group(group_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     group = DeviceGroup.query.get_or_404(group_id)
+    old = {
+        'name': group.name,
+        'description': group.description,
+    }
     name = request.form.get('name')
     description = request.form.get('description')
     if not name:
@@ -692,6 +798,11 @@ def edit_device_group(group_id):
     group.name = name
     group.description = description
     db.session.commit()
+    new = {
+        'name': group.name,
+        'description': group.description,
+    }
+    _log_audit('device_group', group.id, old, new)
     flash('Cập nhật nhóm thiết bị thành công!', 'success')
     return redirect(url_for('device_group_detail', group_id=group_id))
 
@@ -1064,6 +1175,16 @@ def edit_handover(handover_id):
     old_device_id = handover.device_id
     
     if request.method == 'POST':
+        old = {
+            'handover_date': handover.handover_date,
+            'device_id': handover.device_id,
+            'giver_id': handover.giver_id,
+            'receiver_id': handover.receiver_id,
+            'device_condition': handover.device_condition,
+            'reason': handover.reason,
+            'location': handover.location,
+            'notes': handover.notes,
+        }
         # Lấy thông tin mới từ form
         new_device_id = int(request.form['device_id'])
         new_receiver_id = int(request.form['receiver_id'])
@@ -1110,6 +1231,17 @@ def edit_handover(handover_id):
                     old_device.assign_date = None
         
         db.session.commit()
+        new = {
+            'handover_date': handover.handover_date,
+            'device_id': handover.device_id,
+            'giver_id': handover.giver_id,
+            'receiver_id': handover.receiver_id,
+            'device_condition': handover.device_condition,
+            'reason': handover.reason,
+            'location': handover.location,
+            'notes': handover.notes,
+        }
+        _log_audit('device_handover', handover.id, old, new)
         flash('Cập nhật phiếu bàn giao và thông tin thiết bị thành công!', 'success')
         return redirect(url_for('handover_list'))
         
@@ -1311,6 +1443,19 @@ def edit_user(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     user = User.query.get_or_404(user_id)
     if request.method == 'POST':
+        old = {
+            'full_name': user.full_name,
+            'email': user.email,
+            'date_of_birth': user.date_of_birth,
+            'role': user.role,
+            'department': user.department,
+            'position': user.position,
+            'phone_number': user.phone_number,
+            'notes': user.notes,
+            'status': user.status,
+            'onboard_date': user.onboard_date,
+            'offboard_date': user.offboard_date,
+        }
         user.full_name = request.form.get('full_name')
         if user.full_name:
             try:
@@ -1334,6 +1479,20 @@ def edit_user(user_id):
             user.password = generate_password_hash(new_password)
             
         db.session.commit()
+        new = {
+            'full_name': user.full_name,
+            'email': user.email,
+            'date_of_birth': user.date_of_birth,
+            'role': user.role,
+            'department': user.department,
+            'position': user.position,
+            'phone_number': user.phone_number,
+            'notes': user.notes,
+            'status': user.status,
+            'onboard_date': user.onboard_date,
+            'offboard_date': user.offboard_date,
+        }
+        _log_audit('user', user.id, old, new)
         flash('Cập nhật thông tin người dùng thành công!', 'success')
         return redirect(url_for('user_list'))
     return render_template('edit_user.html', user=user)
