@@ -12,41 +12,41 @@
       <table class="table table-striped align-middle">
         <thead>
           <tr>
-            <th>#</th>
-            <th>Tên đề xuất</th>
-            <th>Ngày đề xuất</th>
-            <th>Người đề xuất</th>
-            <th>Đơn vị</th>
-            <th>Phạm vi</th>
-            <th>Trạng thái</th>
-            <th class="text-end">Tạm tính</th>
-            <th class="text-end">VAT</th>
-            <th class="text-end">Tổng</th>
+            <th class="text-center">#</th>
+            <th class="text-center">Tên đề xuất</th>
+            <th class="text-center">Ngày đề xuất</th>
+            <th class="text-center">Người đề xuất</th>
+            <th class="text-center">Đơn vị</th>
+            <th class="text-center">Phạm vi</th>
+            <th class="text-center">Trạng thái</th>
+            <th class="text-center">Tạm tính</th>
+            <th class="text-center">VAT</th>
+            <th class="text-center">Tổng</th>
             <th class="text-center">Thao tác</th>
           </tr>
         </thead>
         <tbody>
           {% for p in proposals %}
           <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ p.name }}</td>
-            <td>{{ p.proposal_date.strftime('%d-%m-%Y') }}</td>
-            <td>{{ p.proposer_name or '' }}</td>
-            <td>{{ p.proposer_unit or '' }}</td>
-            <td>{{ p.scope or '' }}</td>
-            <td>{{ p.status or '' }}</td>
+            <td class="text-start">{{ loop.index }}</td>
+            <td class="text-start">{{ p.name }}</td>
+            <td class="text-start">{{ p.proposal_date.strftime('%d-%m-%Y') }}</td>
+            <td class="text-start">{{ p.proposer_name or '' }}</td>
+            <td class="text-start">{{ p.proposer_unit or '' }}</td>
+            <td class="text-start">{{ p.scope or '' }}</td>
+            <td class="text-start">{{ p.status or '' }}</td>
             <td class="text-end">{{ (p.subtotal or 0)|vnd }}</td>
             <td class="text-end">{{ (p.vat_amount or 0)|vnd }}</td>
             <td class="text-end">{{ (p.total_amount or 0)|vnd }} {{ p.currency }}</td>
             <td class="text-center">
-              <div class="btn-group btn-group-sm">
-                <a class="btn btn-outline-secondary" href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}">Xem</a>
-                <a class="btn btn-outline-primary" href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}">Sửa</a>
-                <form method="post" action="{{ url_for('clone_config_proposal', proposal_id=p.id) }}" class="d-inline">
-                  <button class="btn btn-outline-warning" onclick="return confirm('Nhân bản đề xuất này?')">Nhân bản</button>
+              <div class="btn-group btn-group-sm" role="group">
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}">Xem</a>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}">Sửa</a>
+                <form method="post" action="{{ url_for('clone_config_proposal', proposal_id=p.id) }}" class="d-inline m-0 p-0">
+                  <button class="btn btn-sm btn-outline-warning" onclick="return confirm('Nhân bản đề xuất này?')">Nhân bản</button>
                 </form>
-                <form method="post" action="{{ url_for('delete_config_proposal', proposal_id=p.id) }}" class="d-inline">
-                  <button class="btn btn-outline-danger" onclick="return confirm('Xóa đề xuất này?')">Xóa</button>
+                <form method="post" action="{{ url_for('delete_config_proposal', proposal_id=p.id) }}" class="d-inline m-0 p-0">
+                  <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa đề xuất này?')">Xóa</button>
                 </form>
               </div>
             </td>
