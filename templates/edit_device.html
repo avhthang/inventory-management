@@ -92,6 +92,10 @@
                             <option value="Sẵn sàng" {% if device.status == 'Sẵn sàng' %}selected{% endif %}>Sẵn sàng</option>
                             <option value="Đã cấp phát" {% if device.status == 'Đã cấp phát' %}selected{% endif %}>Đã cấp phát</option>
                             <option value="Bảo trì" {% if device.status == 'Bảo trì' %}selected{% endif %}>Bảo trì</option>
+                            <option value="Hỏng" {% if device.status == 'Hỏng' %}selected{% endif %}>Hỏng</option>
+                            <option value="Thanh lý" {% if device.status == 'Thanh lý' %}selected{% endif %}>Thanh lý</option>
+                            <option value="Test" {% if device.status == 'Test' %}selected{% endif %}>Test</option>
+                            <option value="Mượn" {% if device.status == 'Mượn' %}selected{% endif %}>Mượn</option>
                         </select>
                     </div>
                     <div class="form-group mb-3">

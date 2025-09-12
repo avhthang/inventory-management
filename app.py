@@ -435,12 +435,15 @@ def device_list():
         query = query.filter_by(device_type=filter_device_type)
     if filter_status:
         query = query.filter_by(status=filter_status)
+    else:
+        # Mặc định ẩn các trạng thái đặc biệt
+        query = query.filter(~Device.status.in_(['Hỏng', 'Thanh lý', 'Test', 'Mượn']))
     if filter_manager_id:
         query = query.filter(Device.manager_id == filter_manager_id)
     
     devices_pagination = query.order_by(Device.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
-    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
+    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
 
     return render_template(
