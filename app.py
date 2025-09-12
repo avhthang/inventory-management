@@ -614,7 +614,18 @@ def delete_device(device_id):
     if device.handovers:
         flash('Không thể xóa thiết bị đã có lịch sử bàn giao.', 'danger')
         return redirect(url_for('device_list'))
-        
+    # Gỡ liên kết nhóm thiết bị (nếu có)
+    try:
+        for link in DeviceGroupDevice.query.filter_by(device_id=device.id).all():
+            db.session.delete(link)
+    except Exception:
+        pass
+    # Xóa các item trong phiếu nhập kho tham chiếu tới thiết bị (nếu có)
+    try:
+        for it in InventoryReceiptItem.query.filter_by(device_id=device.id).all():
+            db.session.delete(it)
+    except Exception:
+        pass
     db.session.delete(device)
     db.session.commit()
     flash('Xóa thiết bị thành công!', 'success')
