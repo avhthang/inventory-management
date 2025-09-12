@@ -27,7 +27,7 @@
                     <label class="form-label">Trạng thái</label>
                     <div class="d-flex gap-2">
                         <select name="filter_status" class="form-select">
-                            <option value="">-- Ẩn trạng thái đặc biệt --</option>
+                            <option value="">-- Tất cả --</option>
                             {% for status in statuses %}
                             <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
                             {% endfor %}

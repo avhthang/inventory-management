@@ -435,9 +435,6 @@ def device_list():
         query = query.filter_by(device_type=filter_device_type)
     if filter_status:
         query = query.filter_by(status=filter_status)
-    else:
-        # Mặc định ẩn các trạng thái đặc biệt
-        query = query.filter(~Device.status.in_(['Hỏng', 'Thanh lý', 'Test', 'Mượn']))
     if filter_manager_id:
         query = query.filter(Device.manager_id == filter_manager_id)
     
