@@ -10,15 +10,15 @@
             <div class="row">
                 <div class="col-md-6">
                     <div class="form-group mb-3">
-                        <label class="form-label">Mã thiết bị</label>
+                        <label class="form-label required">Mã thiết bị <span class="required-asterisk">*</span></label>
                         <input type="text" name="device_code" class="form-control" placeholder="Để trống để tự động tạo mã">
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label required">Tên thiết bị</label>
+                        <label class="form-label required">Tên thiết bị <span class="required-asterisk">*</span></label>
                         <input type="text" name="name" class="form-control" placeholder="VD: Laptop Dell Vostro 3550" required>
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label required">Loại thiết bị</label>
+                        <label class="form-label required">Loại thiết bị <span class="required-asterisk">*</span></label>
                         <select name="device_type" class="form-control" required>
                             <option value="">-- Chọn loại --</option>
                             <option value="Laptop">Laptop</option>
@@ -58,7 +58,7 @@
                 </div>
                 <div class="col-md-6">
                      <div class="form-group mb-3">
-                        <label class="form-label required">Ngày mua</label>
+                        <label class="form-label required">Ngày mua <span class="required-asterisk">*</span></label>
                         <input type="date" name="purchase_date" class="form-control" required>
                     </div>
                     <div class="form-group mb-3">
@@ -75,11 +75,11 @@
                         <input type="text" name="importer" class="form-control">
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label required">Ngày nhập kho</label>
+                        <label class="form-label required">Ngày nhập kho <span class="required-asterisk">*</span></label>
                         <input type="date" name="import_date" class="form-control" required>
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label required">Tình trạng ban đầu</label>
+                        <label class="form-label required">Tình trạng ban đầu <span class="required-asterisk">*</span></label>
                         <select name="condition" class="form-control" required>
                             <option value="Mới">Mới</option><option value="Sử dụng bình thường" selected>Sử dụng bình thường</option><option value="Cần bảo trì">Cần bảo trì</option><option value="Hỏng">Hỏng</option>
                         </select>

@@ -1,3 +1,9 @@
+/* Append red asterisk to required fields (used by JS) */
+.required-asterisk {
+	color: #dc3545; /* Bootstrap danger */
+	margin-left: 2px;
+	font-weight: 700;
+}
 /* static/style.css */
 
 body {
