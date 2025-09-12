@@ -23,7 +23,20 @@
                 <div class="col-md-2"><label class="form-label">Mã thiết bị</label><input type="text" name="filter_device_code" class="form-control" placeholder="Tìm mã..." value="{{ filter_device_code }}"></div>
                 <div class="col-md-2"><label class="form-label">Tên thiết bị</label><input type="text" name="filter_name" class="form-control" placeholder="Tìm tên..." value="{{ filter_name }}"></div>
                 <div class="col-md-2"><label class="form-label">Loại thiết bị</label><select name="filter_device_type" class="form-select"><option value="">-- Tất cả --</option>{% for type in device_types %}<option value="{{ type }}" {% if filter_device_type == type %}selected{% endif %}>{{ type }}</option>{% endfor %}</select></div>
-                <div class="col-md-2"><label class="form-label">Trạng thái</label><select name="filter_status" class="form-select"><option value="">-- Ẩn trạng thái đặc biệt --</option>{% for status in statuses %}<option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></div>
+                <div class="col-md-3">
+                    <label class="form-label">Trạng thái</label>
+                    <div class="d-flex gap-2">
+                        <select name="filter_status" class="form-select">
+                            <option value="">-- Ẩn trạng thái đặc biệt --</option>
+                            {% for status in statuses %}
+                            <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
+                            {% endfor %}
+                        </select>
+                        <button formaction="{{ url_for('set_devices_default_status') }}" formmethod="POST" name="status" value="{{ filter_status }}" class="btn btn-outline-secondary" title="Lưu mặc định">
+                            <i class="bi bi-bookmark-check"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="col-md-2">
                     <label class="form-label">Người quản lý</label>
                     <select id="manager_filter_select" name="filter_manager_id" class="form-select">

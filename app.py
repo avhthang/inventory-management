@@ -423,7 +423,7 @@ def device_list():
     filter_device_code = request.args.get('filter_device_code', '')
     filter_name = request.args.get('filter_name', '')
     filter_device_type = request.args.get('filter_device_type', '')
-    filter_status = request.args.get('filter_status', '')
+    filter_status = request.args.get('filter_status', session.get('default_device_status', ''))
     filter_manager_id = request.args.get('filter_manager_id', '')
     
     query = Device.query
@@ -458,6 +458,16 @@ def device_list():
         filter_status=filter_status,
         filter_manager_id=filter_manager_id
     )
+
+@app.route('/devices/default_status', methods=['POST'])
+def set_devices_default_status():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    status = request.form.get('filter_status')
+    if status is None:
+        status = request.form.get('status')
+    session['default_device_status'] = status if status is not None else session.get('default_device_status', '')
+    flash('Đã lưu trạng thái thiết bị mặc định.', 'success')
+    return redirect(url_for('device_list'))
 
 @app.route('/devices/bulk_update', methods=['POST'])
 def devices_bulk_update():
