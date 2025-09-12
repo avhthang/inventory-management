@@ -11,7 +11,7 @@ Tài liệu này hướng dẫn triển khai ứng dụng Flask lên server prod
 * **Git**: Dùng để tải và cập nhật mã nguồn.
 
 
-## 1: Cấu hình Server Ubuntu
+## 1. Cấu hình Server Ubuntu
 
 Bây giờ, chúng ta sẽ làm việc trên server.
 
