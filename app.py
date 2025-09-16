@@ -755,6 +755,14 @@ def inventory_receipt_detail(receipt_id):
     items = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all()
     return render_template('inventory_receipt_detail.html', receipt=receipt, items=items)
 
+@app.route('/inventory_receipts/<int:receipt_id>/export_mof')
+def inventory_receipt_export_mof(receipt_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    receipt = InventoryReceipt.query.get_or_404(receipt_id)
+    items = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all()
+    # Render mẫu in theo chuẩn Bộ Tài chính (bản HTML in ấn)
+    return render_template('inventory_receipt_mof.html', receipt=receipt, items=items)
+
 @app.route('/inventory_receipts/<int:receipt_id>/edit', methods=['GET', 'POST'])
 def inventory_receipt_edit(receipt_id):
     if 'user_id' not in session: return redirect(url_for('login'))

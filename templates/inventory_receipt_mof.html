@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}In Phiếu Nhập Kho (Mẫu BTC){% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="card-title mb-0">Phiếu Nhập Kho (Mẫu Bộ Tài chính)</h2>
+      <button class="btn btn-outline-primary" onclick="window.print()"><i class="bi bi-printer"></i> In</button>
+    </div>
+
+    <div class="mb-3">
+      <div><strong>Số phiếu:</strong> {{ receipt.code }}</div>
+      <div><strong>Ngày:</strong> {{ receipt.date.strftime('%d-%m-%Y') if receipt.date else '—' }}</div>
+      <div><strong>Nhà cung cấp:</strong> {{ receipt.supplier or '—' }}</div>
+      <div><strong>Người nhập:</strong> {{ receipt.importer or '—' }}</div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th>STT</th>
+            <th>Mã thiết bị</th>
+            <th>Tên tài sản/thiết bị</th>
+            <th>Quy cách (loại)</th>
+            <th>SL</th>
+            <th>Tình trạng</th>
+            <th>Ghi chú</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ item.device.device_code }}</td>
+            <td>{{ item.device.name }}</td>
+            <td>{{ item.device.device_type }}</td>
+            <td>{{ item.quantity or 1 }}</td>
+            <td>{{ item.device_condition or item.device.condition }}</td>
+            <td>{{ item.device_note or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row mt-5 text-center">
+      <div class="col">Người lập phiếu<br><em>(Ký, ghi rõ họ tên)</em></div>
+      <div class="col">Thủ kho<br><em>(Ký, ghi rõ họ tên)</em></div>
+      <div class="col">Kế toán<br><em>(Ký, ghi rõ họ tên)</em></div>
+      <div class="col">Thủ trưởng đơn vị<br><em>(Ký, ghi rõ họ tên)</em></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

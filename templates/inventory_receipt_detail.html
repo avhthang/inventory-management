@@ -7,7 +7,10 @@
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="card-title mb-0">Phiếu nhập kho: {{ receipt.code }}</h2>
-            <a href="{{ url_for('inventory_receipts') }}" class="btn btn-secondary">Quay lại</a>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('inventory_receipt_export_mof', receipt_id=receipt.id) }}" target="_blank" class="btn btn-success"><i class="bi bi-printer"></i> In mẫu Bộ Tài chính</a>
+                <a href="{{ url_for('inventory_receipts') }}" class="btn btn-secondary">Quay lại</a>
+            </div>
         </div>
         <div class="row mb-3">
             <div class="col-md-3"><strong>Ngày nhập:</strong> {{ receipt.date.strftime('%d-%m-%Y') if receipt.date else '—' }}</div>
