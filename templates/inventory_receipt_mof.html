@@ -11,10 +11,10 @@
     </div>
 
     <div class="mb-3">
-      <div><strong>Số phiếu:</strong> {{ receipt.code }}</div>
-      <div><strong>Ngày:</strong> {{ receipt.date.strftime('%d-%m-%Y') if receipt.date else '—' }}</div>
-      <div><strong>Nhà cung cấp:</strong> {{ receipt.supplier or '—' }}</div>
-      <div><strong>Người nhập:</strong> {{ receipt.importer or '—' }}</div>
+      <div><strong>Số phiếu:</strong> {{ receipt.code if receipt else '—' }}</div>
+      <div><strong>Ngày:</strong> {{ receipt.date.strftime('%d-%m-%Y') if receipt and receipt.date else '—' }}</div>
+      <div><strong>Nhà cung cấp:</strong> {{ receipt.supplier if receipt else '—' }}</div>
+      <div><strong>Người nhập:</strong> {{ receipt.importer if receipt else '—' }}</div>
     </div>
 
     <div class="table-responsive">

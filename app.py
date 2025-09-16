@@ -10,6 +10,9 @@ import pandas as pd
 import io
 import click
 import json
+import sqlite3
+import tempfile
+import zipfile
 
 # --- Cấu hình ứng dụng ---
 instance_path = os.path.join(os.getcwd(), 'instance')
@@ -758,6 +761,9 @@ def inventory_receipt_detail(receipt_id):
 @app.route('/inventory_receipts/<int:receipt_id>/export_mof')
 def inventory_receipt_export_mof(receipt_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if receipt_id == 0:
+        # Tạo phiếu nhập kho mới (mẫu trống)
+        return render_template('inventory_receipt_mof.html', receipt=None, items=[])
     receipt = InventoryReceipt.query.get_or_404(receipt_id)
     items = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all()
     # Render mẫu in theo chuẩn Bộ Tài chính (bản HTML in ấn)
@@ -2070,6 +2076,101 @@ def create_admin_command():
     db.session.add(admin_user)
     db.session.commit()
     click.echo("Đã tạo tài khoản admin thành công (Username: admin, Pass: admin123).")
+
+# --- Backup/Restore Routes ---
+@app.route('/backup')
+def backup_page():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    return render_template('backup.html')
+
+@app.route('/backup/export')
+def backup_export():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    try:
+        # Tạo file backup
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_filename = f'backup_inventory_{timestamp}.zip'
+        
+        # Tạo file tạm
+        temp_dir = tempfile.mkdtemp()
+        backup_path = os.path.join(temp_dir, backup_filename)
+        
+        with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Backup database
+            db_path = os.path.join(instance_path, 'inventory.db')
+            if os.path.exists(db_path):
+                zipf.write(db_path, 'inventory.db')
+            
+            # Backup upload folder if exists
+            upload_path = os.path.join(os.getcwd(), 'upload')
+            if os.path.exists(upload_path):
+                for root, dirs, files in os.walk(upload_path):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, os.getcwd())
+                        zipf.write(file_path, arcname)
+        
+        return send_file(
+            backup_path,
+            as_attachment=True,
+            download_name=backup_filename,
+            mimetype='application/zip'
+        )
+    except Exception as e:
+        flash(f'Lỗi khi tạo backup: {str(e)}', 'danger')
+        return redirect(url_for('backup_page'))
+
+@app.route('/backup/import', methods=['POST'])
+def backup_import():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if 'backup_file' not in request.files:
+        flash('Vui lòng chọn file backup.', 'danger')
+        return redirect(url_for('backup_page'))
+    
+    file = request.files['backup_file']
+    if file.filename == '':
+        flash('Vui lòng chọn file backup.', 'danger')
+        return redirect(url_for('backup_page'))
+    
+    if not file.filename.endswith('.zip'):
+        flash('File backup phải có định dạng .zip', 'danger')
+        return redirect(url_for('backup_page'))
+    
+    try:
+        # Lưu file tạm
+        temp_dir = tempfile.mkdtemp()
+        temp_path = os.path.join(temp_dir, file.filename)
+        file.save(temp_path)
+        
+        # Giải nén và restore
+        with zipfile.ZipFile(temp_path, 'r') as zipf:
+            # Restore database
+            if 'inventory.db' in zipf.namelist():
+                db_path = os.path.join(instance_path, 'inventory.db')
+                # Backup database hiện tại
+                if os.path.exists(db_path):
+                    backup_db_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    os.rename(db_path, backup_db_path)
+                
+                # Extract new database
+                zipf.extract('inventory.db', instance_path)
+            
+            # Restore upload folder
+            upload_path = os.path.join(os.getcwd(), 'upload')
+            for name in zipf.namelist():
+                if name.startswith('upload/'):
+                    zipf.extract(name, os.getcwd())
+        
+        # Cleanup
+        os.remove(temp_path)
+        os.rmdir(temp_dir)
+        
+        flash('Import backup thành công!', 'success')
+        return redirect(url_for('backup_page'))
+        
+    except Exception as e:
+        flash(f'Lỗi khi import backup: {str(e)}', 'danger')
+        return redirect(url_for('backup_page'))
 
 if __name__ == '__main__':
     app.run(debug=True)
