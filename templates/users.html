@@ -29,6 +29,15 @@
                     </select>
                 </div>
                 <div class="col-md-3">
+                    <label class="form-label">Chức vụ</label>
+                    <select name="filter_position" class="form-select">
+                        <option value="">-- Tất cả --</option>
+                        {% for pos in positions %}
+                        <option value="{{ pos }}" {% if filter_position == pos %}selected{% endif %}>{{ pos }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label">Trạng thái</label>
                     <div class="d-flex gap-2">
                         <select name="filter_status" class="form-select">
@@ -88,7 +97,7 @@
                 </tbody>
             </table>
         </div>
-        {% set filters = {'filter_username': filter_username, 'filter_department': filter_department, 'filter_status': filter_status} %}
+        {% set filters = {'filter_username': filter_username, 'filter_department': filter_department, 'filter_position': filter_position, 'filter_status': filter_status} %}
         {{ render_pagination(users, 'user_list', filters=filters) }}
     </div>
 </div>

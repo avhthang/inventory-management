@@ -1387,6 +1387,7 @@ def user_list():
     filter_username = request.args.get('filter_username', '')
     filter_role = request.args.get('filter_role', '')
     filter_department = request.args.get('filter_department', '')
+    filter_position = request.args.get('filter_position', '')
     filter_status = request.args.get('filter_status', session.get('default_user_status', 'Đang làm'))
 
     query = User.query
@@ -1396,6 +1397,8 @@ def user_list():
         query = query.filter_by(role=filter_role)
     if filter_department:
         query = query.filter(User.department == filter_department)
+    if filter_position:
+        query = query.filter(User.position == filter_position)
     if filter_status:
         query = query.filter(User.status == filter_status)
 
@@ -1406,6 +1409,7 @@ def user_list():
     ).paginate(page=page, per_page=per_page, error_out=False)
     
     departments = [d[0] for d in db.session.query(User.department).filter(User.department.isnot(None)).distinct().order_by(User.department)]
+    positions = [p[0] for p in db.session.query(User.position).filter(User.position.isnot(None)).distinct().order_by(User.position)]
     statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Khác']
 
     return render_template('users.html', 
@@ -1413,8 +1417,10 @@ def user_list():
                            filter_username=filter_username, 
                            filter_role=filter_role, 
                            filter_department=filter_department,
+                           filter_position=filter_position,
                            filter_status=filter_status,
                            departments=departments,
+                           positions=positions,
                            statuses=statuses)
 
 @app.route('/users/default_status', methods=['POST'])

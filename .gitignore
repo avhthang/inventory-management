@@ -1,0 +1,21 @@
+# Bỏ qua thư mục build
+/build/
+
+# Bỏ qua file log
+*.log
+
+# Bỏ qua file cấu hình hệ thống
+.DS_Store
+Thumbs.db
+
+# Bỏ qua thư mục node_modules (Node.js project)
+node_modules/
+
+# Bỏ qua môi trường Python
+__pycache__/
+*.pyc
+.venv/
+
+# Bỏ qua thư mục upload
+upload/
+
