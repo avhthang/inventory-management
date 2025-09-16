@@ -7,52 +7,124 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2 class="card-title mb-0">Phiếu Nhập Kho (Mẫu Bộ Tài chính)</h2>
-      <button class="btn btn-outline-primary" onclick="window.print()"><i class="bi bi-printer"></i> In</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-success" onclick="saveReceipt()"><i class="bi bi-save"></i> Lưu</button>
+        <button class="btn btn-outline-primary" onclick="window.print()"><i class="bi bi-printer"></i> In</button>
+      </div>
     </div>
 
-    <div class="mb-3">
-      <div><strong>Số phiếu:</strong> {{ receipt.code if receipt else '—' }}</div>
-      <div><strong>Ngày:</strong> {{ receipt.date.strftime('%d-%m-%Y') if receipt and receipt.date else '—' }}</div>
-      <div><strong>Nhà cung cấp:</strong> {{ receipt.supplier if receipt else '—' }}</div>
-      <div><strong>Người nhập:</strong> {{ receipt.importer if receipt else '—' }}</div>
-    </div>
+    <form id="receipt-form" method="POST" action="{{ url_for('save_btc_receipt') }}">
+      <div class="row mb-3">
+        <div class="col-md-3">
+          <label class="form-label"><strong>Số phiếu:</strong></label>
+          <input type="text" name="code" class="form-control" value="{{ receipt.code if receipt else '' }}" placeholder="Nhập số phiếu">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label"><strong>Ngày:</strong></label>
+          <input type="date" name="date" class="form-control" value="{{ receipt.date.strftime('%Y-%m-%d') if receipt and receipt.date else '' }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label"><strong>Nhà cung cấp:</strong></label>
+          <input type="text" name="supplier" class="form-control" value="{{ receipt.supplier if receipt else '' }}" placeholder="Nhập nhà cung cấp">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label"><strong>Người nhập:</strong></label>
+          <input type="text" name="importer" class="form-control" value="{{ receipt.importer if receipt else '' }}" placeholder="Nhập người nhập">
+        </div>
+      </div>
 
-    <div class="table-responsive">
-      <table class="table table-bordered">
-        <thead class="table-light">
-          <tr>
-            <th>STT</th>
-            <th>Mã thiết bị</th>
-            <th>Tên tài sản/thiết bị</th>
-            <th>Quy cách (loại)</th>
-            <th>SL</th>
-            <th>Tình trạng</th>
-            <th>Ghi chú</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in items %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ item.device.device_code }}</td>
-            <td>{{ item.device.name }}</td>
-            <td>{{ item.device.device_type }}</td>
-            <td>{{ item.quantity or 1 }}</td>
-            <td>{{ item.device_condition or item.device.condition }}</td>
-            <td>{{ item.device_note or '' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+      <div class="table-responsive">
+        <table class="table table-bordered">
+          <thead class="table-light">
+            <tr>
+              <th>STT</th>
+              <th>Mã thiết bị</th>
+              <th>Tên tài sản/thiết bị</th>
+              <th>Quy cách (loại)</th>
+              <th>SL</th>
+              <th>Tình trạng</th>
+              <th>Ghi chú</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="items-table">
+            {% for item in items %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td><input type="text" name="device_code[]" class="form-control form-control-sm" value="{{ item.device.device_code }}"></td>
+              <td><input type="text" name="device_name[]" class="form-control form-control-sm" value="{{ item.device.name }}"></td>
+              <td><input type="text" name="device_type[]" class="form-control form-control-sm" value="{{ item.device.device_type }}"></td>
+              <td><input type="number" name="quantity[]" class="form-control form-control-sm" value="{{ item.quantity or 1 }}" min="1"></td>
+              <td><input type="text" name="condition[]" class="form-control form-control-sm" value="{{ item.device_condition or item.device.condition }}"></td>
+              <td><input type="text" name="note[]" class="form-control form-control-sm" value="{{ item.device_note or '' }}"></td>
+              <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)"><i class="bi bi-trash"></i></button></td>
+            </tr>
+            {% endfor %}
+            {% if not items %}
+            <tr>
+              <td>1</td>
+              <td><input type="text" name="device_code[]" class="form-control form-control-sm" placeholder="Mã thiết bị"></td>
+              <td><input type="text" name="device_name[]" class="form-control form-control-sm" placeholder="Tên thiết bị"></td>
+              <td><input type="text" name="device_type[]" class="form-control form-control-sm" placeholder="Loại thiết bị"></td>
+              <td><input type="number" name="quantity[]" class="form-control form-control-sm" value="1" min="1"></td>
+              <td><input type="text" name="condition[]" class="form-control form-control-sm" placeholder="Tình trạng"></td>
+              <td><input type="text" name="note[]" class="form-control form-control-sm" placeholder="Ghi chú"></td>
+              <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)"><i class="bi bi-trash"></i></button></td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="addRow()"><i class="bi bi-plus"></i> Thêm dòng</button>
+      </div>
 
-    <div class="row mt-5 text-center">
-      <div class="col">Người lập phiếu<br><em>(Ký, ghi rõ họ tên)</em></div>
-      <div class="col">Thủ kho<br><em>(Ký, ghi rõ họ tên)</em></div>
-      <div class="col">Kế toán<br><em>(Ký, ghi rõ họ tên)</em></div>
-      <div class="col">Thủ trưởng đơn vị<br><em>(Ký, ghi rõ họ tên)</em></div>
-    </div>
+      <div class="row mt-5 text-center">
+        <div class="col">Người lập phiếu<br><em>(Ký, ghi rõ họ tên)</em></div>
+        <div class="col">Thủ kho<br><em>(Ký, ghi rõ họ tên)</em></div>
+        <div class="col">Kế toán<br><em>(Ký, ghi rõ họ tên)</em></div>
+        <div class="col">Thủ trưởng đơn vị<br><em>(Ký, ghi rõ họ tên)</em></div>
+      </div>
+    </form>
   </div>
 </div>
+
+<script>
+function addRow() {
+  const table = document.getElementById('items-table');
+  const rowCount = table.rows.length;
+  const newRow = table.insertRow();
+  
+  newRow.innerHTML = `
+    <td>${rowCount + 1}</td>
+    <td><input type="text" name="device_code[]" class="form-control form-control-sm" placeholder="Mã thiết bị"></td>
+    <td><input type="text" name="device_name[]" class="form-control form-control-sm" placeholder="Tên thiết bị"></td>
+    <td><input type="text" name="device_type[]" class="form-control form-control-sm" placeholder="Loại thiết bị"></td>
+    <td><input type="number" name="quantity[]" class="form-control form-control-sm" value="1" min="1"></td>
+    <td><input type="text" name="condition[]" class="form-control form-control-sm" placeholder="Tình trạng"></td>
+    <td><input type="text" name="note[]" class="form-control form-control-sm" placeholder="Ghi chú"></td>
+    <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)"><i class="bi bi-trash"></i></button></td>
+  `;
+  
+  updateRowNumbers();
+}
+
+function removeRow(button) {
+  const table = document.getElementById('items-table');
+  if (table.rows.length > 1) {
+    button.closest('tr').remove();
+    updateRowNumbers();
+  }
+}
+
+function updateRowNumbers() {
+  const table = document.getElementById('items-table');
+  for (let i = 0; i < table.rows.length; i++) {
+    table.rows[i].cells[0].textContent = i + 1;
+  }
+}
+
+function saveReceipt() {
+  document.getElementById('receipt-form').submit();
+}
+</script>
 {% endblock %}
 

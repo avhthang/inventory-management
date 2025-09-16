@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Danh sách Backup{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="card-title mb-0">Danh sách Backup</h2>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('backup_config') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-gear"></i> Cấu hình
+                </a>
+                <a href="{{ url_for('backup_page') }}" class="btn btn-secondary">Quay lại</a>
+            </div>
+        </div>
+        
+        {% if backups %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tên file</th>
+                        <th>Loại</th>
+                        <th>Ngày tạo</th>
+                        <th>Kích thước</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for backup in backups %}
+                    <tr>
+                        <td>
+                            <code>{{ backup.filename }}</code>
+                        </td>
+                        <td>
+                            {% if backup.type == 'auto' %}
+                                <span class="badge bg-info">Tự động</span>
+                            {% else %}
+                                <span class="badge bg-success">Thủ công</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ backup.created.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+                        <td>{{ "%.1f"|format(backup.size / 1024 / 1024) }} MB</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('backup_restore_from_file', filename=backup.filename) }}" 
+                                   class="btn btn-outline-warning" 
+                                   onclick="return confirm('Bạn có chắc chắn muốn khôi phục backup này? Dữ liệu hiện tại sẽ bị thay thế!')"
+                                   title="Khôi phục">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </a>
+                                <a href="{{ url_for('backup_export') }}?file={{ backup.filename }}" 
+                                   class="btn btn-outline-primary" 
+                                   title="Tải về">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Chưa có file backup nào.
+        </div>
+        {% endif %}
+        
+        <div class="alert alert-warning mt-4">
+            <h6><i class="bi bi-exclamation-triangle"></i> Lưu ý:</h6>
+            <ul class="mb-0">
+                <li>File backup tự động được tạo theo lịch đã cấu hình</li>
+                <li>File backup cũ hơn 30 ngày sẽ tự động bị xóa</li>
+                <li>Khi khôi phục, database hiện tại sẽ được backup trước</li>
+                <li>Chỉ khôi phục khi thực sự cần thiết</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

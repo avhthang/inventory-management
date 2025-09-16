@@ -11,7 +11,7 @@
         </div>
         
         <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="card">
                     <div class="card-header bg-success text-white">
                         <h5 class="mb-0"><i class="bi bi-download"></i> Xuất Backup</h5>
@@ -29,7 +29,26 @@
                 </div>
             </div>
             
-            <div class="col-md-6">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-gear"></i> Backup Tự động</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Cấu hình backup tự động:</p>
+                        <ul>
+                            <li>Backup hàng ngày/tuần</li>
+                            <li>Lưu trên server</li>
+                            <li>Tự động xóa file cũ</li>
+                        </ul>
+                        <a href="{{ url_for('backup_config') }}" class="btn btn-primary">
+                            <i class="bi bi-gear"></i> Cấu hình
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
                 <div class="card">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="mb-0"><i class="bi bi-upload"></i> Import Backup</h5>
@@ -47,6 +66,22 @@
                                 <i class="bi bi-upload"></i> Import Backup
                             </button>
                         </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-list"></i> Quản lý Backup</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Xem và quản lý các file backup đã tạo:</p>
+                        <a href="{{ url_for('backup_list') }}" class="btn btn-info">
+                            <i class="bi bi-list"></i> Xem danh sách backup
+                        </a>
                     </div>
                 </div>
             </div>

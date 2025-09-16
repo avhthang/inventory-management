@@ -13,10 +13,17 @@ import json
 import sqlite3
 import tempfile
 import zipfile
+import schedule
+import threading
+import time
 
 # --- Cấu hình ứng dụng ---
 instance_path = os.path.join(os.getcwd(), 'instance')
 os.makedirs(instance_path, exist_ok=True)
+
+# Backup configuration
+backup_path = os.path.join(os.getcwd(), 'backups')
+os.makedirs(backup_path, exist_ok=True)
 
 app = Flask(__name__, instance_path=instance_path)
 app.config['SECRET_KEY'] = 'your_super_secret_key_change_this_please'
@@ -768,6 +775,80 @@ def inventory_receipt_export_mof(receipt_id):
     items = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all()
     # Render mẫu in theo chuẩn Bộ Tài chính (bản HTML in ấn)
     return render_template('inventory_receipt_mof.html', receipt=receipt, items=items)
+
+@app.route('/save_btc_receipt', methods=['POST'])
+def save_btc_receipt():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    try:
+        # Tạo phiếu nhập kho mới
+        code = request.form.get('code')
+        date_str = request.form.get('date')
+        supplier = request.form.get('supplier')
+        importer = request.form.get('importer')
+        
+        if not code or not date_str:
+            flash('Vui lòng nhập đầy đủ số phiếu và ngày.', 'danger')
+            return redirect(url_for('inventory_receipt_export_mof', receipt_id=0))
+        
+        # Kiểm tra mã phiếu trùng
+        if InventoryReceipt.query.filter_by(code=code).first():
+            flash('Mã phiếu đã tồn tại.', 'danger')
+            return redirect(url_for('inventory_receipt_export_mof', receipt_id=0))
+        
+        receipt = InventoryReceipt(
+            code=code,
+            date=datetime.strptime(date_str, '%Y-%m-%d').date(),
+            supplier=supplier or None,
+            importer=importer or None,
+            created_by=session.get('user_id')
+        )
+        db.session.add(receipt)
+        db.session.flush()  # Để lấy ID
+        
+        # Thêm các item
+        device_codes = request.form.getlist('device_code[]')
+        device_names = request.form.getlist('device_name[]')
+        device_types = request.form.getlist('device_type[]')
+        quantities = request.form.getlist('quantity[]')
+        conditions = request.form.getlist('condition[]')
+        notes = request.form.getlist('note[]')
+        
+        for i, device_code in enumerate(device_codes):
+            if device_code and device_names[i]:
+                # Tạo thiết bị mới
+                device = Device(
+                    device_code=device_code,
+                    name=device_names[i],
+                    device_type=device_types[i] or 'Thiết bị khác',
+                    serial_number='',
+                    purchase_date=receipt.date,
+                    import_date=receipt.date,
+                    condition=conditions[i] or 'Mới',
+                    status='Sẵn sàng',
+                    created_at=datetime.utcnow()
+                )
+                db.session.add(device)
+                db.session.flush()
+                
+                # Tạo item
+                item = InventoryReceiptItem(
+                    receipt_id=receipt.id,
+                    device_id=device.id,
+                    quantity=int(quantities[i]) if quantities[i] else 1,
+                    device_condition=conditions[i] or 'Mới',
+                    device_note=notes[i] or None
+                )
+                db.session.add(item)
+        
+        db.session.commit()
+        flash('Lưu phiếu nhập kho thành công!', 'success')
+        return redirect(url_for('inventory_receipt_detail', receipt_id=receipt.id))
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi lưu phiếu: {str(e)}', 'danger')
+        return redirect(url_for('inventory_receipt_export_mof', receipt_id=0))
 
 @app.route('/inventory_receipts/<int:receipt_id>/edit', methods=['GET', 'POST'])
 def inventory_receipt_edit(receipt_id):
@@ -2171,6 +2252,153 @@ def backup_import():
     except Exception as e:
         flash(f'Lỗi khi import backup: {str(e)}', 'danger')
         return redirect(url_for('backup_page'))
+
+# --- Automatic Backup Functions ---
+def create_automatic_backup():
+    """Tạo backup tự động"""
+    try:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_filename = f'auto_backup_{timestamp}.zip'
+        backup_filepath = os.path.join(backup_path, backup_filename)
+        
+        with zipfile.ZipFile(backup_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Backup database
+            db_path = os.path.join(instance_path, 'inventory.db')
+            if os.path.exists(db_path):
+                zipf.write(db_path, 'inventory.db')
+            
+            # Backup upload folder if exists
+            upload_path = os.path.join(os.getcwd(), 'upload')
+            if os.path.exists(upload_path):
+                for root, dirs, files in os.walk(upload_path):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, os.getcwd())
+                        zipf.write(file_path, arcname)
+        
+        print(f"Automatic backup created: {backup_filename}")
+        return backup_filename
+    except Exception as e:
+        print(f"Error creating automatic backup: {str(e)}")
+        return None
+
+def cleanup_old_backups():
+    """Xóa backup cũ hơn 30 ngày"""
+    try:
+        cutoff_date = datetime.now() - timedelta(days=30)
+        for filename in os.listdir(backup_path):
+            if filename.startswith('auto_backup_') and filename.endswith('.zip'):
+                filepath = os.path.join(backup_path, filename)
+                file_time = datetime.fromtimestamp(os.path.getctime(filepath))
+                if file_time < cutoff_date:
+                    os.remove(filepath)
+                    print(f"Deleted old backup: {filename}")
+    except Exception as e:
+        print(f"Error cleaning up old backups: {str(e)}")
+
+def backup_scheduler():
+    """Chạy scheduler cho backup tự động"""
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # Check every minute
+
+# Setup automatic backup schedule
+schedule.every().day.at("02:00").do(create_automatic_backup)  # Daily at 2 AM
+schedule.every().sunday.at("03:00").do(create_automatic_backup)  # Weekly on Sunday at 3 AM
+schedule.every().day.at("04:00").do(cleanup_old_backups)  # Cleanup at 4 AM
+
+# Start backup scheduler in background thread
+backup_thread = threading.Thread(target=backup_scheduler, daemon=True)
+backup_thread.start()
+
+@app.route('/backup/config', methods=['GET', 'POST'])
+def backup_config():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        # Update backup configuration
+        daily_enabled = request.form.get('daily_enabled') == 'on'
+        weekly_enabled = request.form.get('weekly_enabled') == 'on'
+        daily_time = request.form.get('daily_time', '02:00')
+        weekly_time = request.form.get('weekly_time', '03:00')
+        
+        # Clear existing schedules
+        schedule.clear()
+        
+        # Set new schedules
+        if daily_enabled:
+            schedule.every().day.at(daily_time).do(create_automatic_backup)
+        if weekly_enabled:
+            schedule.every().sunday.at(weekly_time).do(create_automatic_backup)
+        
+        # Always keep cleanup schedule
+        schedule.every().day.at("04:00").do(cleanup_old_backups)
+        
+        flash('Cấu hình backup tự động đã được cập nhật!', 'success')
+        return redirect(url_for('backup_config'))
+    
+    # GET - show current configuration
+    return render_template('backup_config.html')
+
+@app.route('/backup/list')
+def backup_list():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    backups = []
+    try:
+        for filename in os.listdir(backup_path):
+            if filename.endswith('.zip'):
+                filepath = os.path.join(backup_path, filename)
+                file_time = datetime.fromtimestamp(os.path.getctime(filepath))
+                file_size = os.path.getsize(filepath)
+                backups.append({
+                    'filename': filename,
+                    'created': file_time,
+                    'size': file_size,
+                    'type': 'auto' if filename.startswith('auto_backup_') else 'manual'
+                })
+        
+        # Sort by creation time (newest first)
+        backups.sort(key=lambda x: x['created'], reverse=True)
+    except Exception as e:
+        flash(f'Lỗi khi lấy danh sách backup: {str(e)}', 'danger')
+        backups = []
+    
+    return render_template('backup_list.html', backups=backups)
+
+@app.route('/backup/restore/<filename>')
+def backup_restore_from_file(filename):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    try:
+        backup_filepath = os.path.join(backup_path, filename)
+        if not os.path.exists(backup_filepath):
+            flash('File backup không tồn tại.', 'danger')
+            return redirect(url_for('backup_list'))
+        
+        # Backup current database
+        db_path = os.path.join(instance_path, 'inventory.db')
+        if os.path.exists(db_path):
+            backup_db_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            os.rename(db_path, backup_db_path)
+        
+        # Restore from backup
+        with zipfile.ZipFile(backup_filepath, 'r') as zipf:
+            if 'inventory.db' in zipf.namelist():
+                zipf.extract('inventory.db', instance_path)
+            
+            # Restore upload folder
+            upload_path = os.path.join(os.getcwd(), 'upload')
+            for name in zipf.namelist():
+                if name.startswith('upload/'):
+                    zipf.extract(name, os.getcwd())
+        
+        flash(f'Khôi phục backup từ {filename} thành công!', 'success')
+        return redirect(url_for('backup_list'))
+        
+    except Exception as e:
+        flash(f'Lỗi khi khôi phục backup: {str(e)}', 'danger')
+        return redirect(url_for('backup_list'))
 
 if __name__ == '__main__':
     app.run(debug=True)
