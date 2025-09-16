@@ -126,6 +126,7 @@ class DeviceGroup(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text)
+    notes = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -665,11 +666,35 @@ def device_groups():
     if request.method == 'POST':
         name = request.form.get('name')
         description = request.form.get('description')
+        notes = request.form.get('notes')
+        device_ids = request.form.getlist('device_ids')
+        
         if not name:
             flash('Tên nhóm là bắt buộc.', 'danger')
             return redirect(url_for('device_groups'))
-        group = DeviceGroup(name=name, description=description, created_by=session.get('user_id'))
+        
+        # Tạo nhóm mới
+        group = DeviceGroup(
+            name=name, 
+            description=description, 
+            notes=notes,
+            created_by=session.get('user_id')
+        )
         db.session.add(group)
+        db.session.flush()  # Để lấy ID
+        
+        # Thêm thiết bị vào nhóm (đảm bảo 1 thiết bị chỉ ở 1 nhóm)
+        for device_id in device_ids:
+            if device_id:
+                # Xóa thiết bị khỏi nhóm cũ nếu có
+                old_link = DeviceGroupDevice.query.filter_by(device_id=device_id).first()
+                if old_link:
+                    db.session.delete(old_link)
+                
+                # Thêm vào nhóm mới
+                new_link = DeviceGroupDevice(group_id=group.id, device_id=device_id)
+                db.session.add(new_link)
+        
         db.session.commit()
         flash('Tạo nhóm thiết bị thành công!', 'success')
         return redirect(url_for('device_groups'))
@@ -722,11 +747,13 @@ def device_groups():
 
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     creators = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    devices = Device.query.order_by(Device.device_code).all()
     return render_template(
         'device_groups.html',
         group_summaries=group_summaries,
         users=users,
         creators=creators,
+        devices=devices,
         filter_name=filter_name,
         filter_user_id=filter_user_id,
         filter_device_code=filter_device_code,
@@ -915,18 +942,22 @@ def edit_device_group(group_id):
     old = {
         'name': group.name,
         'description': group.description,
+        'notes': group.notes,
     }
     name = request.form.get('name')
     description = request.form.get('description')
+    notes = request.form.get('notes')
     if not name:
         flash('Tên nhóm là bắt buộc.', 'danger')
         return redirect(url_for('device_group_detail', group_id=group_id))
     group.name = name
     group.description = description
+    group.notes = notes
     db.session.commit()
     new = {
         'name': group.name,
         'description': group.description,
+        'notes': group.notes,
     }
     _log_audit('device_group', group.id, old, new)
     flash('Cập nhật nhóm thiết bị thành công!', 'success')
@@ -2399,6 +2430,24 @@ def backup_restore_from_file(filename):
     except Exception as e:
         flash(f'Lỗi khi khôi phục backup: {str(e)}', 'danger')
         return redirect(url_for('backup_list'))
+
+@app.route('/api/group_devices/<int:group_id>')
+def api_group_devices(group_id):
+    if 'user_id' not in session: return jsonify({'error': 'Unauthorized'}), 401
+    group = DeviceGroup.query.get_or_404(group_id)
+    device_links = DeviceGroupDevice.query.filter_by(group_id=group_id).all()
+    devices = []
+    for link in device_links:
+        device = Device.query.get(link.device_id)
+        if device:
+            devices.append({
+                'id': device.id,
+                'device_code': device.device_code,
+                'name': device.name,
+                'device_type': device.device_type,
+                'serial_number': device.serial_number or ''
+            })
+    return jsonify({'devices': devices})
 
 if __name__ == '__main__':
     app.run(debug=True)

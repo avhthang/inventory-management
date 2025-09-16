@@ -83,17 +83,104 @@
     </div>
 </div>
 <div class="modal fade" id="createGroupModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <form method="POST">
-        <div class="modal-header"><h5 class="modal-title">Thông tin tạo nhóm</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <div class="mb-3"><label class="form-label">Tên nhóm</label><input name="name" class="form-control" required></div>
-          <div class="mb-3"><label class="form-label">Mô tả</label><input name="description" class="form-control"></div>
+        <div class="modal-header">
+          <h5 class="modal-title">Tạo nhóm thiết bị</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button><button class="btn btn-success">Tạo nhóm</button></div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Tên nhóm <span class="text-danger">*</span></label>
+                <input name="name" class="form-control" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Mô tả</label>
+                <input name="description" class="form-control">
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Ghi chú</label>
+            <textarea name="notes" class="form-control" rows="3"></textarea>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Thiết bị trong nhóm</label>
+            <div class="row g-2 mb-2">
+              <div class="col-md-4">
+                <input type="text" class="form-control" id="filter_code" placeholder="Lọc mã thiết bị">
+              </div>
+              <div class="col-md-4">
+                <input type="text" class="form-control" id="filter_name" placeholder="Lọc tên thiết bị">
+              </div>
+              <div class="col-md-4">
+                <select class="form-select" id="filter_type">
+                  <option value="">-- Loại thiết bị --</option>
+                  <option value="Laptop">Laptop</option>
+                  <option value="Case máy tính">Case máy tính</option>
+                  <option value="Màn hình">Màn hình</option>
+                  <option value="Bàn phím">Bàn phím</option>
+                  <option value="Chuột">Chuột</option>
+                  <option value="Ổ cứng">Ổ cứng</option>
+                  <option value="Ram">Ram</option>
+                  <option value="Card màn hình">Card màn hình</option>
+                  <option value="Máy in">Máy in</option>
+                  <option value="Thiết bị mạng">Thiết bị mạng</option>
+                  <option value="Server">Server</option>
+                  <option value="Thiết bị khác">Thiết bị khác</option>
+                </select>
+              </div>
+            </div>
+            <select name="device_ids" class="form-select" multiple size="8" id="devices_select">
+              {% for device in devices %}
+              <option value="{{ device.id }}" data-code="{{ device.device_code }}" data-name="{{ device.name }}" data-type="{{ device.device_type }}">
+                {{ device.device_code }} - {{ device.name }} ({{ device.device_type }})
+              </option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Giữ Ctrl/Cmd để chọn nhiều thiết bị. Một thiết bị chỉ có thể thuộc một nhóm.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-success">Tạo nhóm</button>
+        </div>
       </form>
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const codeInput = document.getElementById('filter_code');
+    const nameInput = document.getElementById('filter_name');
+    const typeSelect = document.getElementById('filter_type');
+    const selectEl = document.getElementById('devices_select');
+    
+    function applyFilter() {
+        const code = (codeInput?.value || '').toLowerCase();
+        const name = (nameInput?.value || '').toLowerCase();
+        const type = (typeSelect?.value || '').toLowerCase();
+        
+        Array.from(selectEl.options).forEach(o => {
+            const oc = (o.dataset.code || '').toLowerCase();
+            const on = (o.dataset.name || '').toLowerCase();
+            const ot = (o.dataset.type || '').toLowerCase();
+            const match = (!code || oc.includes(code)) && (!name || on.includes(name)) && (!type || ot === type);
+            o.hidden = !match;
+        });
+    }
+    
+    codeInput?.addEventListener('input', applyFilter);
+    nameInput?.addEventListener('input', applyFilter);
+    typeSelect?.addEventListener('change', applyFilter);
+});
+</script>
 {% endblock %}

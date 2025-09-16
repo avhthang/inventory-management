@@ -34,7 +34,7 @@
                     </select>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label class="form-label required">Tình trạng chung của các thiết bị <span class="required-asterisk">*</span></label>
+                    <label class="form-label required">Tình trạng thiết bị <span class="required-asterisk">*</span></label>
                     <select name="device_condition" class="form-control" required>
                         <option value="Mới">Mới</option>
                         <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
@@ -42,25 +42,6 @@
                     </select>
                 </div>
             </div>
-            <hr>
-
-            <h5>Danh sách thiết bị bàn giao</h5>
-            <div class="row mb-2">
-                <div class="col-md-6">
-                    <label class="form-label">Chọn nhóm thiết bị (tùy chọn)</label>
-                    <select name="group_ids" class="form-select" multiple>
-                        {% for g in groups %}
-                        <option value="{{ g.id }}">{{ g.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="form-text">Chọn 1 hoặc nhiều nhóm, hệ thống sẽ tự thêm tất cả thiết bị thuộc nhóm.</div>
-                </div>
-            </div>
-            <div id="device-list-container">
-                </div>
-            <button type="button" id="add-device-btn" class="btn btn-outline-success mt-2"><i class="bi bi-plus-lg"></i> Thêm thiết bị</button>
-            
-            <hr>
             <div class="row">
                  <div class="col-md-6 mb-3">
                     <label class="form-label">Lý do bàn giao</label>
@@ -71,6 +52,26 @@
                     <input type="text" name="location" class="form-control" placeholder="VD: Bàn làm việc A12, Phòng Kế toán">
                 </div>
             </div>
+            <hr>
+
+            <h5>Danh sách thiết bị bàn giao</h5>
+            <div class="row mb-2">
+                <div class="col-md-6">
+                    <label class="form-label">Chọn nhóm thiết bị (tùy chọn)</label>
+                    <select name="group_ids" class="form-select" id="group-select">
+                        <option value="">-- Chọn nhóm thiết bị --</option>
+                        {% for g in groups %}
+                        <option value="{{ g.id }}">{{ g.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Chọn nhóm thiết bị để tự động thêm tất cả thiết bị thuộc nhóm vào danh sách.</div>
+                </div>
+            </div>
+            <div id="device-list-container">
+                </div>
+            <button type="button" id="add-device-btn" class="btn btn-outline-success mt-2"><i class="bi bi-plus-lg"></i> Thêm thiết bị</button>
+            
+            <hr>
             <div class="mb-3">
                 <label class="form-label">Ghi chú</label>
                 <textarea name="notes" class="form-control" rows="3"></textarea>
@@ -188,6 +189,32 @@ $(document).ready(function() {
         } else {
             nameInput.val('');
             serialInput.val('');
+        }
+    });
+
+    // Handle group selection
+    $('#group-select').on('change', function() {
+        const groupId = $(this).val();
+        if (groupId) {
+            // Clear existing device rows
+            container.empty();
+            
+            // Fetch devices from selected group
+            fetch(`/api/group_devices/${groupId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.devices && data.devices.length > 0) {
+                        data.devices.forEach(device => {
+                            addDeviceRow(device.id);
+                        });
+                    } else {
+                        addDeviceRow();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching group devices:', error);
+                    addDeviceRow();
+                });
         }
     });
 
