@@ -13,6 +13,16 @@
                     <input type="date" name="handover_date" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}" required>
                 </div>
                 <div class="col-md-6 mb-3">
+                    <label class="form-label">Lý do bàn giao</label>
+                    <input type="text" name="reason" class="form-control" placeholder="VD: Cấp mới cho nhân viên">
+                </div>
+            </div>
+            <div class="row">
+                 <div class="col-md-6 mb-3">
+                    <label class="form-label">Địa điểm / Nơi đặt</label>
+                    <input type="text" name="location" class="form-control" placeholder="VD: Bàn làm việc A12, Phòng Kế toán">
+                </div>
+                 <div class="col-md-6 mb-3">
                     <label for="giver_id_select" class="form-label required">Người giao <span class="required-asterisk">*</span></label>
                     <select id="giver_id_select" name="giver_id" class="form-select" required>
                         {% for user in users %}
@@ -40,16 +50,6 @@
                         <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
                         <option value="Cần bảo trì">Cần bảo trì</option>
                     </select>
-                </div>
-            </div>
-            <div class="row">
-                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Lý do bàn giao</label>
-                    <input type="text" name="reason" class="form-control" placeholder="VD: Cấp mới cho nhân viên">
-                </div>
-                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Địa điểm / Nơi đặt</label>
-                    <input type="text" name="location" class="form-control" placeholder="VD: Bàn làm việc A12, Phòng Kế toán">
                 </div>
             </div>
             <hr>
