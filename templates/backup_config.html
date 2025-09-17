@@ -10,6 +10,11 @@
             <a href="{{ url_for('backup_page') }}" class="btn btn-secondary">Quay lại</a>
         </div>
         
+        <div class="alert alert-info">
+            <i class="bi bi-clock"></i>
+            <strong>Thời gian hiện tại:</strong> {{ current_time }} - {{ current_date }} (GMT+7)
+        </div>
+        
         <form method="POST">
             <div class="row">
                 <div class="col-md-6">
@@ -25,8 +30,9 @@
                                 </label>
                             </div>
                             <div class="mb-3">
-                                <label for="daily_time" class="form-label">Thời gian backup:</label>
+                                <label for="daily_time" class="form-label">Thời gian backup (GMT+7):</label>
                                 <input type="time" class="form-control" id="daily_time" name="daily_time" value="{{ daily_time }}">
+                                <small class="text-muted">Thời gian hiện tại được cấu hình: {{ daily_time }}</small>
                             </div>
                         </div>
                     </div>
@@ -45,8 +51,9 @@
                                 </label>
                             </div>
                             <div class="mb-3">
-                                <label for="weekly_time" class="form-label">Thời gian backup:</label>
+                                <label for="weekly_time" class="form-label">Thời gian backup (GMT+7):</label>
                                 <input type="time" class="form-control" id="weekly_time" name="weekly_time" value="{{ weekly_time }}">
+                                <small class="text-muted">Thời gian hiện tại được cấu hình: {{ weekly_time }}</small>
                             </div>
                         </div>
                     </div>
@@ -60,6 +67,7 @@
                     <li>File backup cũ hơn 30 ngày sẽ tự động bị xóa</li>
                     <li>Backup bao gồm database và thư mục upload</li>
                     <li>Hệ thống sẽ tự động backup database hiện tại trước khi restore</li>
+                    <li><strong>Thời gian backup được tính theo múi giờ GMT+7 (Việt Nam)</strong></li>
                 </ul>
             </div>
             

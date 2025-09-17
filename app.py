@@ -16,6 +16,7 @@ import zipfile
 import schedule
 import threading
 import time
+import pytz
 
 # --- Cấu hình ứng dụng ---
 instance_path = os.path.join(os.getcwd(), 'instance')
@@ -24,6 +25,9 @@ os.makedirs(instance_path, exist_ok=True)
 # Backup configuration
 backup_path = os.path.join(os.getcwd(), 'backups')
 os.makedirs(backup_path, exist_ok=True)
+
+# Timezone configuration (GMT+7)
+VIETNAM_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
 
 app = Flask(__name__, instance_path=instance_path)
 app.config['SECRET_KEY'] = 'your_super_secret_key_change_this_please'
@@ -2363,7 +2367,9 @@ def backup_import():
 def create_automatic_backup():
     """Tạo backup tự động"""
     try:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        # Sử dụng thời gian GMT+7
+        vietnam_time = datetime.now(VIETNAM_TZ)
+        timestamp = vietnam_time.strftime('%Y%m%d_%H%M%S')
         backup_filename = f'auto_backup_{timestamp}.zip'
         backup_filepath = os.path.join(backup_path, backup_filename)
         
@@ -2391,12 +2397,16 @@ def create_automatic_backup():
 def cleanup_old_backups():
     """Xóa backup cũ hơn 30 ngày"""
     try:
-        cutoff_date = datetime.now() - timedelta(days=30)
+        # Sử dụng thời gian GMT+7
+        vietnam_time = datetime.now(VIETNAM_TZ)
+        cutoff_date = vietnam_time - timedelta(days=30)
         for filename in os.listdir(backup_path):
             if filename.startswith('auto_backup_') and filename.endswith('.zip'):
                 filepath = os.path.join(backup_path, filename)
                 file_time = datetime.fromtimestamp(os.path.getctime(filepath))
-                if file_time < cutoff_date:
+                # Convert to Vietnam timezone for comparison
+                file_time_vietnam = pytz.utc.localize(file_time).astimezone(VIETNAM_TZ)
+                if file_time_vietnam < cutoff_date:
                     os.remove(filepath)
                     print(f"Deleted old backup: {filename}")
     except Exception as e:
@@ -2431,13 +2441,13 @@ def backup_config():
         # Clear existing schedules
         schedule.clear()
         
-        # Set new schedules
+        # Set new schedules (times are in GMT+7)
         if daily_enabled:
             schedule.every().day.at(daily_time).do(create_automatic_backup)
         if weekly_enabled:
             schedule.every().sunday.at(weekly_time).do(create_automatic_backup)
         
-        # Always keep cleanup schedule
+        # Always keep cleanup schedule at 4 AM GMT+7
         schedule.every().day.at("04:00").do(cleanup_old_backups)
         
         # Fix DB permissions after config change
@@ -2452,7 +2462,7 @@ def backup_config():
         except Exception as e:
             print(f"Warning: Could not fix DB permissions: {e}")
         
-        flash('Cấu hình backup tự động đã được cập nhật!', 'success')
+        flash('Cấu hình backup tự động đã được cập nhật! (Thời gian theo GMT+7)', 'success')
         return redirect(url_for('backup_config'))
     
     # GET - show current configuration
@@ -2460,8 +2470,8 @@ def backup_config():
     jobs = schedule.get_jobs()
     daily_enabled = False
     weekly_enabled = False
-    daily_time = '02:00'
-    weekly_time = '03:00'
+    daily_time = '02:00'  # Default time
+    weekly_time = '03:00'  # Default time
     
     for job in jobs:
         if 'create_automatic_backup' in str(job.job_func):
@@ -2472,11 +2482,17 @@ def backup_config():
                 weekly_enabled = True
                 weekly_time = str(job.at_time)[:5]  # Format HH:MM
     
+    # Get current Vietnam time for display
+    current_time = datetime.now(VIETNAM_TZ).strftime('%H:%M')
+    current_date = datetime.now(VIETNAM_TZ).strftime('%d/%m/%Y')
+    
     return render_template('backup_config.html', 
                          daily_enabled=daily_enabled,
                          weekly_enabled=weekly_enabled,
                          daily_time=daily_time,
-                         weekly_time=weekly_time)
+                         weekly_time=weekly_time,
+                         current_time=current_time,
+                         current_date=current_date)
 
 @app.route('/backup/list')
 def backup_list():
