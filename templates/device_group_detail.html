@@ -33,7 +33,39 @@
                 <div class="card mb-3">
                     <div class="card-header bg-light"><strong>Thiết bị trong nhóm</strong></div>
                     <div class="card-body">
-                        
+                        <form method="POST" action="{{ url_for('assign_devices_to_group', group_id=group.id) }}" class="mb-3">
+                            <label class="form-label">Thêm thiết bị vào nhóm</label>
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-4"><input type="text" class="form-control" id="filter_code" placeholder="Lọc mã thiết bị"></div>
+                                <div class="col-md-4"><input type="text" class="form-control" id="filter_name" placeholder="Lọc tên thiết bị"></div>
+                                <div class="col-md-4">
+                                    <select class="form-select" id="filter_type">
+                                        <option value="">-- Loại thiết bị --</option>
+                                        <option value="Laptop">Laptop</option>
+                                        <option value="Case máy tính">Case máy tính</option>
+                                        <option value="Màn hình">Màn hình</option>
+                                        <option value="Bàn phím">Bàn phím</option>
+                                        <option value="Chuột">Chuột</option>
+                                        <option value="Ổ cứng">Ổ cứng</option>
+                                        <option value="Ram">Ram</option>
+                                        <option value="Card màn hình">Card màn hình</option>
+                                        <option value="Máy in">Máy in</option>
+                                        <option value="Thiết bị mạng">Thiết bị mạng</option>
+                                        <option value="Server">Server</option>
+                                        <option value="Thiết bị khác">Thiết bị khác</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <select name="device_ids" class="form-select" multiple size="7" id="devices_select">
+                                {% for device in devices_not_in_group %}
+                                <option value="{{ device.id }}" data-code="{{ device.device_code }}" data-name="{{ device.name }}" data-type="{{ device.device_type }}">{{ device.device_code }} - {{ device.name }} ({{ device.device_type }})</option>
+                                {% endfor %}
+                            </select>
+                            <div class="mt-2 text-end">
+                                <button class="btn btn-sm btn-outline-primary">Thêm</button>
+                            </div>
+                            <small class="text-muted">Chỉ hiển thị thiết bị chưa thuộc nhóm nào. Một thiết bị chỉ có thể thuộc một nhóm.</small>
+                        </form>
 
                         <div class="table-responsive">
                             <table class="table table-sm table-striped">

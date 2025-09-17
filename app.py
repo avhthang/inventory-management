@@ -751,7 +751,12 @@ def device_groups():
 
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     creators = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    devices = Device.query.order_by(Device.device_code).all()
+    # Chỉ hiển thị thiết bị chưa thuộc bất kỳ nhóm nào để chọn
+    assigned_device_ids = [l.device_id for l in DeviceGroupDevice.query.all()]
+    if assigned_device_ids:
+        devices = Device.query.filter(~Device.id.in_(assigned_device_ids)).order_by(Device.device_code).all()
+    else:
+        devices = Device.query.order_by(Device.device_code).all()
     return render_template(
         'device_groups.html',
         group_summaries=group_summaries,
@@ -774,7 +779,12 @@ def device_group_detail(group_id):
     device_links = DeviceGroupDevice.query.filter_by(group_id=group_id).all()
     device_ids_in_group = [l.device_id for l in device_links] if device_links else []
     devices_in_group = Device.query.filter(Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all() if device_ids_in_group else []
-    devices_not_in_group = Device.query.order_by(Device.device_code).all() if not device_ids_in_group else Device.query.filter(~Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all()
+    # Thiết bị chưa thuộc bất kỳ nhóm nào (để đảm bảo 1 thiết bị chỉ ở 1 nhóm)
+    all_assigned_ids = [l.device_id for l in DeviceGroupDevice.query.all()]
+    if all_assigned_ids:
+        devices_not_in_group = Device.query.filter(~Device.id.in_(all_assigned_ids)).order_by(Device.device_code).all()
+    else:
+        devices_not_in_group = Device.query.order_by(Device.device_code).all()
     # Người dùng trong nhóm
     user_links = UserDeviceGroup.query.filter_by(group_id=group_id).all()
     user_ids_in_group = [l.user_id for l in user_links] if user_links else []
@@ -1005,14 +1015,60 @@ def assign_devices_to_group(group_id):
         return redirect(url_for('device_group_detail', group_id=group_id))
     created = 0
     for d_id in device_ids:
-        if not d_id: continue
-        exists = DeviceGroupDevice.query.filter_by(group_id=group_id, device_id=int(d_id)).first()
+        if not d_id:
+            continue
+        d_int = int(d_id)
+        # Gỡ khỏi nhóm cũ nếu đang thuộc nhóm khác (đảm bảo unique)
+        old_link = DeviceGroupDevice.query.filter_by(device_id=d_int).first()
+        if old_link and old_link.group_id != group_id:
+            db.session.delete(old_link)
+        exists = DeviceGroupDevice.query.filter_by(group_id=group_id, device_id=d_int).first()
         if not exists:
-            db.session.add(DeviceGroupDevice(group_id=group_id, device_id=int(d_id)))
+            db.session.add(DeviceGroupDevice(group_id=group_id, device_id=d_int))
             created += 1
     db.session.commit()
     flash(f'Đã thêm {created} thiết bị vào nhóm.', 'success')
     return redirect(url_for('device_group_detail', group_id=group_id))
+
+@app.route('/server_room', methods=['GET', 'POST'])
+def server_room():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    # Tạo/lấy nhóm đặc biệt "Phòng server"
+    group = DeviceGroup.query.filter(func.lower(DeviceGroup.name) == func.lower('Phòng server')).first()
+    if not group:
+        group = DeviceGroup(name='Phòng server', description='Nhóm thiết bị phòng server', created_by=session.get('user_id'))
+        db.session.add(group)
+        db.session.commit()
+    if request.method == 'POST':
+        device_ids = request.form.getlist('device_ids')
+        created = 0
+        for d_id in device_ids:
+            if not d_id:
+                continue
+            d_int = int(d_id)
+            # đảm bảo unique: gỡ khỏi nhóm cũ
+            old_link = DeviceGroupDevice.query.filter_by(device_id=d_int).first()
+            if old_link and old_link.group_id != group.id:
+                db.session.delete(old_link)
+            exists = DeviceGroupDevice.query.filter_by(group_id=group.id, device_id=d_int).first()
+            if not exists:
+                db.session.add(DeviceGroupDevice(group_id=group.id, device_id=d_int))
+                created += 1
+        db.session.commit()
+        flash(f'Đã thêm {created} thiết bị vào Phòng server.', 'success')
+        return redirect(url_for('server_room'))
+
+    # Danh sách thiết bị trong phòng server
+    links = DeviceGroupDevice.query.filter_by(group_id=group.id).all()
+    ids_in_server = [l.device_id for l in links]
+    devices_in_server = Device.query.filter(Device.id.in_(ids_in_server)).order_by(Device.device_code).all() if ids_in_server else []
+    # Thiết bị sẵn có để thêm: chưa thuộc nhóm nào
+    all_assigned_ids = [l.device_id for l in DeviceGroupDevice.query.all()]
+    if all_assigned_ids:
+        devices_available = Device.query.filter(~Device.id.in_(all_assigned_ids)).order_by(Device.device_code).all()
+    else:
+        devices_available = Device.query.order_by(Device.device_code).all()
+    return render_template('server_room.html', group=group, devices_in_server=devices_in_server, devices_available=devices_available)
 
 @app.route('/device_groups/<int:group_id>/remove_device/<int:device_id>', methods=['POST'])
 def remove_device_from_group(group_id, device_id):
