@@ -947,12 +947,32 @@ def edit_device_group(group_id):
     name = request.form.get('name')
     description = request.form.get('description')
     notes = request.form.get('notes')
+    device_ids = request.form.getlist('device_ids')
+    
     if not name:
         flash('Tên nhóm là bắt buộc.', 'danger')
-        return redirect(url_for('device_group_detail', group_id=group_id))
+        return redirect(url_for('device_groups'))
+    
     group.name = name
     group.description = description
     group.notes = notes
+    
+    # Update device membership (ensure 1 device per group)
+    # First, remove all existing device links for this group
+    DeviceGroupDevice.query.filter_by(group_id=group_id).delete()
+    
+    # Then add new device links
+    for device_id in device_ids:
+        if device_id:
+            # Remove device from any other group first
+            old_link = DeviceGroupDevice.query.filter_by(device_id=device_id).first()
+            if old_link:
+                db.session.delete(old_link)
+            
+            # Add to this group
+            new_link = DeviceGroupDevice(group_id=group_id, device_id=device_id)
+            db.session.add(new_link)
+    
     db.session.commit()
     new = {
         'name': group.name,
@@ -961,7 +981,7 @@ def edit_device_group(group_id):
     }
     _log_audit('device_group', group.id, old, new)
     flash('Cập nhật nhóm thiết bị thành công!', 'success')
-    return redirect(url_for('device_group_detail', group_id=group_id))
+    return redirect(url_for('device_groups'))
 
 @app.route('/device_groups/<int:group_id>/delete', methods=['POST'])
 def delete_device_group(group_id):
@@ -2365,11 +2385,43 @@ def backup_config():
         # Always keep cleanup schedule
         schedule.every().day.at("04:00").do(cleanup_old_backups)
         
+        # Fix DB permissions after config change
+        try:
+            import subprocess
+            import getpass
+            username = getpass.getuser()
+            db_path = os.path.join(instance_path, 'inventory.db')
+            if os.path.exists(db_path):
+                subprocess.run(['sudo', 'chown', f'{username}:www-data', db_path], check=True)
+                subprocess.run(['sudo', 'chmod', '664', db_path], check=True)
+        except Exception as e:
+            print(f"Warning: Could not fix DB permissions: {e}")
+        
         flash('Cấu hình backup tự động đã được cập nhật!', 'success')
         return redirect(url_for('backup_config'))
     
     # GET - show current configuration
-    return render_template('backup_config.html')
+    # Get current schedule info
+    jobs = schedule.get_jobs()
+    daily_enabled = False
+    weekly_enabled = False
+    daily_time = '02:00'
+    weekly_time = '03:00'
+    
+    for job in jobs:
+        if 'create_automatic_backup' in str(job.job_func):
+            if 'day' in str(job.interval):
+                daily_enabled = True
+                daily_time = str(job.at_time)[:5]  # Format HH:MM
+            elif 'sunday' in str(job.interval):
+                weekly_enabled = True
+                weekly_time = str(job.at_time)[:5]  # Format HH:MM
+    
+    return render_template('backup_config.html', 
+                         daily_enabled=daily_enabled,
+                         weekly_enabled=weekly_enabled,
+                         daily_time=daily_time,
+                         weekly_time=weekly_time)
 
 @app.route('/backup/list')
 def backup_list():

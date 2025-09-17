@@ -157,6 +157,84 @@
   </div>
 </div>
 
+{% for item in group_summaries %}
+<div class="modal fade" id="editGroupModal-{{ item.group.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('edit_device_group', group_id=item.group.id) }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Sửa nhóm thiết bị</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Tên nhóm <span class="text-danger">*</span></label>
+                <input name="name" class="form-control" value="{{ item.group.name }}" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Mô tả</label>
+                <input name="description" class="form-control" value="{{ item.group.description or '' }}">
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Ghi chú</label>
+            <textarea name="notes" class="form-control" rows="3">{{ item.group.notes or '' }}</textarea>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Thiết bị trong nhóm</label>
+            <div class="row g-2 mb-2">
+              <div class="col-md-4">
+                <input type="text" class="form-control edit-filter-code-{{ item.group.id }}" placeholder="Lọc mã thiết bị">
+              </div>
+              <div class="col-md-4">
+                <input type="text" class="form-control edit-filter-name-{{ item.group.id }}" placeholder="Lọc tên thiết bị">
+              </div>
+              <div class="col-md-4">
+                <select class="form-select edit-filter-type-{{ item.group.id }}">
+                  <option value="">-- Loại thiết bị --</option>
+                  <option value="Laptop">Laptop</option>
+                  <option value="Case máy tính">Case máy tính</option>
+                  <option value="Màn hình">Màn hình</option>
+                  <option value="Bàn phím">Bàn phím</option>
+                  <option value="Chuột">Chuột</option>
+                  <option value="Ổ cứng">Ổ cứng</option>
+                  <option value="Ram">Ram</option>
+                  <option value="Card màn hình">Card màn hình</option>
+                  <option value="Máy in">Máy in</option>
+                  <option value="Thiết bị mạng">Thiết bị mạng</option>
+                  <option value="Server">Server</option>
+                  <option value="Thiết bị khác">Thiết bị khác</option>
+                </select>
+              </div>
+            </div>
+            <select name="device_ids" class="form-select" multiple size="8" id="edit-devices-select-{{ item.group.id }}">
+              {% for device in devices %}
+              <option value="{{ device.id }}" data-code="{{ device.device_code }}" data-name="{{ device.name }}" data-type="{{ device.device_type }}"
+                {% if device.id in item.group.device_links|map(attribute='device_id')|list %}selected{% endif %}>
+                {{ device.device_code }} - {{ device.name }} ({{ device.device_type }})
+              </option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Giữ Ctrl/Cmd để chọn nhiều thiết bị. Một thiết bị chỉ có thể thuộc một nhóm.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Cập nhật</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const codeInput = document.getElementById('filter_code');
@@ -181,6 +259,32 @@ document.addEventListener('DOMContentLoaded', function() {
     codeInput?.addEventListener('input', applyFilter);
     nameInput?.addEventListener('input', applyFilter);
     typeSelect?.addEventListener('change', applyFilter);
+    
+    // Edit modal filters
+    {% for item in group_summaries %}
+    const editCodeInput{{ item.group.id }} = document.querySelector('.edit-filter-code-{{ item.group.id }}');
+    const editNameInput{{ item.group.id }} = document.querySelector('.edit-filter-name-{{ item.group.id }}');
+    const editTypeSelect{{ item.group.id }} = document.querySelector('.edit-filter-type-{{ item.group.id }}');
+    const editSelectEl{{ item.group.id }} = document.getElementById('edit-devices-select-{{ item.group.id }}');
+    
+    function applyEditFilter{{ item.group.id }}() {
+        const code = (editCodeInput{{ item.group.id }}?.value || '').toLowerCase();
+        const name = (editNameInput{{ item.group.id }}?.value || '').toLowerCase();
+        const type = (editTypeSelect{{ item.group.id }}?.value || '').toLowerCase();
+        
+        Array.from(editSelectEl{{ item.group.id }}.options).forEach(o => {
+            const oc = (o.dataset.code || '').toLowerCase();
+            const on = (o.dataset.name || '').toLowerCase();
+            const ot = (o.dataset.type || '').toLowerCase();
+            const match = (!code || oc.includes(code)) && (!name || on.includes(name)) && (!type || ot === type);
+            o.hidden = !match;
+        });
+    }
+    
+    editCodeInput{{ item.group.id }}?.addEventListener('input', applyEditFilter{{ item.group.id }});
+    editNameInput{{ item.group.id }}?.addEventListener('input', applyEditFilter{{ item.group.id }});
+    editTypeSelect{{ item.group.id }}?.addEventListener('change', applyEditFilter{{ item.group.id }});
+    {% endfor %}
 });
 </script>
 {% endblock %}

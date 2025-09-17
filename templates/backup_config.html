@@ -19,14 +19,14 @@
                         </div>
                         <div class="card-body">
                             <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" name="daily_enabled" id="daily_enabled" checked>
+                                <input class="form-check-input" type="checkbox" name="daily_enabled" id="daily_enabled" {% if daily_enabled %}checked{% endif %}>
                                 <label class="form-check-label" for="daily_enabled">
                                     Bật backup hàng ngày
                                 </label>
                             </div>
                             <div class="mb-3">
                                 <label for="daily_time" class="form-label">Thời gian backup:</label>
-                                <input type="time" class="form-control" id="daily_time" name="daily_time" value="02:00">
+                                <input type="time" class="form-control" id="daily_time" name="daily_time" value="{{ daily_time }}">
                             </div>
                         </div>
                     </div>
@@ -39,14 +39,14 @@
                         </div>
                         <div class="card-body">
                             <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" name="weekly_enabled" id="weekly_enabled">
+                                <input class="form-check-input" type="checkbox" name="weekly_enabled" id="weekly_enabled" {% if weekly_enabled %}checked{% endif %}>
                                 <label class="form-check-label" for="weekly_enabled">
                                     Bật backup hàng tuần (Chủ nhật)
                                 </label>
                             </div>
                             <div class="mb-3">
                                 <label for="weekly_time" class="form-label">Thời gian backup:</label>
-                                <input type="time" class="form-control" id="weekly_time" name="weekly_time" value="03:00">
+                                <input type="time" class="form-control" id="weekly_time" name="weekly_time" value="{{ weekly_time }}">
                             </div>
                         </div>
                     </div>
