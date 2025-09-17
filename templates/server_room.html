@@ -11,7 +11,7 @@
         </div>
 
         <div class="d-flex justify-content-end mb-3">
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addServerDeviceModal"><i class="bi bi-plus"></i> Thêm thiết bị</button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addServerDeviceModal"><i class="bi bi-plus"></i> Thêm thiết bị vào phòng server</button>
         </div>
 
         <div class="table-responsive">
@@ -37,10 +37,16 @@
                         <td>{{ loop.index }}</td>
                         <td>{{ d.name }}</td>
                         <td>{{ d.device_code }}</td>
-                        <td><div class="text-truncate" style="max-width: 260px;">{{ d.configuration }}</div></td>
-                        <td>{{ d.created_at.strftime('%Y-%m-%d') if d.created_at else '' }}</td>
+                        <td class="text-center">
+                            {% if d.configuration %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#configModal-{{ d.id }}" title="Xem cấu hình">
+                                <i class="bi bi-card-text"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td>{{ d._server_added_at.strftime('%Y-%m-%d') if d._server_added_at else '' }}</td>
                         <td>{{ d.manager.full_name if d.manager else '' }}</td>
-                        <td>{{ d.status }}</td>
+                        <td>{{ d.server_room_info.usage_status if d.server_room_info else '' }}</td>
                         <td>{{ d.server_room_info.services_running if d.server_room_info else '' }}</td>
                         <td>{{ d.server_room_info.ip_address if d.server_room_info else '' }}</td>
                         <td>{{ d.notes }}</td>
@@ -58,6 +64,22 @@
         </div>
     </div>
 </div>
+
+{% for d in devices_in_server %}
+{% if d.configuration %}
+<div class="modal fade" id="configModal-{{ d.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Cấu hình: {{ d.device_code }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body"><pre style="white-space: pre-wrap; word-break: break-all;">{{ d.configuration }}</pre></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
 
 <div class="modal fade" id="addServerDeviceModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">

@@ -16,7 +16,7 @@
       <div class="col-md-4"><strong>Mã thiết bị</strong><div>{{ device.device_code }}</div></div>
       <div class="col-md-4"><strong>Tên thiết bị</strong><div>{{ device.name }}</div></div>
       <div class="col-md-4"><strong>Loại</strong><div>{{ device.device_type }}</div></div>
-      <div class="col-md-4"><strong>Trạng thái</strong><div>{{ device.status }}</div></div>
+      <div class="col-md-4"><strong>Trạng thái sử dụng</strong><div>{{ info.usage_status if info else '' }}</div></div>
       <div class="col-md-4"><strong>Người quản lý</strong><div>{{ device.manager.full_name if device.manager else '' }}</div></div>
       <div class="col-md-4"><strong>Ngày nhập</strong><div>{{ device.import_date }}</div></div>
       <div class="col-md-4"><strong>IP</strong><div>{{ info.ip_address if info else '' }}</div></div>

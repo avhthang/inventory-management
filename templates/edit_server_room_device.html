@@ -24,11 +24,11 @@
                 <input name="device_type" class="form-control" value="{{ device.device_type }}">
             </div>
             <div class="col-md-3">
-                <label class="form-label">Trạng thái</label>
-                <select name="status" class="form-select">
-                    {% for st in statuses %}
-                    <option value="{{ st }}" {% if device.status == st %}selected{% endif %}>{{ st }}</option>
-                    {% endfor %}
+                <label class="form-label">Trạng thái sử dụng</label>
+                <select name="usage_status" class="form-select">
+                    {% set usage = info.usage_status if info else 'Đang hoạt động' %}
+                    <option value="Đang hoạt động" {% if usage == 'Đang hoạt động' %}selected{% endif %}>Đang hoạt động</option>
+                    <option value="Dừng" {% if usage == 'Dừng' %}selected{% endif %}>Dừng</option>
                 </select>
             </div>
             <div class="col-md-5">

@@ -155,6 +155,7 @@ class ServerRoomDeviceInfo(db.Model):
     device_id = db.Column(db.Integer, db.ForeignKey('device.id'), primary_key=True)
     ip_address = db.Column(db.String(100))
     services_running = db.Column(db.Text)
+    usage_status = db.Column(db.String(30), default='Đang hoạt động')
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     device = db.relationship('Device', backref=db.backref('server_room_info', uselist=False, cascade='all, delete-orphan'))
 
@@ -312,7 +313,7 @@ def ensure_tables_once():
                     # AuditLog table creation (if not exists)
                     conn.execute(text("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, entity_type VARCHAR(50) NOT NULL, entity_id INTEGER NOT NULL, changed_by INTEGER, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP, changes TEXT)"))
                     # ServerRoomDeviceInfo table
-                    conn.execute(text("CREATE TABLE IF NOT EXISTS server_room_device_info (device_id INTEGER PRIMARY KEY, ip_address VARCHAR(100), services_running TEXT, updated_at DATETIME, FOREIGN KEY(device_id) REFERENCES device(id))"))
+                    conn.execute(text("CREATE TABLE IF NOT EXISTS server_room_device_info (device_id INTEGER PRIMARY KEY, ip_address VARCHAR(100), services_running TEXT, usage_status VARCHAR(30) DEFAULT 'Đang hoạt động', updated_at DATETIME, FOREIGN KEY(device_id) REFERENCES device(id))"))
                     for stmt in alter_stmts:
                         conn.execute(text(stmt))
                     if alter_stmts:
@@ -1072,9 +1073,19 @@ def server_room():
     # Danh sách thiết bị trong phòng server
     links = DeviceGroupDevice.query.filter_by(group_id=group.id).all()
     ids_in_server = [l.device_id for l in links]
-    devices_in_server = Device.query.filter(Device.id.in_(ids_in_server)).order_by(Device.device_code).all() if ids_in_server else []
-    # Thiết bị sẵn có để thêm: hiển thị tất cả thiết bị
-    devices_available = Device.query.order_by(Device.device_code).all()
+    # map updated_at by link created_at as added date
+    devices_in_server = []
+    if ids_in_server:
+        id_to_added_at = {l.device_id: l.created_at for l in links}
+        q = Device.query.filter(Device.id.in_(ids_in_server)).order_by(Device.device_code).all()
+        for d in q:
+            setattr(d, '_server_added_at', id_to_added_at.get(d.id))
+            devices_in_server.append(d)
+    # Thiết bị sẵn có để thêm: tất cả, trừ thiết bị đã trong phòng server
+    if ids_in_server:
+        devices_available = Device.query.filter(~Device.id.in_(ids_in_server)).order_by(Device.device_code).all()
+    else:
+        devices_available = Device.query.order_by(Device.device_code).all()
     return render_template('server_room.html', group=group, devices_in_server=devices_in_server, devices_available=devices_available)
 
 @app.route('/server_room/<int:device_id>')
@@ -1102,14 +1113,16 @@ def server_room_device_edit(device_id):
             pass
         device.configuration = request.form.get('configuration') or device.configuration
         device.notes = request.form.get('notes') or device.notes
-        # Cập nhật IP và dịch vụ
+        # Cập nhật IP, dịch vụ, trạng thái sử dụng
         ip = request.form.get('ip_address')
         services = request.form.get('services_running')
+        usage_status = request.form.get('usage_status') or 'Đang hoạt động'
         if info is None:
             info = ServerRoomDeviceInfo(device_id=device.id)
             db.session.add(info)
         info.ip_address = ip or None
         info.services_running = services or None
+        info.usage_status = usage_status
         db.session.commit()
         flash('Đã cập nhật thông tin phòng server của thiết bị.', 'success')
         return redirect(url_for('server_room'))
