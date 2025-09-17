@@ -1049,12 +1049,8 @@ def server_room():
     links = DeviceGroupDevice.query.filter_by(group_id=group.id).all()
     ids_in_server = [l.device_id for l in links]
     devices_in_server = Device.query.filter(Device.id.in_(ids_in_server)).order_by(Device.device_code).all() if ids_in_server else []
-    # Thiết bị sẵn có để thêm: chưa thuộc nhóm nào
-    all_assigned_ids = [l.device_id for l in DeviceGroupDevice.query.all()]
-    if all_assigned_ids:
-        devices_available = Device.query.filter(~Device.id.in_(all_assigned_ids)).order_by(Device.device_code).all()
-    else:
-        devices_available = Device.query.order_by(Device.device_code).all()
+    # Thiết bị sẵn có để thêm: hiển thị tất cả thiết bị
+    devices_available = Device.query.order_by(Device.device_code).all()
     return render_template('server_room.html', group=group, devices_in_server=devices_in_server, devices_available=devices_available)
 
 @app.route('/server_room/<int:device_id>')
@@ -1062,7 +1058,7 @@ def server_room_device_detail(device_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     device = Device.query.get_or_404(device_id)
     info = ServerRoomDeviceInfo.query.get(device_id)
-    return render_template('device_detail.html', device=device, handovers=[])  # reuse detail for now
+    return render_template('server_room_device_detail.html', device=device, info=info)
 
 @app.route('/server_room/<int:device_id>/edit', methods=['GET', 'POST'])
 def server_room_device_edit(device_id):
@@ -1070,6 +1066,19 @@ def server_room_device_edit(device_id):
     device = Device.query.get_or_404(device_id)
     info = ServerRoomDeviceInfo.query.get(device_id)
     if request.method == 'POST':
+        # Cập nhật các trường của thiết bị
+        device.name = request.form.get('name') or device.name
+        device.device_code = request.form.get('device_code') or device.device_code
+        device.device_type = request.form.get('device_type') or device.device_type
+        device.status = request.form.get('status') or device.status
+        try:
+            mgr = request.form.get('manager_id')
+            device.manager_id = int(mgr) if mgr else None
+        except Exception:
+            pass
+        device.configuration = request.form.get('configuration') or device.configuration
+        device.notes = request.form.get('notes') or device.notes
+        # Cập nhật IP và dịch vụ
         ip = request.form.get('ip_address')
         services = request.form.get('services_running')
         if info is None:
@@ -1080,8 +1089,10 @@ def server_room_device_edit(device_id):
         db.session.commit()
         flash('Đã cập nhật thông tin phòng server của thiết bị.', 'success')
         return redirect(url_for('server_room'))
-    # simple inline form
-    return render_template('edit_server_room_device.html', device=device, info=info)
+    # Render form gồm trường thiết bị và 2 trường phòng server
+    users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
+    return render_template('edit_server_room_device.html', device=device, info=info, users=users, statuses=statuses)
 
 @app.route('/server_room/<int:device_id>/remove', methods=['POST'])
 def server_room_device_remove(device_id):
