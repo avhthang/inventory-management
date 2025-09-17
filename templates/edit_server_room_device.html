@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Sửa thiết bị phòng server{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="card-title mb-0">Cập nhật thông tin Phòng server</h2>
+            <a href="{{ url_for('server_room') }}" class="btn btn-secondary">Quay lại</a>
+        </div>
+        <p><strong>{{ device.device_code }}</strong> - {{ device.name }}</p>
+        <form method="POST" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Địa chỉ IP</label>
+                <input name="ip_address" class="form-control" value="{{ info.ip_address if info else '' }}" placeholder="VD: 10.10.10.10">
+            </div>
+            <div class="col-md-8">
+                <label class="form-label">Chạy dịch vụ</label>
+                <input name="services_running" class="form-control" value="{{ info.services_running if info else '' }}" placeholder="VD: Web, DB, LDAP...">
+            </div>
+            <div class="col-12 d-flex justify-content-end">
+                <button class="btn btn-primary">Lưu</button>
+            </div>
+        </form>
+    </div>
+ </div>
+{% endblock %}

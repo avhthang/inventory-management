@@ -146,6 +146,14 @@ class UserDeviceGroup(db.Model):
     group = db.relationship('DeviceGroup', backref=db.backref('user_links', cascade='all, delete-orphan'))
     user = db.relationship('User', backref=db.backref('group_links', cascade='all, delete-orphan'))
 
+# --- Server Room Extra Info ---
+class ServerRoomDeviceInfo(db.Model):
+    device_id = db.Column(db.Integer, db.ForeignKey('device.id'), primary_key=True)
+    ip_address = db.Column(db.String(100))
+    services_running = db.Column(db.Text)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    device = db.relationship('Device', backref=db.backref('server_room_info', uselist=False, cascade='all, delete-orphan'))
+
 # --- Inventory Receipt Models ---
 class InventoryReceipt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -299,6 +307,8 @@ def ensure_tables_once():
                         pass
                     # AuditLog table creation (if not exists)
                     conn.execute(text("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, entity_type VARCHAR(50) NOT NULL, entity_id INTEGER NOT NULL, changed_by INTEGER, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP, changes TEXT)"))
+                    # ServerRoomDeviceInfo table
+                    conn.execute(text("CREATE TABLE IF NOT EXISTS server_room_device_info (device_id INTEGER PRIMARY KEY, ip_address VARCHAR(100), services_running TEXT, updated_at DATETIME, FOREIGN KEY(device_id) REFERENCES device(id))"))
                     for stmt in alter_stmts:
                         conn.execute(text(stmt))
                     if alter_stmts:
@@ -1016,6 +1026,7 @@ def server_room():
         db.session.add(group)
         db.session.commit()
     if request.method == 'POST':
+        # Thêm thiết bị
         device_ids = request.form.getlist('device_ids')
         created = 0
         for d_id in device_ids:
@@ -1045,6 +1056,45 @@ def server_room():
     else:
         devices_available = Device.query.order_by(Device.device_code).all()
     return render_template('server_room.html', group=group, devices_in_server=devices_in_server, devices_available=devices_available)
+
+@app.route('/server_room/<int:device_id>')
+def server_room_device_detail(device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device = Device.query.get_or_404(device_id)
+    info = ServerRoomDeviceInfo.query.get(device_id)
+    return render_template('device_detail.html', device=device, handovers=[])  # reuse detail for now
+
+@app.route('/server_room/<int:device_id>/edit', methods=['GET', 'POST'])
+def server_room_device_edit(device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device = Device.query.get_or_404(device_id)
+    info = ServerRoomDeviceInfo.query.get(device_id)
+    if request.method == 'POST':
+        ip = request.form.get('ip_address')
+        services = request.form.get('services_running')
+        if info is None:
+            info = ServerRoomDeviceInfo(device_id=device.id)
+            db.session.add(info)
+        info.ip_address = ip or None
+        info.services_running = services or None
+        db.session.commit()
+        flash('Đã cập nhật thông tin phòng server của thiết bị.', 'success')
+        return redirect(url_for('server_room'))
+    # simple inline form
+    return render_template('edit_server_room_device.html', device=device, info=info)
+
+@app.route('/server_room/<int:device_id>/remove', methods=['POST'])
+def server_room_device_remove(device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    # remove link from Phòng server group
+    group = DeviceGroup.query.filter(func.lower(DeviceGroup.name) == func.lower('Phòng server')).first()
+    if group:
+        link = DeviceGroupDevice.query.filter_by(group_id=group.id, device_id=device_id).first()
+        if link:
+            db.session.delete(link)
+            db.session.commit()
+            flash('Đã gỡ thiết bị khỏi Phòng server.', 'success')
+    return redirect(url_for('server_room'))
 
 @app.route('/device_groups/<int:group_id>/remove_device/<int:device_id>', methods=['POST'])
 def remove_device_from_group(group_id, device_id):
