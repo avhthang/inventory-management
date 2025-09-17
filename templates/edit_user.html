@@ -29,10 +29,11 @@
                 <div class="col-md-4">
                     <div class="mb-3">
                         <label class="form-label">Trạng thái</label>
-                        <select name="status" class="form-select">
+                        <select name="status" class="form-select" id="status-select">
                             <option value="Đang làm" {% if user.status == 'Đang làm' %}selected{% endif %}>Đang làm</option>
                             <option value="Thử việc" {% if user.status == 'Thử việc' %}selected{% endif %}>Thử việc</option>
                             <option value="Đã nghỉ" {% if user.status == 'Đã nghỉ' %}selected{% endif %}>Đã nghỉ</option>
+                            <option value="Nghỉ việc" {% if user.status == 'Nghỉ việc' %}selected{% endif %}>Nghỉ việc</option>
                             <option value="Khác" {% if user.status == 'Khác' %}selected{% endif %}>Khác</option>
                         </select>
                     </div>
@@ -52,4 +53,63 @@
         </form>
     </div>
 </div>
+
+<div class="modal fade" id="resignationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Xác nhận nghỉ việc</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Chú ý:</strong> Khi chuyển trạng thái nhân viên sang "Nghỉ việc", hệ thống sẽ:
+                </div>
+                <ul>
+                    <li>Tự động tạo phiếu trả thiết bị về kho</li>
+                    <li>Chuyển tất cả thiết bị đang sử dụng về trạng thái "Sẵn sàng"</li>
+                    <li>Gỡ bỏ quyền quản lý thiết bị của nhân viên</li>
+                </ul>
+                <p class="mb-0">Bạn có chắc chắn muốn tiếp tục?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-warning" id="confirm-resignation">Xác nhận nghỉ việc</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.getElementById('status-select');
+    const form = document.querySelector('form');
+    const resignationModal = new bootstrap.Modal(document.getElementById('resignationModal'));
+    const confirmBtn = document.getElementById('confirm-resignation');
+    
+    let originalStatus = statusSelect.value;
+    
+    statusSelect.addEventListener('change', function() {
+        if (this.value === 'Nghỉ việc' && originalStatus !== 'Nghỉ việc') {
+            resignationModal.show();
+        }
+    });
+    
+    confirmBtn.addEventListener('click', function() {
+        resignationModal.hide();
+        form.submit();
+    });
+    
+    // Reset status if modal is dismissed
+    document.getElementById('resignationModal').addEventListener('hidden.bs.modal', function() {
+        if (statusSelect.value === 'Nghỉ việc') {
+            statusSelect.value = originalStatus;
+        }
+    });
+});
+</script>
+{% endblock %}
 {% endblock %}

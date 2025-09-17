@@ -1556,7 +1556,7 @@ def user_list():
     
     departments = [d[0] for d in db.session.query(User.department).filter(User.department.isnot(None)).distinct().order_by(User.department)]
     positions = [p[0] for p in db.session.query(User.position).filter(User.position.isnot(None)).distinct().order_by(User.position)]
-    statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Khác']
+    statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Nghỉ việc', 'Khác']
 
     return render_template('users.html', 
                            users=users_pagination, 
@@ -1621,6 +1621,50 @@ def add_user():
         return redirect(url_for('user_list'))
     return render_template('add_user.html')
 
+def create_return_handover_for_user(user_id, current_user_id):
+    """Tạo phiếu trả thiết bị về kho khi nhân viên nghỉ việc"""
+    user = User.query.get(user_id)
+    if not user:
+        return False
+    
+    # Lấy tất cả thiết bị đang được nhân viên quản lý
+    devices = Device.query.filter_by(manager_id=user_id, status='Đã cấp phát').all()
+    
+    if not devices:
+        return True  # Không có thiết bị nào cần trả
+    
+    try:
+        handovers_created = 0
+        
+        # Tạo phiếu trả thiết bị cho từng thiết bị (vì mỗi handover chỉ handle 1 device)
+        for device in devices:
+            return_handover = DeviceHandover(
+                handover_date=datetime.now().date(),
+                device_id=device.id,
+                giver_id=user_id,  # Người giao là nhân viên nghỉ việc
+                receiver_id=current_user_id,  # Người nhận là admin hiện tại
+                device_condition=device.condition or 'Sử dụng bình thường',
+                reason='Nhân viên nghỉ việc - Trả thiết bị về kho',
+                location='Kho thiết bị',
+                notes=f'Tự động tạo khi nhân viên {user.full_name or user.username} nghỉ việc'
+            )
+            db.session.add(return_handover)
+            
+            # Cập nhật trạng thái thiết bị về "Sẵn sàng"
+            device.status = 'Sẵn sàng'
+            device.manager_id = None
+            device.assign_date = None
+            
+            handovers_created += 1
+        
+        db.session.commit()
+        print(f"Created {handovers_created} return handovers for user {user_id}")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating return handover: {e}")
+        return False
+
 @app.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
 def edit_user(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -1653,13 +1697,25 @@ def edit_user(user_id):
         user.phone_number = request.form.get('phone_number')
         user.notes = request.form.get('notes')
         
-        user.status = request.form.get('status')
+        new_status = request.form.get('status')
+        old_status = user.status
+        user.status = new_status
         user.onboard_date = datetime.strptime(request.form['onboard_date'], '%Y-%m-%d').date() if request.form.get('onboard_date') else None
         user.offboard_date = datetime.strptime(request.form['offboard_date'], '%Y-%m-%d').date() if request.form.get('offboard_date') else None
 
         new_password = request.form.get('password')
         if new_password:
             user.password = generate_password_hash(new_password)
+        
+        # Xử lý nghỉ việc - tự động tạo phiếu trả thiết bị
+        if new_status == 'Nghỉ việc' and old_status != 'Nghỉ việc':
+            success = create_return_handover_for_user(user_id, session.get('user_id'))
+            if success:
+                flash('Cập nhật thông tin người dùng thành công! Đã tự động tạo phiếu trả thiết bị về kho.', 'success')
+            else:
+                flash('Cập nhật thông tin người dùng thành công! Tuy nhiên có lỗi khi tạo phiếu trả thiết bị.', 'warning')
+        else:
+            flash('Cập nhật thông tin người dùng thành công!', 'success')
             
         db.session.commit()
         new = {
@@ -1676,7 +1732,6 @@ def edit_user(user_id):
             'offboard_date': user.offboard_date,
         }
         _log_audit('user', user.id, old, new)
-        flash('Cập nhật thông tin người dùng thành công!', 'success')
         return redirect(url_for('user_list'))
     return render_template('edit_user.html', user=user)
 
