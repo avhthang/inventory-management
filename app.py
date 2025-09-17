@@ -350,7 +350,21 @@ def home():
     total_devices = Device.query.count()
     in_use_devices = Device.query.filter_by(status='Đã cấp phát').count()
     maintenance_devices = Device.query.filter_by(status='Bảo trì').count()
-    return render_template('dashboard.html', total_devices=total_devices, in_use_devices=in_use_devices, maintenance_devices=maintenance_devices)
+    # Department chart data
+    # Departments are on User.department; device belongs to manager (User)
+    selected_departments = request.args.getlist('departments') if request.args.get('chart') == 'dept' else []
+    all_departments = [d[0] for d in db.session.query(User.department).distinct().all()]
+    q = db.session.query(User.department, func.count(Device.id)).join(Device, Device.manager_id == User.id, isouter=True).group_by(User.department)
+    if selected_departments:
+        q = q.filter(User.department.in_(selected_departments))
+    rows = q.all()
+    labels = []
+    values = []
+    for dept, cnt in rows:
+        labels.append(dept or 'Chưa khai báo')
+        values.append(int(cnt or 0))
+    dept_chart_data = { 'labels': labels, 'values': values }
+    return render_template('dashboard.html', total_devices=total_devices, in_use_devices=in_use_devices, maintenance_devices=maintenance_devices, all_departments=all_departments, selected_departments=selected_departments, dept_chart_data=dept_chart_data)
 
 # ... (Auth routes) ...
 @app.route('/login', methods=['GET', 'POST'])
@@ -1074,23 +1088,24 @@ def server_room():
         flash(f'Đã thêm {created} thiết bị vào Phòng server.', 'success')
         return redirect(url_for('server_room'))
 
-    # Danh sách thiết bị trong phòng server
+    # Danh sách thiết bị trong phòng server (phân trang)
     links = DeviceGroupDevice.query.filter_by(group_id=group.id).all()
     ids_in_server = [l.device_id for l in links]
-    # map updated_at by link created_at as added date
-    devices_in_server = []
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    devices_pagination = None
     if ids_in_server:
         id_to_added_at = {l.device_id: l.created_at for l in links}
-        q = Device.query.filter(Device.id.in_(ids_in_server)).order_by(Device.device_code).all()
-        for d in q:
+        base_q = Device.query.filter(Device.id.in_(ids_in_server)).order_by(Device.device_code)
+        devices_pagination = base_q.paginate(page=page, per_page=per_page, error_out=False)
+        for d in devices_pagination.items:
             setattr(d, '_server_added_at', id_to_added_at.get(d.id))
-            devices_in_server.append(d)
     # Thiết bị sẵn có để thêm: tất cả, trừ thiết bị đã trong phòng server
     if ids_in_server:
         devices_available = Device.query.filter(~Device.id.in_(ids_in_server)).order_by(Device.device_code).all()
     else:
         devices_available = Device.query.order_by(Device.device_code).all()
-    return render_template('server_room.html', group=group, devices_in_server=devices_in_server, devices_available=devices_available)
+    return render_template('server_room.html', group=group, devices_pagination=devices_pagination, devices_available=devices_available)
 
 @app.route('/server_room/<int:device_id>')
 def server_room_device_detail(device_id):

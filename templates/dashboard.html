@@ -12,4 +12,58 @@
     <a href="{{ url_for('user_list') }}" class="btn btn-secondary">Quản lý người dùng</a>
     <a href="{{ url_for('handover_list') }}" class="btn btn-info">Bàn giao thiết bị</a>
 </div>
+
+<hr>
+<h4 class="mt-4">Thiết bị theo phòng ban</h4>
+<form method="GET" action="{{ url_for('home') }}" class="row g-2 align-items-end mb-3">
+  <div class="col-md-6">
+    <label class="form-label">Chọn phòng ban</label>
+    <select name="departments" class="form-select" multiple size="6">
+      {% for dept in all_departments %}
+      <option value="{{ dept }}" {% if dept in selected_departments %}selected{% endif %}>{{ dept or 'Chưa khai báo' }}</option>
+      {% endfor %}
+    </select>
+    <small class="text-muted">Giữ Ctrl/Cmd để chọn nhiều phòng ban.</small>
+  </div>
+  <div class="col-md-2">
+    <button class="btn btn-outline-primary">Vẽ biểu đồ</button>
+  </div>
+  <div class="col-md-4 text-end">
+    <a href="{{ url_for('home') }}" class="btn btn-outline-secondary">Reset</a>
+  </div>
+  <input type="hidden" name="chart" value="dept">
+</form>
+
+<div class="card">
+  <div class="card-body">
+    <canvas id="deptChart" height="120"></canvas>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  const deptData = {{ dept_chart_data|tojson }};
+  const ctx = document.getElementById('deptChart');
+  if (ctx && deptData && deptData.labels && deptData.labels.length){
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: deptData.labels,
+        datasets: [{
+          label: 'Số thiết bị',
+          data: deptData.values,
+          backgroundColor: '#0d6efd'
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
+      }
+    });
+  }
+</script>
 {% endblock %}
