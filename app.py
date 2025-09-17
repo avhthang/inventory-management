@@ -2286,11 +2286,19 @@ def backup_export():
         temp_dir = tempfile.mkdtemp()
         backup_path = os.path.join(temp_dir, backup_filename)
         
+        files_added = 0
+        
         with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             # Backup database
             db_path = os.path.join(instance_path, 'inventory.db')
             if os.path.exists(db_path):
                 zipf.write(db_path, 'inventory.db')
+                files_added += 1
+            else:
+                # Create a placeholder file if database doesn't exist
+                placeholder_content = "# Database file not found - system may not be initialized yet\n"
+                zipf.writestr('database_placeholder.txt', placeholder_content)
+                files_added += 1
             
             # Backup upload folder if exists
             upload_path = os.path.join(os.getcwd(), 'upload')
@@ -2300,6 +2308,12 @@ def backup_export():
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, os.getcwd())
                         zipf.write(file_path, arcname)
+                        files_added += 1
+        
+        # Check if backup has content
+        if files_added == 0:
+            flash('Không có dữ liệu để backup. Hệ thống có thể chưa được khởi tạo.', 'warning')
+            return redirect(url_for('backup_page'))
         
         return send_file(
             backup_path,
@@ -2373,11 +2387,17 @@ def create_automatic_backup():
         backup_filename = f'auto_backup_{timestamp}.zip'
         backup_filepath = os.path.join(backup_path, backup_filename)
         
+        files_added = 0
+        
         with zipfile.ZipFile(backup_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
             # Backup database
             db_path = os.path.join(instance_path, 'inventory.db')
             if os.path.exists(db_path):
                 zipf.write(db_path, 'inventory.db')
+                files_added += 1
+                print(f"Added database to backup: {db_path}")
+            else:
+                print(f"Database file not found: {db_path}")
             
             # Backup upload folder if exists
             upload_path = os.path.join(os.getcwd(), 'upload')
@@ -2387,9 +2407,24 @@ def create_automatic_backup():
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, os.getcwd())
                         zipf.write(file_path, arcname)
+                        files_added += 1
+                print(f"Added {files_added - 1} files from upload folder")
+            else:
+                print(f"Upload folder not found: {upload_path}")
         
-        print(f"Automatic backup created: {backup_filename}")
-        return backup_filename
+        # Check if backup file was created and has content
+        if os.path.exists(backup_filepath):
+            file_size = os.path.getsize(backup_filepath)
+            print(f"Automatic backup created: {backup_filename} ({file_size} bytes, {files_added} files)")
+            if file_size == 0:
+                print("WARNING: Backup file is empty!")
+                os.remove(backup_filepath)  # Remove empty backup
+                return None
+            return backup_filename
+        else:
+            print("ERROR: Backup file was not created")
+            return None
+            
     except Exception as e:
         print(f"Error creating automatic backup: {str(e)}")
         return None
