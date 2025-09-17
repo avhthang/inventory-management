@@ -312,8 +312,12 @@ def ensure_tables_once():
                         pass
                     # AuditLog table creation (if not exists)
                     conn.execute(text("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, entity_type VARCHAR(50) NOT NULL, entity_id INTEGER NOT NULL, changed_by INTEGER, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP, changes TEXT)"))
-                    # ServerRoomDeviceInfo table
+                    # ServerRoomDeviceInfo table ensure & migrate
                     conn.execute(text("CREATE TABLE IF NOT EXISTS server_room_device_info (device_id INTEGER PRIMARY KEY, ip_address VARCHAR(100), services_running TEXT, usage_status VARCHAR(30) DEFAULT 'Đang hoạt động', updated_at DATETIME, FOREIGN KEY(device_id) REFERENCES device(id))"))
+                    info6 = conn.execute(text("PRAGMA table_info('server_room_device_info')")).fetchall()
+                    cols6 = {row[1] for row in info6}
+                    if info6 and 'usage_status' not in cols6:
+                        conn.execute(text("ALTER TABLE server_room_device_info ADD COLUMN usage_status VARCHAR(30) DEFAULT 'Đang hoạt động'"))
                     for stmt in alter_stmts:
                         conn.execute(text(stmt))
                     if alter_stmts:
