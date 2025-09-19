@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% from '_pagination.html' import render_pagination %}
+
+{% block title %}Phòng server{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="card-title mb-0">Quản lý thiết bị Phòng server</h2>
+            <a href="{{ url_for('device_groups') }}" class="btn btn-secondary">Nhóm thiết bị</a>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <button class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false">
+                <i class="bi bi-funnel"></i> Bộ lọc
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addServerDeviceModal"><i class="bi bi-plus"></i> Thêm thiết bị vào phòng server</button>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="collapse mb-3" id="filtersCollapse">
+            <div class="card">
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('server_room') }}" class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Tìm kiếm theo tên thiết bị</label>
+                            <input type="text" class="form-control" name="search_name" value="{{ search_name }}" placeholder="Nhập tên thiết bị">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tìm kiếm theo mã thiết bị</label>
+                            <input type="text" class="form-control" name="search_code" value="{{ search_code }}" placeholder="Nhập mã thiết bị">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Lọc theo team quản lý</label>
+                            <input type="text" class="form-control" name="filter_team" value="{{ filter_team }}" placeholder="Nhập tên team">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Lọc theo loại thiết bị</label>
+                            <select class="form-select" name="filter_type">
+                                <option value="">-- Tất cả loại --</option>
+                                {% for device_type in all_types %}
+                                <option value="{{ device_type }}" {% if device_type == filter_type %}selected{% endif %}>{{ device_type }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Lọc theo trạng thái</label>
+                            <select class="form-select" name="filter_status">
+                                <option value="">-- Tất cả trạng thái --</option>
+                                {% for status in all_statuses %}
+                                <option value="{{ status }}" {% if status == filter_status %}selected{% endif %}>{{ status }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Lọc theo IP</label>
+                            <input type="text" class="form-control" name="filter_ip" value="{{ filter_ip }}" placeholder="Nhập IP">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Từ ngày</label>
+                            <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Đến ngày</label>
+                            <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">Lọc</button>
+                            <a href="{{ url_for('server_room') }}" class="btn btn-outline-secondary">Xóa bộ lọc</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-center">STT</th>
+                        <th class="text-center">Tên thiết bị</th>
+                        <th class="text-center">Mã thiết bị</th>
+                        <th class="text-center">Cấu hình</th>
+                        <th class="text-center">Ngày cập nhật</th>
+                        <th class="text-center">Người quản lý</th>
+                        <th class="text-center">Trạng thái</th>
+                        <th class="text-center">Chạy dịch vụ</th>
+                        <th class="text-center">IP</th>
+                        <th class="text-center">Ghi chú</th>
+                        <th class="text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set rows = devices_pagination.items if devices_pagination else [] %}
+                    {% for d in rows %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td class="text-center">{{ d.name }}</td>
+                        <td class="text-center">
+                            <a href="{{ url_for('server_room_device_detail', device_id=d.id) }}" class="text-decoration-none fw-bold">
+                                {{ d.device_code }}
+                            </a>
+                        </td>
+                        <td class="text-center">
+                            {% if d.configuration %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#configModal-{{ d.id }}" title="Xem cấu hình">
+                                <i class="bi bi-card-text"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td>{{ d._server_added_at.strftime('%Y-%m-%d') if d._server_added_at else '' }}</td>
+                        <td>{{ d.manager.full_name if d.manager else '' }}</td>
+                        <td>{{ d.server_room_info.usage_status if d.server_room_info else '' }}</td>
+                        <td>{{ d.server_room_info.services_running if d.server_room_info else '' }}</td>
+                        <td>{{ d.server_room_info.ip_address if d.server_room_info else '' }}</td>
+                        <td>{{ d.notes }}</td>
+                        <td class="text-center text-nowrap">
+                            <a href="{{ url_for('server_room_device_detail', device_id=d.id) }}" class="btn btn-sm btn-outline-info" title="Xem"><i class="bi bi-eye"></i></a>
+                            <a href="{{ url_for('server_room_device_edit', device_id=d.id) }}" class="btn btn-sm btn-outline-warning ms-1" title="Sửa"><i class="bi bi-pencil-square"></i></a>
+                            <form method="POST" action="{{ url_for('server_room_device_remove', device_id=d.id) }}" onsubmit="return confirm('Gỡ thiết bị khỏi Phòng server?')" class="d-inline">
+                                <button class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if devices_pagination %}
+        {{ render_pagination(devices_pagination, 'server_room', search_name=search_name, search_code=search_code, filter_team=filter_team, filter_type=filter_type, filter_status=filter_status, filter_ip=filter_ip, date_from=date_from, date_to=date_to) }}
+        {% endif %}
+    </div>
+</div>
+
+{% set rows = devices_pagination.items if devices_pagination else [] %}
+{% for d in rows %}
+{% if d.configuration %}
+<div class="modal fade" id="configModal-{{ d.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Cấu hình: {{ d.device_code }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body"><pre style="white-space: pre-wrap; word-break: break-all;">{{ d.configuration }}</pre></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<div class="modal fade" id="addServerDeviceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title">Thêm thiết bị vào Phòng server</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-2 mb-2">
+            <div class="col-md-4"><input type="text" class="form-control" id="filter_code" placeholder="Lọc mã thiết bị"></div>
+            <div class="col-md-4"><input type="text" class="form-control" id="filter_name" placeholder="Lọc tên thiết bị"></div>
+            <div class="col-md-4">
+              <select class="form-select" id="filter_type">
+                <option value="">-- Loại thiết bị --</option>
+                <option value="Laptop">Laptop</option>
+                <option value="Case máy tính">Case máy tính</option>
+                <option value="Màn hình">Màn hình</option>
+                <option value="Bàn phím">Bàn phím</option>
+                <option value="Chuột">Chuột</option>
+                <option value="Ổ cứng">Ổ cứng</option>
+                <option value="Ram">Ram</option>
+                <option value="Card màn hình">Card màn hình</option>
+                <option value="Máy in">Máy in</option>
+                <option value="Thiết bị mạng">Thiết bị mạng</option>
+                <option value="Server">Server</option>
+                <option value="Thiết bị khác">Thiết bị khác</option>
+              </select>
+            </div>
+          </div>
+          <select name="device_ids" id="devices_select" multiple class="form-select" size="8">
+            {% for device in devices_available %}
+            <option value="{{ device.id }}" data-code="{{ device.device_code }}" data-name="{{ device.name }}" data-type="{{ device.device_type }}">{{ device.device_code }} - {{ device.name }} ({{ device.device_type }})</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted">Danh sách lấy từ kho thiết bị. Thiết bị đã thuộc nhóm khác sẽ không hiển thị.</small>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Thêm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const codeInput = document.getElementById('filter_code');
+    const nameInput = document.getElementById('filter_name');
+    const typeSelect = document.getElementById('filter_type');
+    const selectEl = document.getElementById('devices_select');
+    function applyFilter() {
+        const code = (codeInput?.value || '').toLowerCase();
+        const name = (nameInput?.value || '').toLowerCase();
+        const type = (typeSelect?.value || '').toLowerCase();
+        Array.from(selectEl.options).forEach(o => {
+            const oc = (o.dataset.code || '').toLowerCase();
+            const on = (o.dataset.name || '').toLowerCase();
+            const ot = (o.dataset.type || '').toLowerCase();
+            const match = (!code || oc.includes(code)) && (!name || on.includes(name)) && (!type || ot === type);
+            o.hidden = !match;
+        });
+    }
+    codeInput?.addEventListener('input', applyFilter);
+    nameInput?.addEventListener('input', applyFilter);
+    typeSelect?.addEventListener('change', applyFilter);
+});
+</script>
+{% endblock %}
+

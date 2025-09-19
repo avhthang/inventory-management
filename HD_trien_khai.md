@@ -1,7 +1,7 @@
-﻿
-# Hướng dẫn Triển khai Hoàn chỉnh: Ứng dụng Quản lý Thiết bị trên Ubuntu 24.04 🚀
 
-Tài liệu này hướng dẫn chi tiết, từng bước một để triển khai ứng dụng Flask của bạn lên một server production, đảm bảo ứng dụng chạy liên tục 24/7, tự động khởi động và được bảo mật cơ bản.
+# Hướng dẫn Triển khai: Ứng dụng Quản lý Thiết bị trên Ubuntu 24.04 🚀
+
+Tài liệu này hướng dẫn triển khai ứng dụng Flask lên server production, đảm bảo ứng dụng chạy liên tục 24/7, tự động khởi động và được bảo mật cơ bản.
 
 ### Công nghệ sử dụng:
 * **Ubuntu 24.04**: Hệ điều hành cho server.
@@ -10,48 +10,12 @@ Tài liệu này hướng dẫn chi tiết, từng bước một để triển k
 * **Systemd**: Trình quản lý dịch vụ, giúp ứng dụng chạy nền và tự khởi động lại.
 * **Git**: Dùng để tải và cập nhật mã nguồn.
 
----
-## Phần 1: Chuẩn bị trên Máy cá nhân
-Trước khi đưa lên server, hãy đảm bảo mã nguồn của bạn đã sẵn sàng.
 
-#### 1.1. Hoàn thiện file `requirements.txt`
-Đảm bảo file `requirements.txt` của bạn có đầy đủ các thư viện cần thiết.
-```text
-Flask
-Flask-SQLAlchemy
-Werkzeug
-gunicorn
-pandas
-openpyxl
-click
-
-```
-
-#### 1.2. Hoàn thiện file `app.py`
-
-Đảm bảo file `app.py` của bạn đã chứa các **lệnh quản trị** (`init-db`, `create-admin`) để việc khởi tạo trên server trở nên dễ dàng.
-
-#### 1.3. Đưa code lên GitHub
-
-Đảm bảo bạn đã lưu và đẩy phiên bản code hoàn chỉnh nhất của mình lên repository GitHub.
-
-Bash
-
-```
-# Trên máy cá nhân
-git add .
-git commit -m "Final version for deployment"
-git push origin main
-
-```
-
-----------
-
-## Phần 2: Cấu hình Server Ubuntu
+## 1. Cấu hình Server Ubuntu
 
 Bây giờ, chúng ta sẽ làm việc trên server.
 
-#### 2.1. Cập nhật và Cài đặt Gói cần thiết
+#### 1.1. Cập nhật và Cài đặt Gói cần thiết
 
 Bash
 
@@ -61,7 +25,7 @@ sudo apt install python3-pip python3-venv nginx git -y
 
 ```
 
-#### 2.2. Cấu hình Tường lửa (Firewall)
+#### 1.2. Cấu hình Tường lửa (Firewall)
 
 Bash
 
@@ -76,9 +40,9 @@ _(Nhấn `y` và Enter để xác nhận.)_
 
 ----------
 
-## Phần 3: Tải Code và Cài đặt Môi trường Ứng dụng
+## 2. Tải Code và Cài đặt Môi trường Ứng dụng
 
-#### 3.1. Tải Code từ GitHub
+#### 2.1. Tải Code từ GitHub
 
 Bash
 
@@ -90,11 +54,11 @@ sudo chown -R $USER:$USER /var/www/inventory-management
 # Di chuyển vào thư mục và tải code
 cd /var/www/inventory-management
 # Thay bằng URL repository của bạn
-git clone [https://github.com/your_github_username/your_repository.git](https://github.com/your_github_username/your_repository.git) .
+git clone https://github.com/avhthang/inventory-management.git .
 
 ```
 
-#### 3.2. Cài đặt Môi trường Ảo
+#### 2.2. Cài đặt Môi trường Ảo
 
 Bash
 
@@ -112,7 +76,7 @@ pip install -r requirements.txt
 
 ----------
 
-## Phần 4: Khởi tạo Database và Tạo Tài khoản Admin
+## 3. Khởi tạo Database và Tạo Tài khoản Admin
 
 Bước này giúp tránh các lỗi `no such table` hay không đăng nhập được lần đầu.
 
@@ -152,9 +116,9 @@ Bước này giúp tránh các lỗi `no such table` hay không đăng nhập đ
 
 ----------
 
-## Phần 5: Cấu hình Chạy Tự động với Nginx và Systemd
+## 4. Cấu hình Chạy Tự động với Nginx và Systemd
 
-#### 5.1. Cấu hình Nginx
+#### 4.1. Cấu hình Nginx
 
 Bash
 
@@ -239,9 +203,9 @@ sudo systemctl enable inventory
 
 ----------
 
-## Phần 6: Hoàn tất và Quản lý Ứng dụng
+## 5. Hoàn tất và Quản lý Ứng dụng
 
-**Chúc mừng!** Ứng dụng của bạn đã được triển khai hoàn chỉnh.
+**Chúc mừng!** Ứng dụng đã được triển khai hoàn chỉnh.
 
 -   **Truy cập:** `http://your_server_ip`
     

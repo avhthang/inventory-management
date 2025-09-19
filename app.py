@@ -150,6 +150,15 @@ class UserDeviceGroup(db.Model):
     group = db.relationship('DeviceGroup', backref=db.backref('user_links', cascade='all, delete-orphan'))
     user = db.relationship('User', backref=db.backref('group_links', cascade='all, delete-orphan'))
 
+# --- Server Room Extra Info ---
+class ServerRoomDeviceInfo(db.Model):
+    device_id = db.Column(db.Integer, db.ForeignKey('device.id'), primary_key=True)
+    ip_address = db.Column(db.String(100))
+    services_running = db.Column(db.Text)
+    usage_status = db.Column(db.String(30), default='Đang hoạt động')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    device = db.relationship('Device', backref=db.backref('server_room_info', uselist=False, cascade='all, delete-orphan'))
+
 # --- Inventory Receipt Models ---
 class InventoryReceipt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -303,6 +312,12 @@ def ensure_tables_once():
                         pass
                     # AuditLog table creation (if not exists)
                     conn.execute(text("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, entity_type VARCHAR(50) NOT NULL, entity_id INTEGER NOT NULL, changed_by INTEGER, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP, changes TEXT)"))
+                    # ServerRoomDeviceInfo table ensure & migrate
+                    conn.execute(text("CREATE TABLE IF NOT EXISTS server_room_device_info (device_id INTEGER PRIMARY KEY, ip_address VARCHAR(100), services_running TEXT, usage_status VARCHAR(30) DEFAULT 'Đang hoạt động', updated_at DATETIME, FOREIGN KEY(device_id) REFERENCES device(id))"))
+                    info6 = conn.execute(text("PRAGMA table_info('server_room_device_info')")).fetchall()
+                    cols6 = {row[1] for row in info6}
+                    if info6 and 'usage_status' not in cols6:
+                        conn.execute(text("ALTER TABLE server_room_device_info ADD COLUMN usage_status VARCHAR(30) DEFAULT 'Đang hoạt động'"))
                     for stmt in alter_stmts:
                         conn.execute(text(stmt))
                     if alter_stmts:
@@ -332,6 +347,7 @@ def format_vnd(value):
 @app.route('/')
 def home():
     if 'user_id' not in session: return redirect(url_for('login'))
+<<<<<<< HEAD
     
     # Get filter parameters
     filter_department = request.args.get('department', '')
@@ -379,6 +395,43 @@ def home():
                          device_types=device_types,
                          filter_department=filter_department,
                          filter_device_type=filter_device_type)
+=======
+    total_devices = Device.query.count()
+    in_use_devices = Device.query.filter_by(status='Đã cấp phát').count()
+    maintenance_devices = Device.query.filter_by(status='Bảo trì').count()
+    
+    # Department chart data
+    # Departments are on User.department; device belongs to manager (User)
+    chart_type = request.args.get('chart', '')
+    selected_departments = request.args.getlist('departments') if chart_type in ['dept', 'both'] else []
+    all_departments = [d[0] for d in db.session.query(User.department).distinct().all()]
+    q = db.session.query(User.department, func.count(Device.id)).join(Device, Device.manager_id == User.id, isouter=True).group_by(User.department)
+    if selected_departments:
+        q = q.filter(User.department.in_(selected_departments))
+    rows = q.all()
+    labels = []
+    values = []
+    for dept, cnt in rows:
+        labels.append(dept or 'Chưa khai báo')
+        values.append(int(cnt or 0))
+    dept_chart_data = { 'labels': labels, 'values': values }
+    
+    # Device type chart data
+    selected_device_types = request.args.getlist('device_types') if chart_type in ['type', 'both'] else []
+    all_device_types = [d[0] for d in db.session.query(Device.device_type).distinct().all()]
+    type_q = db.session.query(Device.device_type, func.count(Device.id)).group_by(Device.device_type)
+    if selected_device_types:
+        type_q = type_q.filter(Device.device_type.in_(selected_device_types))
+    type_rows = type_q.all()
+    type_labels = []
+    type_values = []
+    for device_type, cnt in type_rows:
+        type_labels.append(device_type or 'Chưa phân loại')
+        type_values.append(int(cnt or 0))
+    type_chart_data = { 'labels': type_labels, 'values': type_values }
+    
+    return render_template('dashboard.html', total_devices=total_devices, in_use_devices=in_use_devices, maintenance_devices=maintenance_devices, all_departments=all_departments, selected_departments=selected_departments, dept_chart_data=dept_chart_data, all_device_types=all_device_types, selected_device_types=selected_device_types, type_chart_data=type_chart_data)
+>>>>>>> 941f2623b2dea7660dc46e016884d5d9c0fed1bf
 
 # ... (Auth routes) ...
 @app.route('/login', methods=['GET', 'POST'])
@@ -819,11 +872,20 @@ def device_groups():
 
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     creators = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+<<<<<<< HEAD
     devices = Device.query.order_by(Device.device_code).all()
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
     managers = User.query.filter(User.id.in_([d.manager_id for d in Device.query.filter(Device.manager_id.isnot(None)).all()])).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     
+=======
+    # Chỉ hiển thị thiết bị chưa thuộc bất kỳ nhóm nào để chọn
+    assigned_device_ids = [l.device_id for l in DeviceGroupDevice.query.all()]
+    if assigned_device_ids:
+        devices = Device.query.filter(~Device.id.in_(assigned_device_ids)).order_by(Device.device_code).all()
+    else:
+        devices = Device.query.order_by(Device.device_code).all()
+>>>>>>> 941f2623b2dea7660dc46e016884d5d9c0fed1bf
     return render_template(
         'device_groups.html',
         group_summaries=group_summaries,
@@ -854,7 +916,12 @@ def device_group_detail(group_id):
     device_links = DeviceGroupDevice.query.filter_by(group_id=group_id).all()
     device_ids_in_group = [l.device_id for l in device_links] if device_links else []
     devices_in_group = Device.query.filter(Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all() if device_ids_in_group else []
-    devices_not_in_group = Device.query.order_by(Device.device_code).all() if not device_ids_in_group else Device.query.filter(~Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all()
+    # Thiết bị chưa thuộc bất kỳ nhóm nào (để đảm bảo 1 thiết bị chỉ ở 1 nhóm)
+    all_assigned_ids = [l.device_id for l in DeviceGroupDevice.query.all()]
+    if all_assigned_ids:
+        devices_not_in_group = Device.query.filter(~Device.id.in_(all_assigned_ids)).order_by(Device.device_code).all()
+    else:
+        devices_not_in_group = Device.query.order_by(Device.device_code).all()
     # Người dùng trong nhóm
     user_links = UserDeviceGroup.query.filter_by(group_id=group_id).all()
     user_ids_in_group = [l.user_id for l in user_links] if user_links else []
@@ -1085,14 +1152,173 @@ def assign_devices_to_group(group_id):
         return redirect(url_for('device_group_detail', group_id=group_id))
     created = 0
     for d_id in device_ids:
-        if not d_id: continue
-        exists = DeviceGroupDevice.query.filter_by(group_id=group_id, device_id=int(d_id)).first()
+        if not d_id:
+            continue
+        d_int = int(d_id)
+        # Gỡ khỏi nhóm cũ nếu đang thuộc nhóm khác (đảm bảo unique)
+        old_link = DeviceGroupDevice.query.filter_by(device_id=d_int).first()
+        if old_link and old_link.group_id != group_id:
+            db.session.delete(old_link)
+        exists = DeviceGroupDevice.query.filter_by(group_id=group_id, device_id=d_int).first()
         if not exists:
-            db.session.add(DeviceGroupDevice(group_id=group_id, device_id=int(d_id)))
+            db.session.add(DeviceGroupDevice(group_id=group_id, device_id=d_int))
             created += 1
     db.session.commit()
     flash(f'Đã thêm {created} thiết bị vào nhóm.', 'success')
     return redirect(url_for('device_group_detail', group_id=group_id))
+
+@app.route('/server_room', methods=['GET', 'POST'])
+def server_room():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    # Tạo/lấy nhóm đặc biệt "Phòng server"
+    group = DeviceGroup.query.filter(func.lower(DeviceGroup.name) == func.lower('Phòng server')).first()
+    if not group:
+        group = DeviceGroup(name='Phòng server', description='Nhóm thiết bị phòng server', created_by=session.get('user_id'))
+        db.session.add(group)
+        db.session.commit()
+    if request.method == 'POST':
+        # Thêm thiết bị
+        device_ids = request.form.getlist('device_ids')
+        created = 0
+        for d_id in device_ids:
+            if not d_id:
+                continue
+            d_int = int(d_id)
+            # đảm bảo unique: gỡ khỏi nhóm cũ
+            old_link = DeviceGroupDevice.query.filter_by(device_id=d_int).first()
+            if old_link and old_link.group_id != group.id:
+                db.session.delete(old_link)
+            exists = DeviceGroupDevice.query.filter_by(group_id=group.id, device_id=d_int).first()
+            if not exists:
+                db.session.add(DeviceGroupDevice(group_id=group.id, device_id=d_int))
+                created += 1
+        db.session.commit()
+        flash(f'Đã thêm {created} thiết bị vào Phòng server.', 'success')
+        return redirect(url_for('server_room'))
+
+    # Danh sách thiết bị trong phòng server (phân trang)
+    links = DeviceGroupDevice.query.filter_by(group_id=group.id).all()
+    ids_in_server = [l.device_id for l in links]
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    # Filter parameters
+    search_name = request.args.get('search_name', '').strip()
+    search_code = request.args.get('search_code', '').strip()
+    filter_team = request.args.get('filter_team', '').strip()
+    filter_type = request.args.get('filter_type', '').strip()
+    filter_status = request.args.get('filter_status', '').strip()
+    filter_ip = request.args.get('filter_ip', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    
+    devices_pagination = None
+    if ids_in_server:
+        id_to_added_at = {l.device_id: l.created_at for l in links}
+        base_q = Device.query.filter(Device.id.in_(ids_in_server)).join(User, Device.manager_id == User.id, isouter=True)
+        
+        # Apply filters
+        if search_name:
+            base_q = base_q.filter(Device.name.ilike(f'%{search_name}%'))
+        if search_code:
+            base_q = base_q.filter(Device.device_code.ilike(f'%{search_code}%'))
+        if filter_team:
+            base_q = base_q.filter(User.full_name.ilike(f'%{filter_team}%'))
+        if filter_type:
+            base_q = base_q.filter(Device.device_type == filter_type)
+        if filter_status:
+            base_q = base_q.filter(Device.status == filter_status)
+        if filter_ip:
+            base_q = base_q.filter(Device.ip_address.ilike(f'%{filter_ip}%'))
+        if date_from:
+            try:
+                from_date = datetime.strptime(date_from, '%Y-%m-%d')
+                base_q = base_q.filter(Device.created_at >= from_date)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                to_date = datetime.strptime(date_to, '%Y-%m-%d')
+                base_q = base_q.filter(Device.created_at <= to_date)
+            except ValueError:
+                pass
+        
+        base_q = base_q.order_by(Device.device_code)
+        devices_pagination = base_q.paginate(page=page, per_page=per_page, error_out=False)
+        for d in devices_pagination.items:
+            setattr(d, '_server_added_at', id_to_added_at.get(d.id))
+    
+    # Get filter options
+    all_teams = [u[0] for u in db.session.query(User.full_name).distinct().all() if u[0]]
+    all_types = [d[0] for d in db.session.query(Device.device_type).distinct().all() if d[0]]
+    all_statuses = [d[0] for d in db.session.query(Device.status).distinct().all() if d[0]]
+    
+    # Thiết bị sẵn có để thêm: tất cả, trừ thiết bị đã trong phòng server
+    if ids_in_server:
+        devices_available = Device.query.filter(~Device.id.in_(ids_in_server)).order_by(Device.device_code).all()
+    else:
+        devices_available = Device.query.order_by(Device.device_code).all()
+    
+    return render_template('server_room.html', group=group, devices_pagination=devices_pagination, devices_available=devices_available, 
+                         search_name=search_name, search_code=search_code, filter_team=filter_team, filter_type=filter_type, 
+                         filter_status=filter_status, filter_ip=filter_ip, date_from=date_from, date_to=date_to,
+                         all_teams=all_teams, all_types=all_types, all_statuses=all_statuses)
+
+@app.route('/server_room/<int:device_id>')
+def server_room_device_detail(device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device = Device.query.get_or_404(device_id)
+    info = ServerRoomDeviceInfo.query.get(device_id)
+    return render_template('server_room_device_detail.html', device=device, info=info)
+
+@app.route('/server_room/<int:device_id>/edit', methods=['GET', 'POST'])
+def server_room_device_edit(device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device = Device.query.get_or_404(device_id)
+    info = ServerRoomDeviceInfo.query.get(device_id)
+    if request.method == 'POST':
+        # Cập nhật các trường của thiết bị
+        device.name = request.form.get('name') or device.name
+        device.device_code = request.form.get('device_code') or device.device_code
+        device.device_type = request.form.get('device_type') or device.device_type
+        device.status = request.form.get('status') or device.status
+        try:
+            mgr = request.form.get('manager_id')
+            device.manager_id = int(mgr) if mgr else None
+        except Exception:
+            pass
+        device.configuration = request.form.get('configuration') or device.configuration
+        device.notes = request.form.get('notes') or device.notes
+        # Cập nhật IP, dịch vụ, trạng thái sử dụng
+        ip = request.form.get('ip_address')
+        services = request.form.get('services_running')
+        usage_status = request.form.get('usage_status') or 'Đang hoạt động'
+        if info is None:
+            info = ServerRoomDeviceInfo(device_id=device.id)
+            db.session.add(info)
+        info.ip_address = ip or None
+        info.services_running = services or None
+        info.usage_status = usage_status
+        db.session.commit()
+        flash('Đã cập nhật thông tin phòng server của thiết bị.', 'success')
+        return redirect(url_for('server_room'))
+    # Render form gồm trường thiết bị và 2 trường phòng server
+    users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
+    return render_template('edit_server_room_device.html', device=device, info=info, users=users, statuses=statuses)
+
+@app.route('/server_room/<int:device_id>/remove', methods=['POST'])
+def server_room_device_remove(device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    # remove link from Phòng server group
+    group = DeviceGroup.query.filter(func.lower(DeviceGroup.name) == func.lower('Phòng server')).first()
+    if group:
+        link = DeviceGroupDevice.query.filter_by(group_id=group.id, device_id=device_id).first()
+        if link:
+            db.session.delete(link)
+            db.session.commit()
+            flash('Đã gỡ thiết bị khỏi Phòng server.', 'success')
+    return redirect(url_for('server_room'))
 
 @app.route('/device_groups/<int:group_id>/remove_device/<int:device_id>', methods=['POST'])
 def remove_device_from_group(group_id, device_id):
