@@ -16,21 +16,28 @@
             <div class="col-md-3"><label class="form-label">Tên nhóm</label><input type="text" name="name" value="{{ filter_name }}" class="form-control" placeholder="Tìm tên nhóm"></div>
             <div class="col-md-2"><label class="form-label">Người dùng</label><select name="user_id" class="form-select"><option value="">-- Tất cả --</option>{% for u in users %}<option value="{{ u.id }}" {% if filter_user_id==u.id|string %}selected{% endif %}>{{ u.full_name or u.username }}</option>{% endfor %}</select></div>
             <div class="col-md-2"><label class="form-label">Mã thiết bị</label><input type="text" name="device_code" value="{{ filter_device_code }}" class="form-control" placeholder="Tìm mã TB"></div>
+            <div class="col-md-2"><label class="form-label">Tên thiết bị</label><input type="text" name="device_name" value="{{ filter_device_name }}" class="form-control" placeholder="Tìm tên TB"></div>
+            <div class="col-md-2"><label class="form-label">Loại thiết bị</label><select name="device_type" class="form-select"><option value="">-- Tất cả --</option>{% for dt in device_types %}<option value="{{ dt }}" {% if filter_device_type==dt %}selected{% endif %}>{{ dt }}</option>{% endfor %}</select></div>
+            <div class="col-md-1"><label class="form-label">Trạng thái</label><select name="device_status" class="form-select"><option value="">-- Tất cả --</option>{% for s in statuses %}<option value="{{ s }}" {% if filter_device_status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+        </form>
+        <form method="GET" class="row g-3 align-items-end mb-4">
+            <div class="col-md-2"><label class="form-label">Team quản lý</label><select name="manager_id" class="form-select"><option value="">-- Tất cả --</option>{% for m in managers %}<option value="{{ m.id }}" {% if filter_manager_id==m.id|string %}selected{% endif %}>{{ m.full_name or m.username }}</option>{% endfor %}</select></div>
+            <div class="col-md-2"><label class="form-label">IP</label><input type="text" name="ip" value="{{ filter_ip }}" class="form-control" placeholder="Tìm IP"></div>
             <div class="col-md-2"><label class="form-label">Từ ngày</label><input type="date" name="start_date" value="{{ filter_start_date }}" class="form-control"></div>
             <div class="col-md-2"><label class="form-label">Đến ngày</label><input type="date" name="end_date" value="{{ filter_end_date }}" class="form-control"></div>
-            <div class="col-md-1"><label class="form-label">Người tạo</label><select name="created_by" class="form-select"><option value="">--</option>{% for c in creators %}<option value="{{ c.id }}" {% if filter_created_by==c.id|string %}selected{% endif %}>{{ c.full_name or c.username }}</option>{% endfor %}</select></div>
-            <div class="col-md-12"><button class="btn btn-primary">Lọc</button> <a href="{{ url_for('device_groups') }}" class="btn btn-secondary ms-2">Reset</a></div>
+            <div class="col-md-2"><label class="form-label">Người tạo</label><select name="created_by" class="form-select"><option value="">-- Tất cả --</option>{% for c in creators %}<option value="{{ c.id }}" {% if filter_created_by==c.id|string %}selected{% endif %}>{{ c.full_name or c.username }}</option>{% endfor %}</select></div>
+            <div class="col-md-2"><button class="btn btn-primary">Lọc</button> <a href="{{ url_for('device_groups') }}" class="btn btn-secondary ms-2">Reset</a></div>
         </form>
 
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead class="table-light">
                     <tr>
-                        <th>STT</th>
-                        <th>Tên nhóm</th>
-                        <th>Mô tả</th>
-                        <th>Thiết bị</th>
-                        <th>Người dùng</th>
+                        <th class="text-center">STT</th>
+                        <th class="text-center">Tên nhóm</th>
+                        <th class="text-center">Mô tả</th>
+                        <th class="text-center">Thiết bị</th>
+                        <th class="text-center">Người dùng</th>
                         <th class="text-center">Hành động</th>
                     </tr>
                 </thead>
@@ -45,7 +52,7 @@
                             {% if links %}
                                 <ul class="mb-0 ps-3">
                                     {% for l in links[:5] %}
-                                        <li>{{ l.device.name }} ({{ l.device.device_code }})</li>
+                                        <li><a href="{{ url_for('device_detail', device_id=l.device.id) }}" class="text-decoration-none">{{ l.device.name }}</a> (<a href="{{ url_for('device_detail', device_id=l.device.id) }}" class="text-decoration-none">{{ l.device.device_code }}</a>)</li>
                                     {% endfor %}
                                     {% if links|length > 5 %}
                                         <li>… và {{ links|length - 5 }} thiết bị khác</li>

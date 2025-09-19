@@ -332,10 +332,53 @@ def format_vnd(value):
 @app.route('/')
 def home():
     if 'user_id' not in session: return redirect(url_for('login'))
-    total_devices = Device.query.count()
-    in_use_devices = Device.query.filter_by(status='Đã cấp phát').count()
-    maintenance_devices = Device.query.filter_by(status='Bảo trì').count()
-    return render_template('dashboard.html', total_devices=total_devices, in_use_devices=in_use_devices, maintenance_devices=maintenance_devices)
+    
+    # Get filter parameters
+    filter_department = request.args.get('department', '')
+    filter_device_type = request.args.get('device_type', '')
+    
+    # Base queries
+    device_query = Device.query
+    user_query = User.query
+    
+    # Apply filters
+    if filter_department:
+        device_query = device_query.join(User, Device.manager_id == User.id).filter(User.department == filter_department)
+    
+    if filter_device_type:
+        device_query = device_query.filter(Device.device_type == filter_device_type)
+    
+    # Get statistics
+    total_devices = device_query.count()
+    in_use_devices = device_query.filter_by(status='Đã cấp phát').count()
+    maintenance_devices = device_query.filter_by(status='Bảo trì').count()
+    
+    # Get device type statistics
+    device_type_stats = db.session.query(
+        Device.device_type, 
+        db.func.count(Device.id).label('count')
+    ).group_by(Device.device_type).all()
+    
+    # Get department statistics
+    department_stats = db.session.query(
+        User.department,
+        db.func.count(Device.id).label('count')
+    ).join(Device, User.id == Device.manager_id).group_by(User.department).all()
+    
+    # Get all departments and device types for filters
+    departments = [d[0] for d in db.session.query(User.department).distinct().filter(User.department.isnot(None)).all()]
+    device_types = [dt[0] for dt in db.session.query(Device.device_type).distinct().all()]
+    
+    return render_template('dashboard.html', 
+                         total_devices=total_devices, 
+                         in_use_devices=in_use_devices, 
+                         maintenance_devices=maintenance_devices,
+                         device_type_stats=device_type_stats,
+                         department_stats=department_stats,
+                         departments=departments,
+                         device_types=device_types,
+                         filter_department=filter_department,
+                         filter_device_type=filter_device_type)
 
 # ... (Auth routes) ...
 @app.route('/login', methods=['GET', 'POST'])
@@ -707,6 +750,11 @@ def device_groups():
     filter_name = request.args.get('name', '').strip()
     filter_user_id = request.args.get('user_id', '').strip()
     filter_device_code = request.args.get('device_code', '').strip()
+    filter_device_name = request.args.get('device_name', '').strip()
+    filter_device_type = request.args.get('device_type', '').strip()
+    filter_device_status = request.args.get('device_status', '').strip()
+    filter_manager_id = request.args.get('manager_id', '').strip()
+    filter_ip = request.args.get('ip', '').strip()
     filter_start_date = request.args.get('start_date', '').strip()
     filter_end_date = request.args.get('end_date', '').strip()
     filter_created_by = request.args.get('created_by', '').strip()
@@ -741,6 +789,26 @@ def device_groups():
         q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
              .join(Device, Device.id == DeviceGroupDevice.device_id) \
              .filter(Device.device_code.ilike(f"%{filter_device_code}%"))
+    if filter_device_name:
+        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
+             .join(Device, Device.id == DeviceGroupDevice.device_id) \
+             .filter(Device.name.ilike(f"%{filter_device_name}%"))
+    if filter_device_type:
+        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
+             .join(Device, Device.id == DeviceGroupDevice.device_id) \
+             .filter(Device.device_type == filter_device_type)
+    if filter_device_status:
+        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
+             .join(Device, Device.id == DeviceGroupDevice.device_id) \
+             .filter(Device.status == filter_device_status)
+    if filter_manager_id:
+        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
+             .join(Device, Device.id == DeviceGroupDevice.device_id) \
+             .filter(Device.manager_id == filter_manager_id)
+    if filter_ip:
+        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
+             .join(Device, Device.id == DeviceGroupDevice.device_id) \
+             .filter(Device.configuration.ilike(f"%{filter_ip}%"))
 
     groups = q.order_by(DeviceGroup.id.desc()).all()
     group_summaries = []
@@ -752,15 +820,27 @@ def device_groups():
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     creators = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     devices = Device.query.order_by(Device.device_code).all()
+    device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
+    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
+    managers = User.query.filter(User.id.in_([d.manager_id for d in Device.query.filter(Device.manager_id.isnot(None)).all()])).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    
     return render_template(
         'device_groups.html',
         group_summaries=group_summaries,
         users=users,
         creators=creators,
         devices=devices,
+        device_types=device_types,
+        statuses=statuses,
+        managers=managers,
         filter_name=filter_name,
         filter_user_id=filter_user_id,
         filter_device_code=filter_device_code,
+        filter_device_name=filter_device_name,
+        filter_device_type=filter_device_type,
+        filter_device_status=filter_device_status,
+        filter_manager_id=filter_manager_id,
+        filter_ip=filter_ip,
         filter_start_date=filter_start_date,
         filter_end_date=filter_end_date,
         filter_created_by=filter_created_by

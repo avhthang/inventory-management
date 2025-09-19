@@ -17,12 +17,31 @@
             </select>
         </form>
         <nav><ul class="pagination mb-0">
-            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for(endpoint, page=pagination.prev_num, per_page=pagination.per_page, **filters) }}">Trước</a></li>
+            {% set prev_url = url_for(endpoint, page=pagination.prev_num, per_page=pagination.per_page) %}
+            {% for key, value in filters.items() %}
+                {% if value %}
+                    {% set prev_url = prev_url + '&' + key + '=' + value|string %}
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ prev_url }}">Trước</a></li>
             {% for num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                {% if num %}<li class="page-item {% if pagination.page == num %}active{% endif %}"><a class="page-link" href="{{ url_for(endpoint, page=num, per_page=pagination.per_page, **filters) }}">{{ num }}</a></li>
+                {% if num %}
+                    {% set page_url = url_for(endpoint, page=num, per_page=pagination.per_page) %}
+                    {% for key, value in filters.items() %}
+                        {% if value %}
+                            {% set page_url = page_url + '&' + key + '=' + value|string %}
+                        {% endif %}
+                    {% endfor %}
+                    <li class="page-item {% if pagination.page == num %}active{% endif %}"><a class="page-link" href="{{ page_url }}">{{ num }}</a></li>
                 {% else %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}
             {% endfor %}
-            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for(endpoint, page=pagination.next_num, per_page=pagination.per_page, **filters) }}">Sau</a></li>
+            {% set next_url = url_for(endpoint, page=pagination.next_num, per_page=pagination.per_page) %}
+            {% for key, value in filters.items() %}
+                {% if value %}
+                    {% set next_url = next_url + '&' + key + '=' + value|string %}
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ next_url }}">Sau</a></li>
         </ul></nav>
     </div>
 </div>
