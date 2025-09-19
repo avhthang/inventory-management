@@ -3,20 +3,12 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">Dashboard Quản Lý</h2>
-<<<<<<< HEAD
     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dashboardSettingsModal">
         <i class="bi bi-gear"></i> Cài đặt
     </button>
 </div>
 
 <!-- Statistics Cards -->
-=======
-    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#chartSettingsModal" title="Cài đặt biểu đồ">
-        <i class="bi bi-gear"></i>
-    </button>
-</div>
-
->>>>>>> 941f2623b2dea7660dc46e016884d5d9c0fed1bf
 <div class="row">
     <div class="col-md-4"><div class="card text-white bg-primary mb-3"><div class="card-body"><h5 class="card-title">Tổng số thiết bị</h5><p class="card-text fs-2">{{ total_devices }}</p></div></div></div>
     <div class="col-md-4"><div class="card text-white bg-success mb-3"><div class="card-body"><h5 class="card-title">Thiết bị đang sử dụng</h5><p class="card-text fs-2">{{ in_use_devices }}</p></div></div></div>
@@ -53,7 +45,6 @@
     <a href="{{ url_for('handover_list') }}" class="btn btn-info">Bàn giao thiết bị</a>
 </div>
 
-<<<<<<< HEAD
 <!-- Dashboard Settings Modal -->
 <div class="modal fade" id="dashboardSettingsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
@@ -88,62 +79,10 @@
                     <button type="submit" class="btn btn-primary">Áp dụng</button>
                 </div>
             </form>
-=======
-<hr>
-<div class="row">
-    <div class="col-md-6">
-        <h4 class="mt-4">Thiết bị theo phòng ban</h4>
-        <form method="GET" action="{{ url_for('home') }}" class="row g-2 align-items-end mb-3">
-          <div class="col-md-8">
-            <label class="form-label">Chọn phòng ban</label>
-            <select name="departments" class="form-select" multiple size="4">
-              {% for dept in all_departments %}
-              <option value="{{ dept }}" {% if dept in selected_departments %}selected{% endif %}>{{ dept or 'Chưa khai báo' }}</option>
-              {% endfor %}
-            </select>
-            <small class="text-muted">Giữ Ctrl/Cmd để chọn nhiều phòng ban.</small>
-          </div>
-          <div class="col-md-4">
-            <button class="btn btn-outline-primary">Vẽ biểu đồ</button>
-            <a href="{{ url_for('home') }}" class="btn btn-outline-secondary">Reset</a>
-          </div>
-          <input type="hidden" name="chart" value="dept">
-        </form>
-        <div class="card">
-          <div class="card-body">
-            <canvas id="deptChart" height="120"></canvas>
-          </div>
-        </div>
-    </div>
-    
-    <div class="col-md-6">
-        <h4 class="mt-4">Thiết bị theo loại</h4>
-        <form method="GET" action="{{ url_for('home') }}" class="row g-2 align-items-end mb-3">
-          <div class="col-md-8">
-            <label class="form-label">Chọn loại thiết bị</label>
-            <select name="device_types" class="form-select" multiple size="4">
-              {% for device_type in all_device_types %}
-              <option value="{{ device_type }}" {% if device_type in selected_device_types %}selected{% endif %}>{{ device_type or 'Chưa phân loại' }}</option>
-              {% endfor %}
-            </select>
-            <small class="text-muted">Giữ Ctrl/Cmd để chọn nhiều loại thiết bị.</small>
-          </div>
-          <div class="col-md-4">
-            <button class="btn btn-outline-primary">Vẽ biểu đồ</button>
-            <a href="{{ url_for('home') }}" class="btn btn-outline-secondary">Reset</a>
-          </div>
-          <input type="hidden" name="chart" value="type">
-        </form>
-        <div class="card">
-          <div class="card-body">
-            <canvas id="typeChart" height="120"></canvas>
-          </div>
->>>>>>> 941f2623b2dea7660dc46e016884d5d9c0fed1bf
         </div>
     </div>
 </div>
 
-<<<<<<< HEAD
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -199,133 +138,5 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
-=======
-<!-- Chart Settings Modal -->
-<div class="modal fade" id="chartSettingsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Cài đặt hiển thị biểu đồ</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form method="GET" action="{{ url_for('home') }}" id="chartSettingsForm">
-          <div class="row">
-            <div class="col-md-6">
-              <h6>Biểu đồ theo phòng ban</h6>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="showDeptChart" checked>
-                <label class="form-check-label" for="showDeptChart">
-                  Hiển thị biểu đồ phòng ban
-                </label>
-              </div>
-              <div class="mt-2">
-                <label class="form-label">Chọn phòng ban</label>
-                <select name="departments" class="form-select" multiple size="4">
-                  {% for dept in all_departments %}
-                  <option value="{{ dept }}" {% if dept in selected_departments %}selected{% endif %}>{{ dept or 'Chưa khai báo' }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <h6>Biểu đồ theo loại thiết bị</h6>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="showTypeChart" checked>
-                <label class="form-check-label" for="showTypeChart">
-                  Hiển thị biểu đồ loại thiết bị
-                </label>
-              </div>
-              <div class="mt-2">
-                <label class="form-label">Chọn loại thiết bị</label>
-                <select name="device_types" class="form-select" multiple size="4">
-                  {% for device_type in all_device_types %}
-                  <option value="{{ device_type }}" {% if device_type in selected_device_types %}selected{% endif %}>{{ device_type or 'Chưa phân loại' }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-            </div>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-        <button type="button" class="btn btn-primary" onclick="applyChartSettings()">Áp dụng</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-{% endblock %}
-
-{% block scripts %}
-{{ super() }}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-  // Department Chart
-  const deptData = {{ dept_chart_data|tojson }};
-  const deptCtx = document.getElementById('deptChart');
-  if (deptCtx && deptData && deptData.labels && deptData.labels.length){
-    new Chart(deptCtx, {
-      type: 'bar',
-      data: {
-        labels: deptData.labels,
-        datasets: [{
-          label: 'Số thiết bị',
-          data: deptData.values,
-          backgroundColor: '#0d6efd'
-        }]
-      },
-      options: {
-        responsive: true,
-        scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
-      }
-    });
-  }
-
-  // Device Type Chart
-  const typeData = {{ type_chart_data|tojson }};
-  const typeCtx = document.getElementById('typeChart');
-  if (typeCtx && typeData && typeData.labels && typeData.labels.length){
-    new Chart(typeCtx, {
-      type: 'bar',
-      data: {
-        labels: typeData.labels,
-        datasets: [{
-          label: 'Số thiết bị',
-          data: typeData.values,
-          backgroundColor: '#28a745'
-        }]
-      },
-      options: {
-        responsive: true,
-        scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
-      }
-    });
-  }
-
-  // Chart Settings Modal Functions
-  function applyChartSettings() {
-    const form = document.getElementById('chartSettingsForm');
-    const formData = new FormData(form);
-    
-    // Add selected departments
-    const deptSelect = form.querySelector('select[name="departments"]');
-    const selectedDepts = Array.from(deptSelect.selectedOptions).map(option => option.value);
-    selectedDepts.forEach(dept => formData.append('departments', dept));
-    
-    // Add selected device types
-    const typeSelect = form.querySelector('select[name="device_types"]');
-    const selectedTypes = Array.from(typeSelect.selectedOptions).map(option => option.value);
-    selectedTypes.forEach(type => formData.append('device_types', type));
-    
-    // Add chart type parameter
-    formData.append('chart', 'both');
-    
-    // Submit form
-    const params = new URLSearchParams(formData);
-    window.location.href = '{{ url_for("home") }}?' + params.toString();
-  }
->>>>>>> 941f2623b2dea7660dc46e016884d5d9c0fed1bf
 </script>
 {% endblock %}

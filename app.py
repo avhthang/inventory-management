@@ -347,7 +347,6 @@ def format_vnd(value):
 @app.route('/')
 def home():
     if 'user_id' not in session: return redirect(url_for('login'))
-<<<<<<< HEAD
     
     # Get filter parameters
     filter_department = request.args.get('department', '')
@@ -395,43 +394,6 @@ def home():
                          device_types=device_types,
                          filter_department=filter_department,
                          filter_device_type=filter_device_type)
-=======
-    total_devices = Device.query.count()
-    in_use_devices = Device.query.filter_by(status='Đã cấp phát').count()
-    maintenance_devices = Device.query.filter_by(status='Bảo trì').count()
-    
-    # Department chart data
-    # Departments are on User.department; device belongs to manager (User)
-    chart_type = request.args.get('chart', '')
-    selected_departments = request.args.getlist('departments') if chart_type in ['dept', 'both'] else []
-    all_departments = [d[0] for d in db.session.query(User.department).distinct().all()]
-    q = db.session.query(User.department, func.count(Device.id)).join(Device, Device.manager_id == User.id, isouter=True).group_by(User.department)
-    if selected_departments:
-        q = q.filter(User.department.in_(selected_departments))
-    rows = q.all()
-    labels = []
-    values = []
-    for dept, cnt in rows:
-        labels.append(dept or 'Chưa khai báo')
-        values.append(int(cnt or 0))
-    dept_chart_data = { 'labels': labels, 'values': values }
-    
-    # Device type chart data
-    selected_device_types = request.args.getlist('device_types') if chart_type in ['type', 'both'] else []
-    all_device_types = [d[0] for d in db.session.query(Device.device_type).distinct().all()]
-    type_q = db.session.query(Device.device_type, func.count(Device.id)).group_by(Device.device_type)
-    if selected_device_types:
-        type_q = type_q.filter(Device.device_type.in_(selected_device_types))
-    type_rows = type_q.all()
-    type_labels = []
-    type_values = []
-    for device_type, cnt in type_rows:
-        type_labels.append(device_type or 'Chưa phân loại')
-        type_values.append(int(cnt or 0))
-    type_chart_data = { 'labels': type_labels, 'values': type_values }
-    
-    return render_template('dashboard.html', total_devices=total_devices, in_use_devices=in_use_devices, maintenance_devices=maintenance_devices, all_departments=all_departments, selected_departments=selected_departments, dept_chart_data=dept_chart_data, all_device_types=all_device_types, selected_device_types=selected_device_types, type_chart_data=type_chart_data)
->>>>>>> 941f2623b2dea7660dc46e016884d5d9c0fed1bf
 
 # ... (Auth routes) ...
 @app.route('/login', methods=['GET', 'POST'])
@@ -872,20 +834,15 @@ def device_groups():
 
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     creators = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-<<<<<<< HEAD
-    devices = Device.query.order_by(Device.device_code).all()
-    device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
-    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
-    managers = User.query.filter(User.id.in_([d.manager_id for d in Device.query.filter(Device.manager_id.isnot(None)).all()])).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    
-=======
     # Chỉ hiển thị thiết bị chưa thuộc bất kỳ nhóm nào để chọn
     assigned_device_ids = [l.device_id for l in DeviceGroupDevice.query.all()]
     if assigned_device_ids:
         devices = Device.query.filter(~Device.id.in_(assigned_device_ids)).order_by(Device.device_code).all()
     else:
         devices = Device.query.order_by(Device.device_code).all()
->>>>>>> 941f2623b2dea7660dc46e016884d5d9c0fed1bf
+    device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
+    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
+    managers = User.query.filter(User.id.in_([d.manager_id for d in Device.query.filter(Device.manager_id.isnot(None)).all()])).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     return render_template(
         'device_groups.html',
         group_summaries=group_summaries,
