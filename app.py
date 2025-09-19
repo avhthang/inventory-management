@@ -350,9 +350,11 @@ def home():
     total_devices = Device.query.count()
     in_use_devices = Device.query.filter_by(status='Đã cấp phát').count()
     maintenance_devices = Device.query.filter_by(status='Bảo trì').count()
+    
     # Department chart data
     # Departments are on User.department; device belongs to manager (User)
-    selected_departments = request.args.getlist('departments') if request.args.get('chart') == 'dept' else []
+    chart_type = request.args.get('chart', '')
+    selected_departments = request.args.getlist('departments') if chart_type in ['dept', 'both'] else []
     all_departments = [d[0] for d in db.session.query(User.department).distinct().all()]
     q = db.session.query(User.department, func.count(Device.id)).join(Device, Device.manager_id == User.id, isouter=True).group_by(User.department)
     if selected_departments:
@@ -364,7 +366,22 @@ def home():
         labels.append(dept or 'Chưa khai báo')
         values.append(int(cnt or 0))
     dept_chart_data = { 'labels': labels, 'values': values }
-    return render_template('dashboard.html', total_devices=total_devices, in_use_devices=in_use_devices, maintenance_devices=maintenance_devices, all_departments=all_departments, selected_departments=selected_departments, dept_chart_data=dept_chart_data)
+    
+    # Device type chart data
+    selected_device_types = request.args.getlist('device_types') if chart_type in ['type', 'both'] else []
+    all_device_types = [d[0] for d in db.session.query(Device.device_type).distinct().all()]
+    type_q = db.session.query(Device.device_type, func.count(Device.id)).group_by(Device.device_type)
+    if selected_device_types:
+        type_q = type_q.filter(Device.device_type.in_(selected_device_types))
+    type_rows = type_q.all()
+    type_labels = []
+    type_values = []
+    for device_type, cnt in type_rows:
+        type_labels.append(device_type or 'Chưa phân loại')
+        type_values.append(int(cnt or 0))
+    type_chart_data = { 'labels': type_labels, 'values': type_values }
+    
+    return render_template('dashboard.html', total_devices=total_devices, in_use_devices=in_use_devices, maintenance_devices=maintenance_devices, all_departments=all_departments, selected_departments=selected_departments, dept_chart_data=dept_chart_data, all_device_types=all_device_types, selected_device_types=selected_device_types, type_chart_data=type_chart_data)
 
 # ... (Auth routes) ...
 @app.route('/login', methods=['GET', 'POST'])
@@ -1093,19 +1110,68 @@ def server_room():
     ids_in_server = [l.device_id for l in links]
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
+    
+    # Filter parameters
+    search_name = request.args.get('search_name', '').strip()
+    search_code = request.args.get('search_code', '').strip()
+    filter_team = request.args.get('filter_team', '').strip()
+    filter_type = request.args.get('filter_type', '').strip()
+    filter_status = request.args.get('filter_status', '').strip()
+    filter_ip = request.args.get('filter_ip', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    
     devices_pagination = None
     if ids_in_server:
         id_to_added_at = {l.device_id: l.created_at for l in links}
-        base_q = Device.query.filter(Device.id.in_(ids_in_server)).order_by(Device.device_code)
+        base_q = Device.query.filter(Device.id.in_(ids_in_server)).join(User, Device.manager_id == User.id, isouter=True)
+        
+        # Apply filters
+        if search_name:
+            base_q = base_q.filter(Device.name.ilike(f'%{search_name}%'))
+        if search_code:
+            base_q = base_q.filter(Device.device_code.ilike(f'%{search_code}%'))
+        if filter_team:
+            base_q = base_q.filter(User.full_name.ilike(f'%{filter_team}%'))
+        if filter_type:
+            base_q = base_q.filter(Device.device_type == filter_type)
+        if filter_status:
+            base_q = base_q.filter(Device.status == filter_status)
+        if filter_ip:
+            base_q = base_q.filter(Device.ip_address.ilike(f'%{filter_ip}%'))
+        if date_from:
+            try:
+                from_date = datetime.strptime(date_from, '%Y-%m-%d')
+                base_q = base_q.filter(Device.created_at >= from_date)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                to_date = datetime.strptime(date_to, '%Y-%m-%d')
+                base_q = base_q.filter(Device.created_at <= to_date)
+            except ValueError:
+                pass
+        
+        base_q = base_q.order_by(Device.device_code)
         devices_pagination = base_q.paginate(page=page, per_page=per_page, error_out=False)
         for d in devices_pagination.items:
             setattr(d, '_server_added_at', id_to_added_at.get(d.id))
+    
+    # Get filter options
+    all_teams = [u[0] for u in db.session.query(User.full_name).distinct().all() if u[0]]
+    all_types = [d[0] for d in db.session.query(Device.device_type).distinct().all() if d[0]]
+    all_statuses = [d[0] for d in db.session.query(Device.status).distinct().all() if d[0]]
+    
     # Thiết bị sẵn có để thêm: tất cả, trừ thiết bị đã trong phòng server
     if ids_in_server:
         devices_available = Device.query.filter(~Device.id.in_(ids_in_server)).order_by(Device.device_code).all()
     else:
         devices_available = Device.query.order_by(Device.device_code).all()
-    return render_template('server_room.html', group=group, devices_pagination=devices_pagination, devices_available=devices_available)
+    
+    return render_template('server_room.html', group=group, devices_pagination=devices_pagination, devices_available=devices_available, 
+                         search_name=search_name, search_code=search_code, filter_team=filter_team, filter_type=filter_type, 
+                         filter_status=filter_status, filter_ip=filter_ip, date_from=date_from, date_to=date_to,
+                         all_teams=all_teams, all_types=all_types, all_statuses=all_statuses)
 
 @app.route('/server_room/<int:device_id>')
 def server_room_device_detail(device_id):
