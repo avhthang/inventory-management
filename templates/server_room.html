@@ -128,7 +128,8 @@
             </table>
         </div>
         {% if devices_pagination %}
-        {{ render_pagination(devices_pagination, 'server_room', search_name=search_name, search_code=search_code, filter_team=filter_team, filter_type=filter_type, filter_status=filter_status, filter_ip=filter_ip, date_from=date_from, date_to=date_to) }}
+        {% set filters = {'search_name': search_name, 'search_code': search_code, 'filter_team': filter_team, 'filter_type': filter_type, 'filter_status': filter_status, 'filter_ip': filter_ip, 'date_from': date_from, 'date_to': date_to} %}
+        {{ render_pagination(devices_pagination, 'server_room', filters) }}
         {% endif %}
     </div>
 </div>
