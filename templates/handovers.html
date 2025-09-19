@@ -54,7 +54,7 @@
             </tbody>
         </table></div>
         {% set filters = {'filter_device_code': filter_device_code, 'filter_giver_id': filter_giver_id, 'filter_receiver_id': filter_receiver_id, 'filter_device_type': filter_device_type, 'filter_start_date': filter_start_date, 'filter_end_date': filter_end_date} %}
-        {{ render_pagination(handovers, 'handover_list', filters=filters) }}
+        {{ render_pagination(handovers, 'handover_list', filters) }}
     </div>
 </div>
 {% endblock %}

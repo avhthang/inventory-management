@@ -152,7 +152,7 @@
         {% endfor %}
 
         {% set filters = {'filter_device_code': filter_device_code, 'filter_name': filter_name, 'filter_device_type': filter_device_type, 'filter_status': filter_status, 'filter_manager_id': filter_manager_id} %}
-        {{ render_pagination(devices, 'device_list', filters=filters) }}
+        {{ render_pagination(devices, 'device_list', filters) }}
     </div>
 </div>
 {% endblock %}

@@ -98,7 +98,7 @@
             </table>
         </div>
         {% set filters = {'filter_username': filter_username, 'filter_department': filter_department, 'filter_position': filter_position, 'filter_status': filter_status} %}
-        {{ render_pagination(users, 'user_list', filters=filters) }}
+        {{ render_pagination(users, 'user_list', filters) }}
     </div>
 </div>
 {% endblock %}
