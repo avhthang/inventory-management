@@ -368,17 +368,19 @@ def home():
     in_use_devices = device_query.filter_by(status='Đã cấp phát').count()
     maintenance_devices = device_query.filter_by(status='Bảo trì').count()
     
-    # Get device type statistics
-    device_type_stats = db.session.query(
+    # Get device type statistics (convert to plain list for JSON serialization)
+    _device_type_rows = db.session.query(
         Device.device_type, 
         db.func.count(Device.id).label('count')
     ).group_by(Device.device_type).all()
+    device_type_stats = [(row[0], int(row[1] or 0)) for row in _device_type_rows]
     
-    # Get department statistics
-    department_stats = db.session.query(
+    # Get department statistics (convert to plain list for JSON serialization)
+    _department_rows = db.session.query(
         User.department,
         db.func.count(Device.id).label('count')
     ).join(Device, User.id == Device.manager_id).group_by(User.department).all()
+    department_stats = [(row[0], int(row[1] or 0)) for row in _department_rows]
     
     # Get all departments and device types for filters
     departments = [d[0] for d in db.session.query(User.department).distinct().filter(User.department.isnot(None)).all()]
