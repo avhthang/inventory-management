@@ -20,7 +20,7 @@
             {% set prev_url = url_for(endpoint, page=pagination.prev_num, per_page=pagination.per_page) %}
             {% for key, value in filters.items() %}
                 {% if value %}
-                    {% set prev_url = prev_url + '&' + key + '=' + value|string %}
+                    {% set prev_url = prev_url + '&' + key + '=' + (value|string)|urlencode %}
                 {% endif %}
             {% endfor %}
             <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ prev_url }}">Trước</a></li>
@@ -29,7 +29,7 @@
                     {% set page_url = url_for(endpoint, page=num, per_page=pagination.per_page) %}
                     {% for key, value in filters.items() %}
                         {% if value %}
-                            {% set page_url = page_url + '&' + key + '=' + value|string %}
+                            {% set page_url = page_url + '&' + key + '=' + (value|string)|urlencode %}
                         {% endif %}
                     {% endfor %}
                     <li class="page-item {% if pagination.page == num %}active{% endif %}"><a class="page-link" href="{{ page_url }}">{{ num }}</a></li>
@@ -38,7 +38,7 @@
             {% set next_url = url_for(endpoint, page=pagination.next_num, per_page=pagination.per_page) %}
             {% for key, value in filters.items() %}
                 {% if value %}
-                    {% set next_url = next_url + '&' + key + '=' + value|string %}
+                    {% set next_url = next_url + '&' + key + '=' + (value|string)|urlencode %}
                 {% endif %}
             {% endfor %}
             <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ next_url }}">Sau</a></li>

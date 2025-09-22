@@ -46,8 +46,21 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Lọc</button><a href="{{ url_for('device_list') }}" class="btn btn-secondary w-100 mt-2">Reset</a></div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Lọc</button>
+                    <a href="{{ url_for('device_list') }}" class="btn btn-secondary w-100 mt-2">Reset</a>
+                    <button type="button" class="btn btn-outline-success w-100 mt-2" onclick="document.getElementById('saveFiltersForm').submit()">
+                        <i class="bi bi-bookmark"></i> Lưu bộ lọc
+                    </button>
+                </div>
             </div>
+        </form>
+        <form id="saveFiltersForm" method="POST" action="{{ url_for('save_device_filters') }}" class="d-none">
+            <input type="hidden" name="filter_device_code" value="{{ filter_device_code }}">
+            <input type="hidden" name="filter_name" value="{{ filter_name }}">
+            <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
+            <input type="hidden" name="filter_status" value="{{ filter_status }}">
+            <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
         </form>
         <hr>
 

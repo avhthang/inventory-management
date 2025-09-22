@@ -83,9 +83,7 @@
                         <th class="text-center">Mã thiết bị</th>
                         <th class="text-center">Cấu hình</th>
                         <th class="text-center">Ngày cập nhật</th>
-                        <th class="text-center">Người quản lý</th>
                         <th class="text-center">Trạng thái</th>
-                        <th class="text-center">Chạy dịch vụ</th>
                         <th class="text-center">IP</th>
                         <th class="text-center">Ghi chú</th>
                         <th class="text-center">Hành động</th>
@@ -109,12 +107,26 @@
                             </button>
                             {% endif %}
                         </td>
-                        <td>{{ d._server_added_at.strftime('%Y-%m-%d') if d._server_added_at else '' }}</td>
-                        <td>{{ d.manager.full_name if d.manager else '' }}</td>
-                        <td>{{ d.server_room_info.usage_status if d.server_room_info else '' }}</td>
-                        <td>{{ d.server_room_info.services_running if d.server_room_info else '' }}</td>
-                        <td>{{ d.server_room_info.ip_address if d.server_room_info else '' }}</td>
-                        <td>{{ d.notes }}</td>
+                        <td class="text-center">{{ d._server_added_at.strftime('%Y-%m-%d') if d._server_added_at else '' }}</td>
+                        <td class="text-center">
+                            {% set stat = (d.server_room_info.usage_status if d.server_room_info else '') %}
+                            {% if stat %}
+                                {% set normalized = stat.lower() %}
+                                {% if 'online' in normalized %}
+                                    <span class="badge bg-success">Online</span>
+                                {% elif 'offline' in normalized %}
+                                    <span class="badge bg-secondary">Offline</span>
+                                {% elif 'pending' in normalized %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                {% else %}
+                                    <span class="badge bg-info text-dark">{{ stat }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ d.server_room_info.ip_address if d.server_room_info else '' }}</td>
+                        <td class="text-start">{{ d.notes }}</td>
                         <td class="text-center text-nowrap">
                             <a href="{{ url_for('server_room_device_detail', device_id=d.id) }}" class="btn btn-sm btn-outline-info" title="Xem"><i class="bi bi-eye"></i></a>
                             <a href="{{ url_for('server_room_device_edit', device_id=d.id) }}" class="btn btn-sm btn-outline-warning ms-1" title="Sửa"><i class="bi bi-pencil-square"></i></a>

@@ -495,11 +495,25 @@ def device_list():
     if 'user_id' not in session: return redirect(url_for('login'))
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
-    filter_device_code = request.args.get('filter_device_code', '')
-    filter_name = request.args.get('filter_name', '')
-    filter_device_type = request.args.get('filter_device_type', '')
-    filter_status = request.args.get('filter_status', session.get('default_device_status', ''))
-    filter_manager_id = request.args.get('filter_manager_id', '')
+    # Load current filters from query params or session-saved defaults
+    saved_filters = session.get('devices_filters', {}) or {}
+    filter_device_code = request.args.get('filter_device_code')
+    filter_name = request.args.get('filter_name')
+    filter_device_type = request.args.get('filter_device_type')
+    filter_status = request.args.get('filter_status')
+    filter_manager_id = request.args.get('filter_manager_id')
+
+    if filter_device_code is None or filter_device_code == '':
+        filter_device_code = saved_filters.get('filter_device_code', '')
+    if filter_name is None or filter_name == '':
+        filter_name = saved_filters.get('filter_name', '')
+    if filter_device_type is None or filter_device_type == '':
+        filter_device_type = saved_filters.get('filter_device_type', '')
+    if filter_status is None or filter_status == '':
+        # prefer saved filters; fallback to legacy default status
+        filter_status = saved_filters.get('filter_status', session.get('default_device_status', ''))
+    if filter_manager_id is None or filter_manager_id == '':
+        filter_manager_id = saved_filters.get('filter_manager_id', '')
     
     query = Device.query
     if filter_device_code:
@@ -540,6 +554,21 @@ def set_devices_default_status():
     session['default_device_status'] = status if status is not None else session.get('default_device_status', '')
     flash('Đã lưu trạng thái thiết bị mặc định.', 'success')
     return redirect(url_for('device_list'))
+
+@app.route('/devices/save_filters', methods=['POST'])
+def save_device_filters():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    filters = {
+        'filter_device_code': request.form.get('filter_device_code', '').strip(),
+        'filter_name': request.form.get('filter_name', '').strip(),
+        'filter_device_type': request.form.get('filter_device_type', '').strip(),
+        'filter_status': request.form.get('filter_status', '').strip(),
+        'filter_manager_id': request.form.get('filter_manager_id', '').strip(),
+    }
+    session['devices_filters'] = filters
+    flash('Đã lưu bộ lọc thiết bị.', 'success')
+    # Redirect back with filters as query so UI reflects saved state
+    return redirect(url_for('device_list', **{k: v for k, v in filters.items() if v}))
 
 @app.route('/devices/bulk_update', methods=['POST'])
 def devices_bulk_update():
