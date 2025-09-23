@@ -1425,12 +1425,53 @@ def add_devices_bulk():
                         qty = max(1, int(quantities[idx]))
                     except ValueError:
                         qty = 1
+                def _generate_code_for_type(device_type: str, seq_num: int) -> str:
+                    t = (device_type or '').lower()
+                    if 'laptop' in t:
+                        prefix = 'LT'
+                    elif 'case' in t or 'case máy tính' in t or 'desktop' in t:
+                        prefix = 'Case'
+                    elif 'màn hình' in t or 'monitor' in t:
+                        prefix = 'MH'
+                    elif 'server' in t:
+                        prefix = 'SV'
+                    elif 'chuột' in t or 'mouse' in t:
+                        prefix = 'C'
+                    elif 'bàn phím' in t or 'keyboard' in t:
+                        prefix = 'BP'
+                    else:
+                        prefix = 'TB'
+                    if prefix in ['TB']:
+                        return f"{prefix}_{seq_num:05d}"
+                    elif prefix in ['C']:
+                        return f"{prefix}_{seq_num:03d}"
+                    elif prefix in ['BP']:
+                        return f"{prefix}_{seq_num:03d}"
+                    elif prefix in ['SV']:
+                        return f"{prefix}_{seq_num:03d}"
+                    elif prefix in ['MH', 'LT']:
+                        return f"{prefix}_{seq_num:03d}"
+                    elif prefix in ['Case']:
+                        return f"{prefix}_{seq_num:03d}"
+                    return f"TB_{seq_num:05d}"
+
+                # Compute next sequence per type based on count in DB plus batch offset
+                existing_count_by_type = {}
+                # Precompute once per batch for performance
+                if idx == 0:
+                    for t_val, cnt in db.session.query(Device.device_type, db.func.count(Device.id)).group_by(Device.device_type).all():
+                        existing_count_by_type[(t_val or '').lower()] = int(cnt or 0)
+
                 for k in range(qty):
                     device_code = device_codes[idx].strip() if idx < len(device_codes) and device_codes[idx] and k == 0 else ''
                     if not device_code:
-                        last_device = Device.query.order_by(Device.id.desc()).first()
-                        last_id = last_device.id if last_device else 0
-                        device_code = f"TB{last_id + 1 + created_count:05d}"
+                        tkey = (dtype or '').lower()
+                        base_count = existing_count_by_type.get(tkey, 0)
+                        seq = base_count + 1
+                        # Ensure uniqueness within this batch as well
+                        seq += sum(1 for j in range(len(device_types)) if j < idx and (device_types[j] or '').lower() == tkey)
+                        seq += sum(1 for j in range(k))
+                        device_code = _generate_code_for_type(dtype, seq)
 
                     if Device.query.filter_by(device_code=device_code).first():
                         db.session.rollback()

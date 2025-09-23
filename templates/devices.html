@@ -18,7 +18,7 @@
         <hr>
 
         <p class="mb-2"><strong><i class="bi bi-funnel"></i> Bộ lọc</strong></p>
-        <form method="GET">
+        <form method="GET" onsubmit="document.getElementById('saveFiltersForm').submit();">
             <div class="row g-3 align-items-end">
                 <div class="col-md-2"><label class="form-label">Mã thiết bị</label><input type="text" name="filter_device_code" class="form-control" placeholder="Tìm mã..." value="{{ filter_device_code }}"></div>
                 <div class="col-md-2"><label class="form-label">Tên thiết bị</label><input type="text" name="filter_name" class="form-control" placeholder="Tìm tên..." value="{{ filter_name }}"></div>
