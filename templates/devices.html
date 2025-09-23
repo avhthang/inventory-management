@@ -32,7 +32,7 @@
                             <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
                             {% endfor %}
                         </select>
-                        <button type="button" onclick="document.getElementById('saveStatusForm').submit()" class="btn btn-outline-secondary" title="Lưu mặc định">
+                        <button type="button" onclick="updateAndSubmitSaveStatus()" class="btn btn-outline-secondary" title="Lưu mặc định">
                             <i class="bi bi-bookmark-check"></i>
                         </button>
                     </div>
@@ -49,7 +49,7 @@
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary w-100">Lọc</button>
                     <a href="{{ url_for('device_list') }}" class="btn btn-secondary w-100 mt-2">Reset</a>
-                    <button type="button" class="btn btn-outline-success w-100 mt-2" onclick="document.getElementById('saveFiltersForm').submit()">
+                    <button type="button" class="btn btn-outline-success w-100 mt-2" onclick="updateAndSubmitSaveFilters()">
                         <i class="bi bi-bookmark"></i> Lưu bộ lọc
                     </button>
                 </div>
@@ -191,5 +191,31 @@ $(document).ready(function() {
     $('#bulk_manager_select').select2({ theme: 'bootstrap-5', placeholder: 'Không đổi', allowClear: true });
     $('#select_all').on('change', function(){ $('.row_checkbox').prop('checked', this.checked); });
 });
+
+function updateAndSubmitSaveFilters() {
+    try {
+        const form = document.getElementById('saveFiltersForm');
+        if (!form) return;
+        form.querySelector('[name="filter_device_code"]').value = document.querySelector('[name="filter_device_code"]').value || '';
+        form.querySelector('[name="filter_name"]').value = document.querySelector('[name="filter_name"]').value || '';
+        form.querySelector('[name="filter_device_type"]').value = document.querySelector('[name="filter_device_type"]').value || '';
+        form.querySelector('[name="filter_status"]').value = document.querySelector('[name="filter_status"]').value || '';
+        form.querySelector('[name="filter_manager_id"]').value = document.querySelector('[name="filter_manager_id"]').value || '';
+        form.submit();
+    } catch (e) { console.error(e); }
+}
+
+function updateAndSubmitSaveStatus() {
+    try {
+        const form = document.getElementById('saveStatusForm');
+        if (!form) return;
+        form.querySelector('[name="filter_device_code"]').value = document.querySelector('[name="filter_device_code"]').value || '';
+        form.querySelector('[name="filter_name"]').value = document.querySelector('[name="filter_name"]').value || '';
+        form.querySelector('[name="filter_device_type"]').value = document.querySelector('[name="filter_device_type"]').value || '';
+        form.querySelector('[name="filter_status"]').value = document.querySelector('[name="filter_status"]').value || '';
+        form.querySelector('[name="filter_manager_id"]').value = document.querySelector('[name="filter_manager_id"]').value || '';
+        form.submit();
+    } catch (e) { console.error(e); }
+}
 </script>
 {% endblock %}
