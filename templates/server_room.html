@@ -7,7 +7,7 @@
 <div class="card">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="card-title mb-0">Quản lý thiết bị Phòng server</h2>
+            <h2 class="card-title mb-0">Quản lý thiết bị phòng Server</h2>
             <a href="{{ url_for('device_groups') }}" class="btn btn-secondary">Nhóm thiết bị</a>
         </div>
 
@@ -107,26 +107,24 @@
                             </button>
                             {% endif %}
                         </td>
-                        <td class="text-center">{{ d._server_added_at.strftime('%Y-%m-%d') if d._server_added_at else '' }}</td>
+                        <td class="text-center">{{ d._server_added_at.strftime('%d/%m/%Y') if d._server_added_at else '' }}</td>
                         <td class="text-center">
                             {% set stat = (d.server_room_info.usage_status if d.server_room_info else '') %}
                             {% if stat %}
                                 {% set normalized = stat.lower() %}
-                                {% if 'online' in normalized %}
+                                {% if 'online' in normalized or 'hoạt động' in normalized %}
                                     <span class="badge bg-success">Online</span>
-                                {% elif 'offline' in normalized %}
-                                    <span class="badge bg-secondary">Offline</span>
-                                {% elif 'pending' in normalized %}
-                                    <span class="badge bg-warning text-dark">Pending</span>
+                                {% elif 'offline' in normalized or 'ngừng' in normalized %}
+                                    <span class="badge bg-danger">Offline</span>
                                 {% else %}
-                                    <span class="badge bg-info text-dark">{{ stat }}</span>
+                                    <span class="badge bg-secondary">Offline</span>
                                 {% endif %}
                             {% else %}
-                                <span class="text-muted">-</span>
+                                <span class="badge bg-secondary">Offline</span>
                             {% endif %}
                         </td>
                         <td class="text-center">{{ d.server_room_info.ip_address if d.server_room_info else '' }}</td>
-                        <td class="text-start">{{ d.notes }}</td>
+                        <td class="text-start" style="max-width: 150px; font-size: 0.9em;">{{ d.notes }}</td>
                         <td class="text-center text-nowrap">
                             <a href="{{ url_for('server_room_device_detail', device_id=d.id) }}" class="btn btn-sm btn-outline-info" title="Xem"><i class="bi bi-eye"></i></a>
                             <a href="{{ url_for('server_room_device_edit', device_id=d.id) }}" class="btn btn-sm btn-outline-warning ms-1" title="Sửa"><i class="bi bi-pencil-square"></i></a>

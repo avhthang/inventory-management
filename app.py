@@ -553,7 +553,12 @@ def set_devices_default_status():
         status = request.form.get('status')
     session['default_device_status'] = status if status is not None else session.get('default_device_status', '')
     flash('Đã lưu trạng thái thiết bị mặc định.', 'success')
-    return redirect(url_for('device_list'))
+    # Preserve current filters when redirecting
+    current_filters = {}
+    for key in ['filter_device_code', 'filter_name', 'filter_device_type', 'filter_manager_id']:
+        current_filters[key] = request.form.get(key, '')
+    current_filters['filter_status'] = status
+    return redirect(url_for('device_list', **{k: v for k, v in current_filters.items() if v}))
 
 @app.route('/devices/save_filters', methods=['POST'])
 def save_device_filters():

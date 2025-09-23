@@ -32,7 +32,7 @@
                             <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
                             {% endfor %}
                         </select>
-                        <button formaction="{{ url_for('set_devices_default_status') }}" formmethod="POST" name="status" value="{{ filter_status }}" class="btn btn-outline-secondary" title="Lưu mặc định">
+                        <button type="button" onclick="document.getElementById('saveStatusForm').submit()" class="btn btn-outline-secondary" title="Lưu mặc định">
                             <i class="bi bi-bookmark-check"></i>
                         </button>
                     </div>
@@ -56,6 +56,15 @@
             </div>
         </form>
         <form id="saveFiltersForm" method="POST" action="{{ url_for('save_device_filters') }}" class="d-none">
+            <input type="hidden" name="filter_device_code" value="{{ filter_device_code }}">
+            <input type="hidden" name="filter_name" value="{{ filter_name }}">
+            <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
+            <input type="hidden" name="filter_status" value="{{ filter_status }}">
+            <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
+        </form>
+        
+        <!-- Hidden form for save status button to include all current filters -->
+        <form id="saveStatusForm" method="POST" action="{{ url_for('set_devices_default_status') }}" class="d-none">
             <input type="hidden" name="filter_device_code" value="{{ filter_device_code }}">
             <input type="hidden" name="filter_name" value="{{ filter_name }}">
             <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
