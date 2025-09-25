@@ -56,11 +56,13 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">Lọc</button>
-                    <a href="{{ url_for('device_list') }}" class="btn btn-secondary w-100 mt-1">Reset</a>
-                    <button type="button" class="btn btn-outline-success w-100 mt-1" onclick="updateAndSubmitSaveFilters()">
-                        <i class="bi bi-bookmark"></i> Lưu bộ lọc
-                    </button>
+                    <div class="d-flex flex-column gap-1">
+                        <button type="submit" class="btn btn-primary">Lọc</button>
+                        <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Reset</a>
+                        <button type="button" class="btn btn-outline-success" onclick="updateAndSubmitSaveFilters()">
+                            <i class="bi bi-bookmark"></i> Lưu bộ lọc
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>

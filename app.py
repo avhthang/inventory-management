@@ -1264,17 +1264,28 @@ def server_room():
             base_q = base_q.filter(User.full_name.ilike(f'%{filter_team}%'))
         if filter_type:
             base_q = base_q.filter(Device.device_type == filter_type)
-        if filter_status:
-            if filter_status == 'online':
+        # Join ServerRoomDeviceInfo if needed for filtering
+        needs_server_room_join = filter_status or filter_ip
+        if needs_server_room_join:
+            try:
                 base_q = base_q.join(ServerRoomDeviceInfo, Device.id == ServerRoomDeviceInfo.device_id, isouter=True)
-                base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('%online%') | ServerRoomDeviceInfo.usage_status.ilike('%hoạt động%'))
-            elif filter_status == 'offline':
-                base_q = base_q.join(ServerRoomDeviceInfo, Device.id == ServerRoomDeviceInfo.device_id, isouter=True)
-                base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('%offline%') | ServerRoomDeviceInfo.usage_status.ilike('%ngừng%'))
-        if filter_ip:
-            # Filter by IP in ServerRoomDeviceInfo
-            base_q = base_q.join(ServerRoomDeviceInfo, Device.id == ServerRoomDeviceInfo.device_id, isouter=True)
-            base_q = base_q.filter(ServerRoomDeviceInfo.ip_address.ilike(f'%{filter_ip}%'))
+            except Exception:
+                # If ServerRoomDeviceInfo table doesn't exist yet, skip the join
+                pass
+        
+        if filter_status and needs_server_room_join:
+            try:
+                if filter_status == 'online':
+                    base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('%online%') | ServerRoomDeviceInfo.usage_status.ilike('%hoạt động%'))
+                elif filter_status == 'offline':
+                    base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('%offline%') | ServerRoomDeviceInfo.usage_status.ilike('%ngừng%'))
+            except Exception:
+                pass
+        if filter_ip and needs_server_room_join:
+            try:
+                base_q = base_q.filter(ServerRoomDeviceInfo.ip_address.ilike(f'%{filter_ip}%'))
+            except Exception:
+                pass
         if date_from:
             try:
                 from_date = datetime.strptime(date_from, '%Y-%m-%d')
