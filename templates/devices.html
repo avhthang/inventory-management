@@ -47,9 +47,18 @@
                     </select>
                 </div>
                 <div class="col-md-2">
+                    <label class="form-label">Phòng ban</label>
+                    <select name="filter_department" class="form-select">
+                        <option value="">-- Tất cả --</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept }}" {% if filter_department == dept %}selected{% endif %}>{{ dept }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <button type="submit" class="btn btn-primary w-100">Lọc</button>
-                    <a href="{{ url_for('device_list') }}" class="btn btn-secondary w-100 mt-2">Reset</a>
-                    <button type="button" class="btn btn-outline-success w-100 mt-2" onclick="updateAndSubmitSaveFilters()">
+                    <a href="{{ url_for('device_list') }}" class="btn btn-secondary w-100 mt-1">Reset</a>
+                    <button type="button" class="btn btn-outline-success w-100 mt-1" onclick="updateAndSubmitSaveFilters()">
                         <i class="bi bi-bookmark"></i> Lưu bộ lọc
                     </button>
                 </div>
@@ -61,6 +70,7 @@
             <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
             <input type="hidden" name="filter_status" value="{{ filter_status }}">
             <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
+            <input type="hidden" name="filter_department" value="{{ filter_department }}">
         </form>
         
         <!-- Hidden form for save status button to include all current filters -->
@@ -70,6 +80,7 @@
             <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
             <input type="hidden" name="filter_status" value="{{ filter_status }}">
             <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
+            <input type="hidden" name="filter_department" value="{{ filter_department }}">
         </form>
         <hr>
 
@@ -173,7 +184,7 @@
             {% endif %}
         {% endfor %}
 
-        {% set filters = {'filter_device_code': filter_device_code, 'filter_name': filter_name, 'filter_device_type': filter_device_type, 'filter_status': filter_status, 'filter_manager_id': filter_manager_id} %}
+        {% set filters = {'filter_device_code': filter_device_code, 'filter_name': filter_name, 'filter_device_type': filter_device_type, 'filter_status': filter_status, 'filter_manager_id': filter_manager_id, 'filter_department': filter_department} %}
         {{ render_pagination(devices, 'device_list', filters) }}
     </div>
 </div>
@@ -201,6 +212,7 @@ function updateAndSubmitSaveFilters() {
         form.querySelector('[name="filter_device_type"]').value = document.querySelector('[name="filter_device_type"]').value || '';
         form.querySelector('[name="filter_status"]').value = document.querySelector('[name="filter_status"]').value || '';
         form.querySelector('[name="filter_manager_id"]').value = document.querySelector('[name="filter_manager_id"]').value || '';
+        form.querySelector('[name="filter_department"]').value = document.querySelector('[name="filter_department"]').value || '';
         form.submit();
     } catch (e) { console.error(e); }
 }
@@ -214,6 +226,7 @@ function updateAndSubmitSaveStatus() {
         form.querySelector('[name="filter_device_type"]').value = document.querySelector('[name="filter_device_type"]').value || '';
         form.querySelector('[name="filter_status"]').value = document.querySelector('[name="filter_status"]').value || '';
         form.querySelector('[name="filter_manager_id"]').value = document.querySelector('[name="filter_manager_id"]').value || '';
+        form.querySelector('[name="filter_department"]').value = document.querySelector('[name="filter_department"]').value || '';
         form.submit();
     } catch (e) { console.error(e); }
 }

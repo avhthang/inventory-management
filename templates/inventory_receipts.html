@@ -12,6 +12,14 @@
                 <a href="{{ url_for('inventory_receipt_export_mof', receipt_id=0) }}" class="btn btn-success"><i class="bi bi-file-earmark-text"></i> Tạo phiếu nhập kho (mẫu BTC)</a>
             </div>
         </div>
+        
+        <div class="d-flex gap-2 mb-3">
+            <span class="text-muted">Sắp xếp theo:</span>
+            <a href="{{ url_for('inventory_receipts', sort='date_desc') }}" class="btn btn-sm {% if sort_by == 'date_desc' %}btn-primary{% else %}btn-outline-primary{% endif %}">Ngày nhập (mới nhất)</a>
+            <a href="{{ url_for('inventory_receipts', sort='date_asc') }}" class="btn btn-sm {% if sort_by == 'date_asc' %}btn-primary{% else %}btn-outline-primary{% endif %}">Ngày nhập (cũ nhất)</a>
+            <a href="{{ url_for('inventory_receipts', sort='code_desc') }}" class="btn btn-sm {% if sort_by == 'code_desc' %}btn-primary{% else %}btn-outline-primary{% endif %}">Mã phiếu (Z-A)</a>
+            <a href="{{ url_for('inventory_receipts', sort='code_asc') }}" class="btn btn-sm {% if sort_by == 'code_asc' %}btn-primary{% else %}btn-outline-primary{% endif %}">Mã phiếu (A-Z)</a>
+        </div>
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead class="table-light">
@@ -34,7 +42,7 @@
                         <td>{{ r.supplier or '' }}</td>
                         <td>{{ r.importer or '' }}</td>
                         <td>{{ r.notes or '' }}</td>
-                        <td class="text-end">
+                        <td class="text-end text-nowrap">
                             <a href="{{ url_for('inventory_receipt_detail', receipt_id=r.id) }}" class="btn btn-sm btn-outline-info">Xem</a>
                             <a href="{{ url_for('inventory_receipt_edit', receipt_id=r.id) }}" class="btn btn-sm btn-outline-warning ms-1">Sửa</a>
                             <form method="POST" action="{{ url_for('inventory_receipt_delete', receipt_id=r.id) }}" class="d-inline" onsubmit="return confirm('Xóa phiếu này?')">

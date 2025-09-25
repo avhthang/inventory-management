@@ -156,6 +156,7 @@ class ServerRoomDeviceInfo(db.Model):
     ip_address = db.Column(db.String(100))
     services_running = db.Column(db.Text)
     usage_status = db.Column(db.String(30), default='Đang hoạt động')
+    department = db.Column(db.String(100))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     device = db.relationship('Device', backref=db.backref('server_room_info', uselist=False, cascade='all, delete-orphan'))
 
@@ -502,6 +503,7 @@ def device_list():
     filter_device_type = request.args.get('filter_device_type')
     filter_status = request.args.get('filter_status')
     filter_manager_id = request.args.get('filter_manager_id')
+    filter_department = request.args.get('filter_department')
 
     if filter_device_code is None or filter_device_code == '':
         filter_device_code = saved_filters.get('filter_device_code', '')
@@ -514,6 +516,8 @@ def device_list():
         filter_status = saved_filters.get('filter_status', session.get('default_device_status', ''))
     if filter_manager_id is None or filter_manager_id == '':
         filter_manager_id = saved_filters.get('filter_manager_id', '')
+    if filter_department is None or filter_department == '':
+        filter_department = saved_filters.get('filter_department', '')
     
     query = Device.query
     if filter_device_code:
@@ -526,11 +530,14 @@ def device_list():
         query = query.filter_by(status=filter_status)
     if filter_manager_id:
         query = query.filter(Device.manager_id == filter_manager_id)
+    if filter_department:
+        query = query.join(User, Device.manager_id == User.id).filter(User.department == filter_department)
     
     devices_pagination = query.order_by(Device.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    departments = [d[0] for d in db.session.query(User.department).distinct().filter(User.department.isnot(None)).all()]
 
     return render_template(
         'devices.html',
@@ -538,11 +545,13 @@ def device_list():
         device_types=device_types,
         statuses=statuses,
         users=users,
+        departments=departments,
         filter_device_code=filter_device_code,
         filter_name=filter_name,
         filter_device_type=filter_device_type,
         filter_status=filter_status,
-        filter_manager_id=filter_manager_id
+        filter_manager_id=filter_manager_id,
+        filter_department=filter_department
     )
 
 @app.route('/devices/default_status', methods=['POST'])
@@ -569,6 +578,7 @@ def save_device_filters():
         'filter_device_type': request.form.get('filter_device_type', '').strip(),
         'filter_status': request.form.get('filter_status', '').strip(),
         'filter_manager_id': request.form.get('filter_manager_id', '').strip(),
+        'filter_department': request.form.get('filter_department', '').strip(),
     }
     session['devices_filters'] = filters
     flash('Đã lưu bộ lọc thiết bị.', 'success')
@@ -926,15 +936,32 @@ def device_group_detail(group_id):
 @app.route('/inventory_receipts')
 def inventory_receipts():
     if 'user_id' not in session: return redirect(url_for('login'))
-    receipts = InventoryReceipt.query.order_by(InventoryReceipt.id.desc()).all()
-    return render_template('inventory_receipts.html', receipts=receipts)
+    sort_by = request.args.get('sort', 'date_desc')
+    
+    if sort_by == 'date_asc':
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.date.asc()).all()
+    elif sort_by == 'date_desc':
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.date.desc()).all()
+    elif sort_by == 'code_asc':
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.code.asc()).all()
+    elif sort_by == 'code_desc':
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.code.desc()).all()
+    else:
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.id.desc()).all()
+    
+    return render_template('inventory_receipts.html', receipts=receipts, sort_by=sort_by)
 
 @app.route('/inventory_receipts/<int:receipt_id>')
 def inventory_receipt_detail(receipt_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     receipt = InventoryReceipt.query.get_or_404(receipt_id)
-    items = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all()
-    return render_template('inventory_receipt_detail.html', receipt=receipt, items=items)
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    items_query = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id)
+    items_pagination = items_query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    return render_template('inventory_receipt_detail.html', receipt=receipt, items_pagination=items_pagination)
 
 @app.route('/inventory_receipts/<int:receipt_id>/export_mof')
 def inventory_receipt_export_mof(receipt_id):
@@ -1195,15 +1222,33 @@ def server_room():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     
-    # Filter parameters
-    search_name = request.args.get('search_name', '').strip()
-    search_code = request.args.get('search_code', '').strip()
-    filter_team = request.args.get('filter_team', '').strip()
-    filter_type = request.args.get('filter_type', '').strip()
-    filter_status = request.args.get('filter_status', '').strip()
-    filter_ip = request.args.get('filter_ip', '').strip()
-    date_from = request.args.get('date_from', '').strip()
-    date_to = request.args.get('date_to', '').strip()
+    # Load current filters from query params or session-saved defaults
+    saved_filters = session.get('server_room_filters', {}) or {}
+    search_name = request.args.get('search_name')
+    search_code = request.args.get('search_code')
+    filter_team = request.args.get('filter_team')
+    filter_type = request.args.get('filter_type')
+    filter_status = request.args.get('filter_status')
+    filter_ip = request.args.get('filter_ip')
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+
+    if search_name is None or search_name == '':
+        search_name = saved_filters.get('search_name', '')
+    if search_code is None or search_code == '':
+        search_code = saved_filters.get('search_code', '')
+    if filter_team is None or filter_team == '':
+        filter_team = saved_filters.get('filter_team', '')
+    if filter_type is None or filter_type == '':
+        filter_type = saved_filters.get('filter_type', '')
+    if filter_status is None or filter_status == '':
+        filter_status = saved_filters.get('filter_status', '')
+    if filter_ip is None or filter_ip == '':
+        filter_ip = saved_filters.get('filter_ip', '')
+    if date_from is None or date_from == '':
+        date_from = saved_filters.get('date_from', '')
+    if date_to is None or date_to == '':
+        date_to = saved_filters.get('date_to', '')
     
     devices_pagination = None
     if ids_in_server:
@@ -1220,9 +1265,16 @@ def server_room():
         if filter_type:
             base_q = base_q.filter(Device.device_type == filter_type)
         if filter_status:
-            base_q = base_q.filter(Device.status == filter_status)
+            if filter_status == 'online':
+                base_q = base_q.join(ServerRoomDeviceInfo, Device.id == ServerRoomDeviceInfo.device_id, isouter=True)
+                base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('%online%') | ServerRoomDeviceInfo.usage_status.ilike('%hoạt động%'))
+            elif filter_status == 'offline':
+                base_q = base_q.join(ServerRoomDeviceInfo, Device.id == ServerRoomDeviceInfo.device_id, isouter=True)
+                base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('%offline%') | ServerRoomDeviceInfo.usage_status.ilike('%ngừng%'))
         if filter_ip:
-            base_q = base_q.filter(Device.ip_address.ilike(f'%{filter_ip}%'))
+            # Filter by IP in ServerRoomDeviceInfo
+            base_q = base_q.join(ServerRoomDeviceInfo, Device.id == ServerRoomDeviceInfo.device_id, isouter=True)
+            base_q = base_q.filter(ServerRoomDeviceInfo.ip_address.ilike(f'%{filter_ip}%'))
         if date_from:
             try:
                 from_date = datetime.strptime(date_from, '%Y-%m-%d')
@@ -1282,23 +1334,26 @@ def server_room_device_edit(device_id):
             pass
         device.configuration = request.form.get('configuration') or device.configuration
         device.notes = request.form.get('notes') or device.notes
-        # Cập nhật IP, dịch vụ, trạng thái sử dụng
+        # Cập nhật IP, dịch vụ, trạng thái sử dụng, phòng ban
         ip = request.form.get('ip_address')
         services = request.form.get('services_running')
         usage_status = request.form.get('usage_status') or 'Đang hoạt động'
+        department = request.form.get('department')
         if info is None:
             info = ServerRoomDeviceInfo(device_id=device.id)
             db.session.add(info)
         info.ip_address = ip or None
         info.services_running = services or None
         info.usage_status = usage_status
+        info.department = department or None
         db.session.commit()
         flash('Đã cập nhật thông tin phòng server của thiết bị.', 'success')
         return redirect(url_for('server_room'))
     # Render form gồm trường thiết bị và 2 trường phòng server
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
-    return render_template('edit_server_room_device.html', device=device, info=info, users=users, statuses=statuses)
+    departments = [d[0] for d in db.session.query(User.department).distinct().filter(User.department.isnot(None)).all()]
+    return render_template('edit_server_room_device.html', device=device, info=info, users=users, statuses=statuses, departments=departments)
 
 @app.route('/server_room/<int:device_id>/remove', methods=['POST'])
 def server_room_device_remove(device_id):
@@ -1351,6 +1406,24 @@ def remove_user_from_group(group_id, user_id):
         db.session.commit()
         flash('Đã gỡ người dùng khỏi nhóm.', 'success')
     return redirect(url_for('device_group_detail', group_id=group_id))
+
+@app.route('/server_room/save_filters', methods=['POST'])
+def save_server_room_filters():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    filters = {
+        'search_name': request.form.get('search_name', '').strip(),
+        'search_code': request.form.get('search_code', '').strip(),
+        'filter_team': request.form.get('filter_team', '').strip(),
+        'filter_type': request.form.get('filter_type', '').strip(),
+        'filter_status': request.form.get('filter_status', '').strip(),
+        'filter_ip': request.form.get('filter_ip', '').strip(),
+        'date_from': request.form.get('date_from', '').strip(),
+        'date_to': request.form.get('date_to', '').strip(),
+    }
+    session['server_room_filters'] = filters
+    flash('Đã lưu bộ lọc phòng server.', 'success')
+    # Redirect back with filters as query so UI reflects saved state
+    return redirect(url_for('server_room', **{k: v for k, v in filters.items() if v}))
 
 @app.route('/add_devices_bulk', methods=['GET', 'POST'])
 def add_devices_bulk():
@@ -1918,6 +1991,14 @@ def set_users_default_status():
     flash('Đã lưu cấu hình trạng thái mặc định.', 'success')
     return redirect(url_for('user_list'))
 
+@app.route('/users/<int:user_id>/reset_password', methods=['POST'])
+def reset_user_password(user_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get_or_404(user_id)
+    user.password = generate_password_hash('Password123@')
+    db.session.commit()
+    flash(f'Đã reset mật khẩu cho {user.full_name or user.username} về Password123@', 'success')
+    return redirect(url_for('user_list'))
 
 @app.route('/add_user', methods=['GET', 'POST'])
 def add_user():
@@ -2355,11 +2436,15 @@ def export_handovers_excel():
 @app.route('/config_proposals')
 def config_proposals():
     if 'user_id' not in session: return redirect(url_for('login'))
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
     q = ConfigProposal.query
     filter_name = request.args.get('name', '').strip()
     filter_unit = request.args.get('unit', '').strip()
     start_date = request.args.get('start_date', '').strip()
     end_date = request.args.get('end_date', '').strip()
+    
     if filter_name:
         q = q.filter(ConfigProposal.name.ilike(f"%{filter_name}%"))
     if filter_unit:
@@ -2376,8 +2461,9 @@ def config_proposals():
             q = q.filter(ConfigProposal.proposal_date <= dt2)
         except ValueError:
             pass
-    proposals = q.order_by(ConfigProposal.id.desc()).all()
-    return render_template('config_proposals.html', proposals=proposals, filter_name=filter_name, filter_unit=filter_unit, start_date=start_date, end_date=end_date)
+    
+    proposals_pagination = q.order_by(ConfigProposal.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    return render_template('config_proposals.html', proposals=proposals_pagination, filter_name=filter_name, filter_unit=filter_unit, start_date=start_date, end_date=end_date)
 
 @app.route('/config_proposals/add', methods=['GET', 'POST'])
 def add_config_proposal():

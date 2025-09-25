@@ -42,9 +42,9 @@
           </tr>
         </thead>
         <tbody>
-          {% for p in proposals %}
+          {% for p in proposals.items %}
           <tr>
-            <td class="text-start">{{ loop.index }}</td>
+            <td class="text-start">{{ proposals.first + loop.index - 1 }}</td>
             <td class="text-start">{{ p.name }}</td>
             <td class="text-start">{{ p.proposal_date.strftime('%d-%m-%Y') }}</td>
             <td class="text-start">{{ p.proposer_name or '' }}</td>
@@ -71,6 +71,9 @@
         </tbody>
       </table>
     </div>
+    {% from '_pagination.html' import render_pagination %}
+    {% set filters = {'name': filter_name, 'unit': filter_unit, 'start_date': start_date, 'end_date': end_date} %}
+    {{ render_pagination(proposals, 'config_proposals', filters) }}
   </div>
 </div>
 {% endblock %}

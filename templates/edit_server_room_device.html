@@ -44,9 +44,18 @@
                 <label class="form-label">Địa chỉ IP</label>
                 <input name="ip_address" class="form-control" value="{{ info.ip_address if info else '' }}" placeholder="VD: 10.10.10.10">
             </div>
-            <div class="col-12">
+            <div class="col-md-6">
                 <label class="form-label">Chạy dịch vụ</label>
                 <input name="services_running" class="form-control" value="{{ info.services_running if info else '' }}" placeholder="VD: Web, DB, LDAP...">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Phòng ban quản lý</label>
+                <select name="department" class="form-select">
+                    <option value="">-- Chọn phòng ban --</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept }}" {% if info and info.department == dept %}selected{% endif %}>{{ dept }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="col-12">
                 <label class="form-label">Cấu hình</label>

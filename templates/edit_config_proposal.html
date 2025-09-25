@@ -47,7 +47,7 @@
     <div class="col-md-3">
       <label class="form-label">Trạng thái</label>
       <select class="form-select" name="status">
-        {% for st in ['Mới tạo','Lưu nháp','Đang xin ý kiến','Đã xin ý kiến','Đang mua hàng','Hủy'] %}
+        {% for st in ['Mới tạo','Lưu nháp','Đang xin ý kiến','Đã xin ý kiến','Đang mua hàng','Đã hoàn thành','Hủy'] %}
           <option value="{{ st }}" {% if p.status==st %}selected{% endif %}>{{ st }}</option>
         {% endfor %}
       </select>
