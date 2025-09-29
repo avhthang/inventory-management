@@ -83,7 +83,6 @@
               <th style="width:70px">STT</th>
               <th>Tên sản phẩm</th>
               <th style="width:160px">Link tham khảo</th>
-              <th style="width:160px">Mã SP</th>
               <th style="width:140px">Bảo hành</th>
               <th style="width:120px">Số lượng</th>
               <th style="width:160px">Đơn giá</th>
@@ -97,7 +96,6 @@
               <td class="text-center">{{ loop.index }}</td>
               <td><input name="rows[{{ loop.index0 }}][product_name]" class="form-control" value="{{ it.product_name }}"/></td>
               <td><input name="rows[{{ loop.index0 }}][product_link]" class="form-control" value="{{ it.product_link or '' }}" placeholder="https://..."/></td>
-              <td><input name="rows[{{ loop.index0 }}][product_code]" class="form-control" value="{{ it.product_code or '' }}"/></td>
               <td><input name="rows[{{ loop.index0 }}][warranty]" class="form-control" value="{{ it.warranty }}"/></td>
               <td><input name="rows[{{ loop.index0 }}][quantity]" type="number" min="0" class="form-control qty" value="{{ it.quantity }}"/></td>
               <td><input name="rows[{{ loop.index0 }}][unit_price]" type="number" min="0" step="0.01" class="form-control unit" value="{{ it.unit_price }}"/></td>

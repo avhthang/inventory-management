@@ -228,7 +228,7 @@
                                             <td class="text-center">{{ device.name }}</td>
                                             <td class="text-center">
                                                 {% if device.configuration %}
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showConfig('{{ device.device_code|escapejs }}', '{{ device.configuration|escapejs }}')" title="Xem cấu hình"><i class="bi bi-card-text"></i></button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showConfig('{{ device.device_code|e }}', '{{ device.configuration|e }}')" title="Xem cấu hình"><i class="bi bi-card-text"></i></button>
                                                 {% endif %}
                                             </td>
                                             <td class="text-center">
