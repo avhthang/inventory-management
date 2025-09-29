@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Biên bản bàn giao tài sản, công cụ dụng cụ{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:900px;">
+  <form id="handover-form" method="POST" action="{{ url_for('save_handover_report') }}">
+    <div class="text-center mb-2">
+      <h5 class="mb-0">CÔNG TY CỔ PHẦN GIẢI PHÁP CÔNG NGHỆ AN NINH MẠNG QUỐC GIA</h5>
+      <h4 class="mb-0">BIÊN BẢN GIAO NHẬN QUẢN LÝ SỬ DỤNG TÀI SẢN, CÔNG CỤ DỤNG CỤ</h4>
+    </div>
+    <div class="mb-2">Hôm nay, ngày <input type="text" name="date" class="form-control form-control-sm d-inline-block w-auto" style="width:80px;"> tháng <input type="text" name="month" class="form-control form-control-sm d-inline-block w-auto" style="width:60px;"> năm <input type="text" name="year" class="form-control form-control-sm d-inline-block w-auto" style="width:80px;">, tại Công ty Cổ phần Giải pháp Công nghệ An ninh mạng Quốc gia, chúng tôi gồm:</div>
+    <div class="mb-2"><strong>I. BÊN GIAO</strong></div>
+    <div class="mb-2">- Ông/Bà: <input type="text" name="giver_name" class="form-control form-control-sm d-inline-block w-auto" style="width:180px;"> Chức vụ: <input type="text" name="giver_position" class="form-control form-control-sm d-inline-block w-auto" style="width:120px;"> Bộ phận: <input type="text" name="giver_department" class="form-control form-control-sm d-inline-block w-auto" style="width:120px;"></div>
+    <div class="mb-2"><strong>II. BÊN NHẬN</strong></div>
+    <div class="mb-2">- Ông/Bà: <input type="text" name="receiver_name" class="form-control form-control-sm d-inline-block w-auto" style="width:180px;"> Chức vụ: <input type="text" name="receiver_position" class="form-control form-control-sm d-inline-block w-auto" style="width:120px;"> Bộ phận: <input type="text" name="receiver_department" class="form-control form-control-sm d-inline-block w-auto" style="width:120px;"></div>
+    <div class="mb-2">Cùng bàn giao tài sản, công cụ dụng cụ, trang thiết bị như sau:</div>
+    <div class="table-responsive mb-2">
+      <table class="table table-bordered table-sm" style="font-size:0.97em;">
+        <thead class="table-light">
+          <tr class="text-center">
+            <th style="width:40px;">STT</th>
+            <th style="width:220px;">Tên tài sản, công cụ dụng cụ</th>
+            <th style="width:110px;">Mã TS</th>
+            <th style="width:60px;">Số lượng</th>
+            <th style="width:80px;">Đơn vị</th>
+            <th style="width:120px;">Tình trạng</th>
+          </tr>
+        </thead>
+        <tbody id="items-table">
+          {% for i in range(3) %}
+          <tr>
+            <td class="text-center">{{ i+1 }}</td>
+            <td><input type="text" name="item_name[]" class="form-control form-control-sm"></td>
+            <td><input type="text" name="item_code[]" class="form-control form-control-sm"></td>
+            <td><input type="number" name="item_quantity[]" class="form-control form-control-sm" min="1"></td>
+            <td><input type="text" name="item_unit[]" class="form-control form-control-sm"></td>
+            <td><input type="text" name="item_condition[]" class="form-control form-control-sm"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <button type="button" class="btn btn-outline-primary btn-sm" onclick="addRow()"><i class="bi bi-plus"></i> Thêm dòng</button>
+    </div>
+    <div class="mb-2"><strong>Ghi chú:</strong></div>
+    <div class="mb-2">
+      <textarea name="notes" class="form-control" rows="4">1. Người giao nhận Tài sản có trách nhiệm bảo vệ tài sản của mình trong quá trình sử dụng.
+2. Người sử dụng không được tự tiện thay đổi cấu hình của máy móc thiết bị mà mình nhận, nếu muốn thay đổi phải được sự đồng ý của trưởng bộ phận và phải tiến hành các thủ tục giấy tờ theo đúng quy định về quản lý tài sản. Nếu tự ý thay đổi người sử dụng phải chịu hoàn toàn trách nhiệm.
+3. Khi chuyển đổi tài sản từ người sử dụng này sang người sử dụng khác, người sử dụng công cụ phải làm đầy đủ thủ tục bàn giao bằng giấy tờ bởi sự cho phép chuyển đổi của trưởng bộ phận. Người bàn giao cam đoan rằng toàn bộ tài sản, công cụ dụng cụ, trang thiết bị đã được bàn giao đầy đủ. Biên bản được lập thành 02 bản, mỗi bên giữ 01 bản.</textarea>
+    </div>
+    <div class="row mt-4">
+      <div class="col text-center">Hà Nội, ngày ... tháng ... năm 20...</div>
+    </div>
+    <div class="row mt-4 text-center">
+      <div class="col">
+        <strong>Người bàn giao</strong><br>
+        <em>(ký, ghi rõ họ tên)</em>
+      </div>
+      <div class="col">
+        <strong>Người nhận bàn giao</strong><br>
+        <em>(ký, ghi rõ họ tên)</em>
+      </div>
+    </div>
+    <div class="d-flex justify-content-end gap-2 mt-3">
+      <button class="btn btn-outline-success" type="submit"><i class="bi bi-save"></i> Lưu</button>
+      <button class="btn btn-outline-primary" onclick="window.print();return false;" type="button"><i class="bi bi-printer"></i> In</button>
+    </div>
+  </form>
+</div>
+<script>
+function addRow() {
+  const table = document.getElementById('items-table');
+  const rowCount = table.rows.length;
+  const newRow = table.insertRow();
+  newRow.innerHTML = `
+    <td class='text-center'>${rowCount + 1}</td>
+    <td><input type='text' name='item_name[]' class='form-control form-control-sm'></td>
+    <td><input type='text' name='item_code[]' class='form-control form-control-sm'></td>
+    <td><input type='number' name='item_quantity[]' class='form-control form-control-sm' min='1'></td>
+    <td><input type='text' name='item_unit[]' class='form-control form-control-sm'></td>
+    <td><input type='text' name='item_condition[]' class='form-control form-control-sm'></td>
+  `;
+}
+</script>
+{% endblock %}
