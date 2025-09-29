@@ -208,6 +208,7 @@ class ConfigProposalItem(db.Model):
     proposal_id = db.Column(db.Integer, db.ForeignKey('config_proposal.id'), nullable=False)
     order_no = db.Column(db.Integer, default=0)
     product_name = db.Column(db.String(255))
+    product_link = db.Column(db.String(255))  # Link tham khảo sản phẩm
     warranty = db.Column(db.String(120))
     product_code = db.Column(db.String(100))
     quantity = db.Column(db.Integer, default=1)
@@ -2520,6 +2521,7 @@ def add_config_proposal():
             for i in range(rows):
                 prefix = f'rows[{i}]'
                 product_name = request.form.get(f'{prefix}[product_name]')
+                product_link = request.form.get(f'{prefix}[product_link]')
                 product_code = request.form.get(f'{prefix}[product_code]')
                 warranty = request.form.get(f'{prefix}[warranty]')
                 quantity = request.form.get(f'{prefix}[quantity]', type=int) or 0
@@ -2532,6 +2534,7 @@ def add_config_proposal():
                     proposal_id=proposal.id,
                     order_no=i + 1,
                     product_name=product_name,
+                    product_link=product_link,
                     product_code=product_code,
                     warranty=warranty,
                     quantity=max(0, quantity),
@@ -2639,6 +2642,7 @@ def edit_config_proposal(proposal_id):
             for i in range(rows):
                 prefix = f'rows[{i}]'
                 product_name = request.form.get(f'{prefix}[product_name]')
+                product_link = request.form.get(f'{prefix}[product_link]')
                 product_code = request.form.get(f'{prefix}[product_code]')
                 warranty = request.form.get(f'{prefix}[warranty]')
                 quantity = request.form.get(f'{prefix}[quantity]', type=int) or 0
@@ -2651,6 +2655,7 @@ def edit_config_proposal(proposal_id):
                     proposal_id=p.id,
                     order_no=i + 1,
                     product_name=product_name,
+                    product_link=product_link,
                     product_code=product_code,
                     warranty=warranty,
                     quantity=max(0, quantity),

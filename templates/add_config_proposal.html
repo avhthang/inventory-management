@@ -84,6 +84,7 @@
             <tr>
               <th style="width:70px">STT</th>
               <th>Tên sản phẩm</th>
+              <th style="width:160px">Link tham khảo</th>
               <th style="width:160px">Mã SP</th>
               <th style="width:140px">Bảo hành</th>
               <th style="width:120px">Số lượng</th>
@@ -93,6 +94,18 @@
             </tr>
           </thead>
           <tbody>
+          {% for i in range(8) %}
+          <tr>
+            <td class="text-center">{{ i+1 }}</td>
+            <td><input type="text" class="form-control" name="rows[{{ i }}][product_name]" value="{{ it.product_name if it else '' }}"></td>
+            <td><input type="url" class="form-control" name="rows[{{ i }}][product_link]" value="{{ it.product_link if it else '' }}" placeholder="https://..."></td>
+            <td><input type="text" class="form-control" name="rows[{{ i }}][product_code]" value="{{ it.product_code if it else '' }}"></td>
+            <td><input type="text" class="form-control" name="rows[{{ i }}][warranty]" value="{{ it.warranty if it else '' }}"></td>
+            <td><input type="number" class="form-control" name="rows[{{ i }}][quantity]" value="{{ it.quantity if it else '' }}"></td>
+            <td><input type="number" class="form-control" name="rows[{{ i }}][unit_price]" value="{{ it.unit_price if it else '' }}"></td>
+            <td></td>
+          </tr>
+          {% endfor %}
           </tbody>
           <tfoot>
             <tr>

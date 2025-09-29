@@ -39,6 +39,7 @@
           <tr>
             <th style="width:70px">STT</th>
             <th>Tên sản phẩm</th>
+            <th style="width:160px">Link tham khảo</th>
             <th style="width:160px">Mã SP</th>
             <th style="width:140px">Bảo hành</th>
             <th class="text-end" style="width:120px">Số lượng</th>
@@ -50,7 +51,18 @@
           {% for it in items %}
           <tr>
             <td class="text-center">{{ it.order_no }}</td>
-            <td>{{ it.product_name }}</td>
+            <td>
+              {% if it.product_link %}
+                <a href="{{ it.product_link }}" target="_blank">{{ it.product_name }}</a>
+              {% else %}
+                {{ it.product_name }}
+              {% endif %}
+            </td>
+            <td>
+              {% if it.product_link %}
+                <a href="{{ it.product_link }}" target="_blank"><i class="bi bi-link-45deg"></i></a>
+              {% endif %}
+            </td>
             <td>{{ it.product_code }}</td>
             <td>{{ it.warranty }}</td>
             <td class="text-end">{{ it.quantity }}</td>
