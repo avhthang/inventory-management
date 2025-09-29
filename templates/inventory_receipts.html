@@ -34,9 +34,9 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for r in receipts %}
+                    {% for r in receipts.items %}
                     <tr>
-                        <td>{{ loop.index }}</td>
+                        <td>{{ loop.index + receipts.per_page * (receipts.page - 1) }}</td>
                         <td><a href="{{ url_for('inventory_receipt_detail', receipt_id=r.id) }}"><strong>{{ r.code }}</strong></a></td>
                         <td>{{ r.date.strftime('%d-%m-%Y') if r.date else '' }}</td>
                         <td>{{ r.supplier or '' }}</td>
@@ -53,6 +53,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            {{ render_pagination(receipts, 'inventory_receipts') }}
         </div>
     </div>
 </div>

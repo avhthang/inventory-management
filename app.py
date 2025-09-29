@@ -937,18 +937,18 @@ def device_group_detail(group_id):
 def inventory_receipts():
     if 'user_id' not in session: return redirect(url_for('login'))
     sort_by = request.args.get('sort', 'date_desc')
-    
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
     if sort_by == 'date_asc':
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.date.asc()).all()
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.date.asc()).paginate(page=page, per_page=per_page, error_out=False)
     elif sort_by == 'date_desc':
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.date.desc()).all()
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.date.desc()).paginate(page=page, per_page=per_page, error_out=False)
     elif sort_by == 'code_asc':
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.code.asc()).all()
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.code.asc()).paginate(page=page, per_page=per_page, error_out=False)
     elif sort_by == 'code_desc':
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.code.desc()).all()
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.code.desc()).paginate(page=page, per_page=per_page, error_out=False)
     else:
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.id.desc()).all()
-    
+        receipts = InventoryReceipt.query.order_by(InventoryReceipt.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     return render_template('inventory_receipts.html', receipts=receipts, sort_by=sort_by)
 
 @app.route('/inventory_receipts/<int:receipt_id>')

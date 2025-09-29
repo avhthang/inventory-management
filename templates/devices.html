@@ -25,17 +25,12 @@
                 <div class="col-md-2"><label class="form-label">Loại thiết bị</label><select name="filter_device_type" class="form-select"><option value="">-- Tất cả --</option>{% for type in device_types %}<option value="{{ type }}" {% if filter_device_type == type %}selected{% endif %}>{{ type }}</option>{% endfor %}</select></div>
                 <div class="col-md-3">
                     <label class="form-label">Trạng thái</label>
-                    <div class="d-flex gap-2">
-                        <select name="filter_status" class="form-select">
-                            <option value="">-- Tất cả --</option>
-                            {% for status in statuses %}
-                            <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
-                            {% endfor %}
-                        </select>
-                        <button type="button" onclick="updateAndSubmitSaveStatus()" class="btn btn-outline-secondary" title="Lưu mặc định">
-                            <i class="bi bi-bookmark-check"></i>
-                        </button>
-                    </div>
+                    <select name="filter_status" class="form-select">
+                        <option value="">-- Tất cả --</option>
+                        {% for status in statuses %}
+                        <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Người quản lý</label>
@@ -56,11 +51,11 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <div class="d-flex flex-column gap-1">
-                        <button type="submit" class="btn btn-primary">Lọc</button>
-                        <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Reset</a>
-                        <button type="button" class="btn btn-outline-success" onclick="updateAndSubmitSaveFilters()">
-                            <i class="bi bi-bookmark"></i> Lưu bộ lọc
+                    <div class="d-flex gap-1 justify-content-end align-items-center">
+                        <button type="submit" class="btn btn-primary btn-sm">Lọc</button>
+                        <a href="{{ url_for('device_list') }}" class="btn btn-secondary btn-sm">Reset</a>
+                        <button type="button" class="btn btn-outline-success btn-sm" title="Lưu mặc định" onclick="updateAndSubmitSaveStatus()">
+                            <i class="bi bi-bookmark-check"></i>
                         </button>
                     </div>
                 </div>
