@@ -1198,23 +1198,33 @@ def server_room():
         db.session.add(group)
         db.session.commit()
     if request.method == 'POST':
-        # Thêm thiết bị
-        device_ids = request.form.getlist('device_ids')
-        created = 0
-        for d_id in device_ids:
-            if not d_id:
-                continue
-            d_int = int(d_id)
-            # đảm bảo unique: gỡ khỏi nhóm cũ
-            old_link = DeviceGroupDevice.query.filter_by(device_id=d_int).first()
+        # Get existing device IDs in server room
+        current_device_ids = set(link.device_id for link in DeviceGroupDevice.query.filter_by(group_id=group.id).all())
+        
+        # Get selected device IDs from form
+        selected_device_ids = set(int(d_id) for d_id in request.form.getlist('device_ids') if d_id)
+        
+        # Find devices to add and remove
+        devices_to_add = selected_device_ids - current_device_ids
+        devices_to_remove = current_device_ids - selected_device_ids
+        
+        # Remove devices that are unselected
+        for d_id in devices_to_remove:
+            link = DeviceGroupDevice.query.filter_by(group_id=group.id, device_id=d_id).first()
+            if link:
+                db.session.delete(link)
+        
+        # Add newly selected devices
+        for d_id in devices_to_add:
+            # Remove from old group if exists
+            old_link = DeviceGroupDevice.query.filter_by(device_id=d_id).first()
             if old_link and old_link.group_id != group.id:
                 db.session.delete(old_link)
-            exists = DeviceGroupDevice.query.filter_by(group_id=group.id, device_id=d_int).first()
-            if not exists:
-                db.session.add(DeviceGroupDevice(group_id=group.id, device_id=d_int))
-                created += 1
+            # Add to server room group
+            db.session.add(DeviceGroupDevice(group_id=group.id, device_id=d_id))
+        
         db.session.commit()
-        flash(f'Đã thêm {created} thiết bị vào Phòng server.', 'success')
+        flash(f'Đã cập nhật danh sách thiết bị trong Phòng server.', 'success')
         return redirect(url_for('server_room'))
 
     # Danh sách thiết bị trong phòng server (phân trang)
@@ -1614,6 +1624,13 @@ def add_devices_bulk():
     return render_template('add_devices_bulk.html', managers=managers, groups=groups)
 
 # --- Handover Routes ---
+@app.route('/handover_report', methods=['GET'])
+def handover_report():
+    # Get a list of all devices and users for the form
+    devices = Device.query.all()
+    users = User.query.all()
+    return render_template('handover_report.html', devices=devices, users=users)
+
 @app.route('/handover_list')
 def handover_list():
     if 'user_id' not in session: return redirect(url_for('login'))
