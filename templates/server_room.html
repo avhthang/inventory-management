@@ -108,7 +108,7 @@
                     {% for d in rows %}
                     <tr>
                         <td class="text-center">{{ loop.index }}</td>
-                        <td class="text-center">{{ d.name }}</td>
+                           <td class="text-center" style="max-width: 140px; white-space: normal; word-break: break-word;">{{ d.name }}</td>
                         <td class="text-center">
                             <a href="{{ url_for('server_room_device_detail', device_id=d.id) }}" class="text-decoration-none fw-bold">
                                 {{ d.device_code }}
@@ -215,7 +215,7 @@
                                         <tr>
                                             <th class="text-center" style="width: 40px;">STT</th>
                                             <th class="text-center">Mã thiết bị</th>
-                                            <th class="text-center">Tên thiết bị</th>
+                                            <th class="text-center" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tên thiết bị</th>
                                             <th class="text-center">Cấu hình</th>
                                             <th class="text-center">Chọn</th>
                                         </tr>
@@ -225,7 +225,7 @@
                                         <tr data-id="{{ device.id }}" data-code="{{ device.device_code }}" data-name="{{ device.name }}" data-type="{{ device.device_type }}">
                                             <td class="text-center">{{ loop.index }}</td>
                                             <td class="text-center">{{ device.device_code }}</td>
-                                            <td class="text-center">{{ device.name }}</td>
+                                            <td class="text-center" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ device.name }}</td>
                                             <td class="text-center">
                                                 {% if device.configuration %}
                                                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showConfig('{{ device.device_code|e }}', '{{ device.configuration|e }}')" title="Xem cấu hình"><i class="bi bi-card-text"></i></button>
@@ -250,7 +250,7 @@
                                         <tr>
                                             <th class="text-center" style="width: 40px;">STT</th>
                                             <th class="text-center">Mã thiết bị</th>
-                                            <th class="text-center">Tên thiết bị</th>
+                                            <th class="text-center" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tên thiết bị</th>
                                             <th class="text-center">Cấu hình</th>
                                             <th class="text-center">Bỏ chọn</th>
                                         </tr>
@@ -343,7 +343,7 @@ document.addEventListener('DOMContentLoaded', function() {
             tr.innerHTML = `
                 <td class="text-center">${i + 1}</td>
                 <td class="text-center">${d.code}</td>
-                <td class="text-center">${d.name}</td>
+                <td class="text-center" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${d.name}</td>
                 <td class="text-center">
                     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showConfig('${d.code}', '${d.config}')" title="Xem cấu hình"><i class="bi bi-card-text"></i></button>
                 </td>
