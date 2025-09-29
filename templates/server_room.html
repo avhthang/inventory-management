@@ -297,6 +297,34 @@ document.addEventListener('DOMContentLoaded', function() {
     const typeSelect = document.getElementById('filter_type');
     const table = document.getElementById('availableDevicesTable');
 
+    window.selectedDevices = [];
+
+    // Thiết bị đã chọn
+    function updateSelectedDevicesTable() {
+        const tbody = document.querySelector('#selectedDevicesTable tbody');
+        tbody.innerHTML = '';
+        window.selectedDevices.forEach((device, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="text-center">${index + 1}</td>
+                <td class="text-center">${device.device_code || ''}</td>
+                <td class="text-center">${device.name || ''}</td>
+                <td class="text-center">
+                    ${device.configuration ? 
+                        `<button type="button" class="btn btn-sm btn-info" onclick="showConfig('${device.device_code}', '${(device.configuration || '').replace(/'/g, "\\'")}')">
+                            <i class="bi bi-eye"></i>
+                        </button>` : 'N/A'}
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeDeviceFromSelected(${device.id})">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
     function addDeviceToSelected(device) {
         if (!window.selectedDevices.find(d => d.id === device.id)) {
             window.selectedDevices.push(device);
@@ -304,7 +332,9 @@ document.addEventListener('DOMContentLoaded', function() {
             updateSelectedDeviceIds();
             // Remove from available devices table
             const row = document.querySelector(`tr[data-device-id="${device.id}"]`);
-            if (row) row.style.display = 'none';
+            if (row) {
+                row.style.display = 'none';
+            }
         }
     }
 
@@ -314,7 +344,9 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSelectedDeviceIds();
         // Show in available devices table
         const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
-        if (row) row.style.display = '';
+        if (row) {
+            row.style.display = '';
+        }
     }
 
     function applyFilter() {
@@ -381,13 +413,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function addAvailableDeviceRow(device, index) {
         const tr = document.createElement('tr');
         tr.setAttribute('data-device-id', device.id);
+        // Escape configuration for safe HTML
+        const safeConfig = device.configuration ? device.configuration.replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
         tr.innerHTML = `
             <td class="text-center">${index + 1}</td>
-            <td class="text-center">${device.device_code}</td>
-            <td class="text-center">${device.name}</td>
+            <td class="text-center">${device.device_code || ''}</td>
+            <td class="text-center">${device.name || ''}</td>
             <td class="text-center">
                 ${device.configuration ? 
-                    `<button type="button" class="btn btn-sm btn-info" onclick="showConfig('${device.device_code}', '${device.configuration.replace(/'/g, "\\'")}')">
+                    `<button type="button" class="btn btn-sm btn-info" onclick="showConfig('${device.device_code}', '${safeConfig}')">
                         <i class="bi bi-eye"></i>
                     </button>` : 'N/A'}
             </td>
@@ -407,8 +441,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Show config modal
 function showConfig(code, config) {
-    document.getElementById('configModalTitle').textContent = 'Cấu hình: ' + code;
-    document.getElementById('configModalBody').textContent = config;
+    document.getElementById('configModalTitle').textContent = 'Cấu hình: ' + (code || '');
+    document.getElementById('configModalBody').textContent = config || 'Không có thông tin cấu hình';
     var modal = new bootstrap.Modal(document.getElementById('deviceConfigModal'));
     modal.show();
 }
