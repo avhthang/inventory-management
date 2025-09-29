@@ -49,7 +49,13 @@
           {% for it in items %}
           <tr>
             <td class="text-center">{{ it.order_no }}</td>
-            <td>{{ it.product_name }}</td>
+            <td>
+              {% if it.product_link %}
+                <a href="{{ it.product_link }}" target="_blank">{{ it.product_name }}</a>
+              {% else %}
+                {{ it.product_name }}
+              {% endif %}
+            </td>
             <td>{{ it.warranty }}</td>
             <td class="text-end">{{ it.quantity }}</td>
             <td class="text-end">{{ '%.0f'|format(it.unit_price or 0) }}</td>
@@ -61,15 +67,15 @@
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="6" class="text-end fw-semibold">Tổng tạm tính</td>
+            <td colspan="5" class="text-end fw-semibold">Tổng tạm tính</td>
             <td class="text-end">{{ (p.subtotal or 0)|vnd }}</td>
           </tr>
           <tr>
-            <td colspan="6" class="text-end fw-semibold">VAT ({{ '%.2f'|format(p.vat_percent) }}%)</td>
+            <td colspan="5" class="text-end fw-semibold">VAT ({{ '%.2f'|format(p.vat_percent) }}%)</td>
             <td class="text-end">{{ (p.vat_amount or 0)|vnd }}</td>
           </tr>
           <tr>
-            <td colspan="6" class="text-end fw-bold">Tổng cộng</td>
+            <td colspan="5" class="text-end fw-bold">Tổng cộng</td>
             <td class="text-end fw-bold">{{ (p.total_amount or 0)|vnd }} {{ p.currency }}</td>
           </tr>
         </tfoot>
