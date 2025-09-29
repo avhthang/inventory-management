@@ -8,7 +8,6 @@
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="card-title mb-0">Quản lý thiết bị phòng Server</h2>
-            <a href="{{ url_for('device_groups') }}" class="btn btn-secondary">Nhóm thiết bị</a>
         </div>
 
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -178,91 +177,210 @@
 {% endfor %}
 
 <div class="modal fade" id="addServerDeviceModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <form method="POST">
-        <div class="modal-header">
-          <h5 class="modal-title">Thêm thiết bị vào Phòng server</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <form method="POST" id="addServerDevicesForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm thiết bị vào Phòng server</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Thiết bị sẵn có</h6>
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-4"><input type="text" class="form-control" id="filter_code" placeholder="Lọc mã thiết bị"></div>
+                                <div class="col-md-4"><input type="text" class="form-control" id="filter_name" placeholder="Lọc tên thiết bị"></div>
+                                <div class="col-md-4">
+                                    <select class="form-select" id="filter_type">
+                                        <option value="">-- Loại thiết bị --</option>
+                                        <option value="Laptop">Laptop</option>
+                                        <option value="Case máy tính">Case máy tính</option>
+                                        <option value="Màn hình">Màn hình</option>
+                                        <option value="Bàn phím">Bàn phím</option>
+                                        <option value="Chuột">Chuột</option>
+                                        <option value="Ổ cứng">Ổ cứng</option>
+                                        <option value="Ram">Ram</option>
+                                        <option value="Card màn hình">Card màn hình</option>
+                                        <option value="Máy in">Máy in</option>
+                                        <option value="Thiết bị mạng">Thiết bị mạng</option>
+                                        <option value="Server">Server</option>
+                                        <option value="Thiết bị khác">Thiết bị khác</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                                <table class="table table-bordered table-hover mb-0" id="availableDevicesTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center" style="width: 40px;">STT</th>
+                                            <th class="text-center">Mã thiết bị</th>
+                                            <th class="text-center">Tên thiết bị</th>
+                                            <th class="text-center">Cấu hình</th>
+                                            <th class="text-center">Chọn</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for device in devices_available %}
+                                        <tr data-id="{{ device.id }}" data-code="{{ device.device_code }}" data-name="{{ device.name }}" data-type="{{ device.device_type }}">
+                                            <td class="text-center">{{ loop.index }}</td>
+                                            <td class="text-center">{{ device.device_code }}</td>
+                                            <td class="text-center">{{ device.name }}</td>
+                                            <td class="text-center">
+                                                {% if device.configuration %}
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showConfig('{{ device.device_code|escapejs }}', '{{ device.configuration|escapejs }}')" title="Xem cấu hình"><i class="bi bi-card-text"></i></button>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-success" onclick="addDeviceToSelected('{{ device.id }}')"><i class="bi bi-arrow-right"></i></button>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <small class="text-muted">Danh sách lấy từ kho thiết bị. Thiết bị đã thuộc nhóm khác sẽ không hiển thị.</small>
+                            <!-- TODO: Add pagination for available devices here if needed -->
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Thiết bị sẽ thêm</h6>
+                            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                                <table class="table table-bordered table-hover mb-0" id="selectedDevicesTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center" style="width: 40px;">STT</th>
+                                            <th class="text-center">Mã thiết bị</th>
+                                            <th class="text-center">Tên thiết bị</th>
+                                            <th class="text-center">Cấu hình</th>
+                                            <th class="text-center">Bỏ chọn</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Selected devices will be rendered here by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Thêm</button>
+                </div>
+                <input type="hidden" name="device_ids" id="selectedDeviceIds">
+            </form>
         </div>
-        <div class="modal-body">
-          <div class="row g-2 mb-2">
-            <div class="col-md-4"><input type="text" class="form-control" id="filter_code" placeholder="Lọc mã thiết bị"></div>
-            <div class="col-md-4"><input type="text" class="form-control" id="filter_name" placeholder="Lọc tên thiết bị"></div>
-            <div class="col-md-4">
-              <select class="form-select" id="filter_type">
-                <option value="">-- Loại thiết bị --</option>
-                <option value="Laptop">Laptop</option>
-                <option value="Case máy tính">Case máy tính</option>
-                <option value="Màn hình">Màn hình</option>
-                <option value="Bàn phím">Bàn phím</option>
-                <option value="Chuột">Chuột</option>
-                <option value="Ổ cứng">Ổ cứng</option>
-                <option value="Ram">Ram</option>
-                <option value="Card màn hình">Card màn hình</option>
-                <option value="Máy in">Máy in</option>
-                <option value="Thiết bị mạng">Thiết bị mạng</option>
-                <option value="Server">Server</option>
-                <option value="Thiết bị khác">Thiết bị khác</option>
-              </select>
-            </div>
-          </div>
-          <select name="device_ids" id="devices_select" multiple class="form-select" size="8">
-            {% for device in devices_available %}
-            <option value="{{ device.id }}" data-code="{{ device.device_code }}" data-name="{{ device.name }}" data-type="{{ device.device_type }}">{{ device.device_code }} - {{ device.name }} ({{ device.device_type }})</option>
-            {% endfor %}
-          </select>
-          <small class="text-muted">Danh sách lấy từ kho thiết bị. Thiết bị đã thuộc nhóm khác sẽ không hiển thị.</small>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-          <button type="submit" class="btn btn-primary">Thêm</button>
-        </div>
-      </form>
     </div>
-  </div>
+    <!-- Config modal -->
+    <div class="modal fade" id="deviceConfigModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="configModalTitle">Cấu hình thiết bị</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body"><pre id="configModalBody" style="white-space: pre-wrap; word-break: break-all;"></pre></div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
+// Filter available devices table
 document.addEventListener('DOMContentLoaded', function() {
     const codeInput = document.getElementById('filter_code');
     const nameInput = document.getElementById('filter_name');
     const typeSelect = document.getElementById('filter_type');
-    const selectEl = document.getElementById('devices_select');
+    const table = document.getElementById('availableDevicesTable');
     function applyFilter() {
         const code = (codeInput?.value || '').toLowerCase();
         const name = (nameInput?.value || '').toLowerCase();
         const type = (typeSelect?.value || '').toLowerCase();
-        Array.from(selectEl.options).forEach(o => {
-            const oc = (o.dataset.code || '').toLowerCase();
-            const on = (o.dataset.name || '').toLowerCase();
-            const ot = (o.dataset.type || '').toLowerCase();
+        Array.from(table.tBodies[0].rows).forEach(row => {
+            const oc = (row.dataset.code || '').toLowerCase();
+            const on = (row.dataset.name || '').toLowerCase();
+            const ot = (row.dataset.type || '').toLowerCase();
             const match = (!code || oc.includes(code)) && (!name || on.includes(name)) && (!type || ot === type);
-            o.hidden = !match;
+            row.style.display = match ? '' : 'none';
         });
     }
     codeInput?.addEventListener('input', applyFilter);
     nameInput?.addEventListener('input', applyFilter);
     typeSelect?.addEventListener('change', applyFilter);
+
+    // Selected devices logic
+    window.selectedDevices = [];
+    window.addDeviceToSelected = function(id) {
+        const row = table.querySelector('tr[data-id="' + id + '"]');
+        if (!row) return;
+        if (window.selectedDevices.find(d => d.id === id)) return;
+        window.selectedDevices.push({
+            id: id,
+            code: row.dataset.code,
+            name: row.dataset.name,
+            type: row.dataset.type,
+            config: row.querySelector('button[onclick^="showConfig"]') ? row.querySelector('button[onclick^="showConfig"]').getAttribute('data-config') : ''
+        });
+        renderSelectedDevices();
+        row.style.display = 'none';
+        updateSelectedDeviceIds();
+    };
+    window.removeDeviceFromSelected = function(id) {
+        window.selectedDevices = window.selectedDevices.filter(d => d.id !== id);
+        renderSelectedDevices();
+        const row = table.querySelector('tr[data-id="' + id + '"]');
+        if (row) row.style.display = '';
+        updateSelectedDeviceIds();
+    };
+    function renderSelectedDevices() {
+        const tbody = document.getElementById('selectedDevicesTable').tBodies[0];
+        tbody.innerHTML = '';
+        window.selectedDevices.forEach((d, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="text-center">${i + 1}</td>
+                <td class="text-center">${d.code}</td>
+                <td class="text-center">${d.name}</td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showConfig('${d.code}', '${d.config}')" title="Xem cấu hình"><i class="bi bi-card-text"></i></button>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeDeviceFromSelected(${d.id})"><i class="bi bi-x"></i></button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+    function updateSelectedDeviceIds() {
+        document.getElementById('selectedDeviceIds').value = window.selectedDevices.map(d => d.id).join(',');
+    }
 });
 
+// Show config modal
+function showConfig(code, config) {
+    document.getElementById('configModalTitle').textContent = 'Cấu hình: ' + code;
+    document.getElementById('configModalBody').textContent = config;
+    var modal = new bootstrap.Modal(document.getElementById('deviceConfigModal'));
+    modal.show();
+}
+
 function updateAndSubmitSaveServerFilters() {
-    try {
-        const form = document.getElementById('saveServerFiltersForm');
-        if (!form) return;
-        form.querySelector('[name="search_name"]').value = document.querySelector('[name="search_name"]').value || '';
-        form.querySelector('[name="search_code"]').value = document.querySelector('[name="search_code"]').value || '';
-        form.querySelector('[name="filter_team"]').value = document.querySelector('[name="filter_team"]').value || '';
-        form.querySelector('[name="filter_type"]').value = document.querySelector('[name="filter_type"]').value || '';
-        form.querySelector('[name="filter_status"]').value = document.querySelector('[name="filter_status"]').value || '';
-        form.querySelector('[name="filter_ip"]').value = document.querySelector('[name="filter_ip"]').value || '';
-        form.querySelector('[name="date_from"]').value = document.querySelector('[name="date_from"]').value || '';
-        form.querySelector('[name="date_to"]').value = document.querySelector('[name="date_to"]').value || '';
-        form.submit();
-    } catch (e) { console.error(e); }
+        try {
+                const form = document.getElementById('saveServerFiltersForm');
+                if (!form) return;
+                form.querySelector('[name="search_name"]').value = document.querySelector('[name="search_name"]').value || '';
+                form.querySelector('[name="search_code"]').value = document.querySelector('[name="search_code"]').value || '';
+                form.querySelector('[name="filter_team"]').value = document.querySelector('[name="filter_team"]').value || '';
+                form.querySelector('[name="filter_type"]').value = document.querySelector('[name="filter_type"]').value || '';
+                form.querySelector('[name="filter_status"]').value = document.querySelector('[name="filter_status"]').value || '';
+                form.querySelector('[name="filter_ip"]').value = document.querySelector('[name="filter_ip"]').value || '';
+                form.querySelector('[name="date_from"]').value = document.querySelector('[name="date_from"]').value || '';
+                form.querySelector('[name="date_to"]').value = document.querySelector('[name="date_to"]').value || '';
+                form.submit();
+        } catch (e) { console.error(e); }
 }
 </script>
 {% endblock %}
