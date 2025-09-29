@@ -289,12 +289,34 @@
 {% block scripts %}
 {{ super() }}
 <script>
-// Filter available devices table
+window.selectedDevices = [];
+
 document.addEventListener('DOMContentLoaded', function() {
     const codeInput = document.getElementById('filter_code');
     const nameInput = document.getElementById('filter_name');
     const typeSelect = document.getElementById('filter_type');
     const table = document.getElementById('availableDevicesTable');
+
+    function addDeviceToSelected(device) {
+        if (!window.selectedDevices.find(d => d.id === device.id)) {
+            window.selectedDevices.push(device);
+            updateSelectedDevicesTable();
+            updateSelectedDeviceIds();
+            // Remove from available devices table
+            const row = document.querySelector(`tr[data-device-id="${device.id}"]`);
+            if (row) row.style.display = 'none';
+        }
+    }
+
+    window.removeDeviceFromSelected = function(deviceId) {
+        window.selectedDevices = window.selectedDevices.filter(d => d.id !== deviceId);
+        updateSelectedDevicesTable();
+        updateSelectedDeviceIds();
+        // Show in available devices table
+        const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
+        if (row) row.style.display = '';
+    }
+
     function applyFilter() {
         const code = (codeInput?.value || '').toLowerCase();
         const name = (nameInput?.value || '').toLowerCase();
@@ -353,7 +375,31 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             tbody.appendChild(tr);
         });
+        updateSelectedDeviceIds();
     }
+
+    function addAvailableDeviceRow(device, index) {
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-device-id', device.id);
+        tr.innerHTML = `
+            <td class="text-center">${index + 1}</td>
+            <td class="text-center">${device.device_code}</td>
+            <td class="text-center">${device.name}</td>
+            <td class="text-center">
+                ${device.configuration ? 
+                    `<button type="button" class="btn btn-sm btn-info" onclick="showConfig('${device.device_code}', '${device.configuration.replace(/'/g, "\\'")}')">
+                        <i class="bi bi-eye"></i>
+                    </button>` : 'N/A'}
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-primary" onclick='addDeviceToSelected(${JSON.stringify(device)})'>
+                    <i class="bi bi-plus"></i>
+                </button>
+            </td>
+        `;
+        return tr;
+    }
+
     function updateSelectedDeviceIds() {
         document.getElementById('selectedDeviceIds').value = window.selectedDevices.map(d => d.id).join(',');
     }
