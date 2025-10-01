@@ -242,7 +242,7 @@ function updateAndSubmitSaveStatus() {
         // Create new form for saving default filters
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = "{{ url_for('save_device_default_filters') }}";
+        form.action = "{{ url_for('save_device_filters') }}";
         
         // Add current filter values
         ['filter_device_type', 'filter_status', 'filter_department', 'filter_manager_id'].forEach(name => {
