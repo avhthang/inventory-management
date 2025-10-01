@@ -985,20 +985,60 @@ def device_group_detail(group_id):
 @app.route('/inventory_receipts')
 def inventory_receipts():
     if 'user_id' not in session: return redirect(url_for('login'))
+    
+    # Get filter parameters
     sort_by = request.args.get('sort', 'date_desc')
+    filter_supplier = request.args.get('filter_supplier', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
+    
+    # Build query with filters
+    query = InventoryReceipt.query
+    
+    if filter_supplier:
+        query = query.filter(InventoryReceipt.supplier.ilike(f'%{filter_supplier}%'))
+    
+    if date_from:
+        try:
+            from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(InventoryReceipt.date >= from_date)
+        except ValueError:
+            pass
+            
+    if date_to:
+        try:
+            to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+            query = query.filter(InventoryReceipt.date <= to_date)
+        except ValueError:
+            pass
+    
+    # Apply sorting
     if sort_by == 'date_asc':
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.date.asc()).paginate(page=page, per_page=per_page, error_out=False)
+        query = query.order_by(InventoryReceipt.date.asc())
     elif sort_by == 'date_desc':
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.date.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        query = query.order_by(InventoryReceipt.date.desc())
     elif sort_by == 'code_asc':
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.code.asc()).paginate(page=page, per_page=per_page, error_out=False)
+        query = query.order_by(InventoryReceipt.code.asc())
     elif sort_by == 'code_desc':
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.code.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        query = query.order_by(InventoryReceipt.code.desc())
     else:
-        receipts = InventoryReceipt.query.order_by(InventoryReceipt.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    return render_template('inventory_receipts.html', receipts=receipts, sort_by=sort_by)
+        query = query.order_by(InventoryReceipt.id.desc())
+    
+    receipts = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    # Get list of suppliers for filter dropdown
+    suppliers = [s[0] for s in db.session.query(InventoryReceipt.supplier).distinct().filter(InventoryReceipt.supplier.isnot(None)).order_by(InventoryReceipt.supplier).all()]
+    
+    return render_template('inventory_receipts.html', 
+                         receipts=receipts, 
+                         sort_by=sort_by,
+                         filter_supplier=filter_supplier,
+                         date_from=date_from,
+                         date_to=date_to,
+                         suppliers=suppliers)
 
 @app.route('/inventory_receipts/<int:receipt_id>')
 def inventory_receipt_detail(receipt_id):

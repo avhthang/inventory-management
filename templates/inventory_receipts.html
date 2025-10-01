@@ -14,6 +14,41 @@
                 <a href="{{ url_for('inventory_receipt_export_mof', receipt_id=0) }}" class="btn btn-success"><i class="bi bi-file-earmark-text"></i> Tạo phiếu nhập kho (mẫu BTC)</a>
             </div>
         </div>
+
+        <!-- Bộ lọc -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <form method="GET" class="row g-3 align-items-end">
+                    <input type="hidden" name="sort" value="{{ sort_by }}">
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">Nhà cung cấp</label>
+                        <select name="filter_supplier" class="form-select">
+                            <option value="">-- Tất cả --</option>
+                            {% for supplier in suppliers %}
+                            <option value="{{ supplier }}" {% if filter_supplier == supplier %}selected{% endif %}>{{ supplier }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Từ ngày</label>
+                        <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Đến ngày</label>
+                        <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
+                    </div>
+
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-funnel"></i> Lọc
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
         
         <div class="d-flex gap-2 mb-3">
             <span class="text-muted">Sắp xếp theo:</span>
@@ -55,7 +90,8 @@
                     {% endfor %}
                 </tbody>
             </table>
-            {{ render_pagination(receipts, 'inventory_receipts') }}
+            {% set pagination_args = {'sort': sort_by, 'filter_supplier': filter_supplier, 'date_from': date_from, 'date_to': date_to} %}
+            {{ render_pagination(receipts, 'inventory_receipts', pagination_args) }}
         </div>
     </div>
 </div>
