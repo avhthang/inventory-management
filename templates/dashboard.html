@@ -19,8 +19,11 @@
 <div class="row">
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Thống kê theo loại thiết bị</h5>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#deviceTypeSettingsModal">
+                    <i class="bi bi-gear"></i>
+                </button>
             </div>
             <div class="card-body">
                 <canvas id="deviceTypeChart" width="400" height="300"></canvas>
@@ -29,12 +32,77 @@
     </div>
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Thống kê theo phòng ban</h5>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#departmentSettingsModal">
+                    <i class="bi bi-gear"></i>
+                </button>
             </div>
             <div class="card-body">
                 <canvas id="departmentChart" width="400" height="300"></canvas>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Device Type Settings Modal -->
+<div class="modal fade" id="deviceTypeSettingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('save_dashboard_device_types') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cài đặt thống kê theo loại thiết bị</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Chọn loại thiết bị cần thống kê</label>
+                        {% for device_type in device_types %}
+                        <div class="form-check">
+                            <input type="checkbox" name="selected_device_types" value="{{ device_type }}" 
+                                class="form-check-input" id="dt_{{ loop.index }}"
+                                {% if device_type in (selected_device_types or device_types) %}checked{% endif %}>
+                            <label class="form-check-label" for="dt_{{ loop.index }}">{{ device_type }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Lưu mặc định</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Department Settings Modal -->
+<div class="modal fade" id="departmentSettingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('save_dashboard_departments') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cài đặt thống kê theo phòng ban</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Chọn phòng ban cần thống kê</label>
+                        {% for dept in departments %}
+                        <div class="form-check">
+                            <input type="checkbox" name="selected_departments" value="{{ dept }}" 
+                                class="form-check-input" id="dept_{{ loop.index }}"
+                                {% if dept in (selected_departments or departments) %}checked{% endif %}>
+                            <label class="form-check-label" for="dept_{{ loop.index }}">{{ dept }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Lưu mặc định</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -86,16 +154,19 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Get chart data and preferences
+    const deviceTypeData = {{ device_type_stats | tojson }};
+    const selectedDeviceTypes = new Set({{ selected_device_types | tojson }});
+    const filteredDeviceTypeData = deviceTypeData.filter(item => selectedDeviceTypes.has(item[0]));
+
     // Device Type Chart
     const deviceTypeCtx = document.getElementById('deviceTypeChart').getContext('2d');
-    const deviceTypeData = {{ device_type_stats | tojson }};
-    
     new Chart(deviceTypeCtx, {
         type: 'doughnut',
         data: {
-            labels: deviceTypeData.map(item => item[0]),
+            labels: filteredDeviceTypeData.map(item => item[0]),
             datasets: [{
-                data: deviceTypeData.map(item => item[1]),
+                data: filteredDeviceTypeData.map(item => item[1]),
                 backgroundColor: [
                     '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
                     '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
@@ -113,17 +184,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Get department data and preferences
+    const departmentData = {{ department_stats | tojson }};
+    const selectedDepartments = new Set({{ selected_departments | tojson }});
+    const filteredDepartmentData = departmentData.filter(item => selectedDepartments.has(item[0]));
+
     // Department Chart
     const departmentCtx = document.getElementById('departmentChart').getContext('2d');
-    const departmentData = {{ department_stats | tojson }};
-    
     new Chart(departmentCtx, {
         type: 'bar',
         data: {
-            labels: departmentData.map(item => item[0] || 'Chưa phân phòng ban'),
+            labels: filteredDepartmentData.map(item => item[0] || 'Chưa phân phòng ban'),
             datasets: [{
                 label: 'Số thiết bị',
-                data: departmentData.map(item => item[1]),
+                data: filteredDepartmentData.map(item => item[1]),
                 backgroundColor: '#36A2EB'
             }]
         },

@@ -388,6 +388,10 @@ def home():
     departments = [d[0] for d in db.session.query(User.department).distinct().filter(User.department.isnot(None)).all()]
     device_types = [dt[0] for dt in db.session.query(Device.device_type).distinct().all()]
     
+    # Get saved chart preferences
+    selected_device_types = session.get('dashboard_device_types', device_types)
+    selected_departments = session.get('dashboard_departments', departments)
+
     return render_template('dashboard.html', 
                          total_devices=total_devices, 
                          in_use_devices=in_use_devices, 
@@ -397,7 +401,9 @@ def home():
                          departments=departments,
                          device_types=device_types,
                          filter_department=filter_department,
-                         filter_device_type=filter_device_type)
+                         filter_device_type=filter_device_type,
+                         selected_device_types=selected_device_types,
+                         selected_departments=selected_departments)
 
 # ... (Auth routes) ...
 @app.route('/login', methods=['GET', 'POST'])
@@ -424,6 +430,26 @@ def logout():
     session.pop('user_id', None)
     flash('Bạn đã đăng xuất.', 'info')
     return redirect(url_for('login'))
+
+@app.route('/save_dashboard_device_types', methods=['POST'])
+def save_dashboard_device_types():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    selected_types = request.form.getlist('selected_device_types')
+    session['dashboard_device_types'] = selected_types
+    flash('Đã lưu cài đặt thống kê theo loại thiết bị.', 'success')
+    return redirect(url_for('home'))
+
+@app.route('/save_dashboard_departments', methods=['POST'])
+def save_dashboard_departments():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    selected_departments = request.form.getlist('selected_departments')
+    session['dashboard_departments'] = selected_departments
+    flash('Đã lưu cài đặt thống kê theo phòng ban.', 'success')
+    return redirect(url_for('home'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
