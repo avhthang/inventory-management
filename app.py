@@ -761,6 +761,54 @@ def delete_device(device_id):
     flash('Xóa thiết bị thành công!', 'success')
     return redirect(url_for('device_list'))
 
+@app.route('/devices/bulk_delete', methods=['POST'])
+def bulk_delete_devices():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    device_ids = request.form.getlist('device_ids')
+    if not device_ids:
+        flash('Vui lòng chọn ít nhất một thiết bị để xóa.', 'warning')
+        return redirect(url_for('device_list'))
+
+    deleted_count = 0
+    skipped_count = 0
+
+    for device_id in device_ids:
+        device = Device.query.get(device_id)
+        if not device: continue
+
+        # Kiểm tra điều kiện xóa: thiết bị không được có lịch sử bàn giao và không được có người quản lý
+        if device.handovers or device.manager_id is not None:
+            skipped_count += 1
+            continue
+
+        # Gỡ liên kết nhóm thiết bị (nếu có)
+        try:
+            for link in DeviceGroupDevice.query.filter_by(device_id=device.id).all():
+                db.session.delete(link)
+        except Exception:
+            pass
+        # Xóa các item trong phiếu nhập kho tham chiếu tới thiết bị (nếu có)
+        try:
+            for it in InventoryReceiptItem.query.filter_by(device_id=device.id).all():
+                db.session.delete(it)
+        except Exception:
+            pass
+
+        db.session.delete(device)
+        deleted_count += 1
+
+    db.session.commit()
+
+    if deleted_count > 0:
+        message = f'Đã xóa thành công {deleted_count} thiết bị.'
+        if skipped_count > 0:
+            message += f' {skipped_count} thiết bị không thể xóa do đã được gán cho người dùng hoặc có lịch sử bàn giao.'
+        flash(message, 'success')
+    else:
+        flash('Không có thiết bị nào được xóa. Tất cả thiết bị đã được gán hoặc có lịch sử bàn giao.', 'warning')
+
+    return redirect(url_for('device_list'))
+
 @app.route('/device/<int:device_id>')
 def device_detail(device_id):
     if 'user_id' not in session: return redirect(url_for('login'))
