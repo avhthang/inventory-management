@@ -1375,10 +1375,11 @@ def server_room():
         if filter_status and needs_server_room_join:
             try:
                 if filter_status == 'online':
-                    base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('%online%') | ServerRoomDeviceInfo.usage_status.ilike('%hoạt động%'))
+                    base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('Đang hoạt động') | ServerRoomDeviceInfo.usage_status.ilike('Online'))
                 elif filter_status == 'offline':
-                    base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('%offline%') | ServerRoomDeviceInfo.usage_status.ilike('%ngừng%'))
-            except Exception:
+                    base_q = base_q.filter(ServerRoomDeviceInfo.usage_status.ilike('Đã ngừng') | ServerRoomDeviceInfo.usage_status.ilike('Offline') | ServerRoomDeviceInfo.usage_status.ilike('Ngừng hoạt động') | ServerRoomDeviceInfo.usage_status.isnull())
+            except Exception as e:
+                print(f"Error filtering server room status: {str(e)}")
                 pass
         if filter_ip and needs_server_room_join:
             try:
