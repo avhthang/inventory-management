@@ -781,13 +781,15 @@ def device_list():
     if filter_manager_id:
         query = query.filter(Device.manager_id == filter_manager_id)
     if filter_department:
-        query = query.join(User, Device.manager_id == User.id).filter(User.department == filter_department)
+        dept = Department.query.filter_by(name=filter_department).first()
+        if dept:
+            query = query.join(User, Device.manager_id == User.id).filter(User.department_id == dept.id)
     
     devices_pagination = query.order_by(Device.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    departments = [d[0] for d in db.session.query(User.department).distinct().filter(User.department.isnot(None)).all()]
+    departments = [d.name for d in Department.query.order_by(Department.name).all()]
 
     return render_template(
         'devices.html',
