@@ -1,5 +1,39 @@
 {% extends "base.html" %}
-{% from "macros/department_macros.html" import render_department %}
+
+{% macro render_department(dept, level) %}
+<div class="department-item" data-id="{{ dept.id }}">
+    <div class="d-flex align-items-center py-2 border-bottom">
+        <div style="width: {{ level * 40 }}px"></div>
+        <i class="bi bi-grip-vertical me-2 handle"></i>
+        <div class="flex-grow-1">
+            <strong>{{ dept.name }}</strong>
+            {% if dept.manager %}
+                <small class="text-muted ms-2">({{ dept.manager.full_name }})</small>
+            {% endif %}
+        </div>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-primary edit-dept" 
+                    data-id="{{ dept.id }}"
+                    data-name="{{ dept.name }}"
+                    data-description="{{ dept.description or '' }}"
+                    data-parent-id="{{ dept.parent_id or '' }}"
+                    data-manager-id="{{ dept.manager_id or '' }}">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger delete-dept" data-id="{{ dept.id }}">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </div>
+    {% if dept.children %}
+        <div class="children" data-parent="{{ dept.id }}">
+            {% for child in dept.children %}
+                {{ render_department(child, level + 1) }}
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endmacro %}
 
 {% block content %}
 <div class="container-fluid">
