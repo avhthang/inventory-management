@@ -70,24 +70,32 @@ except Exception:
 def init_db():
     with app.app_context():
         try:
-            # Create department table if not exists
-            db.engine.execute('''
-                CREATE TABLE IF NOT EXISTS department (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name VARCHAR(120) NOT NULL,
-                    description TEXT,
-                    parent_id INTEGER REFERENCES department(id),
-                    order_index INTEGER DEFAULT 0,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    manager_id INTEGER REFERENCES user(id)
-                )
-            ''')
-            
-            # Add department_id column to user table if not exists
-            db.engine.execute('''
-                ALTER TABLE user ADD COLUMN department_id INTEGER REFERENCES department(id);
-            ''')
+            from sqlalchemy import text
+            with db.engine.connect() as conn:
+                # Create department table if not exists
+                conn.execute(text('''
+                    CREATE TABLE IF NOT EXISTS department (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(120) NOT NULL,
+                        description TEXT,
+                        parent_id INTEGER REFERENCES department(id),
+                        order_index INTEGER DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        manager_id INTEGER REFERENCES user(id)
+                    )
+                '''))
+                
+                # Add department_id column to user table if not exists
+                try:
+                    conn.execute(text('''
+                        ALTER TABLE user ADD COLUMN department_id INTEGER REFERENCES department(id);
+                    '''))
+                except Exception as e:
+                    # Column might already exist, ignore the error
+                    pass
+                
+                conn.commit()
             
         except Exception as e:
             print(f"Database initialization error: {e}")
@@ -3038,15 +3046,26 @@ def create_admin_command():
         click.echo("Tài khoản admin đã tồn tại.")
         return
     
+    # Tạo department IT nếu chưa có
+    it_dept = Department.query.filter_by(name='IT').first()
+    if not it_dept:
+        it_dept = Department(name='IT', description='Phòng Công nghệ Thông tin')
+        db.session.add(it_dept)
+        db.session.flush()  # Để lấy id của department vừa tạo
+    
     admin_user = User(
         username='admin',
         password=generate_password_hash('admin123'),
         full_name='Quản Trị Viên',
         email='admin@example.com',
         role='admin',
-        department='IT'
+        department_id=it_dept.id  # Sử dụng department_id thay vì department
     )
     db.session.add(admin_user)
+    
+    # Set admin user làm manager của IT department
+    it_dept.manager_id = admin_user.id
+    
     db.session.commit()
     click.echo("Đã tạo tài khoản admin thành công (Username: admin, Pass: admin123).")
 
