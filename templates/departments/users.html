@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4">Quản lý người dùng phòng {{ department.name }}</h1>
+    
+    <div class="card">
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col">
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                        <i class="bi bi-plus"></i> Thêm người dùng vào phòng
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Tên đăng nhập</th>
+                            <th>Họ và tên</th>
+                            <th>Email</th>
+                            <th>Chức vụ</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in department.users %}
+                        <tr>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.full_name }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.position }}</td>
+                            <td>
+                                <span class="badge {% if user.status == 'Đang làm' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ user.status }}
+                                </span>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-danger remove-user" 
+                                        data-id="{{ user.id }}" 
+                                        data-username="{{ user.username }}">
+                                    <i class="bi bi-person-dash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm người dùng vào phòng {{ department.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm" method="POST" action="{{ url_for('add_department_user', id=department.id) }}">
+                    <div class="mb-3">
+                        <label class="form-label">Chọn người dùng</label>
+                        <select name="user_id" class="form-select" required>
+                            <option value="">-- Chọn người dùng --</option>
+                            {% for user in available_users %}
+                                <option value="{{ user.id }}">{{ user.full_name }} ({{ user.username }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="text-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary">Thêm</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Remove user handler
+    document.querySelectorAll('.remove-user').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const userId = this.dataset.id;
+            const username = this.dataset.username;
+            
+            if (confirm(`Bạn có chắc chắn muốn xóa người dùng ${username} khỏi phòng ban này?`)) {
+                fetch(`/departments/{{ department.id }}/users/${userId}/remove`, {
+                    method: 'POST'
+                }).then(response => {
+                    if (!response.ok) {
+                        throw new Error('Remove failed');
+                    }
+                    return response.json();
+                }).then(data => {
+                    if (data.success) {
+                        location.reload();
+                    }
+                }).catch(error => {
+                    console.error('Error:', error);
+                    alert('Có lỗi xảy ra khi xóa người dùng khỏi phòng ban');
+                });
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

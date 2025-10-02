@@ -120,12 +120,15 @@ class Department(db.Model):
     users = db.relationship('User', back_populates='department_info', foreign_keys='User.department_id')
 
     def get_hierarchy_level(self):
-        level = 0
-        current = self.parent
-        while current is not None:
-            level += 1
-            current = current.parent
-        return level
+        try:
+            level = 0
+            current = self.parent
+            while current is not None:
+                level += 1
+                current = current.parent
+            return level
+        except Exception:
+            return 0
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -530,6 +533,56 @@ def list_departments():
                          departments=departments,
                          all_departments=all_departments,
                          users=users)
+
+@app.route('/departments/<int:id>/users')
+def department_users(id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    department = Department.query.get_or_404(id)
+    available_users = User.query.filter(
+        User.status == 'Đang làm',
+        User.department_id.is_(None)
+    ).all()
+    
+    return render_template('departments/users.html',
+                         department=department,
+                         available_users=available_users)
+
+@app.route('/departments/<int:id>/users/add', methods=['POST'])
+def add_department_user(id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    department = Department.query.get_or_404(id)
+    user_id = request.form.get('user_id')
+    
+    if not user_id:
+        flash('Vui lòng chọn người dùng', 'danger')
+        return redirect(url_for('department_users', id=id))
+        
+    user = User.query.get_or_404(user_id)
+    user.department_id = department.id
+    db.session.commit()
+    
+    flash(f'Đã thêm {user.username} vào phòng {department.name}', 'success')
+    return redirect(url_for('department_users', id=id))
+
+@app.route('/departments/<int:dept_id>/users/<int:user_id>/remove', methods=['POST'])
+def remove_department_user(dept_id, user_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+        
+    user = User.query.get_or_404(user_id)
+    department = Department.query.get_or_404(dept_id)
+    
+    if user.department_id != department.id:
+        return jsonify({'success': False, 'message': 'User not in this department'})
+        
+    user.department_id = None
+    db.session.commit()
+    
+    return jsonify({'success': True})
 
 @app.route('/departments/add', methods=['POST'])
 def add_department():

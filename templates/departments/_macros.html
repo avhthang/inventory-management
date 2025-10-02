@@ -10,6 +10,11 @@
             {% endif %}
         </div>
         <div class="btn-group">
+            <a href="{{ url_for('department_users', id=dept.id) }}" 
+               class="btn btn-sm btn-outline-info" 
+               title="Quản lý người dùng">
+                <i class="bi bi-people"></i>
+            </a>
             <button type="button" class="btn btn-sm btn-outline-primary edit-dept" 
                     data-id="{{ dept.id }}"
                     data-name="{{ dept.name }}"
