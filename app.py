@@ -1,7 +1,6 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 from sqlalchemy.orm import aliased
 from sqlalchemy import or_, func, event
 from sqlalchemy.exc import OperationalError
@@ -66,6 +65,35 @@ try:
             pass
 except Exception:
     pass
+
+# --- Database initialization ---
+def init_db():
+    with app.app_context():
+        try:
+            # Create department table if not exists
+            db.engine.execute('''
+                CREATE TABLE IF NOT EXISTS department (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(120) NOT NULL,
+                    description TEXT,
+                    parent_id INTEGER REFERENCES department(id),
+                    order_index INTEGER DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    manager_id INTEGER REFERENCES user(id)
+                )
+            ''')
+            
+            # Add department_id column to user table if not exists
+            db.engine.execute('''
+                ALTER TABLE user ADD COLUMN department_id INTEGER REFERENCES department(id);
+            ''')
+            
+        except Exception as e:
+            print(f"Database initialization error: {e}")
+
+# Initialize database on startup
+init_db()
 
 # --- Models (Không thay đổi) ---
 class Department(db.Model):
