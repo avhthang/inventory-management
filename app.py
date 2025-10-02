@@ -67,6 +67,29 @@ except Exception:
     pass
 
 # --- Models (Không thay đổi) ---
+class Department(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text)
+    parent_id = db.Column(db.Integer, db.ForeignKey('department.id'))
+    order_index = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    parent = db.relationship('Department', remote_side=[id], backref=db.backref('children', order_by=order_index))
+    manager_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    manager = db.relationship('User', foreign_keys=[manager_id], backref='managed_departments')
+    users = db.relationship('User', back_populates='department_info', foreign_keys='User.department_id')
+
+    def get_hierarchy_level(self):
+        level = 0
+        current = self.parent
+        while current is not None:
+            level += 1
+            current = current.parent
+        return level
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -75,7 +98,8 @@ class User(db.Model):
     last_name_token = db.Column(db.String(120))
     email = db.Column(db.String(120), unique=True)
     role = db.Column(db.String(20), default='user')
-    department = db.Column(db.String(80))
+    department_id = db.Column(db.Integer, db.ForeignKey('department.id'))
+    department_info = db.relationship('Department', foreign_keys=[department_id], back_populates='users')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
     position = db.Column(db.String(100))
@@ -450,6 +474,164 @@ def save_dashboard_departments():
     session['dashboard_departments'] = selected_departments
     flash('Đã lưu cài đặt thống kê theo phòng ban.', 'success')
     return redirect(url_for('home'))
+
+# --- Department Management Routes ---
+@app.route('/departments')
+def list_departments():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    departments = Department.query.all()
+    all_departments = Department.query.order_by(Department.order_index).all()
+    users = User.query.filter_by(status='Đang làm').all()
+    
+    return render_template('departments/list.html', 
+                         departments=departments,
+                         all_departments=all_departments,
+                         users=users)
+
+@app.route('/departments/add', methods=['POST'])
+def add_department():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    name = request.form.get('name')
+    description = request.form.get('description')
+    parent_id = request.form.get('parent_id')
+    manager_id = request.form.get('manager_id')
+    
+    if not name:
+        flash('Tên phòng ban không được để trống', 'danger')
+        return redirect(url_for('list_departments'))
+    
+    # Get max order_index in the same parent level
+    max_order = db.session.query(func.max(Department.order_index)).filter_by(
+        parent_id=parent_id if parent_id else None
+    ).scalar() or 0
+    
+    new_dept = Department(
+        name=name,
+        description=description,
+        parent_id=parent_id if parent_id else None,
+        manager_id=manager_id if manager_id else None,
+        order_index=max_order + 1
+    )
+    
+    try:
+        db.session.add(new_dept)
+        db.session.commit()
+        flash('Thêm phòng ban thành công', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Có lỗi xảy ra khi thêm phòng ban', 'danger')
+        print(e)
+    
+    return redirect(url_for('list_departments'))
+
+@app.route('/departments/<int:id>/edit', methods=['POST'])
+def edit_department(id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    dept = Department.query.get_or_404(id)
+    name = request.form.get('name')
+    description = request.form.get('description')
+    parent_id = request.form.get('parent_id')
+    manager_id = request.form.get('manager_id')
+    
+    if not name:
+        flash('Tên phòng ban không được để trống', 'danger')
+        return redirect(url_for('list_departments'))
+    
+    try:
+        dept.name = name
+        dept.description = description
+        dept.parent_id = parent_id if parent_id else None
+        dept.manager_id = manager_id if manager_id else None
+        db.session.commit()
+        flash('Cập nhật phòng ban thành công', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Có lỗi xảy ra khi cập nhật phòng ban', 'danger')
+        print(e)
+    
+    return redirect(url_for('list_departments'))
+
+@app.route('/departments/<int:id>/delete', methods=['POST'])
+def delete_department(id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    dept = Department.query.get_or_404(id)
+    
+    # Check if department has children
+    if dept.children:
+        return jsonify({
+            'success': False, 
+            'message': 'Không thể xóa phòng ban có phòng ban con'
+        })
+    
+    # Check if department has users
+    if dept.users:
+        return jsonify({
+            'success': False, 
+            'message': 'Không thể xóa phòng ban có người dùng'
+        })
+    
+    try:
+        db.session.delete(dept)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        print(e)
+        return jsonify({
+            'success': False,
+            'message': 'Có lỗi xảy ra khi xóa phòng ban'
+        })
+
+@app.route('/departments/reorder', methods=['POST'])
+def reorder_departments():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    data = request.get_json()
+    dept_id = data.get('dept_id')
+    new_parent_id = data.get('parent_id')
+    new_index = data.get('new_index')
+    
+    dept = Department.query.get_or_404(dept_id)
+    old_parent_id = dept.parent_id
+    
+    try:
+        # Update parent if changed
+        if str(old_parent_id) != str(new_parent_id):
+            dept.parent_id = new_parent_id if new_parent_id else None
+        
+        # Update order_index of other departments
+        other_depts = Department.query.filter_by(
+            parent_id=new_parent_id if new_parent_id else None
+        ).order_by(Department.order_index).all()
+        
+        # Remove current department from list if it exists
+        other_depts = [d for d in other_depts if d.id != dept.id]
+        
+        # Insert department at new position
+        other_depts.insert(new_index, dept)
+        
+        # Update order_index for all departments
+        for i, d in enumerate(other_depts):
+            d.order_index = i
+        
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        print(e)
+        return jsonify({
+            'success': False,
+            'message': 'Có lỗi xảy ra khi sắp xếp phòng ban'
+        })
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():

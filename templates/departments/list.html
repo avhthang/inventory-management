@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4">Quản lý phòng ban</h1>
+    
+    <div class="row mb-3">
+        <div class="col">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
+                <i class="bi bi-plus"></i> Thêm phòng ban
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div id="departmentTree">
+                {% for dept in departments %}
+                    {% if not dept.parent %}
+                        {{ render_department(dept, 0) }}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Department Modal -->
+<div class="modal fade" id="addDepartmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('add_department') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm phòng ban mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tên phòng ban</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mô tả</label>
+                        <textarea name="description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phòng ban cha</label>
+                        <select name="parent_id" class="form-select">
+                            <option value="">-- Không có --</option>
+                            {% for dept in all_departments %}
+                                <option value="{{ dept.id }}">{{ '-- ' * dept.get_hierarchy_level() }}{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Trưởng phòng</label>
+                        <select name="manager_id" class="form-select">
+                            <option value="">-- Chọn trưởng phòng --</option>
+                            {% for user in users %}
+                                <option value="{{ user.id }}">{{ user.full_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Thêm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Department Modal -->
+<div class="modal fade" id="editDepartmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('edit_department', id=0) }}" id="editDepartmentForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chỉnh sửa phòng ban</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tên phòng ban</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mô tả</label>
+                        <textarea name="description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phòng ban cha</label>
+                        <select name="parent_id" class="form-select">
+                            <option value="">-- Không có --</option>
+                            {% for dept in all_departments %}
+                                <option value="{{ dept.id }}">{{ '-- ' * dept.get_hierarchy_level() }}{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Trưởng phòng</label>
+                        <select name="manager_id" class="form-select">
+                            <option value="">-- Chọn trưởng phòng --</option>
+                            {% for user in users %}
+                                <option value="{{ user.id }}">{{ user.full_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% macro render_department(dept, level) %}
+<div class="department-item" data-id="{{ dept.id }}">
+    <div class="d-flex align-items-center py-2 border-bottom">
+        <div style="width: {{ level * 40 }}px"></div>
+        <i class="bi bi-grip-vertical me-2 handle"></i>
+        <div class="flex-grow-1">
+            <strong>{{ dept.name }}</strong>
+            {% if dept.manager %}
+                <small class="text-muted ms-2">({{ dept.manager.full_name }})</small>
+            {% endif %}
+        </div>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-primary edit-dept" 
+                    data-id="{{ dept.id }}"
+                    data-name="{{ dept.name }}"
+                    data-description="{{ dept.description or '' }}"
+                    data-parent-id="{{ dept.parent_id or '' }}"
+                    data-manager-id="{{ dept.manager_id or '' }}">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger delete-dept" data-id="{{ dept.id }}">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </div>
+    {% if dept.children %}
+        <div class="children" data-parent="{{ dept.id }}">
+            {% for child in dept.children %}
+                {{ render_department(child, level + 1) }}
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Sortable for each department's children
+    document.querySelectorAll('.children').forEach(el => {
+        new Sortable(el, {
+            group: 'departments',
+            handle: '.handle',
+            animation: 150,
+            onEnd: function(evt) {
+                const deptId = evt.item.dataset.id;
+                const newParentId = evt.to.dataset.parent;
+                const newIndex = evt.newIndex;
+                
+                fetch('/departments/reorder', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        dept_id: deptId,
+                        parent_id: newParentId,
+                        new_index: newIndex
+                    })
+                }).then(response => {
+                    if (!response.ok) {
+                        throw new Error('Reorder failed');
+                    }
+                    return response.json();
+                }).then(data => {
+                    if (data.success) {
+                        location.reload();
+                    }
+                }).catch(error => {
+                    console.error('Error:', error);
+                    alert('Có lỗi xảy ra khi sắp xếp phòng ban');
+                });
+            }
+        });
+    });
+
+    // Edit department button handler
+    document.querySelectorAll('.edit-dept').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const form = document.getElementById('editDepartmentForm');
+            const modal = document.getElementById('editDepartmentModal');
+            
+            // Update form action URL
+            form.action = `/departments/${this.dataset.id}/edit`;
+            
+            // Set form values
+            form.querySelector('[name="name"]').value = this.dataset.name;
+            form.querySelector('[name="description"]').value = this.dataset.description;
+            form.querySelector('[name="parent_id"]').value = this.dataset.parentId;
+            form.querySelector('[name="manager_id"]').value = this.dataset.managerId;
+            
+            // Show modal
+            new bootstrap.Modal(modal).show();
+        });
+    });
+
+    // Delete department button handler
+    document.querySelectorAll('.delete-dept').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (confirm('Bạn có chắc chắn muốn xóa phòng ban này?')) {
+                const deptId = this.dataset.id;
+                fetch(`/departments/${deptId}/delete`, {
+                    method: 'POST'
+                }).then(response => {
+                    if (!response.ok) {
+                        throw new Error('Delete failed');
+                    }
+                    return response.json();
+                }).then(data => {
+                    if (data.success) {
+                        location.reload();
+                    }
+                }).catch(error => {
+                    console.error('Error:', error);
+                    alert('Có lỗi xảy ra khi xóa phòng ban');
+                });
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

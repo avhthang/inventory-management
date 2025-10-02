@@ -11,7 +11,10 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% if request.endpoint == 'list_departments' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/departments.css') }}">
+    {% endif %}
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -31,6 +34,7 @@
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('handover_list') }}">Bàn giao thiết bị</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('inventory_receipts') }}">Phiếu nhập kho</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('config_proposals') }}">Đề xuất cấu hình</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('list_departments') }}">Phòng ban</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('backup_page') }}">Backup</a></li>
                 </ul>
                 <ul class="navbar-nav">

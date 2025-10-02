@@ -1,0 +1,52 @@
+.department-item {
+    position: relative;
+}
+
+.department-item .handle {
+    cursor: move;
+    opacity: 0.5;
+}
+
+.department-item:hover .handle {
+    opacity: 1;
+}
+
+.department-item .children {
+    margin-left: 20px;
+}
+
+/* Drag and drop styles */
+.sortable-ghost {
+    opacity: 0.5;
+    background: #f8f9fa;
+}
+
+.sortable-chosen {
+    background: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* Department tree lines */
+.department-item .children {
+    position: relative;
+}
+
+.department-item .children::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -15px;
+    bottom: 15px;
+    width: 2px;
+    background: #e9ecef;
+}
+
+.department-item .department-item::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    left: -15px;
+    width: 15px;
+    height: 2px;
+    background: #e9ecef;
+}
