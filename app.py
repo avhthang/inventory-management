@@ -2321,7 +2321,10 @@ def user_list():
     if filter_role:
         query = query.filter_by(role=filter_role)
     if filter_department:
-        query = query.filter(User.department == filter_department)
+        # Tìm department theo tên
+        dept = Department.query.filter_by(name=filter_department).first()
+        if dept:
+            query = query.filter(User.department_id == dept.id)
     if filter_position:
         query = query.filter(User.position == filter_position)
     if filter_status:
@@ -2333,7 +2336,7 @@ def user_list():
         func.lower(User.username)
     ).paginate(page=page, per_page=per_page, error_out=False)
     
-    departments = [d[0] for d in db.session.query(User.department).filter(User.department.isnot(None)).distinct().order_by(User.department)]
+    departments = [d.name for d in Department.query.order_by(Department.name).all()]
     positions = [p[0] for p in db.session.query(User.position).filter(User.position.isnot(None)).distinct().order_by(User.position)]
     statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Nghỉ việc', 'Khác']
 
