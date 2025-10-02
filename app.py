@@ -1,6 +1,7 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from sqlalchemy.orm import aliased
 from sqlalchemy import or_, func, event
 from sqlalchemy.exc import OperationalError
@@ -384,7 +385,9 @@ def home():
     
     # Apply filters
     if filter_department:
-        device_query = device_query.join(User, Device.manager_id == User.id).filter(User.department == filter_department)
+        dept_query = Department.query.filter(Department.name == filter_department).first()
+        if dept_query:
+            device_query = device_query.join(User, Device.manager_id == User.id).filter(User.department_id == dept_query.id)
     
     if filter_device_type:
         device_query = device_query.filter(Device.device_type == filter_device_type)
@@ -403,13 +406,15 @@ def home():
     
     # Get department statistics (convert to plain list for JSON serialization)
     _department_rows = db.session.query(
-        User.department,
+        Department.name,
         db.func.count(Device.id).label('count')
-    ).join(Device, User.id == Device.manager_id).group_by(User.department).all()
+    ).join(User, Department.id == User.department_id)\
+     .join(Device, User.id == Device.manager_id)\
+     .group_by(Department.name).all()
     department_stats = [(row[0], int(row[1] or 0)) for row in _department_rows]
     
     # Get all departments and device types for filters
-    departments = [d[0] for d in db.session.query(User.department).distinct().filter(User.department.isnot(None)).all()]
+    departments = [d[0] for d in db.session.query(Department.name).all()]
     device_types = [dt[0] for dt in db.session.query(Device.device_type).distinct().all()]
     
     # Get saved chart preferences
