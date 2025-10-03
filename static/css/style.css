@@ -7,8 +7,20 @@
 /* static/style.css */
 
 body {
-    padding-top: 20px;
+    padding-top: 0; /* Remove extra whitespace above navbar */
     background-color: #f8f9fa;
+}
+
+/* Ensure navbar sticks to top without extra gap */
+.navbar {
+    margin-top: 0;
+}
+
+/* Improve visibility of active nav links */
+.navbar-dark .navbar-nav .nav-link.active, 
+.navbar-dark .navbar-nav .show > .nav-link {
+    color: #fff;
+    font-weight: 600;
 }
 
 .card {
