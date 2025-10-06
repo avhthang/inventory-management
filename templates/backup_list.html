@@ -55,6 +55,13 @@
                                    title="Tải về">
                                     <i class="bi bi-download"></i>
                                 </a>
+                                <form method="POST" action="{{ url_for('backup_delete', filename=backup.filename) }}" 
+                                      class="d-inline" 
+                                      onsubmit="return confirm('Bạn có chắc chắn muốn xóa file backup này?')">
+                                    <button type="submit" class="btn btn-outline-danger" title="Xóa">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>

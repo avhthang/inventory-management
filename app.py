@@ -2444,6 +2444,14 @@ def add_user():
             flash('Email đã được sử dụng.', 'danger')
             return redirect(url_for('add_user'))
             
+        # Handle department_id and set department name
+        department_id = request.form.get('department_id')
+        department_name = None
+        if department_id:
+            department = Department.query.get(department_id)
+            if department:
+                department_name = department.name
+        
         new_user = User(
             username=username,
             password=generate_password_hash(request.form['password']),
@@ -2451,7 +2459,8 @@ def add_user():
             email=email,
             date_of_birth=datetime.strptime(request.form['date_of_birth'], '%Y-%m-%d').date() if request.form.get('date_of_birth') else None,
             role=request.form.get('role', 'user'),
-            department=request.form.get('department'),
+            department_id=department_id,
+            department=department_name,
             position=request.form.get('position'),
             phone_number=request.form.get('phone_number'),
             notes=request.form.get('notes'),
@@ -2468,7 +2477,8 @@ def add_user():
         db.session.commit()
         flash('Thêm người dùng mới thành công!', 'success')
         return redirect(url_for('user_list'))
-    return render_template('add_user.html')
+    departments = Department.query.all()
+    return render_template('add_user.html', departments=departments)
 
 def create_return_handover_for_user(user_id, current_user_id):
     """Tạo phiếu trả thiết bị về kho khi nhân viên nghỉ việc"""
@@ -3464,6 +3474,22 @@ def backup_restore_from_file(filename):
     except Exception as e:
         flash(f'Lỗi khi khôi phục backup: {str(e)}', 'danger')
         return redirect(url_for('backup_list'))
+
+@app.route('/backup/delete/<filename>', methods=['POST'])
+def backup_delete(filename):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    try:
+        backup_filepath = os.path.join(backup_path, filename)
+        if os.path.exists(backup_filepath):
+            os.remove(backup_filepath)
+            flash(f'Đã xóa file backup {filename} thành công!', 'success')
+        else:
+            flash('File backup không tồn tại.', 'danger')
+    except Exception as e:
+        flash(f'Lỗi khi xóa file backup: {str(e)}', 'danger')
+    
+    return redirect(url_for('backup_list'))
 
 @app.route('/api/group_devices/<int:group_id>')
 def api_group_devices(group_id):

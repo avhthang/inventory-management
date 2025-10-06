@@ -49,6 +49,8 @@
                                 <tr>
                                     <th>Họ tên</th>
                                     <th>Tài khoản</th>
+                                    <th>Chức vụ</th>
+                                    <th>Trạng thái</th>
                                     <th class="text-end">Thao tác</th>
                                 </tr>
                             </thead>
@@ -57,6 +59,14 @@
                                 <tr>
                                     <td>{{ user.full_name }}</td>
                                     <td>{{ user.username }}</td>
+                                    <td>{{ user.position or '-' }}</td>
+                                    <td>
+                                        {% if user.status == 'Đang làm' %}<span class="badge bg-success">{{ user.status }}</span>
+                                        {% elif user.status == 'Thử việc' %}<span class="badge bg-info">{{ user.status }}</span>
+                                        {% elif user.status == 'Đã nghỉ' %}<span class="badge bg-secondary">{{ user.status }}</span>
+                                        {% else %}<span class="badge bg-warning text-dark">{{ user.status }}</span>
+                                        {% endif %}
+                                    </td>
                                     <td class="text-end">
                                         <form method="POST" action="{{ url_for('remove_department_user', dept_id=department.id, user_id=user.id) }}" onsubmit="return confirm('Xóa người dùng này khỏi phòng ban?')">
                                             <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -67,7 +77,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="3" class="text-muted text-center">Chưa có người dùng trong phòng ban</td>
+                                    <td colspan="5" class="text-muted text-center">Chưa có người dùng trong phòng ban</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
