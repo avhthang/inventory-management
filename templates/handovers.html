@@ -45,7 +45,7 @@
                     
                     <td>{{ handover.device_condition }}</td>
                     <td class="text-center">
-                        <a href="{{ url_for('edit_handover', handover_id=handover.id) }}" class="btn btn-sm btn-outline-warning" title="Sửa"><i class="bi bi-pencil-square"></i></a>
+                        <a href="{{ url_for('edit_handover', handover_id=handover.id) }}" class="btn btn-sm btn-outline-warning" title="Sửa"><i class="bi bi-pencil"></i></a>
                         <form method="POST" action="{{ url_for('delete_handover', handover_id=handover.id) }}" style="display:inline;" onsubmit="return confirm('Bạn chắc chắn muốn xóa phiếu bàn giao này?')"><button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i class="bi bi-trash"></i></button></form>
                     </td>
                 </tr>

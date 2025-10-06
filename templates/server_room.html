@@ -142,7 +142,7 @@
                         <td class="text-start" style="max-width: 150px; font-size: 0.9em;">{{ d.notes }}</td>
                         <td class="text-center text-nowrap">
                             <a href="{{ url_for('server_room_device_detail', device_id=d.id) }}" class="btn btn-sm btn-outline-info" title="Xem"><i class="bi bi-eye"></i></a>
-                            <a href="{{ url_for('server_room_device_edit', device_id=d.id) }}" class="btn btn-sm btn-outline-warning ms-1" title="Sửa"><i class="bi bi-pencil-square"></i></a>
+                            <a href="{{ url_for('server_room_device_edit', device_id=d.id) }}" class="btn btn-sm btn-outline-warning ms-1" title="Sửa"><i class="bi bi-pencil"></i></a>
                             <form method="POST" action="{{ url_for('server_room_device_remove', device_id=d.id) }}" onsubmit="return confirm('Gỡ thiết bị khỏi Phòng server?')" class="d-inline">
                                 <button class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i class="bi bi-trash"></i></button>
                             </form>
