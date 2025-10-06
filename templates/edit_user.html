@@ -11,13 +11,21 @@
                 <div class="col-md-6">
                     <div class="mb-3"><label class="form-label required">Tên đăng nhập</label><input type="text" name="username" class="form-control" value="{{ user.username }}" required readonly></div>
                     <div class="mb-3"><label class="form-label">Mật khẩu (để trống nếu không đổi)</label><input type="password" name="password" class="form-control"></div>
-                    <div class="mb-3"><label class="form-label required">Họ và tên <span class="required-asterisk">*</span></label><input type="text" name="full_name" class="form-control" value="{{ user.full_name or '' }}" required></div>
+                    <div class="mb-3"><label class="form-label required">Họ và tên</label><input type="text" name="full_name" class="form-control" value="{{ user.full_name or '' }}" required></div>
                     <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="{{ user.email or '' }}"></div>
                     <div class="mb-3"><label class="form-label">Ngày sinh</label><input type="date" name="date_of_birth" class="form-control" value="{{ user.date_of_birth.strftime('%Y-%m-%d') if user.date_of_birth else '' }}"></div>
                     <div class="mb-3"><label class="form-label">Vai trò</label><select name="role" class="form-control"><option value="user" {% if user.role == 'user' %}selected{% endif %}>Người dùng</option><option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Quản trị viên</option></select></div>
                 </div>
                 <div class="col-md-6">
-                    <div class="mb-3"><label class="form-label">Phòng ban</label><input type="text" name="department" class="form-control" value="{{ user.department or '' }}"></div>
+                    <div class="mb-3">
+                        <label class="form-label">Phòng ban</label>
+                        <select name="department_id" class="form-select">
+                            <option value="">-- Chọn phòng ban --</option>
+                            {% for dept in departments %}
+                                <option value="{{ dept.id }}" {% if user.department_id == dept.id %}selected{% endif %}>{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <div class="mb-3"><label class="form-label">Chức vụ</label><input type="text" name="position" class="form-control" value="{{ user.position or '' }}"></div>
                     <div class="mb-3"><label class="form-label">Số điện thoại</label><input type="text" name="phone_number" class="form-control" value="{{ user.phone_number or '' }}"></div>
                     <div class="mb-3"><label class="form-label">Ghi chú</label><textarea name="notes" class="form-control" rows="2">{{ user.notes or '' }}</textarea></div>

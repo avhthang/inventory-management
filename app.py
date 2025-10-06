@@ -29,6 +29,12 @@ os.makedirs(backup_path, exist_ok=True)
 # Timezone configuration (GMT+7)
 VIETNAM_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
 
+# Backup configuration variables
+backup_config_daily_enabled = True
+backup_config_weekly_enabled = True
+backup_config_daily_time = "02:00"
+backup_config_weekly_time = "03:00"
+
 app = Flask(__name__, instance_path=instance_path)
 app.config['SECRET_KEY'] = 'your_super_secret_key_change_this_please'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
@@ -1767,7 +1773,7 @@ def server_room_device_edit(device_id):
     # Render form gồm trường thiết bị và 2 trường phòng server
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
-    departments = [d[0] for d in db.session.query(User.department).distinct().filter(User.department.isnot(None)).all()]
+    departments = [d.name for d in Department.query.all()]
     return render_template('edit_server_room_device.html', device=device, info=info, users=users, statuses=statuses, departments=departments)
 
 @app.route('/server_room/<int:device_id>/remove', methods=['POST'])
@@ -2535,7 +2541,15 @@ def edit_user(user_id):
         user.email = request.form.get('email')
         user.date_of_birth = datetime.strptime(request.form['date_of_birth'], '%Y-%m-%d').date() if request.form.get('date_of_birth') else None
         user.role = request.form.get('role')
-        user.department = request.form.get('department')
+        # Handle department_id instead of department string
+        department_id = request.form.get('department_id')
+        if department_id:
+            department = Department.query.get(department_id)
+            user.department_id = department_id
+            user.department = department.name if department else None
+        else:
+            user.department_id = None
+            user.department = None
         user.position = request.form.get('position')
         user.phone_number = request.form.get('phone_number')
         user.notes = request.form.get('notes')
@@ -2576,7 +2590,8 @@ def edit_user(user_id):
         }
         _log_audit('user', user.id, old, new)
         return redirect(url_for('user_list'))
-    return render_template('edit_user.html', user=user)
+    departments = Department.query.all()
+    return render_template('edit_user.html', user=user, departments=departments)
 
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
@@ -3309,7 +3324,22 @@ def cleanup_old_backups():
 def backup_scheduler():
     """Chạy scheduler cho backup tự động"""
     while True:
-        schedule.run_pending()
+        # Get current Vietnam time
+        vietnam_time = datetime.now(VIETNAM_TZ)
+        current_time = vietnam_time.strftime('%H:%M')
+        
+        # Check if it's time for daily backup (configurable time Vietnam time)
+        if backup_config_daily_enabled and current_time == backup_config_daily_time:
+            create_automatic_backup()
+        
+        # Check if it's time for weekly backup (configurable time Vietnam time on Sunday)
+        if backup_config_weekly_enabled and current_time == backup_config_weekly_time and vietnam_time.weekday() == 6:  # Sunday
+            create_automatic_backup()
+        
+        # Check if it's time for cleanup (4 AM Vietnam time)
+        if current_time == "04:00":
+            cleanup_old_backups()
+        
         time.sleep(60)  # Check every minute
 
 # Setup automatic backup schedule
@@ -3332,17 +3362,14 @@ def backup_config():
         daily_time = request.form.get('daily_time', '02:00')
         weekly_time = request.form.get('weekly_time', '03:00')
         
-        # Clear existing schedules
-        schedule.clear()
-        
-        # Set new schedules (times are in GMT+7)
-        if daily_enabled:
-            schedule.every().day.at(daily_time).do(create_automatic_backup)
-        if weekly_enabled:
-            schedule.every().sunday.at(weekly_time).do(create_automatic_backup)
-        
-        # Always keep cleanup schedule at 4 AM GMT+7
-        schedule.every().day.at("04:00").do(cleanup_old_backups)
+        # Store backup configuration in database or config file
+        # For now, we'll use a simple approach with global variables
+        # In production, you might want to store this in a config table
+        global backup_config_daily_enabled, backup_config_weekly_enabled, backup_config_daily_time, backup_config_weekly_time
+        backup_config_daily_enabled = daily_enabled
+        backup_config_weekly_enabled = weekly_enabled
+        backup_config_daily_time = daily_time
+        backup_config_weekly_time = weekly_time
         
         # Fix DB permissions after config change
         try:
@@ -3360,21 +3387,11 @@ def backup_config():
         return redirect(url_for('backup_config'))
     
     # GET - show current configuration
-    # Get current schedule info
-    jobs = schedule.get_jobs()
-    daily_enabled = False
-    weekly_enabled = False
-    daily_time = '02:00'  # Default time
-    weekly_time = '03:00'  # Default time
-    
-    for job in jobs:
-        if 'create_automatic_backup' in str(job.job_func):
-            if 'day' in str(job.interval):
-                daily_enabled = True
-                daily_time = str(job.at_time)[:5]  # Format HH:MM
-            elif 'sunday' in str(job.interval):
-                weekly_enabled = True
-                weekly_time = str(job.at_time)[:5]  # Format HH:MM
+    # Use global backup configuration variables
+    daily_enabled = backup_config_daily_enabled
+    weekly_enabled = backup_config_weekly_enabled
+    daily_time = backup_config_daily_time
+    weekly_time = backup_config_weekly_time
     
     # Get current Vietnam time for display
     current_time = datetime.now(VIETNAM_TZ).strftime('%H:%M')

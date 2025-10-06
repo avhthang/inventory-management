@@ -10,15 +10,15 @@
              <div class="row">
                 <div class="col-md-6">
                     <div class="form-group mb-3">
-                        <label class="form-label required">Mã thiết bị <span class="required-asterisk">*</span></label>
+                        <label class="form-label required">Mã thiết bị</label>
                         <input type="text" name="device_code" class="form-control" value="{{ device.device_code }}" required>
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label required">Tên thiết bị <span class="required-asterisk">*</span></label>
+                        <label class="form-label required">Tên thiết bị</label>
                         <input type="text" name="name" class="form-control" value="{{ device.name }}" required>
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label required">Loại thiết bị <span class="required-asterisk">*</span></label>
+                        <label class="form-label required">Loại thiết bị</label>
                         <select name="device_type" class="form-control" required>
                             <option value="">-- Chọn --</option>
                             <option value="Laptop" {% if device.device_type == 'Laptop' %}selected{% endif %}>Laptop</option>
@@ -60,7 +60,7 @@
                 </div>
                 <div class="col-md-6">
                      <div class="form-group mb-3">
-                        <label class="form-label required">Ngày mua <span class="required-asterisk">*</span></label>
+                        <label class="form-label required">Ngày mua</label>
                         <input type="date" name="purchase_date" class="form-control" value="{{ device.purchase_date.strftime('%Y-%m-%d') if device.purchase_date else '' }}" required>
                     </div>
                     <div class="form-group mb-3">
@@ -76,11 +76,11 @@
                         <input type="text" name="importer" class="form-control" value="{{ device.importer or '' }}">
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label required">Ngày nhập kho <span class="required-asterisk">*</span></label>
+                        <label class="form-label required">Ngày nhập kho</label>
                         <input type="date" name="import_date" class="form-control" value="{{ device.import_date.strftime('%Y-%m-%d') if device.import_date else '' }}" required>
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label required">Tình trạng <span class="required-asterisk">*</span></label>
+                        <label class="form-label required">Tình trạng</label>
                         <select name="condition" class="form-control" required>
                             <option value="Mới" {% if device.condition == 'Mới' %}selected{% endif %}>Mới</option>
                             <option value="Sử dụng bình thường" {% if device.condition == 'Sử dụng bình thường' %}selected{% endif %}>Sử dụng bình thường</option>
@@ -89,7 +89,7 @@
                         </select>
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label required">Trạng thái <span class="required-asterisk">*</span></label>
+                        <label class="form-label required">Trạng thái</label>
                         <select name="status" class="form-control" required>
                             <option value="Sẵn sàng" {% if device.status == 'Sẵn sàng' %}selected{% endif %}>Sẵn sàng</option>
                             <option value="Đã cấp phát" {% if device.status == 'Đã cấp phát' %}selected{% endif %}>Đã cấp phát</option>
