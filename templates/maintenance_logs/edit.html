@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Sửa nhật ký: {{ log.device.device_code }}{% endblock %}
+{% block content %}
+<h3 class="mb-3">Sửa nhật ký bảo trì</h3>
+<form method="POST" class="row g-3">
+  <div class="col-md-4">
+    <label class="form-label">Thiết bị</label>
+    <input class="form-control" value="{{ log.device.device_code }} - {{ log.device.name }}" readonly>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Ngày tháng</label>
+    <input type="date" name="log_date" class="form-control" value="{{ log.log_date.strftime('%Y-%m-%d') }}">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Trạng thái xử lý</label>
+    <input type="text" name="status" class="form-control" value="{{ log.status or '' }}">
+  </div>
+  <div class="col-12">
+    <label class="form-label">Tình trạng</label>
+    <input type="text" name="condition" class="form-control" value="{{ log.condition or '' }}">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">Vấn đề</label>
+    <textarea name="issue" class="form-control" rows="6">{{ log.issue or '' }}</textarea>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">Xử lý cuối</label>
+    <textarea name="last_action" class="form-control" rows="6">{{ log.last_action or '' }}</textarea>
+  </div>
+  <div class="col-12">
+    <label class="form-label">Ghi chú</label>
+    <textarea name="notes" class="form-control" rows="3">{{ log.notes or '' }}</textarea>
+  </div>
+  <div class="col-12">
+    <a href="{{ url_for('maintenance_log_detail', log_id=log.id) }}" class="btn btn-secondary">Hủy</a>
+    <button class="btn btn-primary" type="submit">Lưu</button>
+  </div>
+</form>
+{% endblock %}
