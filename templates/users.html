@@ -76,7 +76,7 @@
                         <td>{{ users.first + loop.index - 1 }}</td>
                         <td><strong>{{ user.full_name or '' }}</strong></td>
                         <td>{{ user.username }}</td>
-                        <td>{{ user.department or '' }}</td>
+                        <td>{{ user.department_info.name if user.department_info else '' }}</td>
                         <td>{{ user.position or '' }}</td>
                         <td>
                             {% if user.status == 'Đang làm' %}<span class="badge bg-success">{{ user.status }}</span>
