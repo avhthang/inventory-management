@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Chi tiết bảo trì: {{ device.device_code }}{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="{{ url_for('maintenance_logs') }}" class="btn btn-sm btn-secondary">Quay lại</a>
+</div>
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-2">
+      <div class="col-md-3"><strong>Tên thiết bị:</strong> {{ device.name }}</div>
+      <div class="col-md-3"><strong>Mã thiết bị:</strong> {{ device.device_code }}</div>
+      <div class="col-md-3"><strong>Ngày mua:</strong> {{ device.purchase_date.strftime('%d-%m-%Y') if device.purchase_date else '' }}</div>
+      <div class="col-md-3"><strong>Trạng thái:</strong> {{ device.status }}</div>
+      <div class="col-md-12"><strong>Tình trạng:</strong> {{ device.condition }}</div>
+    </div>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-md-5">
+    <div class="card h-100">
+      <div class="card-header"><strong>Vấn đề</strong></div>
+      <div class="card-body">
+        <div class="mb-2 text-muted">Ngày ghi: {{ log.log_date.strftime('%d-%m-%Y') }}</div>
+        <div style="white-space: pre-wrap">{{ log.issue or '' }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Cập nhật xử lý</strong>
+        <span class="badge bg-info">{{ log.status or '—' }}</span>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="fw-semibold">Xử lý cuối</div>
+          <div style="white-space: pre-wrap">{{ log.last_action or '' }}</div>
+        </div>
+        <hr>
+        <div class="fw-semibold mb-2">Dòng thời gian xử lý</div>
+        <div class="timeline">
+          {% for l in all_logs %}
+          <div class="mb-3">
+            <div class="text-muted small">{{ l.log_date.strftime('%d-%m-%Y') }}</div>
+            <div><strong>{{ l.status or '' }}</strong></div>
+            <div class="text-muted">{{ l.last_action or '' }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
