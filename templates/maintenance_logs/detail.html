@@ -59,7 +59,7 @@
         </form>
         <ul class="list-unstyled">
           {% for a in log.attachments %}
-          <li class="mb-1"><i class="bi bi-paperclip"></i> <a href="/static?f={{ a.file_path }}" target="_blank">{{ a.file_name }}</a></li>
+          <li class="mb-1"><i class="bi bi-paperclip"></i> <a href="{{ url_for('download_maintenance_file', log_id=log.id, filename=a.file_name) }}" target="_blank">{{ a.file_name }}</a></li>
           {% else %}
           <li class="text-muted">Chưa có tệp đính kèm.</li>
           {% endfor %}

@@ -43,6 +43,16 @@ app.permanent_session_lifetime = timedelta(days=30)
 
 db = SQLAlchemy(app)
 
+# Permission catalogue
+PERMISSIONS = [
+    ('maintenance.view', 'Xem nhật ký bảo trì'),
+    ('maintenance.add', 'Thêm nhật ký bảo trì'),
+    ('maintenance.edit', 'Sửa nhật ký bảo trì'),
+    ('maintenance.delete', 'Xóa nhật ký bảo trì'),
+    ('maintenance.upload', 'Tải lên tệp đính kèm'),
+    ('maintenance.download', 'Tải xuống tệp đính kèm'),
+]
+
 # Register SQLite function last_token for sorting by given name
 def _register_sqlite_functions(dbapi_conn, connection_record):
     try:
@@ -100,6 +110,39 @@ def init_db():
                 except Exception as e:
                     # Column might already exist, ignore the error
                     pass
+
+                # RBAC tables
+                try:
+                    conn.execute(text('''
+                        CREATE TABLE IF NOT EXISTS role (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            name TEXT NOT NULL UNIQUE,
+                            description TEXT
+                        )
+                    '''))
+                    conn.execute(text('''
+                        CREATE TABLE IF NOT EXISTS permission (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            code TEXT NOT NULL UNIQUE,
+                            name TEXT NOT NULL
+                        )
+                    '''))
+                    conn.execute(text('''
+                        CREATE TABLE IF NOT EXISTS role_permission (
+                            role_id INTEGER NOT NULL REFERENCES role(id) ON DELETE CASCADE,
+                            permission_id INTEGER NOT NULL REFERENCES permission(id) ON DELETE CASCADE,
+                            PRIMARY KEY (role_id, permission_id)
+                        )
+                    '''))
+                    conn.execute(text('''
+                        CREATE TABLE IF NOT EXISTS user_role (
+                            user_id INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+                            role_id INTEGER NOT NULL REFERENCES role(id) ON DELETE CASCADE,
+                            PRIMARY KEY (user_id, role_id)
+                        )
+                    '''))
+                except Exception:
+                    pass
                 
                 # Create device maintenance log table if not exists
                 try:
@@ -137,6 +180,35 @@ def init_db():
             
         except Exception as e:
             print(f"Database initialization error: {e}")
+
+        # Seed permissions and a default Admin role
+        try:
+            # insert permissions
+            for code, name in PERMISSIONS:
+                if not Permission.query.filter_by(code=code).first():
+                    db.session.add(Permission(code=code, name=name))
+            db.session.commit()
+            # ensure Admin role
+            admin_role = Role.query.filter_by(name='Admin').first()
+            if not admin_role:
+                admin_role = Role(name='Admin', description='Quyền đầy đủ')
+                db.session.add(admin_role)
+                db.session.commit()
+            # grant all permissions to Admin
+            perms = Permission.query.all()
+            for p in perms:
+                exists = RolePermission.query.filter_by(role_id=admin_role.id, permission_id=p.id).first()
+                if not exists:
+                    db.session.add(RolePermission(role_id=admin_role.id, permission_id=p.id))
+            db.session.commit()
+            # assign Admin role to existing admin user if any
+            admin_user = User.query.filter_by(role='admin').first()
+            if admin_user:
+                if not UserRole.query.filter_by(user_id=admin_user.id, role_id=admin_role.id).first():
+                    db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
+                    db.session.commit()
+        except Exception as e:
+            print(f"RBAC seed error: {e}")
 
 # Initialize database on startup
 init_db()
@@ -240,6 +312,27 @@ class DeviceMaintenanceAttachment(db.Model):
     file_path = db.Column(db.Text, nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
     log = db.relationship('DeviceMaintenanceLog', backref=db.backref('attachments', cascade='all, delete-orphan'))
+
+class Role(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.Text)
+
+class Permission(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(120), unique=True, nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+
+class RolePermission(db.Model):
+    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), primary_key=True)
+    permission_id = db.Column(db.Integer, db.ForeignKey('permission.id'), primary_key=True)
+    role = db.relationship('Role', backref=db.backref('role_permissions', cascade='all, delete-orphan'))
+    permission = db.relationship('Permission')
+
+class UserRole(db.Model):
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), primary_key=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), primary_key=True)
+    role = db.relationship('Role')
 
 class DeviceHandover(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -465,7 +558,15 @@ def ensure_tables_once():
 def inject_user():
     if 'user_id' in session:
         current_user = User.query.get(session['user_id'])
-        return dict(current_user=current_user)
+        # derive permission codes for template checks
+        role_ids = [ur.role_id for ur in UserRole.query.filter_by(user_id=current_user.id).all()]
+        perm_codes = set()
+        if role_ids:
+            for rp in RolePermission.query.filter(RolePermission.role_id.in_(role_ids)).all():
+                perm = Permission.query.get(rp.permission_id)
+                if perm:
+                    perm_codes.add(perm.code)
+        return dict(current_user=current_user, current_permissions=perm_codes)
     return dict(current_user=None)
 
 @app.template_filter('vnd')
@@ -2823,6 +2924,15 @@ def export_devices_excel():
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'devices_list_{datetime.now().strftime("%Y%m%d")}.xlsx')
 
+@app.route('/download/maintenance/<int:log_id>/<path:filename>')
+def download_maintenance_file(log_id, filename):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if 'maintenance.download' not in (current_permissions or set()):
+        flash('Bạn không có quyền tải tệp.', 'danger')
+        return redirect(url_for('maintenance_log_detail', log_id=log_id))
+    directory = os.path.join(instance_path, 'maintenance_attachments', str(log_id))
+    return send_from_directory(directory, filename, as_attachment=True)
+
 @app.route('/import_users', methods=['GET', 'POST'])
 def import_users():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -2933,6 +3043,10 @@ def export_users_excel():
 @app.route('/maintenance_logs')
 def maintenance_logs():
     if 'user_id' not in session: return redirect(url_for('login'))
+    # permission check
+    if 'maintenance.view' not in (current_permissions or set()):
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     device_code = request.args.get('device_code', '').strip()
@@ -2950,6 +3064,9 @@ def maintenance_logs():
 @app.route('/maintenance_logs/add', methods=['GET', 'POST'])
 def add_maintenance_log():
     if 'user_id' not in session: return redirect(url_for('login'))
+    if 'maintenance.add' not in (current_permissions or set()):
+        flash('Bạn không có quyền thêm nhật ký.', 'danger')
+        return redirect(url_for('maintenance_logs'))
     if request.method == 'POST':
         device_id = request.form.get('device_id')
         log_date_str = request.form.get('log_date')
@@ -2983,6 +3100,9 @@ def add_maintenance_log():
 @app.route('/maintenance_logs/<int:log_id>')
 def maintenance_log_detail(log_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if 'maintenance.view' not in (current_permissions or set()):
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     log = DeviceMaintenanceLog.query.get_or_404(log_id)
     device = log.device
     all_logs = DeviceMaintenanceLog.query.filter_by(device_id=device.id).order_by(DeviceMaintenanceLog.log_date.asc(), DeviceMaintenanceLog.id.asc()).all()
@@ -2991,6 +3111,9 @@ def maintenance_log_detail(log_id):
 @app.route('/maintenance_logs/<int:log_id>/edit', methods=['GET', 'POST'])
 def edit_maintenance_log(log_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if 'maintenance.edit' not in (current_permissions or set()):
+        flash('Bạn không có quyền sửa nhật ký.', 'danger')
+        return redirect(url_for('maintenance_log_detail', log_id=log_id))
     log = DeviceMaintenanceLog.query.get_or_404(log_id)
     if request.method == 'POST':
         try:
@@ -3013,6 +3136,9 @@ def edit_maintenance_log(log_id):
 @app.route('/maintenance_logs/<int:log_id>/delete', methods=['POST'])
 def delete_maintenance_log(log_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if 'maintenance.delete' not in (current_permissions or set()):
+        flash('Bạn không có quyền xóa nhật ký.', 'danger')
+        return redirect(url_for('maintenance_log_detail', log_id=log_id))
     log = DeviceMaintenanceLog.query.get_or_404(log_id)
     try:
         # delete attachments files on disk if exist
@@ -3034,6 +3160,9 @@ def delete_maintenance_log(log_id):
 @app.route('/maintenance_logs/<int:log_id>/attachments', methods=['POST'])
 def upload_maintenance_attachments(log_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if 'maintenance.upload' not in (current_permissions or set()):
+        flash('Bạn không có quyền tải tệp.', 'danger')
+        return redirect(url_for('maintenance_log_detail', log_id=log_id))
     log = DeviceMaintenanceLog.query.get_or_404(log_id)
     files = request.files.getlist('files')
     saved = 0
