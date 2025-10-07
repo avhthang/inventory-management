@@ -3,6 +3,10 @@
 {% block content %}
 <div class="mb-3">
   <a href="{{ url_for('maintenance_logs') }}" class="btn btn-sm btn-secondary">Quay lại</a>
+  <a href="{{ url_for('edit_maintenance_log', log_id=log.id) }}" class="btn btn-sm btn-primary">Sửa</a>
+  <form method="POST" action="{{ url_for('delete_maintenance_log', log_id=log.id) }}" class="d-inline" onsubmit="return confirm('Xóa nhật ký này?')">
+    <button class="btn btn-sm btn-danger" type="submit">Xóa</button>
+  </form>
 </div>
 <div class="card mb-3">
   <div class="card-body">
@@ -47,6 +51,19 @@
           </div>
           {% endfor %}
         </div>
+        <hr>
+        <div class="fw-semibold mb-2">Đính kèm</div>
+        <form method="POST" action="{{ url_for('upload_maintenance_attachments', log_id=log.id) }}" enctype="multipart/form-data" class="mb-2">
+          <input type="file" name="files" multiple class="form-control form-control-sm mb-2">
+          <button class="btn btn-sm btn-outline-primary" type="submit">Tải lên</button>
+        </form>
+        <ul class="list-unstyled">
+          {% for a in log.attachments %}
+          <li class="mb-1"><i class="bi bi-paperclip"></i> <a href="/static?f={{ a.file_path }}" target="_blank">{{ a.file_name }}</a></li>
+          {% else %}
+          <li class="text-muted">Chưa có tệp đính kèm.</li>
+          {% endfor %}
+        </ul>
       </div>
     </div>
   </div>

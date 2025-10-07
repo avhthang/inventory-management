@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
 from sqlalchemy import or_, func, event
@@ -119,6 +119,20 @@ def init_db():
                 except Exception:
                     pass
 
+                # Create maintenance attachments table if not exists
+                try:
+                    conn.execute(text('''
+                        CREATE TABLE IF NOT EXISTS device_maintenance_attachment (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            log_id INTEGER NOT NULL REFERENCES device_maintenance_log(id) ON DELETE CASCADE,
+                            file_name TEXT NOT NULL,
+                            file_path TEXT NOT NULL,
+                            uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    '''))
+                except Exception:
+                    pass
+
                 conn.commit()
             
         except Exception as e:
@@ -218,6 +232,14 @@ class DeviceMaintenanceLog(db.Model):
     last_action = db.Column(db.Text)    # Xử lý cuối
     notes = db.Column(db.Text)          # Ghi chú
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class DeviceMaintenanceAttachment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    log_id = db.Column(db.Integer, db.ForeignKey('device_maintenance_log.id'), nullable=False)
+    file_name = db.Column(db.Text, nullable=False)
+    file_path = db.Column(db.Text, nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    log = db.relationship('DeviceMaintenanceLog', backref=db.backref('attachments', cascade='all, delete-orphan'))
 
 class DeviceHandover(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2965,6 +2987,78 @@ def maintenance_log_detail(log_id):
     device = log.device
     all_logs = DeviceMaintenanceLog.query.filter_by(device_id=device.id).order_by(DeviceMaintenanceLog.log_date.asc(), DeviceMaintenanceLog.id.asc()).all()
     return render_template('maintenance_logs/detail.html', log=log, device=device, all_logs=all_logs)
+
+@app.route('/maintenance_logs/<int:log_id>/edit', methods=['GET', 'POST'])
+def edit_maintenance_log(log_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    log = DeviceMaintenanceLog.query.get_or_404(log_id)
+    if request.method == 'POST':
+        try:
+            log_date_str = request.form.get('log_date')
+            log.log_date = datetime.strptime(log_date_str, '%Y-%m-%d').date() if log_date_str else log.log_date
+            log.condition = request.form.get('condition')
+            log.issue = request.form.get('issue')
+            log.status = request.form.get('status')
+            log.last_action = request.form.get('last_action')
+            log.notes = request.form.get('notes')
+            db.session.commit()
+            flash('Đã cập nhật nhật ký.', 'success')
+            return redirect(url_for('maintenance_log_detail', log_id=log.id))
+        except Exception:
+            db.session.rollback()
+            flash('Có lỗi xảy ra khi cập nhật.', 'danger')
+    devices = Device.query.order_by(Device.device_code).all()
+    return render_template('maintenance_logs/edit.html', log=log, devices=devices)
+
+@app.route('/maintenance_logs/<int:log_id>/delete', methods=['POST'])
+def delete_maintenance_log(log_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    log = DeviceMaintenanceLog.query.get_or_404(log_id)
+    try:
+        # delete attachments files on disk if exist
+        for att in list(log.attachments):
+            try:
+                if att.file_path and os.path.exists(att.file_path):
+                    os.remove(att.file_path)
+            except Exception:
+                pass
+            db.session.delete(att)
+        db.session.delete(log)
+        db.session.commit()
+        flash('Đã xóa nhật ký.', 'success')
+    except Exception:
+        db.session.rollback()
+        flash('Không thể xóa nhật ký.', 'danger')
+    return redirect(url_for('maintenance_logs'))
+
+@app.route('/maintenance_logs/<int:log_id>/attachments', methods=['POST'])
+def upload_maintenance_attachments(log_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    log = DeviceMaintenanceLog.query.get_or_404(log_id)
+    files = request.files.getlist('files')
+    saved = 0
+    upload_dir = os.path.join(instance_path, 'maintenance_attachments', str(log_id))
+    os.makedirs(upload_dir, exist_ok=True)
+    try:
+        for f in files:
+            if not f or not f.filename:
+                continue
+            filename = f.filename
+            # naive secure-ish name
+            filename = filename.replace('..','_').replace('/','_').replace('\\','_')
+            dest = os.path.join(upload_dir, filename)
+            f.save(dest)
+            db.session.add(DeviceMaintenanceAttachment(log_id=log.id, file_name=filename, file_path=dest))
+            saved += 1
+        db.session.commit()
+        if saved:
+            flash(f'Đã tải lên {saved} tệp.', 'success')
+        else:
+            flash('Không có tệp nào được tải lên.', 'info')
+    except Exception:
+        db.session.rollback()
+        flash('Lỗi khi tải tệp.', 'danger')
+    return redirect(url_for('maintenance_log_detail', log_id=log.id))
 
 @app.route('/export_handovers_excel')
 def export_handovers_excel():
