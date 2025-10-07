@@ -15,7 +15,7 @@
       <div class="col-md-4"><strong>Họ và tên:</strong> {{ user.full_name or '' }}</div>
       <div class="col-md-4"><strong>Tên đăng nhập:</strong> {{ user.username }}</div>
       <div class="col-md-4"><strong>Email:</strong> {{ user.email or '' }}</div>
-      <div class="col-md-4"><strong>Phòng ban:</strong> {{ user.department or '' }}</div>
+      <div class="col-md-4"><strong>Phòng ban:</strong> {{ user.department_info.name if user.department_info else '' }}</div>
       <div class="col-md-4"><strong>Chức vụ:</strong> {{ user.position or '' }}</div>
       <div class="col-md-4"><strong>Trạng thái:</strong> {{ user.status or '' }}</div>
       <div class="col-md-4"><strong>Ngày onboard:</strong> {{ user.onboard_date.strftime('%d-%m-%Y') if user.onboard_date else '' }}</div>

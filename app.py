@@ -125,16 +125,24 @@ class Department(db.Model):
     manager = db.relationship('User', foreign_keys=[manager_id], backref='managed_departments')
     users = db.relationship('User', back_populates='department_info', foreign_keys='User.department_id')
 
-    def get_hierarchy_level(self):
-        try:
-            level = 0
-            current = self.parent
-            while current is not None:
-                level += 1
-                current = current.parent
-            return level
-        except Exception:
-            return 0
+    def get_hierarchy_level(self, max_depth: int = 50):
+        """Return depth in hierarchy with cycle protection.
+
+        Limits traversal by tracking visited department ids and a max depth to
+        avoid infinite loops if parent relationships contain a cycle.
+        """
+        level = 0
+        current = self.parent
+        visited_ids = set()
+        while current is not None and level < max_depth:
+            current_id = getattr(current, 'id', None)
+            if current_id in visited_ids:
+                break
+            if current_id is not None:
+                visited_ids.add(current_id)
+            level += 1
+            current = getattr(current, 'parent', None)
+        return level
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2460,7 +2468,6 @@ def add_user():
             date_of_birth=datetime.strptime(request.form['date_of_birth'], '%Y-%m-%d').date() if request.form.get('date_of_birth') else None,
             role=request.form.get('role', 'user'),
             department_id=department_id,
-            department=department_name,
             position=request.form.get('position'),
             phone_number=request.form.get('phone_number'),
             notes=request.form.get('notes'),
@@ -2554,12 +2561,9 @@ def edit_user(user_id):
         # Handle department_id instead of department string
         department_id = request.form.get('department_id')
         if department_id:
-            department = Department.query.get(department_id)
             user.department_id = department_id
-            user.department = department.name if department else None
         else:
             user.department_id = None
-            user.department = None
         user.position = request.form.get('position')
         user.phone_number = request.form.get('phone_number')
         user.notes = request.form.get('notes')
@@ -2805,13 +2809,18 @@ def import_users():
                 onboard_date_val = row.get('Ngày Onboard')
                 offboard_date_val = row.get('Ngày Offboard')
 
+                dept_name = row.get('Phòng ban')
+                dept = None
+                if pd.notna(dept_name) and str(dept_name).strip() != '':
+                    dept = Department.query.filter_by(name=str(dept_name).strip()).first()
+
                 new_user = User(
                     username=username,
                     password=generate_password_hash(password),
                     full_name=row.get('Họ và tên'),
                     email=email,
                     role=row.get('Vai trò', 'user'),
-                    department=row.get('Phòng ban'),
+                    department_id=(dept.id if dept else None),
                     position=row.get('Chức vụ'),
                     phone_number=str(row.get('SĐT', '')) if pd.notna(row.get('SĐT')) else None,
                     notes=row.get('Ghi chú'),
@@ -2852,7 +2861,7 @@ def export_users_excel():
             'Tên đăng nhập': user.username,
             'Họ và tên': user.full_name,
             'Email': user.email,
-            'Phòng ban': user.department,
+            'Phòng ban': user.department_info.name if user.department_info else None,
             'Chức vụ': user.position,
             'Trạng thái': user.status,
             'Ngày Onboard': user.onboard_date.strftime('%d-%m-%Y') if user.onboard_date else '',
@@ -2875,7 +2884,7 @@ def export_handovers_excel():
     handovers = DeviceHandover.query.order_by(DeviceHandover.handover_date.desc()).all()
     data = []
     for handover in handovers:
-        data.append({'Ngày Bàn Giao': handover.handover_date.strftime('%d-%m-%Y'), 'Mã Thiết Bị': handover.device.device_code if handover.device else '', 'Tên Thiết Bị': handover.device.name if handover.device else '', 'Loại Thiết Bị': handover.device.device_type if handover.device else '', 'Người Giao': handover.giver.full_name if handover.giver else '', 'Người Nhận': handover.receiver.full_name if handover.receiver else '', 'Phòng ban Người Nhận': handover.receiver.department if handover.receiver else '', 'Tình Trạng Thiết Bị': handover.device_condition, 'Lý Do': handover.reason, 'Nơi Đặt': handover.location, 'Ghi Chú': handover.notes})
+        data.append({'Ngày Bàn Giao': handover.handover_date.strftime('%d-%m-%Y'), 'Mã Thiết Bị': handover.device.device_code if handover.device else '', 'Tên Thiết Bị': handover.device.name if handover.device else '', 'Loại Thiết Bị': handover.device_type if handover.device else '', 'Người Giao': handover.giver.full_name if handover.giver else '', 'Người Nhận': handover.receiver.full_name if handover.receiver else '', 'Phòng ban Người Nhận': (handover.receiver.department_info.name if handover.receiver and handover.receiver.department_info else ''), 'Tình Trạng Thiết Bị': handover.device_condition, 'Lý Do': handover.reason, 'Nơi Đặt': handover.location, 'Ghi Chú': handover.notes})
     df = pd.DataFrame(data)
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Handovers')
