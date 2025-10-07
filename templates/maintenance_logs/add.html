@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Thêm nhật ký bảo trì{% endblock %}
+{% block content %}
+<h3 class="mb-3">Thêm nhật ký bảo trì</h3>
+<form method="POST" class="row g-3">
+  <div class="col-md-4">
+    <label class="form-label">Thiết bị</label>
+    <select name="device_id" class="form-select" required>
+      {% for d in devices %}
+      <option value="{{ d.id }}">{{ d.device_code }} - {{ d.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Ngày tháng</label>
+    <input type="date" name="log_date" class="form-control" value="{{ (now or '').strftime('%Y-%m-%d') if now else '' }}">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Trạng thái xử lý</label>
+    <input type="text" name="status" class="form-control">
+  </div>
+  <div class="col-12">
+    <label class="form-label">Tình trạng</label>
+    <input type="text" name="condition" class="form-control">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">Vấn đề</label>
+    <textarea name="issue" class="form-control" rows="6"></textarea>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">Xử lý cuối</label>
+    <textarea name="last_action" class="form-control" rows="6"></textarea>
+  </div>
+  <div class="col-12">
+    <label class="form-label">Ghi chú</label>
+    <textarea name="notes" class="form-control" rows="3"></textarea>
+  </div>
+  <div class="col-12">
+    <a href="{{ url_for('maintenance_logs') }}" class="btn btn-secondary">Hủy</a>
+    <button class="btn btn-primary" type="submit">Lưu</button>
+  </div>
+</form>
+{% endblock %}

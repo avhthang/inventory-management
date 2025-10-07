@@ -101,6 +101,24 @@ def init_db():
                     # Column might already exist, ignore the error
                     pass
                 
+                # Create device maintenance log table if not exists
+                try:
+                    conn.execute(text('''
+                        CREATE TABLE IF NOT EXISTS device_maintenance_log (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            device_id INTEGER NOT NULL REFERENCES device(id),
+                            log_date DATE NOT NULL,
+                            condition TEXT,
+                            issue TEXT,
+                            status TEXT,
+                            last_action TEXT,
+                            notes TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    '''))
+                except Exception:
+                    pass
+
                 conn.commit()
             
         except Exception as e:
@@ -188,6 +206,18 @@ class Device(db.Model):
     warranty = db.Column(db.String(50))
     manager = db.relationship('User', foreign_keys=[manager_id])
     purchase_price = db.Column(db.Float)
+
+class DeviceMaintenanceLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.Integer, db.ForeignKey('device.id'), nullable=False)
+    device = db.relationship('Device', backref=db.backref('maintenance_logs', cascade='all, delete-orphan'))
+    log_date = db.Column(db.Date, nullable=False, default=date.today)
+    condition = db.Column(db.Text)  # Tình trạng
+    issue = db.Column(db.Text)      # Vấn đề
+    status = db.Column(db.String(100))  # Trạng thái xử lý
+    last_action = db.Column(db.Text)    # Xử lý cuối
+    notes = db.Column(db.Text)          # Ghi chú
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class DeviceHandover(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2877,6 +2907,64 @@ def export_users_excel():
     with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Users')
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'users_list_{datetime.now().strftime("%Y%m%d")}.xlsx')
+
+@app.route('/maintenance_logs')
+def maintenance_logs():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    device_code = request.args.get('device_code', '').strip()
+    status = request.args.get('status', '').strip()
+
+    query = DeviceMaintenanceLog.query.join(Device)
+    if device_code:
+        query = query.filter(Device.device_code.ilike(f"%{device_code}%"))
+    if status:
+        query = query.filter(DeviceMaintenanceLog.status.ilike(f"%{status}%"))
+
+    logs = query.order_by(DeviceMaintenanceLog.log_date.desc(), DeviceMaintenanceLog.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    return render_template('maintenance_logs/list.html', logs=logs, device_code=device_code, status=status)
+
+@app.route('/maintenance_logs/add', methods=['GET', 'POST'])
+def add_maintenance_log():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if request.method == 'POST':
+        device_id = request.form.get('device_id')
+        log_date_str = request.form.get('log_date')
+        condition = request.form.get('condition')
+        issue = request.form.get('issue')
+        status = request.form.get('status')
+        last_action = request.form.get('last_action')
+        notes = request.form.get('notes')
+
+        try:
+            log_date = datetime.strptime(log_date_str, '%Y-%m-%d').date() if log_date_str else date.today()
+            new_log = DeviceMaintenanceLog(
+                device_id=device_id,
+                log_date=log_date,
+                condition=condition,
+                issue=issue,
+                status=status,
+                last_action=last_action,
+                notes=notes
+            )
+            db.session.add(new_log)
+            db.session.commit()
+            flash('Đã thêm nhật ký bảo trì.', 'success')
+            return redirect(url_for('maintenance_logs'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Có lỗi xảy ra khi thêm nhật ký.', 'danger')
+    devices = Device.query.order_by(Device.device_code).all()
+    return render_template('maintenance_logs/add.html', devices=devices)
+
+@app.route('/maintenance_logs/<int:log_id>')
+def maintenance_log_detail(log_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    log = DeviceMaintenanceLog.query.get_or_404(log_id)
+    device = log.device
+    all_logs = DeviceMaintenanceLog.query.filter_by(device_id=device.id).order_by(DeviceMaintenanceLog.log_date.asc(), DeviceMaintenanceLog.id.asc()).all()
+    return render_template('maintenance_logs/detail.html', log=log, device=device, all_logs=all_logs)
 
 @app.route('/export_handovers_excel')
 def export_handovers_excel():
