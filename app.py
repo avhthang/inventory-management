@@ -2823,6 +2823,12 @@ def export_devices_excel():
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'devices_list_{datetime.now().strftime("%Y%m%d")}.xlsx')
 
+@app.route('/download/maintenance/<int:log_id>/<path:filename>')
+def download_maintenance_file(log_id, filename):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    directory = os.path.join(instance_path, 'maintenance_attachments', str(log_id))
+    return send_from_directory(directory, filename, as_attachment=True)
+
 @app.route('/import_users', methods=['GET', 'POST'])
 def import_users():
     if 'user_id' not in session: return redirect(url_for('login'))
