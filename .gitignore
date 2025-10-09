@@ -19,3 +19,5 @@ __pycache__/
 # Bỏ qua thư mục upload
 upload/
 
+# Bỏ qua thư mục db
+instance/
