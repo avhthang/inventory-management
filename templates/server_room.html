@@ -316,7 +316,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </button>` : 'N/A'}
                 </td>
                 <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-danger" onclick="removeDeviceFromSelected(${device.id})">
+                    <button type="button" class="btn btn-sm btn-danger" disabled title="Không thể bỏ chọn">
                         <i class="bi bi-x"></i>
                     </button>
                 </td>
@@ -338,15 +338,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Không cho phép bỏ chọn sau khi đã đưa vào danh sách bên phải
     window.removeDeviceFromSelected = function(deviceId) {
-        window.selectedDevices = window.selectedDevices.filter(d => d.id !== deviceId);
-        updateSelectedDevicesTable();
-        updateSelectedDeviceIds();
-        // Show in available devices table
-        const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
-        if (row) {
-            row.style.display = '';
-        }
+        return false;
     }
 
     function applyFilter() {

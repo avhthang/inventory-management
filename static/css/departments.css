@@ -12,7 +12,7 @@
 }
 
 .department-item .children {
-    margin-left: 20px;
+    margin-left: 16px;
 }
 
 /* Drag and drop styles */
@@ -35,7 +35,7 @@
     content: '';
     position: absolute;
     top: 0;
-    left: -15px;
+    left: -12px;
     bottom: 15px;
     width: 2px;
     background: #e9ecef;
@@ -45,8 +45,18 @@
     content: '';
     position: absolute;
     top: 20px;
-    left: -15px;
-    width: 15px;
+    left: -12px;
+    width: 12px;
     height: 2px;
     background: #e9ecef;
+}
+
+/* Toggle button minimal style */
+.department-item .toggle-children {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
 }

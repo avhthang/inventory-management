@@ -478,7 +478,7 @@ def _log_audit(entity_type, entity_id, old_dict, new_dict):
         # Do not break main flow if logging fails
         pass
 
-# --- Ensure tables exist in case CLI init wasn't run (Flask 3 compatible) ---
+# --- Ensure tables exist and run lightweight schema migrations ---
 _tables_initialized = False
 
 @app.before_request
@@ -487,6 +487,96 @@ def ensure_tables_once():
     if not _tables_initialized:
         try:
             db.create_all()
+            # Lightweight schema versioning and migrations (SQLite-safe)
+            try:
+                from sqlalchemy import text
+                with db.engine.connect() as conn:
+                    # Create schema_version table if not exists
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS schema_version (
+                            id INTEGER PRIMARY KEY CHECK (id = 1),
+                            version INTEGER NOT NULL
+                        )
+                    """))
+                    # Initialize to version 0 if empty
+                    existing = conn.execute(text("SELECT version FROM schema_version WHERE id=1")).fetchone()
+                    if not existing:
+                        conn.execute(text("INSERT INTO schema_version (id, version) VALUES (1, 0)"))
+
+                    def get_version():
+                        row = conn.execute(text("SELECT version FROM schema_version WHERE id=1")).fetchone()
+                        return int(row[0]) if row and row[0] is not None else 0
+
+                    def set_version(v):
+                        conn.execute(text("UPDATE schema_version SET version=:v WHERE id=1"), {"v": v})
+
+                    # Define forward-only migrations
+                    current_version = get_version()
+                    target_version = 3  # bump when adding new migrations
+
+                    # Migration 1: ensure audit_log and server_room_device_info base
+                    if current_version < 1:
+                        conn.execute(text("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, entity_type VARCHAR(50) NOT NULL, entity_id INTEGER NOT NULL, changed_by INTEGER, changed_at DATETIME DEFAULT CURRENT_TIMESTAMP, changes TEXT)"))
+                        conn.execute(text("CREATE TABLE IF NOT EXISTS server_room_device_info (device_id INTEGER PRIMARY KEY, ip_address VARCHAR(100), services_running TEXT, usage_status VARCHAR(30) DEFAULT 'Đang hoạt động', updated_at DATETIME, FOREIGN KEY(device_id) REFERENCES device(id))"))
+                        set_version(1)
+
+                    # Migration 2: add missing columns for inventory and proposals
+                    if get_version() < 2:
+                        info = conn.execute(text("PRAGMA table_info('inventory_receipt_item')")).fetchall()
+                        cols = {row[1] for row in info}
+                        if info:
+                            if 'quantity' not in cols:
+                                conn.execute(text("ALTER TABLE inventory_receipt_item ADD COLUMN quantity INTEGER DEFAULT 1"))
+                            if 'device_condition' not in cols:
+                                conn.execute(text("ALTER TABLE inventory_receipt_item ADD COLUMN device_condition VARCHAR(100)"))
+                            if 'device_note' not in cols:
+                                conn.execute(text("ALTER TABLE inventory_receipt_item ADD COLUMN device_note TEXT"))
+
+                        info2 = conn.execute(text("PRAGMA table_info('config_proposal')")).fetchall()
+                        cols2 = {row[1] for row in info2}
+                        if info2:
+                            if 'currency' not in cols2:
+                                conn.execute(text("ALTER TABLE config_proposal ADD COLUMN currency VARCHAR(10) DEFAULT 'VND'"))
+                            if 'status' not in cols2:
+                                conn.execute(text("ALTER TABLE config_proposal ADD COLUMN status VARCHAR(30) DEFAULT 'Mới tạo'"))
+                            if 'purchase_status' not in cols2:
+                                conn.execute(text("ALTER TABLE config_proposal ADD COLUMN purchase_status VARCHAR(30) DEFAULT 'Lấy báo giá'"))
+                            if 'notes' not in cols2:
+                                conn.execute(text("ALTER TABLE config_proposal ADD COLUMN notes TEXT"))
+                            if 'linked_receipt_id' not in cols2:
+                                conn.execute(text("ALTER TABLE config_proposal ADD COLUMN linked_receipt_id INTEGER"))
+                            if 'supplier_info' not in cols2:
+                                conn.execute(text("ALTER TABLE config_proposal ADD COLUMN supplier_info VARCHAR(255)"))
+
+                        info3 = conn.execute(text("PRAGMA table_info('inventory_receipt')")).fetchall()
+                        cols3 = {row[1] for row in info3}
+                        if info3 and 'config_proposal_id' not in cols3:
+                            conn.execute(text("ALTER TABLE inventory_receipt ADD COLUMN config_proposal_id INTEGER"))
+
+                        info4 = conn.execute(text("PRAGMA table_info('user')")).fetchall()
+                        cols4 = {row[1] for row in info4}
+                        if info4 and 'last_name_token' not in cols4:
+                            conn.execute(text("ALTER TABLE user ADD COLUMN last_name_token VARCHAR(120)"))
+
+                        info5 = conn.execute(text("PRAGMA table_info('config_proposal_item')")).fetchall()
+                        cols5 = {row[1] for row in info5}
+                        if info5 and 'product_code' not in cols5:
+                            conn.execute(text("ALTER TABLE config_proposal_item ADD COLUMN product_code VARCHAR(100)"))
+
+                        set_version(2)
+
+                    # Migration 3: ensure server_room_device_info.usage_status exists
+                    if get_version() < 3:
+                        info6 = conn.execute(text("PRAGMA table_info('server_room_device_info')")).fetchall()
+                        cols6 = {row[1] for row in info6}
+                        if info6 and 'usage_status' not in cols6:
+                            conn.execute(text("ALTER TABLE server_room_device_info ADD COLUMN usage_status VARCHAR(30) DEFAULT 'Đang hoạt động'"))
+                        set_version(3)
+
+                    conn.commit()
+            except Exception:
+                # Migration failures should not break app startup
+                pass
             # Ensure new columns exist for InventoryReceiptItem if the table was created earlier
             try:
                 from sqlalchemy import text
