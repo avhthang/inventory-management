@@ -126,6 +126,22 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Toggle caret icon up/down based on collapse state
+    document.querySelectorAll('.toggle-children').forEach(btn => {
+        const icon = btn.querySelector('i.bi');
+        const targetId = btn.getAttribute('data-bs-target');
+        const target = document.querySelector(targetId);
+        if (!icon || !target) return;
+        const setIcon = () => {
+            const expanded = target.classList.contains('show');
+            const open = icon.getAttribute('data-icon-open') || 'bi-caret-up-fill';
+            const closed = icon.getAttribute('data-icon-closed') || 'bi-caret-down-fill';
+            icon.className = `bi ${expanded ? open : closed}`;
+        };
+        setIcon();
+        target.addEventListener('shown.bs.collapse', setIcon);
+        target.addEventListener('hidden.bs.collapse', setIcon);
+    });
     // Initialize Sortable for each department's children
     document.querySelectorAll('.children').forEach(el => {
         new Sortable(el, {

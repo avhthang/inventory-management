@@ -1001,7 +1001,7 @@ def register():
             flash('Tên đăng nhập đã tồn tại.', 'danger'); return render_template('register.html')
         if email and User.query.filter_by(email=email).first():
             flash('Email đã được sử dụng.', 'danger'); return render_template('register.html')
-        new_user = User(username=username, password=generate_password_hash(password), full_name=full_name, email=email, role='user')
+        new_user = User(username=username, password=generate_password_hash(password), full_name=full_name, email=email, role='user', status='Đang làm')
         db.session.add(new_user); db.session.commit()
         session['user_id'] = new_user.id; session.permanent = True
         flash('Đăng ký tài khoản thành công! Bạn đã được đăng nhập.', 'success')
@@ -1849,10 +1849,22 @@ def server_room():
     if request.method == 'POST':
         # Get existing device IDs in server room
         current_device_ids = set(link.device_id for link in DeviceGroupDevice.query.filter_by(group_id=group.id).all())
-        
-        # Get selected device IDs from form
-        selected_device_ids = set(int(d_id) for d_id in request.form.getlist('device_ids') if d_id)
-        
+
+        # Get selected device IDs from form (supports comma-separated single field and multiple inputs)
+        raw_values = request.form.getlist('device_ids')
+        selected_device_ids = set()
+        for raw in raw_values:
+            if not raw:
+                continue
+            for token in str(raw).split(','):
+                token = token.strip()
+                if not token:
+                    continue
+                try:
+                    selected_device_ids.add(int(token))
+                except ValueError:
+                    continue
+
         # Find devices to add and remove
         devices_to_add = selected_device_ids - current_device_ids
         devices_to_remove = current_device_ids - selected_device_ids
@@ -2677,9 +2689,13 @@ def set_users_default_status():
 def reset_user_password(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     user = User.query.get_or_404(user_id)
-    user.password = generate_password_hash('Password123@')
-    db.session.commit()
-    flash(f'Đã reset mật khẩu cho {user.full_name or user.username} về Password123@', 'success')
+    try:
+        user.password = generate_password_hash('Password123@')
+        db.session.commit()
+        flash(f'Đã reset mật khẩu cho {user.full_name or user.username} về Password123@', 'success')
+    except Exception:
+        db.session.rollback()
+        flash('Không thể reset mật khẩu do cơ sở dữ liệu chỉ đọc. Kiểm tra quyền ghi file DB.', 'danger')
     return redirect(url_for('user_list'))
 
 @app.route('/add_user', methods=['GET', 'POST'])
@@ -2696,7 +2712,8 @@ def add_user():
             return redirect(url_for('add_user'))
             
         # Handle department_id and set department name
-        department_id = request.form.get('department_id')
+        department_id_str = request.form.get('department_id')
+        department_id = int(department_id_str) if department_id_str else None
         department_name = None
         if department_id:
             department = Department.query.get(department_id)
@@ -2802,11 +2819,8 @@ def edit_user(user_id):
         user.date_of_birth = datetime.strptime(request.form['date_of_birth'], '%Y-%m-%d').date() if request.form.get('date_of_birth') else None
         user.role = request.form.get('role')
         # Handle department_id instead of department string
-        department_id = request.form.get('department_id')
-        if department_id:
-            user.department_id = department_id
-        else:
-            user.department_id = None
+        department_id_str = request.form.get('department_id')
+        user.department_id = int(department_id_str) if department_id_str else None
         user.position = request.form.get('position')
         user.phone_number = request.form.get('phone_number')
         user.notes = request.form.get('notes')
