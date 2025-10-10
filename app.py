@@ -45,13 +45,54 @@ db = SQLAlchemy(app)
 
 # Permission catalogue
 PERMISSIONS = [
+    # Thiết bị
+    ('devices.view', 'Xem danh sách/chi tiết thiết bị'),
+    ('devices.edit', 'Thêm/Sửa thiết bị'),
+    ('devices.delete', 'Xóa thiết bị'),
+    # Nhóm thiết bị
+    ('device_groups.view', 'Xem nhóm thiết bị'),
+    ('device_groups.edit', 'Tạo/Sửa nhóm thiết bị'),
+    ('device_groups.delete', 'Xóa nhóm thiết bị'),
+    # Phòng server
+    ('server_room.view', 'Xem phòng server'),
+    ('server_room.edit', 'Thêm/Sửa thiết bị phòng server'),
+    ('server_room.delete', 'Gỡ thiết bị khỏi phòng server'),
+    # Bàn giao thiết bị
+    ('handovers.view', 'Xem lịch sử/Tạo phiếu bàn giao'),
+    ('handovers.edit', 'Sửa phiếu bàn giao'),
+    ('handovers.delete', 'Xóa phiếu bàn giao'),
+    # Phiếu nhập kho
+    ('inventory.view', 'Xem danh sách phiếu nhập kho'),
+    ('inventory.edit', 'Tạo/Sửa phiếu nhập kho'),
+    ('inventory.delete', 'Xóa phiếu nhập kho'),
+    # Đề xuất cấu hình
+    ('config_proposals.view', 'Xem đề xuất cấu hình'),
+    ('config_proposals.edit', 'Tạo/Sửa đề xuất cấu hình'),
+    ('config_proposals.delete', 'Xóa đề xuất cấu hình'),
+    # Người dùng
+    ('users.view', 'Xem danh sách/chi tiết người dùng'),
+    ('users.edit', 'Thêm/Sửa người dùng, reset mật khẩu'),
+    ('users.delete', 'Xóa người dùng'),
+    # Phòng ban
+    ('departments.view', 'Xem phòng ban'),
+    ('departments.edit', 'Thêm/Sửa phòng ban, gán người dùng'),
+    ('departments.delete', 'Xóa phòng ban'),
+    # Backup
+    ('backup.view', 'Xem trang backup'),
+    ('backup.edit', 'Cấu hình backup'),
+    ('backup.delete', 'Xóa bản backup'),
+    # Phân quyền
+    ('rbac.view', 'Xem trang phân quyền'),
+    ('rbac.edit', 'Chỉnh sửa phân quyền'),
+    ('rbac.delete', 'Xóa quyền'),
+    ('rbac.manage', 'Quản lý phân quyền (tổng quát)'),
+    # Bảo trì (nhật ký sửa chữa thiết bị)
     ('maintenance.view', 'Xem nhật ký bảo trì'),
     ('maintenance.add', 'Thêm nhật ký bảo trì'),
     ('maintenance.edit', 'Sửa nhật ký bảo trì'),
     ('maintenance.delete', 'Xóa nhật ký bảo trì'),
     ('maintenance.upload', 'Tải lên tệp đính kèm'),
     ('maintenance.download', 'Tải xuống tệp đính kèm'),
-    ('rbac.manage', 'Quản lý phân quyền'),
 ]
 
 # Register SQLite function last_token for sorting by given name

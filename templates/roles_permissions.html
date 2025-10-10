@@ -13,9 +13,13 @@
         <div class="col-md-4">
           <label class="form-label">Vai trò</label>
           <select name="role_id" id="role-select" class="form-select" required>
-            {% for r in roles %}
-            <option value="{{ r.id }}">{{ r.name }}</option>
-            {% endfor %}
+            {% if roles %}
+              {% for r in roles %}
+              <option value="{{ r.id }}">{{ r.name }}</option>
+              {% endfor %}
+            {% else %}
+              <option value="" disabled>Chưa có vai trò</option>
+            {% endif %}
           </select>
         </div>
         <div class="col-md-8">
@@ -34,6 +38,8 @@
                 </button>
               </div>
             </div>
+            {% else %}
+              <div class="text-muted">Chưa có quyền nào. Hãy thêm quyền mới.</div>
             {% endfor %}
           </div>
         </div>
