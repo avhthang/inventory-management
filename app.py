@@ -678,20 +678,43 @@ def roles_permissions():
         return redirect(url_for('home'))
 
     if request.method == 'POST':
-        # Update role-permission assignments based on form data
-        role_id = request.form.get('role_id', type=int)
-        perm_codes = request.form.getlist('perm_codes')
-        role = Role.query.get_or_404(role_id)
-        # Clear existing
-        RolePermission.query.filter_by(role_id=role.id).delete()
-        # Insert selected
-        for code in perm_codes:
-            perm = Permission.query.filter_by(code=code).first()
-            if perm:
-                db.session.add(RolePermission(role_id=role.id, permission_id=perm.id))
-        db.session.commit()
-        flash('Cập nhật quyền của vai trò thành công.', 'success')
-        return redirect(url_for('roles_permissions'))
+        action = request.form.get('action')
+        if action == 'save_role_perms':
+            # Update role-permission assignments based on form data
+            role_id = request.form.get('role_id', type=int)
+            perm_codes = request.form.getlist('perm_codes')
+            role = Role.query.get_or_404(role_id)
+            # Clear existing
+            RolePermission.query.filter_by(role_id=role.id).delete()
+            # Insert selected
+            for code in perm_codes:
+                perm = Permission.query.filter_by(code=code).first()
+                if perm:
+                    db.session.add(RolePermission(role_id=role.id, permission_id=perm.id))
+            db.session.commit()
+            flash('Cập nhật quyền của vai trò thành công.', 'success')
+            return redirect(url_for('roles_permissions'))
+        elif action == 'add_permission':
+            code = (request.form.get('new_perm_code') or '').strip()
+            name = (request.form.get('new_perm_name') or '').strip()
+            if not code or not name:
+                flash('Mã và tên quyền không được để trống.', 'danger')
+            elif Permission.query.filter_by(code=code).first():
+                flash('Quyền đã tồn tại.', 'warning')
+            else:
+                db.session.add(Permission(code=code, name=name))
+                db.session.commit()
+                flash('Đã thêm quyền mới.', 'success')
+            return redirect(url_for('roles_permissions'))
+        elif action == 'delete_permission':
+            perm_id = request.form.get('perm_id', type=int)
+            perm = Permission.query.get_or_404(perm_id)
+            # Also remove role links
+            RolePermission.query.filter_by(permission_id=perm.id).delete()
+            db.session.delete(perm)
+            db.session.commit()
+            flash('Đã xóa quyền.', 'success')
+            return redirect(url_for('roles_permissions'))
 
     roles = Role.query.order_by(Role.name).all()
     permissions = Permission.query.order_by(Permission.code).all()
@@ -3075,7 +3098,11 @@ def _get_current_permissions():
     try:
         if 'user_id' not in session:
             return set()
-        role_ids = [ur.role_id for ur in UserRole.query.filter_by(user_id=session['user_id']).all()]
+        user = User.query.get(session['user_id'])
+        # Admin always has full permissions
+        if user and user.role == 'admin':
+            return {p.code for p in Permission.query.all()}
+        role_ids = [ur.role_id for ur in UserRole.query.filter_by(user_id=user.id).all()] if user else []
         perm_codes = set()
         if role_ids:
             for rp in RolePermission.query.filter(RolePermission.role_id.in_(role_ids)).all():
