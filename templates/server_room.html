@@ -307,16 +307,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="text-center">${index + 1}</td>
-                <td class="text-center">${device.device_code || ''}</td>
+                <td class="text-center">${device.code || device.device_code || ''}</td>
                 <td class="text-center">${device.name || ''}</td>
                 <td class="text-center">
                     ${device.configuration ? 
-                        `<button type="button" class="btn btn-sm btn-info" onclick="showConfig('${device.device_code}', '${(device.configuration || '').replace(/'/g, "\\'")}')">
+                        `<button type="button" class="btn btn-sm btn-info" onclick="showConfig('${device.code || device.device_code}', '${(device.configuration || '').replace(/'/g, "\\'")}')">
                             <i class="bi bi-eye"></i>
                         </button>` : 'N/A'}
                 </td>
                 <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-danger" disabled title="Không thể bỏ chọn">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeDeviceFromSelected('${device.id}')" title="Bỏ chọn">
                         <i class="bi bi-x"></i>
                     </button>
                 </td>
@@ -325,22 +325,29 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function addDeviceToSelected(device) {
-        if (!window.selectedDevices.find(d => d.id === device.id)) {
-            window.selectedDevices.push(device);
-            updateSelectedDevicesTable();
-            updateSelectedDeviceIds();
-            // Remove from available devices table
-            const row = document.querySelector(`tr[data-device-id="${device.id}"]`);
-            if (row) {
-                row.style.display = 'none';
-            }
-        }
+    function addDeviceToSelected(id) {
+        const row = table.querySelector('tr[data-id="' + id + '"]');
+        if (!row) return;
+        if (window.selectedDevices.find(d => d.id === id)) return;
+        const configBtn = row.querySelector('button[onclick^="showConfig"]');
+        window.selectedDevices.push({
+            id: id,
+            code: row.dataset.code,
+            name: row.dataset.name,
+            type: row.dataset.type,
+            configuration: configBtn ? configBtn.getAttribute('onclick').match(/,(.*)\)$/)?.[1] : ''
+        });
+        renderSelectedDevices();
+        row.style.display = 'none';
+        updateSelectedDeviceIds();
     }
 
-    // Không cho phép bỏ chọn sau khi đã đưa vào danh sách bên phải
-    window.removeDeviceFromSelected = function(deviceId) {
-        return false;
+    window.removeDeviceFromSelected = function(id) {
+        window.selectedDevices = window.selectedDevices.filter(d => String(d.id) !== String(id));
+        renderSelectedDevices();
+        const row = table.querySelector('tr[data-id="' + id + '"]');
+        if (row) row.style.display = '';
+        updateSelectedDeviceIds();
     }
 
     function applyFilter() {
@@ -361,28 +368,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Selected devices logic
     window.selectedDevices = [];
-    window.addDeviceToSelected = function(id) {
-        const row = table.querySelector('tr[data-id="' + id + '"]');
-        if (!row) return;
-        if (window.selectedDevices.find(d => d.id === id)) return;
-        window.selectedDevices.push({
-            id: id,
-            code: row.dataset.code,
-            name: row.dataset.name,
-            type: row.dataset.type,
-            config: row.querySelector('button[onclick^="showConfig"]') ? row.querySelector('button[onclick^="showConfig"]').getAttribute('data-config') : ''
-        });
-        renderSelectedDevices();
-        row.style.display = 'none';
-        updateSelectedDeviceIds();
-    };
-    window.removeDeviceFromSelected = function(id) {
-        window.selectedDevices = window.selectedDevices.filter(d => d.id !== id);
-        renderSelectedDevices();
-        const row = table.querySelector('tr[data-id="' + id + '"]');
-        if (row) row.style.display = '';
-        updateSelectedDeviceIds();
-    };
     function renderSelectedDevices() {
         const tbody = document.getElementById('selectedDevicesTable').tBodies[0];
         tbody.innerHTML = '';

@@ -3,7 +3,11 @@
     <div class="d-flex align-items-center py-2 border-bottom">
         <div style="width: {{ level * 24 }}px"></div>
         <button type="button" class="btn btn-sm btn-outline-secondary me-2 toggle-children" data-bs-toggle="collapse" data-bs-target="#children-{{ dept.id }}" aria-expanded="true" aria-controls="children-{{ dept.id }}">
-            <i class="bi bi-caret-down-fill"></i>
+            {% if dept.children %}
+                <i class="bi" data-icon-closed="bi-caret-down-fill" data-icon-open="bi-caret-up-fill"></i>
+            {% else %}
+                <i class="bi bi-dot"></i>
+            {% endif %}
         </button>
         <i class="bi bi-grip-vertical me-2 handle" title="Kéo để sắp xếp"></i>
         <div class="flex-grow-1">
