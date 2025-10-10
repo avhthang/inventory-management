@@ -45,7 +45,7 @@
           {% for p in proposals.items %}
           <tr>
             <td class="text-start">{{ proposals.first + loop.index - 1 }}</td>
-            <td class="text-start">{{ p.name }}</td>
+            <td class="text-start"><a href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}" class="text-decoration-none fw-semibold">{{ p.name }}</a></td>
             <td class="text-start">{{ p.proposal_date.strftime('%d-%m-%Y') }}</td>
             <td class="text-start">{{ p.proposer_name or '' }}</td>
             <td class="text-start">{{ p.proposer_unit or '' }}</td>

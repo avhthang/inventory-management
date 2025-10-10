@@ -3039,9 +3039,25 @@ def export_devices_excel():
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'devices_list_{datetime.now().strftime("%Y%m%d")}.xlsx')
 
 @app.route('/download/maintenance/<int:log_id>/<path:filename>')
+def _get_current_permissions():
+    """Utility: return a set of permission codes for the current user."""
+    try:
+        if 'user_id' not in session:
+            return set()
+        role_ids = [ur.role_id for ur in UserRole.query.filter_by(user_id=session['user_id']).all()]
+        perm_codes = set()
+        if role_ids:
+            for rp in RolePermission.query.filter(RolePermission.role_id.in_(role_ids)).all():
+                perm = Permission.query.get(rp.permission_id)
+                if perm:
+                    perm_codes.add(perm.code)
+        return perm_codes
+    except Exception:
+        return set()
+
 def download_maintenance_file(log_id, filename):
     if 'user_id' not in session: return redirect(url_for('login'))
-    if 'maintenance.download' not in (current_permissions or set()):
+    if 'maintenance.download' not in _get_current_permissions():
         flash('Bạn không có quyền tải tệp.', 'danger')
         return redirect(url_for('maintenance_log_detail', log_id=log_id))
     directory = os.path.join(instance_path, 'maintenance_attachments', str(log_id))
@@ -3158,7 +3174,7 @@ def export_users_excel():
 def maintenance_logs():
     if 'user_id' not in session: return redirect(url_for('login'))
     # permission check
-    if 'maintenance.view' not in (current_permissions or set()):
+    if 'maintenance.view' not in _get_current_permissions():
         flash('Bạn không có quyền truy cập chức năng này.', 'danger')
         return redirect(url_for('home'))
     page = request.args.get('page', 1, type=int)
@@ -3178,7 +3194,7 @@ def maintenance_logs():
 @app.route('/maintenance_logs/add', methods=['GET', 'POST'])
 def add_maintenance_log():
     if 'user_id' not in session: return redirect(url_for('login'))
-    if 'maintenance.add' not in (current_permissions or set()):
+    if 'maintenance.add' not in _get_current_permissions():
         flash('Bạn không có quyền thêm nhật ký.', 'danger')
         return redirect(url_for('maintenance_logs'))
     if request.method == 'POST':
@@ -3214,7 +3230,7 @@ def add_maintenance_log():
 @app.route('/maintenance_logs/<int:log_id>')
 def maintenance_log_detail(log_id):
     if 'user_id' not in session: return redirect(url_for('login'))
-    if 'maintenance.view' not in (current_permissions or set()):
+    if 'maintenance.view' not in _get_current_permissions():
         flash('Bạn không có quyền truy cập chức năng này.', 'danger')
         return redirect(url_for('home'))
     log = DeviceMaintenanceLog.query.get_or_404(log_id)
@@ -3225,7 +3241,7 @@ def maintenance_log_detail(log_id):
 @app.route('/maintenance_logs/<int:log_id>/edit', methods=['GET', 'POST'])
 def edit_maintenance_log(log_id):
     if 'user_id' not in session: return redirect(url_for('login'))
-    if 'maintenance.edit' not in (current_permissions or set()):
+    if 'maintenance.edit' not in _get_current_permissions():
         flash('Bạn không có quyền sửa nhật ký.', 'danger')
         return redirect(url_for('maintenance_log_detail', log_id=log_id))
     log = DeviceMaintenanceLog.query.get_or_404(log_id)
@@ -3250,7 +3266,7 @@ def edit_maintenance_log(log_id):
 @app.route('/maintenance_logs/<int:log_id>/delete', methods=['POST'])
 def delete_maintenance_log(log_id):
     if 'user_id' not in session: return redirect(url_for('login'))
-    if 'maintenance.delete' not in (current_permissions or set()):
+    if 'maintenance.delete' not in _get_current_permissions():
         flash('Bạn không có quyền xóa nhật ký.', 'danger')
         return redirect(url_for('maintenance_log_detail', log_id=log_id))
     log = DeviceMaintenanceLog.query.get_or_404(log_id)
@@ -3274,7 +3290,7 @@ def delete_maintenance_log(log_id):
 @app.route('/maintenance_logs/<int:log_id>/attachments', methods=['POST'])
 def upload_maintenance_attachments(log_id):
     if 'user_id' not in session: return redirect(url_for('login'))
-    if 'maintenance.upload' not in (current_permissions or set()):
+    if 'maintenance.upload' not in _get_current_permissions():
         flash('Bạn không có quyền tải tệp.', 'danger')
         return redirect(url_for('maintenance_log_detail', log_id=log_id))
     log = DeviceMaintenanceLog.query.get_or_404(log_id)
