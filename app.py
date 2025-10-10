@@ -2537,6 +2537,16 @@ def delete_handover(handover_id):
     flash('Xóa phiếu bàn giao thành công!', 'success')
     return redirect(url_for('handover_list'))
 
+# Xem chi tiết một phiếu bàn giao
+@app.route('/handover/<int:handover_id>')
+def handover_detail(handover_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    handover = DeviceHandover.query.get_or_404(handover_id)
+    device = handover.device
+    giver = handover.giver
+    receiver = handover.receiver
+    return render_template('handover_detail.html', handover=handover, device=device, giver=giver, receiver=receiver)
+
 # Thêm route mới này vào file app.py (trong khu vực Handover Routes)
 
 @app.route('/import_handovers', methods=['GET', 'POST'])

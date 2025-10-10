@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Phiếu bàn giao #{{ handover.id }}{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width: 900px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Phiếu bàn giao #{{ handover.id }}</h3>
+    <a href="{{ url_for('handover_list') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Quay lại</a>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row mb-2">
+        <div class="col-md-4"><strong>Ngày bàn giao:</strong> {{ handover.handover_date.strftime('%d-%m-%Y') }}</div>
+        <div class="col-md-4"><strong>Tình trạng:</strong> {{ handover.device_condition }}</div>
+        <div class="col-md-4"><strong>Địa điểm:</strong> {{ handover.location or '-' }}</div>
+      </div>
+      <div class="row mb-2">
+        <div class="col-md-4"><strong>Mã thiết bị:</strong> {{ device.device_code if device else 'Đã xóa' }}</div>
+        <div class="col-md-8"><strong>Tên thiết bị:</strong> {{ device.name if device else '-' }}</div>
+      </div>
+      <div class="row mb-2">
+        <div class="col-md-6"><strong>Người giao:</strong> {{ giver.full_name if giver else 'Đã xóa' }} ({{ giver.username if giver else '' }})</div>
+        <div class="col-md-6"><strong>Người nhận:</strong> {{ receiver.full_name if receiver else 'Đã xóa' }} ({{ receiver.username if receiver else '' }})</div>
+      </div>
+      <div class="mb-2"><strong>Lý do:</strong> {{ handover.reason or '-' }}</div>
+      <div class="mb-0"><strong>Ghi chú:</strong> {{ handover.notes or '-' }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
