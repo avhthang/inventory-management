@@ -223,7 +223,7 @@ def init_db():
         except Exception as e:
             print(f"Database initialization error: {e}")
 
-        # Seed permissions and a default Admin role
+        # Seed permissions and default roles
         try:
             # insert permissions
             for code, name in PERMISSIONS:
@@ -236,6 +236,12 @@ def init_db():
                 admin_role = Role(name='Admin', description='Quyền đầy đủ')
                 db.session.add(admin_role)
                 db.session.commit()
+            # ensure User role (view-only devices)
+            user_role = Role.query.filter_by(name='User').first()
+            if not user_role:
+                user_role = Role(name='User', description='Người dùng - chỉ xem thiết bị')
+                db.session.add(user_role)
+                db.session.commit()
             # grant all permissions to Admin
             perms = Permission.query.all()
             for p in perms:
@@ -243,6 +249,11 @@ def init_db():
                 if not exists:
                     db.session.add(RolePermission(role_id=admin_role.id, permission_id=p.id))
             db.session.commit()
+            # grant only devices.view to User role by default
+            dev_view = Permission.query.filter_by(code='devices.view').first()
+            if dev_view and not RolePermission.query.filter_by(role_id=user_role.id, permission_id=dev_view.id).first():
+                db.session.add(RolePermission(role_id=user_role.id, permission_id=dev_view.id))
+                db.session.commit()
             # assign Admin role to existing admin user if any
             admin_user = User.query.filter_by(role='admin').first()
             if admin_user:
@@ -734,6 +745,30 @@ def roles_permissions():
                     db.session.add(RolePermission(role_id=role.id, permission_id=perm.id))
             db.session.commit()
             flash('Cập nhật quyền của vai trò thành công.', 'success')
+            return redirect(url_for('roles_permissions'))
+        elif action == 'add_role':
+            name = (request.form.get('new_role_name') or '').strip()
+            if not name:
+                flash('Tên vai trò không được để trống.', 'danger')
+            elif Role.query.filter_by(name=name).first():
+                flash('Vai trò đã tồn tại.', 'warning')
+            else:
+                db.session.add(Role(name=name, description=''))
+                db.session.commit()
+                flash('Đã thêm vai trò mới.', 'success')
+            return redirect(url_for('roles_permissions'))
+        elif action == 'delete_role':
+            role_id = request.form.get('role_id', type=int)
+            role = Role.query.get_or_404(role_id)
+            if role.name == 'Admin':
+                flash('Không thể xóa vai trò Admin.', 'danger')
+                return redirect(url_for('roles_permissions'))
+            # Remove role assignments and role-permissions, then delete role
+            UserRole.query.filter_by(role_id=role.id).delete()
+            RolePermission.query.filter_by(role_id=role.id).delete()
+            db.session.delete(role)
+            db.session.commit()
+            flash('Đã xóa vai trò.', 'success')
             return redirect(url_for('roles_permissions'))
         elif action == 'add_permission':
             code = (request.form.get('new_perm_code') or '').strip()

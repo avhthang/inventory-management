@@ -44,8 +44,12 @@
           </div>
         </div>
       </div>
-      <div class="mt-3 d-flex gap-2 align-items-center">
+      <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
         <button type="submit" name="action" value="save_role_perms" class="btn btn-primary">Lưu</button>
+        <div class="vr mx-2 d-none d-md-block"></div>
+        <input type="text" class="form-control w-auto" name="new_role_name" placeholder="Tên vai trò">
+        <button type="submit" name="action" value="add_role" class="btn btn-outline-primary">Thêm vai trò</button>
+        <button type="submit" name="action" value="delete_role" class="btn btn-outline-danger" onclick="return confirm('Xóa vai trò hiện chọn?')">Xóa vai trò hiện chọn</button>
         <span class="ms-auto"></span>
         <input type="text" class="form-control w-auto" name="new_perm_code" placeholder="Mã quyền">
         <input type="text" class="form-control w-auto" name="new_perm_name" placeholder="Tên quyền">
