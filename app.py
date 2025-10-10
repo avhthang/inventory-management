@@ -51,6 +51,7 @@ PERMISSIONS = [
     ('maintenance.delete', 'Xóa nhật ký bảo trì'),
     ('maintenance.upload', 'Tải lên tệp đính kèm'),
     ('maintenance.download', 'Tải xuống tệp đính kèm'),
+    ('rbac.manage', 'Quản lý phân quyền'),
 ]
 
 # Register SQLite function last_token for sorting by given name
@@ -666,6 +667,36 @@ def format_vnd(value):
     except Exception:
         n = 0
     return f"{int(round(n, 0)):,}".replace(',', '.')
+
+@app.route('/config/roles_permissions', methods=['GET', 'POST'])
+def roles_permissions():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    # Only admin or users with rbac.manage can access
+    user = User.query.get(session['user_id'])
+    if (user.role != 'admin') and ('rbac.manage' not in _get_current_permissions()):
+        flash('Bạn không có quyền truy cập trang phân quyền.', 'danger')
+        return redirect(url_for('home'))
+
+    if request.method == 'POST':
+        # Update role-permission assignments based on form data
+        role_id = request.form.get('role_id', type=int)
+        perm_codes = request.form.getlist('perm_codes')
+        role = Role.query.get_or_404(role_id)
+        # Clear existing
+        RolePermission.query.filter_by(role_id=role.id).delete()
+        # Insert selected
+        for code in perm_codes:
+            perm = Permission.query.filter_by(code=code).first()
+            if perm:
+                db.session.add(RolePermission(role_id=role.id, permission_id=perm.id))
+        db.session.commit()
+        flash('Cập nhật quyền của vai trò thành công.', 'success')
+        return redirect(url_for('roles_permissions'))
+
+    roles = Role.query.order_by(Role.name).all()
+    permissions = Permission.query.order_by(Permission.code).all()
+    role_to_perms = {r.id: {rp.permission.code for rp in r.role_permissions} for r in roles}
+    return render_template('roles_permissions.html', roles=roles, permissions=permissions, role_to_perms=role_to_perms)
 
 @app.route('/')
 def home():
