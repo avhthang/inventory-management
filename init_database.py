@@ -70,12 +70,19 @@ def init_database():
         else:
             print("✓ Server room device group already exists")
         
+        # Seed RBAC data
+        from app import seed_rbac_data
+        seed_rbac_data()
+        
         print("\n" + "="*50)
         print("Database initialization completed successfully!")
         print("="*50)
         print("Login credentials:")
         print("Username: admin")
         print("Password: admin123")
+        print("="*50)
+        print("RBAC roles and permissions have been seeded.")
+        print("Admin user has been assigned Admin role with all permissions.")
         print("="*50)
 
 if __name__ == "__main__":

@@ -223,46 +223,6 @@ def init_db():
         except Exception as e:
             print(f"Database initialization error: {e}")
 
-        # Seed permissions and default roles
-        try:
-            # insert permissions
-            for code, name in PERMISSIONS:
-                if not Permission.query.filter_by(code=code).first():
-                    db.session.add(Permission(code=code, name=name))
-            db.session.commit()
-            # ensure Admin role
-            admin_role = Role.query.filter_by(name='Admin').first()
-            if not admin_role:
-                admin_role = Role(name='Admin', description='Quyền đầy đủ')
-                db.session.add(admin_role)
-                db.session.commit()
-            # ensure User role (view-only devices)
-            user_role = Role.query.filter_by(name='User').first()
-            if not user_role:
-                user_role = Role(name='User', description='Người dùng - chỉ xem thiết bị')
-                db.session.add(user_role)
-                db.session.commit()
-            # grant all permissions to Admin
-            perms = Permission.query.all()
-            for p in perms:
-                exists = RolePermission.query.filter_by(role_id=admin_role.id, permission_id=p.id).first()
-                if not exists:
-                    db.session.add(RolePermission(role_id=admin_role.id, permission_id=p.id))
-            db.session.commit()
-            # grant only devices.view to User role by default
-            dev_view = Permission.query.filter_by(code='devices.view').first()
-            if dev_view and not RolePermission.query.filter_by(role_id=user_role.id, permission_id=dev_view.id).first():
-                db.session.add(RolePermission(role_id=user_role.id, permission_id=dev_view.id))
-                db.session.commit()
-            # assign Admin role to existing admin user if any
-            admin_user = User.query.filter_by(role='admin').first()
-            if admin_user:
-                if not UserRole.query.filter_by(user_id=admin_user.id, role_id=admin_role.id).first():
-                    db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
-                    db.session.commit()
-        except Exception as e:
-            print(f"RBAC seed error: {e}")
-
 # Initialize database on startup
 init_db()
 
@@ -500,6 +460,58 @@ class AuditLog(db.Model):
     changed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     changed_at = db.Column(db.DateTime, default=datetime.utcnow)
     changes = db.Column(db.Text)  # JSON string: { field: {"from": ..., "to": ...}, ... }
+
+def seed_rbac_data():
+    """Seed RBAC permissions and roles after models are defined"""
+    with app.app_context():
+        try:
+            # Insert permissions
+            for code, name in PERMISSIONS:
+                if not Permission.query.filter_by(code=code).first():
+                    db.session.add(Permission(code=code, name=name))
+            db.session.commit()
+            
+            # Ensure Admin role
+            admin_role = Role.query.filter_by(name='Admin').first()
+            if not admin_role:
+                admin_role = Role(name='Admin', description='Quyền đầy đủ')
+                db.session.add(admin_role)
+                db.session.commit()
+            
+            # Ensure User role (view-only devices)
+            user_role = Role.query.filter_by(name='User').first()
+            if not user_role:
+                user_role = Role(name='User', description='Người dùng - chỉ xem thiết bị')
+                db.session.add(user_role)
+                db.session.commit()
+            
+            # Grant all permissions to Admin
+            perms = Permission.query.all()
+            for p in perms:
+                exists = RolePermission.query.filter_by(role_id=admin_role.id, permission_id=p.id).first()
+                if not exists:
+                    db.session.add(RolePermission(role_id=admin_role.id, permission_id=p.id))
+            db.session.commit()
+            
+            # Grant only devices.view to User role by default
+            dev_view = Permission.query.filter_by(code='devices.view').first()
+            if dev_view and not RolePermission.query.filter_by(role_id=user_role.id, permission_id=dev_view.id).first():
+                db.session.add(RolePermission(role_id=user_role.id, permission_id=dev_view.id))
+                db.session.commit()
+            
+            # Assign Admin role to existing admin user if any
+            admin_user = User.query.filter_by(role='admin').first()
+            if admin_user:
+                if not UserRole.query.filter_by(user_id=admin_user.id, role_id=admin_role.id).first():
+                    db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
+                    db.session.commit()
+            
+            print("RBAC data seeded successfully")
+        except Exception as e:
+            print(f"RBAC seed error: {e}")
+
+# Seed RBAC data after models are defined
+seed_rbac_data()
 
 def _serialize_value(value):
     if value is None:
