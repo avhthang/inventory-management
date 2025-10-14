@@ -17,6 +17,7 @@ import schedule
 import threading
 import time
 import pytz
+from config import config, get_database_info, is_external_database
 
 # --- Cấu hình ứng dụng ---
 instance_path = os.path.join(os.getcwd(), 'instance')
@@ -35,10 +36,14 @@ backup_config_weekly_enabled = True
 backup_config_daily_time = "02:00"
 backup_config_weekly_time = "03:00"
 
+# Get configuration based on environment
+config_name = os.environ.get('FLASK_ENV', 'development')
 app = Flask(__name__, instance_path=instance_path)
-app.config['SECRET_KEY'] = 'your_super_secret_key_change_this_please'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.from_object(config[config_name])
+
+# Override with environment variables if present
+if os.environ.get('DATABASE_URL'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.permanent_session_lifetime = timedelta(days=30)
 
 db = SQLAlchemy(app)

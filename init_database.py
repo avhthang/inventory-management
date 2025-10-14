@@ -2,6 +2,7 @@
 """
 Database initialization script
 Creates the database and initial data for the inventory management system
+Supports both SQLite and external databases (PostgreSQL/MySQL)
 """
 import sys
 import os
@@ -12,11 +13,17 @@ import hashlib
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from app import app, db, User, Department, DeviceGroup
+from config import get_database_info, is_external_database
 
 def init_database():
     """Initialize the database with required tables and initial data"""
     with app.app_context():
+        db_info = get_database_info()
+        is_external = is_external_database()
+        
         print("Initializing database...")
+        print(f"Database type: {db_info['type']}")
+        print(f"External database: {is_external}")
         
         # Create all tables
         db.create_all()
