@@ -806,7 +806,7 @@ def roles_permissions():
 
     roles = Role.query.order_by(Role.name).all()
     permissions = Permission.query.order_by(Permission.code).all()
-    role_to_perms = {r.id: {rp.permission.code for rp in r.role_permissions} for r in roles}
+    role_to_perms = {r.id: [rp.permission.code for rp in r.role_permissions] for r in roles}
     return render_template('roles_permissions.html', roles=roles, permissions=permissions, role_to_perms=role_to_perms)
 
 @app.route('/')
