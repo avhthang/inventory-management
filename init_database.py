@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from app import app, db, User, Department, DeviceGroup
 from config import get_database_info, is_external_database
+from security import generate_secure_password
 
 def init_database():
     """Initialize the database with required tables and initial data"""
@@ -46,8 +47,9 @@ def init_database():
         # Create admin user
         admin = User.query.filter_by(username='admin').first()
         if not admin:
-            # Hash password 'admin123'
-            password_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+            # Generate secure password
+            admin_password = os.environ.get('ADMIN_PASSWORD', generate_secure_password())
+            password_hash = hashlib.sha256(admin_password.encode()).hexdigest()
             admin = User(
                 username='admin',
                 password=password_hash,
@@ -59,7 +61,7 @@ def init_database():
             )
             db.session.add(admin)
             db.session.commit()
-            print("✓ Created admin user (username: admin, password: admin123)")
+            print(f"✓ Created admin user (username: admin, password: {admin_password})")
         else:
             print("✓ Admin user already exists")
         
@@ -86,7 +88,10 @@ def init_database():
         print("="*50)
         print("Login credentials:")
         print("Username: admin")
-        print("Password: admin123")
+        if 'ADMIN_PASSWORD' in os.environ:
+            print(f"Password: {os.environ['ADMIN_PASSWORD']}")
+        else:
+            print("Password: Generated securely (check console output above)")
         print("="*50)
         print("RBAC roles and permissions have been seeded.")
         print("Admin user has been assigned Admin role with all permissions.")

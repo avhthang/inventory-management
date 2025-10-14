@@ -11,7 +11,16 @@ load_dotenv()
 
 class Config:
     """Base configuration class"""
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        if os.environ.get('FLASK_ENV') == 'production':
+            raise ValueError("SECRET_KEY must be set in production environment")
+        else:
+            # Generate a random key for development
+            from security import generate_secret_key
+            SECRET_KEY = generate_secret_key()
+            print(f"WARNING: Using generated SECRET_KEY for development: {SECRET_KEY}")
+    
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Backup configuration

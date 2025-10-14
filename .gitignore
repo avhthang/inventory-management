@@ -1,23 +1,94 @@
-# Bỏ qua thư mục build
-/build/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Bỏ qua file log
-*.log
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Bỏ qua file cấu hình hệ thống
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Bỏ qua thư mục node_modules (Node.js project)
-node_modules/
-
-# Bỏ qua môi trường Python
-__pycache__/
-*.pyc
-.venv/
-
-# Bỏ qua thư mục upload
-upload/
-
-# Bỏ qua thư mục db
+# Application specific
 instance/
+logs/
+backups/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Database
+*.db-journal
+
+# Backup files
+*.bak
+*.backup

@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
-from sqlalchemy import or_, func, event
+from sqlalchemy import or_, func, event, text
 from sqlalchemy.exc import OperationalError
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
@@ -814,6 +814,35 @@ def roles_permissions():
     role_to_perms = {r.id: [rp.permission.code for rp in r.role_permissions] for r in roles}
     return render_template('roles_permissions.html', roles=roles, permissions=permissions, role_to_perms=role_to_perms)
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for load balancers and monitoring"""
+    try:
+        # Check database connection
+        with db.engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+        db_status = 'healthy'
+    except Exception as e:
+        db_status = f'unhealthy: {str(e)}'
+    
+    # Check if we can access the database
+    try:
+        user_count = User.query.count()
+        user_status = 'healthy'
+    except Exception as e:
+        user_status = f'unhealthy: {str(e)}'
+    
+    health_data = {
+        'status': 'healthy' if db_status == 'healthy' and user_status == 'healthy' else 'unhealthy',
+        'timestamp': datetime.utcnow().isoformat(),
+        'database': db_status,
+        'users': user_status,
+        'version': '2.0.0'
+    }
+    
+    status_code = 200 if health_data['status'] == 'healthy' else 503
+    return jsonify(health_data), status_code
+
 @app.route('/')
 def home():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -1186,7 +1215,8 @@ def forgot_password():
         user = User.query.filter_by(username=username, email=email).first()
 
         if user:
-            default_password = 'Password123'
+            from security import generate_secure_password
+            default_password = generate_secure_password()
             user.password = generate_password_hash(default_password)
             db.session.commit()
             
@@ -2847,9 +2877,11 @@ def reset_user_password(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     user = User.query.get_or_404(user_id)
     try:
-        user.password = generate_password_hash('Password123@')
+        from security import generate_secure_password
+        new_password = generate_secure_password()
+        user.password = generate_password_hash(new_password)
         db.session.commit()
-        flash(f'Đã reset mật khẩu cho {user.full_name or user.username} về Password123@', 'success')
+        flash(f'Đã reset mật khẩu cho {user.full_name or user.username} về: {new_password}', 'success')
     except Exception:
         db.session.rollback()
         flash('Không thể reset mật khẩu do cơ sở dữ liệu chỉ đọc. Kiểm tra quyền ghi file DB.', 'danger')
@@ -3739,7 +3771,7 @@ def create_admin_command():
     
     admin_user = User(
         username='admin',
-        password=generate_password_hash('admin123'),
+        password=generate_password_hash(os.environ.get('ADMIN_PASSWORD', 'admin123')),
         full_name='Quản Trị Viên',
         email='admin@example.com',
         role='admin',
