@@ -4142,5 +4142,28 @@ def api_group_devices(group_id):
             })
     return jsonify({'devices': devices})
 
+# Health check endpoint for Render.com
+@app.route('/health')
+def health_check():
+    """Health check endpoint for monitoring"""
+    try:
+        # Test database connection
+        db.engine.execute('SELECT 1')
+        return jsonify({
+            'status': 'healthy',
+            'database': 'connected',
+            'timestamp': datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'database': 'disconnected',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Chỉ chạy development server khi chạy trực tiếp
+    if os.environ.get('FLASK_ENV') != 'production':
+        app.run(debug=True, host='0.0.0.0', port=5000)
+    # Production sẽ sử dụng Gunicorn

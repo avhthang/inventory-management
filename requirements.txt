@@ -1,14 +1,29 @@
+# Core Flask dependencies
 Flask==3.1.2
 Flask-SQLAlchemy==3.1.1
 Werkzeug==3.1.3
 gunicorn==23.0.0
+
+# Database
+psycopg2-binary==2.9.11
+
+# Data processing
 pandas==2.3.3
 openpyxl==3.1.5
+
+# Utilities
 click==8.3.0
 schedule==1.2.2
 pytz==2025.2
-psycopg2-binary==2.9.11
 python-dotenv==1.1.1
-boto3==1.40.51
+
+# Security
 PyJWT==2.10.1
 cryptography==44.0.0
+
+# AWS (optional for backups)
+boto3==1.40.51
+
+# Production optimizations
+flask-cors==4.0.0
+flask-caching==2.1.0
