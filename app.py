@@ -132,6 +132,9 @@ except Exception:
 # --- Database initialization ---
 def init_db():
     with app.app_context():
+        # Skip SQLite-specific initialization when using external databases (e.g., PostgreSQL)
+        if is_external_database():
+            return
         try:
             from sqlalchemy import text
             with db.engine.connect() as conn:
