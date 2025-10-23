@@ -41,9 +41,12 @@ config_name = os.environ.get('FLASK_ENV', 'development')
 app = Flask(__name__, instance_path=instance_path)
 app.config.from_object(config[config_name])
 
-# Override with environment variables if present
-if os.environ.get('DATABASE_URL'):
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+# Override with environment variables if present and normalize postgres scheme
+_env_db_url = os.environ.get('DATABASE_URL')
+if _env_db_url:
+    if _env_db_url.startswith('postgres://'):
+        _env_db_url = _env_db_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = _env_db_url
 app.permanent_session_lifetime = timedelta(days=30)
 
 db = SQLAlchemy(app)
@@ -560,6 +563,10 @@ def ensure_tables_once():
     if not _tables_initialized:
         try:
             db.create_all()
+            # Skip SQLite-specific migrations when using external DBs (e.g., PostgreSQL)
+            if is_external_database():
+                _tables_initialized = True
+                return
             # Lightweight schema versioning and migrations (SQLite-safe)
             try:
                 from sqlalchemy import text
@@ -715,6 +722,8 @@ def ensure_tables_once():
         except Exception:
             pass
         _tables_initialized = True
+
+# Health endpoint for container health checks is defined below as '/health'
 
 # --- (Các hàm context_processor, home, auth, device routes giữ nguyên) ---
 @app.context_processor

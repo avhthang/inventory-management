@@ -35,6 +35,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y \
     libpq5 \
     postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder stage
@@ -56,12 +57,12 @@ RUN mkdir -p /app/instance /app/logs /app/backups && \
 # Switch to non-root user
 USER appuser
 
-# Expose port
+# Expose default port (Render will ignore but useful locally)
 EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # Default command
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:8000", "--timeout", "30", "app:app"]
+CMD ["/bin/sh", "-c", "gunicorn --workers 4 --bind 0.0.0.0:${PORT:-8000} --timeout 30 app:app"]
