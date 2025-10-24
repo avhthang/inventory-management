@@ -36,14 +36,30 @@ backup_config_weekly_enabled = True
 backup_config_daily_time = "02:00"
 backup_config_weekly_time = "03:00"
 
+# Load persisted backup configuration if available
+_backup_cfg_path = os.path.join(instance_path, 'backup_config.json')
+try:
+    if os.path.exists(_backup_cfg_path):
+        with open(_backup_cfg_path, 'r', encoding='utf-8') as f:
+            _cfg = json.load(f)
+            backup_config_daily_enabled = bool(_cfg.get('daily_enabled', backup_config_daily_enabled))
+            backup_config_weekly_enabled = bool(_cfg.get('weekly_enabled', backup_config_weekly_enabled))
+            backup_config_daily_time = _cfg.get('daily_time', backup_config_daily_time)
+            backup_config_weekly_time = _cfg.get('weekly_time', backup_config_weekly_time)
+except Exception:
+    pass
+
 # Get configuration based on environment
 config_name = os.environ.get('FLASK_ENV', 'development')
 app = Flask(__name__, instance_path=instance_path)
 app.config.from_object(config[config_name])
 
-# Override with environment variables if present
-if os.environ.get('DATABASE_URL'):
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+# Override with environment variables if present and normalize postgres scheme
+_env_db_url = os.environ.get('DATABASE_URL')
+if _env_db_url:
+    if _env_db_url.startswith('postgres://'):
+        _env_db_url = _env_db_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = _env_db_url
 app.permanent_session_lifetime = timedelta(days=30)
 
 db = SQLAlchemy(app)
@@ -132,6 +148,9 @@ except Exception:
 # --- Database initialization ---
 def init_db():
     with app.app_context():
+        # Skip SQLite-specific initialization when using external databases (e.g., PostgreSQL)
+        if is_external_database():
+            return
         try:
             from sqlalchemy import text
             with db.engine.connect() as conn:
@@ -230,6 +249,32 @@ def init_db():
 
 # Initialize database on startup
 init_db()
+
+# Ensure default admin exists on startup
+with app.app_context():
+    try:
+        if not User.query.filter_by(username='admin').first():
+            it_dept = Department.query.filter_by(name='IT').first()
+            if not it_dept:
+                it_dept = Department(name='IT', description='Phòng Công nghệ Thông tin')
+                db.session.add(it_dept)
+                db.session.flush()
+            admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+            admin_user = User(
+                username='admin',
+                password=generate_password_hash(admin_password),
+                full_name='Quản Trị Viên',
+                email='admin@example.com',
+                role='admin',
+                department_id=it_dept.id
+            )
+            db.session.add(admin_user)
+            it_dept.manager_id = admin_user.id
+            db.session.commit()
+            print('Default admin created (username=admin).')
+    except Exception as _e:
+        # Do not block app start if admin creation fails
+        pass
 
 # --- Models (Không thay đổi) ---
 class Department(db.Model):
@@ -557,6 +602,10 @@ def ensure_tables_once():
     if not _tables_initialized:
         try:
             db.create_all()
+            # Skip SQLite-specific migrations when using external DBs (e.g., PostgreSQL)
+            if is_external_database():
+                _tables_initialized = True
+                return
             # Lightweight schema versioning and migrations (SQLite-safe)
             try:
                 from sqlalchemy import text
@@ -712,6 +761,8 @@ def ensure_tables_once():
         except Exception:
             pass
         _tables_initialized = True
+
+# Health endpoint for container health checks is defined below as '/health'
 
 # --- (Các hàm context_processor, home, auth, device routes giữ nguyên) ---
 @app.context_processor
@@ -2779,17 +2830,23 @@ def import_handovers():
                     errors.append(f'Dòng {index + 2}: Định dạng ngày "{handover_date_str}" không hợp lệ.')
                     continue
 
+                # Coerce possibly numeric-parsed text cells back to strings
+                def _s(v):
+                    if pd.isna(v):
+                        return None
+                    return str(v)
                 new_handover = DeviceHandover(
                     device_id=device.id,
                     giver_id=giver.id,
                     receiver_id=receiver.id,
                     handover_date=handover_date,
-                    device_condition=row['Tình trạng thiết bị'],
-                    reason=row.get('Lý do bàn giao'),
-                    location=row.get('Nơi đặt thiết bị'),
-                    notes=row.get('Ghi chú')
+                    device_condition=_s(row['Tình trạng thiết bị']),
+                    reason=_s(row.get('Lý do bàn giao')),
+                    location=_s(row.get('Nơi đặt thiết bị')),
+                    notes=_s(row.get('Ghi chú'))
                 )
-                handovers_to_add.append(new_handover)
+                # Insert row-by-row to avoid PG executemany casts
+                db.session.add(new_handover)
                 
                 # Cập nhật trạng thái của thiết bị
                 device.status = 'Đã cấp phát'
@@ -2801,7 +2858,6 @@ def import_handovers():
                     flash(error, 'danger')
                 db.session.rollback() # Hoàn tác tất cả nếu có lỗi
             else:
-                db.session.add_all(handovers_to_add)
                 db.session.commit()
                 flash(f'Đã nhập thành công {len(handovers_to_add)} phiếu bàn giao!', 'success')
                 return redirect(url_for('handover_list'))
@@ -3049,9 +3105,18 @@ def edit_user(user_id):
             'offboard_date': user.offboard_date,
         }
         _log_audit('user', user.id, old, new)
+        # Redirect back to previous page or provided 'next' param
+        next_url = request.args.get('next') or request.form.get('next') or request.referrer
+        try:
+            if next_url:
+                return redirect(next_url)
+        except Exception:
+            pass
         return redirect(url_for('user_list'))
     departments = Department.query.all()
-    return render_template('edit_user.html', user=user, departments=departments)
+    # Preserve next/back url
+    next_url = request.referrer if request.referrer and ('/edit_user/' not in request.referrer) else url_for('user_list')
+    return render_template('edit_user.html', user=user, departments=departments, next_url=next_url)
 
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
@@ -3156,31 +3221,54 @@ def import_devices():
                 except ValueError:
                     errors.append(f'Dòng {index+2}: Định dạng ngày không hợp lệ.'); continue
                 
-                new_device = Device(
-                    device_code=row['Mã thiết bị'], name=row['Tên thiết bị'], device_type=row['Loại thiết bị'],
-                    serial_number=row.get('Số serial'),
+                # Robust numeric parsing for purchase_price
+                raw_price = row.get('Giá mua')
+                price = None
+                try:
+                    if pd.notna(raw_price):
+                        if isinstance(raw_price, str):
+                            # Remove thousand separators and non-numeric symbols
+                            cleaned = raw_price.replace('.', '').replace(',', '').replace('₫', '').replace('đ', '').strip()
+                            price = float(cleaned) if cleaned else None
+                        else:
+                            price = float(raw_price)
+                except Exception:
+                    price = None
+
+                # Coerce text fields to str to avoid numeric miscasts in PG
+                def _s(v):
+                    if pd.isna(v):
+                        return None
+                    return str(v)
+
+                device = Device(
+                    device_code=_s(row['Mã thiết bị']),
+                    name=_s(row['Tên thiết bị']),
+                    device_type=_s(row['Loại thiết bị']),
+                    serial_number=_s(row.get('Số serial')),
                     purchase_date=purchase_date,
                     import_date=import_date,
-                    condition=row['Tình trạng'], status=row['Trạng thái'],
+                    condition=_s(row['Tình trạng']),
+                    status=_s(row['Trạng thái']),
                     manager_id=manager_id,
                     assign_date=assign_date,
-                    configuration=row.get('Cấu hình'),
-                    notes=row.get('Ghi chú'),
-                    buyer=row.get('Người mua'),
-                    importer=row.get('Người nhập'),
-                    brand=row.get('Thương hiệu'),
-                    supplier=row.get('Nhà cung cấp'),
-                    warranty=row.get('Bảo hành'),
-                    purchase_price=pd.to_numeric(row.get('Giá mua'), errors='coerce')
+                    configuration=_s(row.get('Cấu hình')),
+                    notes=_s(row.get('Ghi chú')),
+                    buyer=_s(row.get('Người mua')),
+                    importer=_s(row.get('Người nhập')),
+                    brand=_s(row.get('Thương hiệu')),
+                    supplier=_s(row.get('Nhà cung cấp')),
+                    warranty=_s(row.get('Bảo hành')),
+                    purchase_price=price
                 )
-                devices_to_add.append(new_device)
+                # Insert row-by-row to avoid large executemany translation issues on PG
+                db.session.add(device)
             
             if errors:
                 for error in errors:
                     flash(error, 'danger')
                 db.session.rollback()
             else:
-                db.session.add_all(devices_to_add)
                 db.session.commit()
                 flash('Nhập thiết bị từ Excel thành công!', 'success')
                 return redirect(url_for('device_list'))
@@ -4004,28 +4092,24 @@ def backup_config():
         weekly_enabled = request.form.get('weekly_enabled') == 'on'
         daily_time = request.form.get('daily_time', '02:00')
         weekly_time = request.form.get('weekly_time', '03:00')
-        
-        # Store backup configuration in database or config file
-        # For now, we'll use a simple approach with global variables
-        # In production, you might want to store this in a config table
+
+        # Persist in globals and save to instance/backup_config.json
         global backup_config_daily_enabled, backup_config_weekly_enabled, backup_config_daily_time, backup_config_weekly_time
         backup_config_daily_enabled = daily_enabled
         backup_config_weekly_enabled = weekly_enabled
         backup_config_daily_time = daily_time
         backup_config_weekly_time = weekly_time
-        
-        # Fix DB permissions after config change
         try:
-            import subprocess
-            import getpass
-            username = getpass.getuser()
-            db_path = os.path.join(instance_path, 'inventory.db')
-            if os.path.exists(db_path):
-                subprocess.run(['sudo', 'chown', f'{username}:www-data', db_path], check=True)
-                subprocess.run(['sudo', 'chmod', '664', db_path], check=True)
-        except Exception as e:
-            print(f"Warning: Could not fix DB permissions: {e}")
-        
+            with open(_backup_cfg_path, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'daily_enabled': backup_config_daily_enabled,
+                    'weekly_enabled': backup_config_weekly_enabled,
+                    'daily_time': backup_config_daily_time,
+                    'weekly_time': backup_config_weekly_time
+                }, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
         flash('Cấu hình backup tự động đã được cập nhật! (Thời gian theo GMT+7)', 'success')
         return redirect(url_for('backup_config'))
     
@@ -4037,8 +4121,9 @@ def backup_config():
     weekly_time = backup_config_weekly_time
     
     # Get current Vietnam time for display
-    current_time = datetime.now(VIETNAM_TZ).strftime('%H:%M')
-    current_date = datetime.now(VIETNAM_TZ).strftime('%d/%m/%Y')
+    now_vn = datetime.now(VIETNAM_TZ)
+    current_time = now_vn.strftime('%H:%M:%S')
+    current_date = now_vn.strftime('%d/%m/%Y')
     
     return render_template('backup_config.html', 
                          daily_enabled=daily_enabled,

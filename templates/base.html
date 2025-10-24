@@ -72,16 +72,6 @@
         </div>
     </nav>
     <div class="container mt-4">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
         {% block content %}{% endblock %}
     </div>
     
@@ -90,6 +80,113 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
+    <script>
+    // Toast container bottom-right
+    (function() {
+        const container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.position = 'fixed';
+        container.style.right = '16px';
+        container.style.bottom = '16px';
+        container.style.zIndex = '1080';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '8px';
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.appendChild(container);
+            // Render flashed messages as toasts
+            const messages = {{ get_flashed_messages(with_categories=true)|tojson|safe }};
+            const maxToasts = 3;
+            if (messages && messages.length) {
+                const overflow = Math.max(0, messages.length - maxToasts);
+                messages.slice(0, maxToasts).forEach(([category, text]) => createToast(category, text));
+                if (overflow > 0) {
+                    createToast('info', `+${overflow} thông báo khác.`, { collapsible: true });
+                }
+            }
+        });
+
+        function createToast(category, text, opts={}) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `toast align-items-center text-bg-${mapCategory(category)} border-0`;
+            wrapper.setAttribute('role','alert');
+            wrapper.setAttribute('aria-live','assertive');
+            wrapper.setAttribute('aria-atomic','true');
+            wrapper.style.minWidth = '320px';
+
+            const body = document.createElement('div');
+            body.className = 'd-flex';
+            const content = document.createElement('div');
+            content.className = 'toast-body';
+            content.textContent = text;
+            body.appendChild(content);
+
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'd-flex gap-2 align-items-center me-2';
+            if (opts.collapsible) {
+                const viewBtn = document.createElement('button');
+                viewBtn.className = 'btn btn-sm btn-light';
+                viewBtn.textContent = 'Xem tất cả';
+                viewBtn.onclick = openAllToastsModal;
+                btnGroup.appendChild(viewBtn);
+            }
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'btn-close btn-close-white me-2 m-auto';
+            closeBtn.setAttribute('data-bs-dismiss','toast');
+            closeBtn.setAttribute('aria-label','Close');
+            btnGroup.appendChild(closeBtn);
+
+            body.appendChild(btnGroup);
+            wrapper.appendChild(body);
+            container.appendChild(wrapper);
+
+            const toast = new bootstrap.Toast(wrapper, { delay: 7000 });
+            toast.show();
+        }
+
+        function mapCategory(cat) {
+            switch (cat) {
+                case 'success': return 'success';
+                case 'warning': return 'warning';
+                case 'danger': return 'danger';
+                case 'info': return 'info';
+                default: return 'secondary';
+            }
+        }
+
+        function openAllToastsModal() {
+            // Build and show a modal listing all messages
+            const messages = {{ get_flashed_messages(with_categories=true)|tojson|safe }};
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.tabIndex = -1;
+            modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Tất cả thông báo</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        ${messages.map(([c, t]) => `<div class="alert alert-${mapCategory(c)}">${escapeHtml(t)}</div>`).join('')}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"]+/g, function(m) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]); });
+        }
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
