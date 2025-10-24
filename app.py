@@ -2830,17 +2830,23 @@ def import_handovers():
                     errors.append(f'Dòng {index + 2}: Định dạng ngày "{handover_date_str}" không hợp lệ.')
                     continue
 
+                # Coerce possibly numeric-parsed text cells back to strings
+                def _s(v):
+                    if pd.isna(v):
+                        return None
+                    return str(v)
                 new_handover = DeviceHandover(
                     device_id=device.id,
                     giver_id=giver.id,
                     receiver_id=receiver.id,
                     handover_date=handover_date,
-                    device_condition=row['Tình trạng thiết bị'],
-                    reason=row.get('Lý do bàn giao'),
-                    location=row.get('Nơi đặt thiết bị'),
-                    notes=row.get('Ghi chú')
+                    device_condition=_s(row['Tình trạng thiết bị']),
+                    reason=_s(row.get('Lý do bàn giao')),
+                    location=_s(row.get('Nơi đặt thiết bị')),
+                    notes=_s(row.get('Ghi chú'))
                 )
-                handovers_to_add.append(new_handover)
+                # Insert row-by-row to avoid PG executemany casts
+                db.session.add(new_handover)
                 
                 # Cập nhật trạng thái của thiết bị
                 device.status = 'Đã cấp phát'
@@ -2852,7 +2858,6 @@ def import_handovers():
                     flash(error, 'danger')
                 db.session.rollback() # Hoàn tác tất cả nếu có lỗi
             else:
-                db.session.add_all(handovers_to_add)
                 db.session.commit()
                 flash(f'Đã nhập thành công {len(handovers_to_add)} phiếu bàn giao!', 'success')
                 return redirect(url_for('handover_list'))
