@@ -5,9 +5,10 @@
 <form method="POST" class="row g-3">
   <div class="col-md-4">
     <label class="form-label">Thiết bị</label>
-    <select name="device_id" class="form-select" required>
+    <input type="text" id="device_search" class="form-control form-control-sm mb-2" placeholder="Tìm tên thiết bị hoặc mã...">
+    <select name="device_id" id="device_select" class="form-select" required>
       {% for d in devices %}
-      <option value="{{ d.id }}">{{ d.device_code }} - {{ d.name }}</option>
+      <option value="{{ d.id }}" data-name="{{ d.name|e }}" data-code="{{ d.device_code|e }}">{{ d.device_code }} - {{ d.name }}</option>
       {% endfor %}
     </select>
   </div>
@@ -17,7 +18,11 @@
   </div>
   <div class="col-md-4">
     <label class="form-label">Trạng thái xử lý</label>
-    <input type="text" name="status" class="form-control">
+    <select name="status" class="form-select">
+      <option value="Mới tạo">Mới tạo</option>
+      <option value="Đang xử lý">Đang xử lý</option>
+      <option value="Đã xong">Đã xong</option>
+    </select>
   </div>
   <div class="col-12">
     <label class="form-label">Tình trạng</label>
@@ -28,7 +33,7 @@
     <textarea name="issue" class="form-control" rows="6"></textarea>
   </div>
   <div class="col-md-6">
-    <label class="form-label">Xử lý cuối</label>
+    <label class="form-label">Nhật ký xử lý</label>
     <textarea name="last_action" class="form-control" rows="6"></textarea>
   </div>
   <div class="col-12">
@@ -37,7 +42,27 @@
   </div>
   <div class="col-12">
     <a href="{{ url_for('maintenance_logs') }}" class="btn btn-secondary">Hủy</a>
-    <button class="btn btn-primary" type="submit">Lưu</button>
+    <button class="btn btn-primary" type="submit">Thêm</button>
   </div>
 </form>
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const search = document.getElementById('device_search');
+  const select = document.getElementById('device_select');
+  if (!search || !select) return;
+  function applyFilter() {
+    const q = (search.value || '').toLowerCase();
+    Array.from(select.options).forEach(o => {
+      const name = (o.dataset.name || '').toLowerCase();
+      const code = (o.dataset.code || '').toLowerCase();
+      const match = !q || name.includes(q) || code.includes(q);
+      o.hidden = !match;
+    });
+  }
+  search.addEventListener('input', applyFilter);
+});
+</script>
+{% endblock %}
 {% endblock %}

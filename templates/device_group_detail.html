@@ -76,7 +76,15 @@
                                     <td>{{ loop.index }}</td>
                                     <td>{{ d.device_code }}</td>
                                     <td>{{ d.name }}</td>
-                                    <td>{{ d.configuration }}</td>
+                                    <td class="text-center">
+                                        {% if d.configuration %}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#configModal-{{ d.id }}" title="Xem cấu hình">
+                                            <i class="bi bi-card-text"></i>
+                                        </button>
+                                        {% else %}
+                                        —
+                                        {% endif %}
+                                    </td>
                                     <td class="text-end">
                                         <form method="POST" action="{{ url_for('remove_device_from_group', group_id=group.id, device_id=d.id) }}" onsubmit="return confirm('Gỡ thiết bị khỏi nhóm?')" class="d-inline">
                                             <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
@@ -93,6 +101,25 @@
         </div>
     </div>
 </div>
+
+{# Config modals for devices in this group #}
+{% for d in devices_in_group %}
+{% if d.configuration %}
+<div class="modal fade" id="configModal-{{ d.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Cấu hình: {{ d.device_code }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <pre style="white-space: pre-wrap; word-break: break-all;">{{ d.configuration }}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
 {% block scripts %}
 {{ super() }}
 <script>

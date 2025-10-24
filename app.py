@@ -3451,16 +3451,48 @@ def maintenance_logs():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     device_code = request.args.get('device_code', '').strip()
+    device_name = request.args.get('device_name', '').strip()
     status = request.args.get('status', '').strip()
+    device_type = request.args.get('device_type', '').strip()
+    start_date = request.args.get('start_date', '').strip()
+    end_date = request.args.get('end_date', '').strip()
 
     query = DeviceMaintenanceLog.query.join(Device)
     if device_code:
         query = query.filter(Device.device_code.ilike(f"%{device_code}%"))
+    if device_name:
+        query = query.filter(Device.name.ilike(f"%{device_name}%"))
+    if device_type:
+        query = query.filter(Device.device_type.ilike(f"%{device_type}%"))
     if status:
         query = query.filter(DeviceMaintenanceLog.status.ilike(f"%{status}%"))
+    if start_date:
+        try:
+            sd = datetime.strptime(start_date, '%Y-%m-%d').date()
+            query = query.filter(DeviceMaintenanceLog.log_date >= sd)
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            ed = datetime.strptime(end_date, '%Y-%m-%d').date()
+            query = query.filter(DeviceMaintenanceLog.log_date <= ed)
+        except ValueError:
+            pass
 
     logs = query.order_by(DeviceMaintenanceLog.log_date.desc(), DeviceMaintenanceLog.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    return render_template('maintenance_logs/list.html', logs=logs, device_code=device_code, status=status)
+
+    device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
+    return render_template(
+        'maintenance_logs/list.html',
+        logs=logs,
+        device_code=device_code,
+        device_name=device_name,
+        status=status,
+        device_type=device_type,
+        start_date=start_date,
+        end_date=end_date,
+        device_types=device_types,
+    )
 
 @app.route('/maintenance_logs/add', methods=['GET', 'POST'])
 def add_maintenance_log():

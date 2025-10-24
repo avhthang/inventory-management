@@ -255,9 +255,7 @@
                                             <th class="text-center">Bỏ chọn</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        <!-- Selected devices will be rendered here by JS -->
-                                    </tbody>
+                                    <tbody></tbody>
                                 </table>
                             </div>
                         </div>
@@ -289,6 +287,7 @@
 {% block scripts %}
 {{ super() }}
 <script>
+// Expose state and helpers globally for inline onclick handlers
 window.selectedDevices = [];
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -296,59 +295,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const nameInput = document.getElementById('filter_name');
     const typeSelect = document.getElementById('filter_type');
     const table = document.getElementById('availableDevicesTable');
-
-    window.selectedDevices = [];
-
-    // Thiết bị đã chọn
-    function updateSelectedDevicesTable() {
-        const tbody = document.querySelector('#selectedDevicesTable tbody');
-        tbody.innerHTML = '';
-        window.selectedDevices.forEach((device, index) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td class="text-center">${index + 1}</td>
-                <td class="text-center">${device.code || device.device_code || ''}</td>
-                <td class="text-center">${device.name || ''}</td>
-                <td class="text-center">
-                    ${device.configuration ? 
-                        `<button type="button" class="btn btn-sm btn-info" onclick="showConfig('${device.code || device.device_code}', '${(device.configuration || '').replace(/'/g, "\\'")}')">
-                            <i class="bi bi-eye"></i>
-                        </button>` : 'N/A'}
-                </td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-danger" onclick="removeDeviceFromSelected('${device.id}')" title="Bỏ chọn">
-                        <i class="bi bi-x"></i>
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function addDeviceToSelected(id) {
-        const row = table.querySelector('tr[data-id="' + id + '"]');
-        if (!row) return;
-        if (window.selectedDevices.find(d => d.id === id)) return;
-        const configBtn = row.querySelector('button[onclick^="showConfig"]');
-        window.selectedDevices.push({
-            id: id,
-            code: row.dataset.code,
-            name: row.dataset.name,
-            type: row.dataset.type,
-            configuration: configBtn ? configBtn.getAttribute('onclick').match(/,(.*)\)$/)?.[1] : ''
-        });
-        renderSelectedDevices();
-        row.style.display = 'none';
-        updateSelectedDeviceIds();
-    }
-
-    window.removeDeviceFromSelected = function(id) {
-        window.selectedDevices = window.selectedDevices.filter(d => String(d.id) !== String(id));
-        renderSelectedDevices();
-        const row = table.querySelector('tr[data-id="' + id + '"]');
-        if (row) row.style.display = '';
-        updateSelectedDeviceIds();
-    }
 
     function applyFilter() {
         const code = (codeInput?.value || '').toLowerCase();
@@ -366,55 +312,62 @@ document.addEventListener('DOMContentLoaded', function() {
     nameInput?.addEventListener('input', applyFilter);
     typeSelect?.addEventListener('change', applyFilter);
 
-    // Selected devices logic
-    window.selectedDevices = [];
-    function renderSelectedDevices() {
-        const tbody = document.getElementById('selectedDevicesTable').tBodies[0];
+    window.renderSelectedDevices = function renderSelectedDevices() {
+        const tbody = document.querySelector('#selectedDevicesTable tbody');
+        if (!tbody) return;
         tbody.innerHTML = '';
         window.selectedDevices.forEach((d, i) => {
+            const safeConfig = (d.configuration || '').replaceAll("'", "\\'").replaceAll('"', '\\"');
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="text-center">${i + 1}</td>
-                <td class="text-center">${d.code}</td>
-                <td class="text-center" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${d.name}</td>
+                <td class="text-center">${d.code || d.device_code || ''}</td>
+                <td class="text-center" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${d.name || ''}</td>
                 <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showConfig('${d.code}', '${d.config}')" title="Xem cấu hình"><i class="bi bi-card-text"></i></button>
+                    ${d.configuration ? 
+                        `<button type="button" class="btn btn-sm btn-outline-secondary" onclick="showConfig('${d.code || d.device_code}', '${safeConfig}')" title="Xem cấu hình"><i class="bi bi-card-text"></i></button>` : '—'}
                 </td>
                 <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-danger" onclick="removeDeviceFromSelected(${d.id})"><i class="bi bi-x"></i></button>
-                </td>
-            `;
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeDeviceFromSelected('${d.id}')" title="Bỏ chọn"><i class="bi bi-x"></i></button>
+                </td>`;
             tbody.appendChild(tr);
         });
         updateSelectedDeviceIds();
     }
 
-    function addAvailableDeviceRow(device, index) {
-        const tr = document.createElement('tr');
-        tr.setAttribute('data-device-id', device.id);
-        // Escape configuration for safe HTML
-        const safeConfig = device.configuration ? device.configuration.replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
-        tr.innerHTML = `
-            <td class="text-center">${index + 1}</td>
-            <td class="text-center">${device.device_code || ''}</td>
-            <td class="text-center">${device.name || ''}</td>
-            <td class="text-center">
-                ${device.configuration ? 
-                    `<button type="button" class="btn btn-sm btn-info" onclick="showConfig('${device.device_code}', '${safeConfig}')">
-                        <i class="bi bi-eye"></i>
-                    </button>` : 'N/A'}
-            </td>
-            <td class="text-center">
-                <button type="button" class="btn btn-sm btn-primary" onclick='addDeviceToSelected(${JSON.stringify(device)})'>
-                    <i class="bi bi-plus"></i>
-                </button>
-            </td>
-        `;
-        return tr;
+    window.addDeviceToSelected = function addDeviceToSelected(id) {
+        const row = table.querySelector('tr[data-id="' + id + '"]');
+        if (!row) return;
+        if (window.selectedDevices.find(d => String(d.id) === String(id))) return;
+        // Read configuration text from onclick value if button exists
+        let configuration = '';
+        const cfgBtn = row.querySelector('button[onclick^="showConfig"]');
+        if (cfgBtn) {
+            const onClick = cfgBtn.getAttribute('onclick') || '';
+            const match = onClick.match(/,\s*'([\s\S]*)'\)\s*$/);
+            configuration = match ? match[1].replaceAll("\\'", "'") : '';
+        }
+        window.selectedDevices.push({
+            id: String(id),
+            code: row.dataset.code,
+            name: row.dataset.name,
+            type: row.dataset.type,
+            configuration: configuration
+        });
+        row.style.display = 'none';
+        window.renderSelectedDevices();
     }
 
-    function updateSelectedDeviceIds() {
-        document.getElementById('selectedDeviceIds').value = window.selectedDevices.map(d => d.id).join(',');
+    window.removeDeviceFromSelected = function removeDeviceFromSelected(id) {
+        window.selectedDevices = window.selectedDevices.filter(d => String(d.id) !== String(id));
+        const row = table.querySelector('tr[data-id="' + id + '"]');
+        if (row) row.style.display = '';
+        window.renderSelectedDevices();
+    }
+
+    window.updateSelectedDeviceIds = function updateSelectedDeviceIds() {
+        const hidden = document.getElementById('selectedDeviceIds');
+        if (hidden) hidden.value = window.selectedDevices.map(d => d.id).join(',');
     }
 });
 
@@ -427,19 +380,19 @@ function showConfig(code, config) {
 }
 
 function updateAndSubmitSaveServerFilters() {
-        try {
-                const form = document.getElementById('saveServerFiltersForm');
-                if (!form) return;
-                form.querySelector('[name="search_name"]').value = document.querySelector('[name="search_name"]').value || '';
-                form.querySelector('[name="search_code"]').value = document.querySelector('[name="search_code"]').value || '';
-                form.querySelector('[name="filter_team"]').value = document.querySelector('[name="filter_team"]').value || '';
-                form.querySelector('[name="filter_type"]').value = document.querySelector('[name="filter_type"]').value || '';
-                form.querySelector('[name="filter_status"]').value = document.querySelector('[name="filter_status"]').value || '';
-                form.querySelector('[name="filter_ip"]').value = document.querySelector('[name="filter_ip"]').value || '';
-                form.querySelector('[name="date_from"]').value = document.querySelector('[name="date_from"]').value || '';
-                form.querySelector('[name="date_to"]').value = document.querySelector('[name="date_to"]').value || '';
-                form.submit();
-        } catch (e) { console.error(e); }
+    try {
+        const form = document.getElementById('saveServerFiltersForm');
+        if (!form) return;
+        form.querySelector('[name="search_name"]').value = document.querySelector('[name="search_name"]').value || '';
+        form.querySelector('[name="search_code"]').value = document.querySelector('[name="search_code"]').value || '';
+        form.querySelector('[name="filter_team"]').value = document.querySelector('[name="filter_team"]').value || '';
+        form.querySelector('[name="filter_type"]').value = document.querySelector('[name="filter_type"]').value || '';
+        form.querySelector('[name="filter_status"]').value = document.querySelector('[name="filter_status"]').value || '';
+        form.querySelector('[name="filter_ip"]').value = document.querySelector('[name="filter_ip"]').value || '';
+        form.querySelector('[name="date_from"]').value = document.querySelector('[name="date_from"]').value || '';
+        form.querySelector('[name="date_to"]').value = document.querySelector('[name="date_to"]').value || '';
+        form.submit();
+    } catch (e) { console.error(e); }
 }
 </script>
 {% endblock %}
