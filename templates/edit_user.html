@@ -7,6 +7,9 @@
     <div class="card-header"><h2 class="card-title mb-0">Chỉnh sửa người dùng: {{ user.username }}</h2></div>
     <div class="card-body">
         <form method="POST">
+            {% if next_url %}
+            <input type="hidden" name="next" value="{{ next_url }}">
+            {% endif %}
             <div class="row">
                 <div class="col-md-6">
                     <div class="mb-3"><label class="form-label required">Tên đăng nhập</label><input type="text" name="username" class="form-control" value="{{ user.username }}" required readonly></div>
@@ -55,7 +58,7 @@
             </div>
 
             <div class="form-group mt-3">
-                <a href="{{ url_for('user_list') }}" class="btn btn-secondary">Hủy bỏ</a>
+                <a href="{{ next_url or url_for('user_list') }}" class="btn btn-secondary">Hủy bỏ</a>
                 <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
             </div>
         </form>
