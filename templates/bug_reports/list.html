@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Báo lỗi{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Báo lỗi</h3>
+  <a class="btn btn-primary" href="{{ url_for('create_bug_report') }}">
+    <i class="bi bi-plus-circle"></i> Tạo báo lỗi mới
+  </a>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+  <div class="col-auto">
+    <select class="form-select" name="status">
+      <option value="">Tất cả trạng thái</option>
+      <option value="Mới tạo" {% if status_filter=='Mới tạo' %}selected{% endif %}>Mới tạo</option>
+      <option value="Đang xử lý" {% if status_filter=='Đang xử lý' %}selected{% endif %}>Đang xử lý</option>
+      <option value="Đã xử lý" {% if status_filter=='Đã xử lý' %}selected{% endif %}>Đã xử lý</option>
+      <option value="Đã đóng" {% if status_filter=='Đã đóng' %}selected{% endif %}>Đã đóng</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <select class="form-select" name="priority">
+      <option value="">Tất cả mức độ</option>
+      <option value="Thấp" {% if priority_filter=='Thấp' %}selected{% endif %}>Thấp</option>
+      <option value="Trung bình" {% if priority_filter=='Trung bình' %}selected{% endif %}>Trung bình</option>
+      <option value="Cao" {% if priority_filter=='Cao' %}selected{% endif %}>Cao</option>
+      <option value="Khẩn cấp" {% if priority_filter=='Khẩn cấp' %}selected{% endif %}>Khẩn cấp</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-outline-secondary" type="submit">Lọc</button>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('bug_reports') }}" class="btn btn-outline-secondary">Reset</a>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-striped table-hover">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Tiêu đề</th>
+        <th>Người tạo</th>
+        <th>Người được gán</th>
+        <th>Mức độ</th>
+        <th>Trạng thái</th>
+        <th>Ngày tạo</th>
+        <th>Cập nhật</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for report in reports.items %}
+      <tr onclick="window.location='{{ url_for('bug_report_detail', report_id=report.id) }}'" style="cursor:pointer">
+        <td>{{ reports.first + loop.index - 1 }}</td>
+        <td>
+          <strong>{{ report.title }}</strong>
+          {% if report.attachments|length > 0 %}
+            <i class="bi bi-paperclip text-muted"></i>
+          {% endif %}
+        </td>
+        <td>{{ report.creator.full_name or report.creator.username }}</td>
+        <td>{{ report.assignee.full_name or report.assignee.username if report.assignee else '—' }}</td>
+        <td>
+          {% if report.priority == 'Khẩn cấp' %}
+            <span class="badge bg-danger">{{ report.priority }}</span>
+          {% elif report.priority == 'Cao' %}
+            <span class="badge bg-warning">{{ report.priority }}</span>
+          {% elif report.priority == 'Trung bình' %}
+            <span class="badge bg-info">{{ report.priority }}</span>
+          {% else %}
+            <span class="badge bg-secondary">{{ report.priority }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if report.status == 'Mới tạo' %}
+            <span class="badge bg-primary">{{ report.status }}</span>
+          {% elif report.status == 'Đang xử lý' %}
+            <span class="badge bg-warning">{{ report.status }}</span>
+          {% elif report.status == 'Đã xử lý' %}
+            <span class="badge bg-success">{{ report.status }}</span>
+          {% elif report.status == 'Đã đóng' %}
+            <span class="badge bg-secondary">{{ report.status }}</span>
+          {% else %}
+            <span class="badge bg-light text-dark">{{ report.status }}</span>
+          {% endif %}
+        </td>
+        <td>{{ report.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
+        <td>{{ report.updated_at.strftime('%d-%m-%Y %H:%M') if report.updated_at else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="text-center text-muted">Chưa có báo lỗi nào.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% from '_pagination.html' import render_pagination %}
+{{ render_pagination(reports, 'bug_reports', {
+  'status': status_filter,
+  'priority': priority_filter
+}) }}
+{% endblock %}
+

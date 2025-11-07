@@ -26,7 +26,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if current_user %}
                 {% set active_endpoint = request.endpoint %}
-                {% set config_endpoints = ['user_list', 'list_departments', 'backup_page', 'backup_config', 'backup_list'] %}
+                {% set config_endpoints = ['user_list', 'list_departments', 'backup_page', 'backup_config', 'backup_list', 'db_config'] %}
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['device_list', 'device_detail'] %}active{% endif %}" href="{{ url_for('device_list') }}">Thiết bị</a></li>
@@ -36,6 +36,7 @@
                     {% if current_permissions and 'maintenance.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['maintenance_logs', 'add_maintenance_log', 'maintenance_log_detail', 'edit_maintenance_log'] %}active{% endif %}" href="{{ url_for('maintenance_logs') }}">Nhật ký bảo trì</a></li>
                     {% endif %}
+                    <li class="nav-item"><a class="nav-link {% if active_endpoint in ['bug_reports', 'create_bug_report', 'bug_report_detail'] %}active{% endif %}" href="{{ url_for('bug_reports') }}">Báo lỗi</a></li>
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['inventory_receipts'] %}active{% endif %}" href="{{ url_for('inventory_receipts') }}">Phiếu nhập kho</a></li>
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'config_proposals' %}active{% endif %}" href="{{ url_for('config_proposals') }}">Đề xuất cấu hình</a></li>
                     <li class="nav-item dropdown">
@@ -46,6 +47,7 @@
                             <li><a class="dropdown-item {% if active_endpoint == 'user_list' %}active{% endif %}" href="{{ url_for('user_list') }}">Người dùng</a></li>
                             <li><a class="dropdown-item {% if active_endpoint in ['list_departments', 'department_users'] %}active{% endif %}" href="{{ url_for('list_departments') }}">Phòng ban</a></li>
                             <li><a class="dropdown-item {% if active_endpoint in ['backup_page', 'backup_config', 'backup_list'] %}active{% endif %}" href="{{ url_for('backup_page') }}">Backup</a></li>
+                            <li><a class="dropdown-item {% if active_endpoint in ['db_config'] %}active{% endif %}" href="{{ url_for('db_config') }}">Cấu hình DB</a></li>
                             <li><a class="dropdown-item {% if active_endpoint in ['roles_permissions'] %}active{% endif %}" href="{{ url_for('roles_permissions') }}">Phân quyền</a></li>
                         </ul>
                     </li>

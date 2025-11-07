@@ -49,6 +49,21 @@ try:
 except Exception:
     pass
 
+# Load persisted DB configuration if available
+_db_cfg_path = os.path.join(instance_path, 'db_config.json')
+_db_config_custom_url = None
+try:
+    if os.path.exists(_db_cfg_path):
+        with open(_db_cfg_path, 'r', encoding='utf-8') as f:
+            _db_cfg = json.load(f)
+            _db_config_custom_url = _db_cfg.get('database_url')
+            if _db_config_custom_url:
+                # Override DATABASE_URL if custom config exists
+                if _db_config_custom_url.startswith('postgres://'):
+                    _db_config_custom_url = _db_config_custom_url.replace('postgres://', 'postgresql://', 1)
+except Exception:
+    pass
+
 # Get configuration based on environment
 config_name = os.environ.get('FLASK_ENV', 'development')
 app = Flask(__name__, instance_path=instance_path)
@@ -60,6 +75,9 @@ if _env_db_url:
     if _env_db_url.startswith('postgres://'):
         _env_db_url = _env_db_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = _env_db_url
+elif _db_config_custom_url:
+    # Use custom DB URL from configuration file if no environment variable
+    app.config['SQLALCHEMY_DATABASE_URI'] = _db_config_custom_url
 app.permanent_session_lifetime = timedelta(days=30)
 
 db = SQLAlchemy(app)
@@ -114,6 +132,12 @@ PERMISSIONS = [
     ('maintenance.delete', 'Xóa nhật ký bảo trì'),
     ('maintenance.upload', 'Tải lên tệp đính kèm'),
     ('maintenance.download', 'Tải xuống tệp đính kèm'),
+    # Báo lỗi
+    ('bug_reports.create', 'Tạo báo lỗi'),
+    ('bug_reports.view', 'Xem báo lỗi'),
+    ('bug_reports.edit', 'Sửa/Cập nhật báo lỗi'),
+    ('bug_reports.delete', 'Xóa báo lỗi'),
+    ('bug_reports.assign', 'Gán báo lỗi cho quản trị viên'),
 ]
 
 # Register SQLite function last_token for sorting by given name
@@ -234,6 +258,44 @@ def init_db():
                         CREATE TABLE IF NOT EXISTS device_maintenance_attachment (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             log_id INTEGER NOT NULL REFERENCES device_maintenance_log(id) ON DELETE CASCADE,
+                            file_name TEXT NOT NULL,
+                            file_path TEXT NOT NULL,
+                            uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    '''))
+                except Exception:
+                    pass
+
+                # Create bug report tables if not exists
+                try:
+                    conn.execute(text('''
+                        CREATE TABLE IF NOT EXISTS bug_report (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            title VARCHAR(255) NOT NULL,
+                            description TEXT NOT NULL,
+                            status VARCHAR(50) DEFAULT 'Mới tạo',
+                            priority VARCHAR(50) DEFAULT 'Trung bình',
+                            created_by INTEGER NOT NULL REFERENCES user(id),
+                            assigned_to INTEGER REFERENCES user(id),
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            resolved_at DATETIME,
+                            resolution TEXT
+                        )
+                    '''))
+                    conn.execute(text('''
+                        CREATE TABLE IF NOT EXISTS bug_report_comment (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            bug_report_id INTEGER NOT NULL REFERENCES bug_report(id) ON DELETE CASCADE,
+                            comment TEXT NOT NULL,
+                            created_by INTEGER NOT NULL REFERENCES user(id),
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    '''))
+                    conn.execute(text('''
+                        CREATE TABLE IF NOT EXISTS bug_report_attachment (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            bug_report_id INTEGER NOT NULL REFERENCES bug_report(id) ON DELETE CASCADE,
                             file_name TEXT NOT NULL,
                             file_path TEXT NOT NULL,
                             uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -510,6 +572,39 @@ class AuditLog(db.Model):
     changed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     changed_at = db.Column(db.DateTime, default=datetime.utcnow)
     changes = db.Column(db.Text)  # JSON string: { field: {"from": ..., "to": ...}, ... }
+
+# --- Bug Report Models ---
+class BugReport(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(50), default='Mới tạo')  # Mới tạo, Đang xử lý, Đã xử lý, Đã đóng
+    priority = db.Column(db.String(50), default='Trung bình')  # Thấp, Trung bình, Cao, Khẩn cấp
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    assigned_to = db.Column(db.Integer, db.ForeignKey('user.id'))  # Quản trị viên được gán
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime)
+    resolution = db.Column(db.Text)  # Giải pháp/ghi chú khi xử lý xong
+    creator = db.relationship('User', foreign_keys=[created_by], backref='created_bug_reports')
+    assignee = db.relationship('User', foreign_keys=[assigned_to], backref='assigned_bug_reports')
+
+class BugReportComment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    bug_report_id = db.Column(db.Integer, db.ForeignKey('bug_report.id'), nullable=False)
+    comment = db.Column(db.Text, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    bug_report = db.relationship('BugReport', backref=db.backref('comments', cascade='all, delete-orphan', order_by='BugReportComment.created_at'))
+    creator = db.relationship('User', foreign_keys=[created_by])
+
+class BugReportAttachment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    bug_report_id = db.Column(db.Integer, db.ForeignKey('bug_report.id'), nullable=False)
+    file_name = db.Column(db.Text, nullable=False)
+    file_path = db.Column(db.Text, nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    bug_report = db.relationship('BugReport', backref=db.backref('attachments', cascade='all, delete-orphan'))
 
 def seed_rbac_data():
     """Seed RBAC permissions and roles after models are defined"""
@@ -3622,6 +3717,301 @@ def upload_maintenance_attachments(log_id):
         flash('Lỗi khi tải tệp.', 'danger')
     return redirect(url_for('maintenance_log_detail', log_id=log.id))
 
+@app.route('/maintenance_logs/<int:log_id>/files/<filename>')
+def download_maintenance_file(log_id, filename):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if 'maintenance.download' not in _get_current_permissions():
+        flash('Bạn không có quyền tải tệp.', 'danger')
+        return redirect(url_for('maintenance_log_detail', log_id=log_id))
+    log = DeviceMaintenanceLog.query.get_or_404(log_id)
+    att = next((a for a in log.attachments if a.file_name == filename), None)
+    if not att or not os.path.exists(att.file_path):
+        flash('Tệp không tồn tại.', 'danger')
+        return redirect(url_for('maintenance_log_detail', log_id=log_id))
+    return send_file(att.file_path, as_attachment=True, download_name=filename)
+
+# --- Bug Report Routes ---
+@app.route('/bug_reports')
+def bug_reports():
+    """Danh sách báo lỗi - người dùng chỉ thấy báo lỗi của mình, admin thấy tất cả"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    current_permissions = _get_current_permissions()
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    status_filter = request.args.get('status', '').strip()
+    priority_filter = request.args.get('priority', '').strip()
+    
+    # Người dùng thường chỉ thấy báo lỗi của mình, admin có thể thấy tất cả
+    if 'bug_reports.view' in current_permissions or 'bug_reports.edit' in current_permissions:
+        q = BugReport.query
+    else:
+        q = BugReport.query.filter_by(created_by=user_id)
+    
+    if status_filter:
+        q = q.filter(BugReport.status == status_filter)
+    if priority_filter:
+        q = q.filter(BugReport.priority == priority_filter)
+    
+    reports = q.order_by(BugReport.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    return render_template('bug_reports/list.html', reports=reports, status_filter=status_filter, priority_filter=priority_filter)
+
+@app.route('/bug_reports/create', methods=['GET', 'POST'])
+def create_bug_report():
+    """Tạo báo lỗi - bất kỳ người dùng nào đã đăng nhập đều có thể tạo"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        priority = request.form.get('priority', 'Trung bình')
+        
+        if not title or not description:
+            flash('Vui lòng nhập tiêu đề và mô tả.', 'danger')
+            return redirect(url_for('create_bug_report'))
+        
+        try:
+            bug_report = BugReport(
+                title=title,
+                description=description,
+                priority=priority,
+                created_by=user_id,
+                status='Mới tạo'
+            )
+            db.session.add(bug_report)
+            db.session.flush()
+            
+            # Xử lý file đính kèm nếu có
+            files = request.files.getlist('attachments')
+            if files and any(f.filename for f in files):
+                upload_dir = os.path.join(instance_path, 'bug_report_attachments', str(bug_report.id))
+                os.makedirs(upload_dir, exist_ok=True)
+                for f in files:
+                    if f and f.filename:
+                        filename = f.filename.replace('..', '_').replace('/', '_').replace('\\', '_')
+                        dest = os.path.join(upload_dir, filename)
+                        f.save(dest)
+                        db.session.add(BugReportAttachment(
+                            bug_report_id=bug_report.id,
+                            file_name=filename,
+                            file_path=dest
+                        ))
+            
+            db.session.commit()
+            flash('Đã tạo báo lỗi thành công! Quản trị viên sẽ xem xét và xử lý.', 'success')
+            return redirect(url_for('bug_report_detail', report_id=bug_report.id))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi tạo báo lỗi: {str(e)}', 'danger')
+    
+    return render_template('bug_reports/create.html')
+
+@app.route('/bug_reports/<int:report_id>')
+def bug_report_detail(report_id):
+    """Chi tiết báo lỗi"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    current_permissions = _get_current_permissions()
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    
+    # Kiểm tra quyền xem: người tạo hoặc admin
+    if bug_report.created_by != user_id and 'bug_reports.view' not in current_permissions and 'bug_reports.edit' not in current_permissions:
+        flash('Bạn không có quyền xem báo lỗi này.', 'danger')
+        return redirect(url_for('bug_reports'))
+    
+    # Lấy danh sách admin để gán
+    admins = User.query.filter(or_(User.role == 'admin', User.id.in_(
+        db.session.query(UserRole.user_id).join(Role).filter(Role.name == 'Admin')
+    ))).all() if 'bug_reports.assign' in current_permissions else []
+    
+    return render_template('bug_reports/detail.html', bug_report=bug_report, admins=admins, current_user_id=user_id, current_permissions=current_permissions)
+
+@app.route('/bug_reports/<int:report_id>/update', methods=['POST'])
+def update_bug_report(report_id):
+    """Cập nhật trạng thái báo lỗi - chỉ admin"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    
+    if 'bug_reports.edit' not in current_permissions:
+        flash('Bạn không có quyền cập nhật báo lỗi.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    
+    try:
+        status = request.form.get('status')
+        priority = request.form.get('priority')
+        assigned_to = request.form.get('assigned_to')
+        resolution = request.form.get('resolution', '').strip()
+        
+        if status:
+            bug_report.status = status
+            if status in ['Đã xử lý', 'Đã đóng'] and not bug_report.resolved_at:
+                bug_report.resolved_at = datetime.utcnow()
+            if status == 'Mới tạo':
+                bug_report.resolved_at = None
+        
+        if priority:
+            bug_report.priority = priority
+        
+        if assigned_to:
+            try:
+                bug_report.assigned_to = int(assigned_to) if assigned_to else None
+            except ValueError:
+                pass
+        
+        if resolution:
+            bug_report.resolution = resolution
+        
+        bug_report.updated_at = datetime.utcnow()
+        db.session.commit()
+        flash('Đã cập nhật báo lỗi thành công.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi cập nhật: {str(e)}', 'danger')
+    
+    return redirect(url_for('bug_report_detail', report_id=report_id))
+
+@app.route('/bug_reports/<int:report_id>/comment', methods=['POST'])
+def add_bug_report_comment(report_id):
+    """Thêm comment vào báo lỗi"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    
+    # Kiểm tra quyền: người tạo hoặc admin
+    current_permissions = _get_current_permissions()
+    if bug_report.created_by != user_id and 'bug_reports.view' not in current_permissions and 'bug_reports.edit' not in current_permissions:
+        flash('Bạn không có quyền bình luận.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    comment_text = request.form.get('comment', '').strip()
+    if not comment_text:
+        flash('Vui lòng nhập nội dung bình luận.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    try:
+        comment = BugReportComment(
+            bug_report_id=report_id,
+            comment=comment_text,
+            created_by=user_id
+        )
+        db.session.add(comment)
+        bug_report.updated_at = datetime.utcnow()
+        db.session.commit()
+        flash('Đã thêm bình luận.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi thêm bình luận: {str(e)}', 'danger')
+    
+    return redirect(url_for('bug_report_detail', report_id=report_id))
+
+@app.route('/bug_reports/<int:report_id>/attachments', methods=['POST'])
+def upload_bug_report_attachment(report_id):
+    """Tải file đính kèm"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    
+    # Kiểm tra quyền: người tạo hoặc admin
+    current_permissions = _get_current_permissions()
+    if bug_report.created_by != user_id and 'bug_reports.edit' not in current_permissions:
+        flash('Bạn không có quyền tải file.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    files = request.files.getlist('files')
+    saved = 0
+    upload_dir = os.path.join(instance_path, 'bug_report_attachments', str(report_id))
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    try:
+        for f in files:
+            if not f or not f.filename:
+                continue
+            filename = f.filename.replace('..', '_').replace('/', '_').replace('\\', '_')
+            dest = os.path.join(upload_dir, filename)
+            f.save(dest)
+            db.session.add(BugReportAttachment(
+                bug_report_id=report_id,
+                file_name=filename,
+                file_path=dest
+            ))
+            saved += 1
+        db.session.commit()
+        if saved:
+            flash(f'Đã tải lên {saved} tệp.', 'success')
+        else:
+            flash('Không có tệp nào được tải lên.', 'info')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi tải tệp: {str(e)}', 'danger')
+    
+    return redirect(url_for('bug_report_detail', report_id=report_id))
+
+@app.route('/bug_reports/<int:report_id>/files/<filename>')
+def download_bug_report_file(report_id, filename):
+    """Tải file đính kèm"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    
+    # Kiểm tra quyền: người tạo hoặc admin
+    current_permissions = _get_current_permissions()
+    if bug_report.created_by != user_id and 'bug_reports.view' not in current_permissions and 'bug_reports.edit' not in current_permissions:
+        flash('Bạn không có quyền tải file.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    att = next((a for a in bug_report.attachments if a.file_name == filename), None)
+    if not att or not os.path.exists(att.file_path):
+        flash('Tệp không tồn tại.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    return send_file(att.file_path, as_attachment=True, download_name=filename)
+
+@app.route('/bug_reports/<int:report_id>/delete', methods=['POST'])
+def delete_bug_report(report_id):
+    """Xóa báo lỗi - chỉ admin"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    
+    if 'bug_reports.delete' not in current_permissions:
+        flash('Bạn không có quyền xóa báo lỗi.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    
+    try:
+        # Xóa file đính kèm
+        for att in list(bug_report.attachments):
+            try:
+                if att.file_path and os.path.exists(att.file_path):
+                    os.remove(att.file_path)
+            except Exception:
+                pass
+        
+        # Xóa thư mục đính kèm nếu rỗng
+        upload_dir = os.path.join(instance_path, 'bug_report_attachments', str(report_id))
+        try:
+            if os.path.exists(upload_dir) and not os.listdir(upload_dir):
+                os.rmdir(upload_dir)
+        except Exception:
+            pass
+        
+        db.session.delete(bug_report)
+        db.session.commit()
+        flash('Đã xóa báo lỗi.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi xóa: {str(e)}', 'danger')
+    
+    return redirect(url_for('bug_reports'))
+
 @app.route('/export_handovers_excel')
 def export_handovers_excel():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -4240,6 +4630,85 @@ def backup_delete(filename):
         flash(f'Lỗi khi xóa file backup: {str(e)}', 'danger')
     
     return redirect(url_for('backup_list'))
+
+# --- Database Configuration Routes ---
+@app.route('/db_config')
+def db_config():
+    """Cấu hình đường dẫn database"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    
+    # Chỉ admin mới có quyền cấu hình DB
+    if 'backup.edit' not in current_permissions and session.get('user_role') != 'admin':
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
+    
+    # Load current configuration
+    current_db_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    custom_db_url = None
+    try:
+        if os.path.exists(_db_cfg_path):
+            with open(_db_cfg_path, 'r', encoding='utf-8') as f:
+                _db_cfg = json.load(f)
+                custom_db_url = _db_cfg.get('database_url', '')
+    except Exception:
+        pass
+    
+    # Get database info
+    db_info = get_database_info()
+    
+    return render_template('db_config.html', 
+                         current_db_url=current_db_url,
+                         custom_db_url=custom_db_url,
+                         db_info=db_info)
+
+@app.route('/db_config/update', methods=['POST'])
+def db_config_update():
+    """Cập nhật cấu hình database"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    
+    # Chỉ admin mới có quyền cấu hình DB
+    if 'backup.edit' not in current_permissions and session.get('user_role') != 'admin':
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
+    
+    database_url = request.form.get('database_url', '').strip()
+    
+    if database_url:
+        # Validate database URL format
+        if not (database_url.startswith('sqlite:///') or 
+                database_url.startswith('postgresql://') or 
+                database_url.startswith('postgres://') or
+                database_url.startswith('mysql://') or
+                database_url.startswith('mysql+pymysql://')):
+            flash('Định dạng đường dẫn database không hợp lệ. Ví dụ: sqlite:///inventory.db hoặc postgresql://user:pass@host:port/dbname', 'danger')
+            return redirect(url_for('db_config'))
+        
+        try:
+            # Normalize postgres URL
+            if database_url.startswith('postgres://'):
+                database_url = database_url.replace('postgres://', 'postgresql://', 1)
+            
+            # Save to configuration file
+            with open(_db_cfg_path, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'database_url': database_url
+                }, f, ensure_ascii=False, indent=2)
+            
+            flash('Đã lưu cấu hình database! Vui lòng khởi động lại ứng dụng để áp dụng thay đổi.', 'success')
+        except Exception as e:
+            flash(f'Lỗi khi lưu cấu hình: {str(e)}', 'danger')
+    else:
+        # Clear custom configuration
+        try:
+            if os.path.exists(_db_cfg_path):
+                os.remove(_db_cfg_path)
+            flash('Đã xóa cấu hình tùy chỉnh. Hệ thống sẽ sử dụng cấu hình mặc định hoặc từ biến môi trường.', 'success')
+        except Exception as e:
+            flash(f'Lỗi khi xóa cấu hình: {str(e)}', 'danger')
+    
+    return redirect(url_for('db_config'))
 
 @app.route('/api/group_devices/<int:group_id>')
 def api_group_devices(group_id):

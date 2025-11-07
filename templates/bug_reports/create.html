@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Tạo báo lỗi{% endblock %}
+{% block content %}
+<h3 class="mb-3">Tạo báo lỗi mới</h3>
+<form method="POST" enctype="multipart/form-data" class="row g-3">
+  <div class="col-12">
+    <label class="form-label">Tiêu đề <span class="text-danger">*</span></label>
+    <input type="text" name="title" class="form-control" required placeholder="Mô tả ngắn gọn về lỗi">
+  </div>
+  
+  <div class="col-md-6">
+    <label class="form-label">Mức độ ưu tiên</label>
+    <select name="priority" class="form-select">
+      <option value="Thấp">Thấp</option>
+      <option value="Trung bình" selected>Trung bình</option>
+      <option value="Cao">Cao</option>
+      <option value="Khẩn cấp">Khẩn cấp</option>
+    </select>
+  </div>
+  
+  <div class="col-12">
+    <label class="form-label">Mô tả chi tiết <span class="text-danger">*</span></label>
+    <textarea name="description" class="form-control" rows="8" required placeholder="Mô tả chi tiết về lỗi, các bước để tái hiện lỗi, môi trường xảy ra lỗi..."></textarea>
+    <small class="form-text text-muted">Cung cấp càng nhiều thông tin càng tốt để quản trị viên có thể xử lý nhanh chóng.</small>
+  </div>
+  
+  <div class="col-12">
+    <label class="form-label">File đính kèm (tùy chọn)</label>
+    <input type="file" name="attachments" class="form-control" multiple>
+    <small class="form-text text-muted">Có thể đính kèm hình ảnh, log file, hoặc các file khác liên quan đến lỗi.</small>
+  </div>
+  
+  <div class="col-12">
+    <a href="{{ url_for('bug_reports') }}" class="btn btn-secondary">Hủy</a>
+    <button class="btn btn-primary" type="submit">
+      <i class="bi bi-send"></i> Gửi báo lỗi
+    </button>
+  </div>
+</form>
+{% endblock %}
+
