@@ -382,8 +382,74 @@ def migrate_bug_report_table():
             print(f"Migration error (non-critical): {e}")
             # Don't fail app startup if migration fails
 
+def migrate_bug_report_enhancements():
+    """Ensure new columns related to bug report workflow exist."""
+    with app.app_context():
+        try:
+            from sqlalchemy import text, inspect
+
+            try:
+                inspector = inspect(db.engine)
+                if 'bug_report' not in inspector.get_table_names():
+                    return
+                columns = {col['name'] for col in inspector.get_columns('bug_report')}
+            except Exception:
+                columns = set()
+
+            if not columns:
+                try:
+                    with db.engine.connect() as conn:
+                        if is_external_database():
+                            result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'bug_report';"))
+                            columns = {row[0] for row in result}
+                        else:
+                            result = conn.execute(text("PRAGMA table_info(bug_report)"))
+                            columns = {row[1] for row in result}
+                except Exception:
+                    columns = set()
+
+            if not columns:
+                return
+
+            with db.engine.connect() as conn:
+                def _add_column(sql: str):
+                    try:
+                        conn.execute(text(sql))
+                        conn.commit()
+                    except Exception as ex:
+                        msg = str(ex).lower()
+                        if 'already exists' in msg or 'duplicate column' in msg:
+                            return
+                        print(f"Migration note: {ex}")
+
+                if 'visibility' not in columns:
+                    _add_column("ALTER TABLE bug_report ADD COLUMN visibility VARCHAR(20) DEFAULT 'private'")
+                if 'reopen_requested' not in columns:
+                    ddl = "ALTER TABLE bug_report ADD COLUMN reopen_requested BOOLEAN DEFAULT FALSE" if is_external_database() else "ALTER TABLE bug_report ADD COLUMN reopen_requested BOOLEAN DEFAULT 0"
+                    _add_column(ddl)
+                if 'rating' not in columns:
+                    _add_column('ALTER TABLE bug_report ADD COLUMN rating INTEGER')
+
+                if is_external_database():
+                    try:
+                        conn.execute(text('ALTER TABLE bug_report ALTER COLUMN device_code TYPE TEXT'))
+                        conn.commit()
+                    except Exception as ex:
+                        if 'cannot cast' in str(ex).lower():
+                            print('Migration note: không thể chuyển device_code sang TEXT tự động.')
+
+                try:
+                    conn.execute(text("UPDATE bug_report SET visibility = 'private' WHERE visibility IS NULL"))
+                    conn.execute(text("UPDATE bug_report SET reopen_requested = FALSE WHERE reopen_requested IS NULL"))
+                    conn.commit()
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Migration error (non-critical): {e}")
+
 # Run migrations on startup
 migrate_bug_report_table()
+migrate_bug_report_enhancements()
 
 # Ensure default admin exists on startup
 with app.app_context():
@@ -650,10 +716,13 @@ class AuditLog(db.Model):
 class BugReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)  # Giảm độ dài tiêu đề
-    device_code = db.Column(db.String(50))  # Mã thiết bị (tùy chọn)
+    device_code = db.Column(db.Text)  # Lưu danh sách mã thiết bị (phân tách bằng dấu phẩy)
     description = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), default='Mới tạo')  # Mới tạo, Đang xử lý, Đã xử lý, Đã đóng
     priority = db.Column(db.String(50), default='Trung bình')  # Thấp, Trung bình, Cao, Khẩn cấp
+    visibility = db.Column(db.String(20), default='private')  # private | public
+    reopen_requested = db.Column(db.Boolean, default=False)
+    rating = db.Column(db.Integer)  # 1-5 sao khi vấn đề đóng
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     assigned_to = db.Column(db.Integer, db.ForeignKey('user.id'))  # Quản trị viên được gán
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -662,6 +731,20 @@ class BugReport(db.Model):
     resolution = db.Column(db.Text)  # Giải pháp/ghi chú khi xử lý xong
     creator = db.relationship('User', foreign_keys=[created_by], backref='created_bug_reports')
     assignee = db.relationship('User', foreign_keys=[assigned_to], backref='assigned_bug_reports')
+
+    @property
+    def device_code_list(self):
+        codes = []
+        try:
+            raw = self.device_code or ''
+            codes = [code.strip() for code in raw.split(',') if code and code.strip()]
+        except Exception:
+            pass
+        return codes
+
+    @property
+    def is_public(self):
+        return (self.visibility or '').lower() == 'public'
 
 class BugReportComment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -3817,11 +3900,18 @@ def bug_reports():
     status_filter = request.args.get('status', '').strip()
     priority_filter = request.args.get('priority', '').strip()
     
-    # Người dùng thường chỉ thấy báo lỗi của mình, admin có thể thấy tất cả
-    if 'bug_reports.view' in current_permissions or 'bug_reports.edit' in current_permissions:
+    # Người dùng thường chỉ thấy báo lỗi của mình/được gán hoặc báo lỗi công khai
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
+    if is_admin:
         q = BugReport.query
     else:
-        q = BugReport.query.filter_by(created_by=user_id)
+        q = BugReport.query.filter(
+            or_(
+                BugReport.visibility == 'public',
+                BugReport.created_by == user_id,
+                BugReport.assigned_to == user_id
+            )
+        )
     
     if status_filter:
         q = q.filter(BugReport.status == status_filter)
@@ -3829,35 +3919,55 @@ def bug_reports():
         q = q.filter(BugReport.priority == priority_filter)
     
     reports = q.order_by(BugReport.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    return render_template('bug_reports/list.html', reports=reports, status_filter=status_filter, priority_filter=priority_filter)
+    return render_template('bug_reports/list.html', reports=reports, status_filter=status_filter, priority_filter=priority_filter, current_user_id=user_id, current_permissions=current_permissions)
 
 @app.route('/bug_reports/create', methods=['GET', 'POST'])
 def create_bug_report():
     """Tạo báo lỗi - bất kỳ người dùng nào đã đăng nhập đều có thể tạo"""
     if 'user_id' not in session: return redirect(url_for('login'))
     user_id = session.get('user_id')
-    
+    devices = Device.query.order_by(Device.device_code).all()
+ 
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         priority = request.form.get('priority', 'Trung bình')
-        device_code = request.form.get('device_code', '').strip()
-        
+        visibility = (request.form.get('visibility') or 'private').strip().lower()
+        if visibility not in ['private', 'public']:
+            visibility = 'private'
+
+        # Hỗ trợ chọn nhiều mã thiết bị hoặc nhập thủ công
+        device_codes = request.form.getlist('device_codes')
+        if len(device_codes) == 1 and ',' in device_codes[0]:
+            # Khi trình duyệt gửi dạng chuỗi duy nhất với dấu phẩy
+            device_codes = [code.strip() for code in device_codes[0].split(',')]
+        device_codes = [code.strip() for code in device_codes if code and code.strip()]
+        # Loại bỏ trùng lặp nhưng giữ thứ tự
+        seen = set()
+        deduped_codes = []
+        for code in device_codes:
+            key = code.lower()
+            if key not in seen:
+                seen.add(key)
+                deduped_codes.append(code)
+        device_codes_str = ','.join(deduped_codes) if deduped_codes else None
+ 
         if not title or not description:
             flash('Vui lòng nhập tiêu đề và mô tả.', 'danger')
-            return redirect(url_for('create_bug_report'))
-        
+            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description)
+ 
         # Validate title length
         if len(title) > 100:
             flash('Tiêu đề không được vượt quá 100 ký tự.', 'danger')
-            return redirect(url_for('create_bug_report'))
-        
+            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description)
+ 
         try:
             bug_report = BugReport(
                 title=title,
                 description=description,
                 priority=priority,
-                device_code=device_code if device_code else None,
+                device_code=device_codes_str,
+                visibility=visibility,
                 created_by=user_id,
                 status='Mới tạo'
             )
@@ -3887,9 +3997,9 @@ def create_bug_report():
             db.session.rollback()
             app.logger.error(f'Error creating bug report: {str(e)}', exc_info=True)
             flash(f'Lỗi khi tạo báo lỗi: {str(e)}', 'danger')
-            return render_template('bug_reports/create.html')
+            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description)
     
-    return render_template('bug_reports/create.html')
+    return render_template('bug_reports/create.html', devices=devices, selected_device_codes=[], selected_visibility='private', selected_priority='Trung bình', draft_title='', draft_description='')
 
 @app.route('/bug_reports/<int:report_id>')
 def bug_report_detail(report_id):
@@ -3900,8 +4010,11 @@ def bug_report_detail(report_id):
     
     bug_report = BugReport.query.get_or_404(report_id)
     
-    # Kiểm tra quyền xem: người tạo hoặc admin
-    if bug_report.created_by != user_id and 'bug_reports.view' not in current_permissions and 'bug_reports.edit' not in current_permissions:
+    is_creator = bug_report.created_by == user_id
+    is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
+    can_view = is_admin or is_creator or is_assignee or bug_report.is_public
+    if not can_view:
         flash('Bạn không có quyền xem báo lỗi này.', 'danger')
         return redirect(url_for('bug_reports'))
     
@@ -3910,7 +4023,28 @@ def bug_report_detail(report_id):
         db.session.query(UserRole.user_id).join(Role).filter(Role.name == 'Admin')
     ))).all() if 'bug_reports.assign' in current_permissions else []
     
-    return render_template('bug_reports/detail.html', bug_report=bug_report, admins=admins, current_user_id=user_id, current_permissions=current_permissions)
+    is_closed = bug_report.status == 'Đã đóng'
+    can_comment = (not is_closed) and (bug_report.is_public or is_admin or is_creator or is_assignee)
+    can_upload = (not is_closed) and (is_admin or is_creator or is_assignee)
+    can_request_reopen = is_closed and is_creator and not bug_report.reopen_requested
+    can_rate = is_closed and is_creator
+    can_close = (not is_closed) and is_creator
+
+    return render_template(
+        'bug_reports/detail.html',
+        bug_report=bug_report,
+        admins=admins,
+        current_user_id=user_id,
+        current_permissions=current_permissions,
+        is_admin=is_admin,
+        is_creator=is_creator,
+        is_assignee=is_assignee,
+        can_comment=can_comment,
+        can_upload=can_upload,
+        can_request_reopen=can_request_reopen,
+        can_rate=can_rate,
+        can_close=can_close
+    )
 
 @app.route('/bug_reports/<int:report_id>/update', methods=['POST'])
 def update_bug_report(report_id):
@@ -3929,26 +4063,34 @@ def update_bug_report(report_id):
         priority = request.form.get('priority')
         assigned_to = request.form.get('assigned_to')
         resolution = request.form.get('resolution', '').strip()
-        
+        visibility = (request.form.get('visibility') or bug_report.visibility or 'private').strip().lower()
+ 
         if status:
             bug_report.status = status
-            if status in ['Đã xử lý', 'Đã đóng'] and not bug_report.resolved_at:
+            if status in ['Đã xử lý', 'Đã đóng']:
                 bug_report.resolved_at = datetime.utcnow()
-            if status == 'Mới tạo':
+            elif status == 'Mới tạo':
                 bug_report.resolved_at = None
-        
+ 
+            if status == 'Đã đóng':
+                bug_report.reopen_requested = False
+                if not bug_report.rating:
+                    bug_report.rating = 5
+            else:
+                bug_report.reopen_requested = False
+ 
         if priority:
             bug_report.priority = priority
-        
+ 
         if assigned_to:
             try:
                 bug_report.assigned_to = int(assigned_to) if assigned_to else None
             except ValueError:
                 pass
-        
+ 
         if resolution:
             bug_report.resolution = resolution
-        
+ 
         bug_report.updated_at = datetime.utcnow()
         db.session.commit()
         flash('Đã cập nhật báo lỗi thành công.', 'success')
@@ -3968,8 +4110,16 @@ def add_bug_report_comment(report_id):
     
     # Kiểm tra quyền: người tạo hoặc admin
     current_permissions = _get_current_permissions()
-    if bug_report.created_by != user_id and 'bug_reports.view' not in current_permissions and 'bug_reports.edit' not in current_permissions:
-        flash('Bạn không có quyền bình luận.', 'danger')
+    is_creator = bug_report.created_by == user_id
+    is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
+
+    if bug_report.status == 'Đã đóng':
+        flash('Vấn đề đã đóng. Vui lòng gửi yêu cầu mở lại để tiếp tục trao đổi.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+
+    if not (bug_report.is_public or is_creator or is_admin or is_assignee):
+        flash('Bạn không có quyền bình luận báo lỗi này.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
     
     comment_text = request.form.get('comment', '').strip()
@@ -4003,8 +4153,16 @@ def upload_bug_report_attachment(report_id):
     
     # Kiểm tra quyền: người tạo hoặc admin
     current_permissions = _get_current_permissions()
-    if bug_report.created_by != user_id and 'bug_reports.edit' not in current_permissions:
-        flash('Bạn không có quyền tải file.', 'danger')
+    is_creator = bug_report.created_by == user_id
+    is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
+
+    if bug_report.status == 'Đã đóng':
+        flash('Vấn đề đã đóng. Không thể tải thêm tệp đính kèm.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+
+    if not (is_admin or is_creator or is_assignee):
+        flash('Bạn không có quyền tải file cho báo lỗi này.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
     
     files = request.files.getlist('files')
@@ -4025,6 +4183,7 @@ def upload_bug_report_attachment(report_id):
                 file_path=dest
             ))
             saved += 1
+        bug_report.updated_at = datetime.utcnow()
         db.session.commit()
         if saved:
             flash(f'Đã tải lên {saved} tệp.', 'success')
@@ -4046,7 +4205,11 @@ def download_bug_report_file(report_id, filename):
     
     # Kiểm tra quyền: người tạo hoặc admin
     current_permissions = _get_current_permissions()
-    if bug_report.created_by != user_id and 'bug_reports.view' not in current_permissions and 'bug_reports.edit' not in current_permissions:
+    is_creator = bug_report.created_by == user_id
+    is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
+
+    if not (is_admin or is_creator or is_assignee or bug_report.is_public):
         flash('Bạn không có quyền tải file.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
     
@@ -4841,6 +5004,94 @@ def api_group_devices(group_id):
                 'serial_number': device.serial_number or ''
             })
     return jsonify({'devices': devices})
+
+@app.route('/bug_reports/<int:report_id>/request_reopen', methods=['POST'])
+def request_reopen_bug_report(report_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+
+    bug_report = BugReport.query.get_or_404(report_id)
+    if bug_report.status != 'Đã đóng':
+        flash('Vấn đề hiện chưa được đóng.', 'info')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    if bug_report.created_by != user_id:
+        flash('Chỉ người tạo mới có thể yêu cầu mở lại vấn đề.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    if bug_report.reopen_requested:
+        flash('Bạn đã gửi yêu cầu mở lại. Vui lòng chờ quản trị viên xử lý.', 'info')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+
+    try:
+        bug_report.reopen_requested = True
+        bug_report.updated_at = datetime.utcnow()
+        db.session.commit()
+        flash('Đã gửi yêu cầu mở lại. Quản trị viên sẽ xem xét.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi gửi yêu cầu mở lại: {str(e)}', 'danger')
+
+    return redirect(url_for('bug_report_detail', report_id=report_id))
+
+@app.route('/bug_reports/<int:report_id>/rate', methods=['POST'])
+def rate_bug_report(report_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+
+    bug_report = BugReport.query.get_or_404(report_id)
+    if bug_report.created_by != user_id:
+        flash('Chỉ người tạo mới có thể đánh giá.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    if bug_report.status != 'Đã đóng':
+        flash('Chỉ có thể đánh giá khi vấn đề đã được đóng.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+
+    try:
+        rating = request.form.get('rating', type=int)
+        if rating not in [1, 2, 3, 4, 5]:
+            flash('Giá trị đánh giá không hợp lệ.', 'danger')
+            return redirect(url_for('bug_report_detail', report_id=report_id))
+
+        bug_report.rating = rating
+        bug_report.updated_at = datetime.utcnow()
+        db.session.commit()
+        flash('Đã ghi nhận đánh giá của bạn. Cảm ơn!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi lưu đánh giá: {str(e)}', 'danger')
+
+    return redirect(url_for('bug_report_detail', report_id=report_id))
+
+@app.route('/bug_reports/<int:report_id>/close', methods=['POST'])
+def close_bug_report(report_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    current_permissions = _get_current_permissions()
+
+    bug_report = BugReport.query.get_or_404(report_id)
+    is_creator = bug_report.created_by == user_id
+    is_admin = 'bug_reports.edit' in current_permissions
+
+    if not (is_creator or is_admin):
+        flash('Bạn không có quyền đóng vấn đề này.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    if bug_report.status == 'Đã đóng':
+        flash('Vấn đề đã được đóng trước đó.', 'info')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+
+    try:
+        bug_report.status = 'Đã đóng'
+        bug_report.resolved_at = datetime.utcnow()
+        bug_report.reopen_requested = False
+        if not bug_report.rating:
+            bug_report.rating = 5
+        bug_report.updated_at = datetime.utcnow()
+        db.session.commit()
+        flash('Đã đóng vấn đề.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi đóng vấn đề: {str(e)}', 'danger')
+
+    return redirect(url_for('bug_report_detail', report_id=report_id))
 
 if __name__ == '__main__':
     app.run(debug=True)

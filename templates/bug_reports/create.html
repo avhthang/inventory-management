@@ -5,29 +5,53 @@
 <form method="POST" enctype="multipart/form-data" class="row g-3">
   <div class="col-12">
     <label class="form-label">Tiêu đề <span class="text-danger">*</span></label>
-    <input type="text" name="title" class="form-control" required maxlength="100" placeholder="Mô tả ngắn gọn về lỗi (tối đa 100 ký tự)">
+    <input type="text" name="title" class="form-control" required maxlength="100" placeholder="Mô tả ngắn gọn về lỗi (tối đa 100 ký tự)" value="{{ draft_title or '' }}">
     <small class="form-text text-muted">Tối đa 100 ký tự</small>
   </div>
   
   <div class="col-md-6">
     <label class="form-label">Mức độ ưu tiên</label>
     <select name="priority" class="form-select">
-      <option value="Thấp">Thấp</option>
-      <option value="Trung bình" selected>Trung bình</option>
-      <option value="Cao">Cao</option>
-      <option value="Khẩn cấp">Khẩn cấp</option>
+      {% set priority = selected_priority or 'Trung bình' %}
+      <option value="Thấp" {% if priority=='Thấp' %}selected{% endif %}>Thấp</option>
+      <option value="Trung bình" {% if priority=='Trung bình' %}selected{% endif %}>Trung bình</option>
+      <option value="Cao" {% if priority=='Cao' %}selected{% endif %}>Cao</option>
+      <option value="Khẩn cấp" {% if priority=='Khẩn cấp' %}selected{% endif %}>Khẩn cấp</option>
     </select>
   </div>
   
   <div class="col-md-6">
+    <label class="form-label">Phạm vi hiển thị</label>
+    {% set visibility = selected_visibility or 'private' %}
+    <select name="visibility" class="form-select">
+      <option value="private" {% if visibility=='private' %}selected{% endif %}>Cá nhân (chỉ người tạo, quản trị và người xử lý)</option>
+      <option value="public" {% if visibility=='public' %}selected{% endif %}>Công khai (mọi người có thể xem và bình luận)</option>
+    </select>
+  </div>
+  
+  <div class="col-12">
     <label class="form-label">Mã thiết bị (tùy chọn)</label>
-    <input type="text" name="device_code" class="form-control" placeholder="Nhập mã thiết bị nếu liên quan">
-    <small class="form-text text-muted">Mã thiết bị liên quan đến lỗi (nếu có)</small>
+    <select name="device_codes" id="device_codes" class="form-select" multiple>
+      {% set selected_codes = selected_device_codes or [] %}
+      {% set catalog_codes = device_catalog_codes or [] %}
+      {% for device in devices %}
+        {% set code = device.device_code %}
+        <option value="{{ code }}" {% if code in selected_codes %}selected{% endif %}>
+          {{ code }} - {{ device.name }}
+        </option>
+      {% endfor %}
+      {% for code in selected_codes %}
+        {% if code not in catalog_codes %}
+          <option value="{{ code }}" selected>{{ code }}</option>
+        {% endif %}
+      {% endfor %}
+    </select>
+    <small class="form-text text-muted">Bạn có thể chọn nhiều mã thiết bị hoặc nhập mã mới. Dùng dấu phẩy, dấu cách hoặc Enter để tách.</small>
   </div>
   
   <div class="col-12">
     <label class="form-label">Mô tả chi tiết <span class="text-danger">*</span></label>
-    <textarea name="description" class="form-control" rows="8" required placeholder="Mô tả chi tiết về lỗi, các bước để tái hiện lỗi, môi trường xảy ra lỗi..."></textarea>
+    <textarea name="description" class="form-control" rows="8" required placeholder="Mô tả chi tiết về lỗi, các bước để tái hiện, môi trường xảy ra lỗi...">{{ draft_description or '' }}</textarea>
     <small class="form-text text-muted">Cung cấp càng nhiều thông tin càng tốt để quản trị viên có thể xử lý nhanh chóng.</small>
   </div>
   
@@ -44,5 +68,24 @@
     </button>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  $(document).ready(function() {
+    const $deviceSelect = $('#device_codes');
+    if ($deviceSelect.length) {
+      $deviceSelect.select2({
+        width: '100%',
+        tags: true,
+        placeholder: 'Chọn hoặc nhập mã thiết bị...',
+        tokenSeparators: [',', ';', '\n'],
+        closeOnSelect: false,
+        maximumSelectionLength: 15
+      });
+    }
+  });
+</script>
 {% endblock %}
 

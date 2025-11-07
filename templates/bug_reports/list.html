@@ -59,10 +59,21 @@
           {% if report.attachments|length > 0 %}
             <i class="bi bi-paperclip text-muted"></i>
           {% endif %}
+          {% if report.visibility == 'public' %}
+            <span class="badge bg-success ms-1">Công khai</span>
+          {% else %}
+            <span class="badge bg-secondary ms-1">Cá nhân</span>
+          {% endif %}
+          {% if report.reopen_requested %}
+            <span class="badge bg-warning text-dark ms-1">Yêu cầu mở lại</span>
+          {% endif %}
         </td>
         <td>
-          {% if report.device_code %}
-            <span class="badge bg-secondary">{{ report.device_code }}</span>
+          {% set codes = report.device_code_list %}
+          {% if codes %}
+            {% for code in codes %}
+              <span class="badge bg-info text-dark me-1">{{ code }}</span>
+            {% endfor %}
           {% else %}
             <span class="text-muted">—</span>
           {% endif %}
