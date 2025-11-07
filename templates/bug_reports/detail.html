@@ -43,6 +43,12 @@
         </div>
       </div>
       <div class="card-body">
+        {% if bug_report.device_code %}
+        <div class="mb-3">
+          <strong>Mã thiết bị:</strong>
+          <span class="badge bg-secondary">{{ bug_report.device_code }}</span>
+        </div>
+        {% endif %}
         <div class="mb-3">
           <strong>Mô tả:</strong>
           <div class="mt-2" style="white-space: pre-wrap;">{{ bug_report.description }}</div>
@@ -204,6 +210,12 @@
         <div class="mb-2">
           <strong>Người được gán:</strong><br>
           {{ bug_report.assignee.full_name or bug_report.assignee.username }}
+        </div>
+        {% endif %}
+        {% if bug_report.device_code %}
+        <div class="mb-2">
+          <strong>Mã thiết bị:</strong><br>
+          <span class="badge bg-secondary">{{ bug_report.device_code }}</span>
         </div>
         {% endif %}
         <div class="mb-2">

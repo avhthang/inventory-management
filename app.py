@@ -52,15 +52,20 @@ except Exception:
 # Load persisted DB configuration if available
 _db_cfg_path = os.path.join(instance_path, 'db_config.json')
 _db_config_custom_url = None
+_db_config_secondary_url = None
 try:
     if os.path.exists(_db_cfg_path):
         with open(_db_cfg_path, 'r', encoding='utf-8') as f:
             _db_cfg = json.load(f)
             _db_config_custom_url = _db_cfg.get('database_url')
+            _db_config_secondary_url = _db_cfg.get('secondary_database_url')
             if _db_config_custom_url:
                 # Override DATABASE_URL if custom config exists
                 if _db_config_custom_url.startswith('postgres://'):
                     _db_config_custom_url = _db_config_custom_url.replace('postgres://', 'postgresql://', 1)
+            if _db_config_secondary_url:
+                if _db_config_secondary_url.startswith('postgres://'):
+                    _db_config_secondary_url = _db_config_secondary_url.replace('postgres://', 'postgresql://', 1)
 except Exception:
     pass
 
@@ -271,7 +276,8 @@ def init_db():
                     conn.execute(text('''
                         CREATE TABLE IF NOT EXISTS bug_report (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            title VARCHAR(255) NOT NULL,
+                            title VARCHAR(100) NOT NULL,
+                            device_code VARCHAR(50),
                             description TEXT NOT NULL,
                             status VARCHAR(50) DEFAULT 'Mới tạo',
                             priority VARCHAR(50) DEFAULT 'Trung bình',
@@ -283,6 +289,16 @@ def init_db():
                             resolution TEXT
                         )
                     '''))
+                    # Add device_code column if table exists but column doesn't
+                    try:
+                        # Check if column exists by trying to select it
+                        conn.execute(text('SELECT device_code FROM bug_report LIMIT 1'))
+                    except Exception:
+                        # Column doesn't exist, add it
+                        try:
+                            conn.execute(text('ALTER TABLE bug_report ADD COLUMN device_code VARCHAR(50)'))
+                        except Exception:
+                            pass  # Column might already exist or table doesn't exist yet
                     conn.execute(text('''
                         CREATE TABLE IF NOT EXISTS bug_report_comment (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -576,7 +592,8 @@ class AuditLog(db.Model):
 # --- Bug Report Models ---
 class BugReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(255), nullable=False)
+    title = db.Column(db.String(100), nullable=False)  # Giảm độ dài tiêu đề
+    device_code = db.Column(db.String(50))  # Mã thiết bị (tùy chọn)
     description = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), default='Mới tạo')  # Mới tạo, Đang xử lý, Đã xử lý, Đã đóng
     priority = db.Column(db.String(50), default='Trung bình')  # Thấp, Trung bình, Cao, Khẩn cấp
@@ -3767,9 +3784,15 @@ def create_bug_report():
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         priority = request.form.get('priority', 'Trung bình')
+        device_code = request.form.get('device_code', '').strip()
         
         if not title or not description:
             flash('Vui lòng nhập tiêu đề và mô tả.', 'danger')
+            return redirect(url_for('create_bug_report'))
+        
+        # Validate title length
+        if len(title) > 100:
+            flash('Tiêu đề không được vượt quá 100 ký tự.', 'danger')
             return redirect(url_for('create_bug_report'))
         
         try:
@@ -3777,6 +3800,7 @@ def create_bug_report():
                 title=title,
                 description=description,
                 priority=priority,
+                device_code=device_code if device_code else None,
                 created_by=user_id,
                 status='Mới tạo'
             )
@@ -3804,7 +3828,9 @@ def create_bug_report():
             return redirect(url_for('bug_report_detail', report_id=bug_report.id))
         except Exception as e:
             db.session.rollback()
+            app.logger.error(f'Error creating bug report: {str(e)}', exc_info=True)
             flash(f'Lỗi khi tạo báo lỗi: {str(e)}', 'danger')
+            return render_template('bug_reports/create.html')
     
     return render_template('bug_reports/create.html')
 
@@ -4646,11 +4672,13 @@ def db_config():
     # Load current configuration
     current_db_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
     custom_db_url = None
+    secondary_db_url = None
     try:
         if os.path.exists(_db_cfg_path):
             with open(_db_cfg_path, 'r', encoding='utf-8') as f:
                 _db_cfg = json.load(f)
                 custom_db_url = _db_cfg.get('database_url', '')
+                secondary_db_url = _db_cfg.get('secondary_database_url', '')
     except Exception:
         pass
     
@@ -4660,6 +4688,7 @@ def db_config():
     return render_template('db_config.html', 
                          current_db_url=current_db_url,
                          custom_db_url=custom_db_url,
+                         secondary_db_url=secondary_db_url,
                          db_info=db_info)
 
 @app.route('/db_config/update', methods=['POST'])
@@ -4674,6 +4703,9 @@ def db_config_update():
         return redirect(url_for('home'))
     
     database_url = request.form.get('database_url', '').strip()
+    secondary_database_url = request.form.get('secondary_database_url', '').strip()
+    
+    config_data = {}
     
     if database_url:
         # Validate database URL format
@@ -4682,31 +4714,56 @@ def db_config_update():
                 database_url.startswith('postgres://') or
                 database_url.startswith('mysql://') or
                 database_url.startswith('mysql+pymysql://')):
-            flash('Định dạng đường dẫn database không hợp lệ. Ví dụ: sqlite:///inventory.db hoặc postgresql://user:pass@host:port/dbname', 'danger')
+            flash('Định dạng đường dẫn database chính không hợp lệ. Ví dụ: sqlite:///inventory.db hoặc postgresql://user:pass@host:port/dbname', 'danger')
             return redirect(url_for('db_config'))
         
-        try:
-            # Normalize postgres URL
-            if database_url.startswith('postgres://'):
-                database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        # Normalize postgres URL
+        if database_url.startswith('postgres://'):
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        
+        config_data['database_url'] = database_url
+    
+    if secondary_database_url:
+        # Validate secondary database URL format
+        if not (secondary_database_url.startswith('sqlite:///') or 
+                secondary_database_url.startswith('postgresql://') or 
+                secondary_database_url.startswith('postgres://') or
+                secondary_database_url.startswith('mysql://') or
+                secondary_database_url.startswith('mysql+pymysql://')):
+            flash('Định dạng đường dẫn database phụ không hợp lệ.', 'danger')
+            return redirect(url_for('db_config'))
+        
+        # Normalize postgres URL
+        if secondary_database_url.startswith('postgres://'):
+            secondary_database_url = secondary_database_url.replace('postgres://', 'postgresql://', 1)
+        
+        config_data['secondary_database_url'] = secondary_database_url
+    
+    try:
+        if config_data:
+            # Load existing config and merge
+            existing_config = {}
+            if os.path.exists(_db_cfg_path):
+                with open(_db_cfg_path, 'r', encoding='utf-8') as f:
+                    existing_config = json.load(f)
+            
+            existing_config.update(config_data)
             
             # Save to configuration file
             with open(_db_cfg_path, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'database_url': database_url
-                }, f, ensure_ascii=False, indent=2)
+                json.dump(existing_config, f, ensure_ascii=False, indent=2)
             
-            flash('Đã lưu cấu hình database! Vui lòng khởi động lại ứng dụng để áp dụng thay đổi.', 'success')
-        except Exception as e:
-            flash(f'Lỗi khi lưu cấu hình: {str(e)}', 'danger')
-    else:
-        # Clear custom configuration
-        try:
+            if secondary_database_url:
+                flash('Đã lưu cấu hình database chính và phụ (HA)! Vui lòng khởi động lại ứng dụng để áp dụng thay đổi.', 'success')
+            else:
+                flash('Đã lưu cấu hình database! Vui lòng khởi động lại ứng dụng để áp dụng thay đổi.', 'success')
+        else:
+            # Clear custom configuration
             if os.path.exists(_db_cfg_path):
                 os.remove(_db_cfg_path)
             flash('Đã xóa cấu hình tùy chỉnh. Hệ thống sẽ sử dụng cấu hình mặc định hoặc từ biến môi trường.', 'success')
-        except Exception as e:
-            flash(f'Lỗi khi xóa cấu hình: {str(e)}', 'danger')
+    except Exception as e:
+        flash(f'Lỗi khi lưu cấu hình: {str(e)}', 'danger')
     
     return redirect(url_for('db_config'))
 

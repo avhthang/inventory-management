@@ -41,6 +41,7 @@
       <tr>
         <th>#</th>
         <th>Tiêu đề</th>
+        <th>Mã thiết bị</th>
         <th>Người tạo</th>
         <th>Người được gán</th>
         <th>Mức độ</th>
@@ -57,6 +58,13 @@
           <strong>{{ report.title }}</strong>
           {% if report.attachments|length > 0 %}
             <i class="bi bi-paperclip text-muted"></i>
+          {% endif %}
+        </td>
+        <td>
+          {% if report.device_code %}
+            <span class="badge bg-secondary">{{ report.device_code }}</span>
+          {% else %}
+            <span class="text-muted">—</span>
           {% endif %}
         </td>
         <td>{{ report.creator.full_name or report.creator.username }}</td>
@@ -90,7 +98,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="8" class="text-center text-muted">Chưa có báo lỗi nào.</td>
+        <td colspan="9" class="text-center text-muted">Chưa có báo lỗi nào.</td>
       </tr>
       {% endfor %}
     </tbody>

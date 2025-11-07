@@ -5,7 +5,8 @@
 <form method="POST" enctype="multipart/form-data" class="row g-3">
   <div class="col-12">
     <label class="form-label">Tiêu đề <span class="text-danger">*</span></label>
-    <input type="text" name="title" class="form-control" required placeholder="Mô tả ngắn gọn về lỗi">
+    <input type="text" name="title" class="form-control" required maxlength="100" placeholder="Mô tả ngắn gọn về lỗi (tối đa 100 ký tự)">
+    <small class="form-text text-muted">Tối đa 100 ký tự</small>
   </div>
   
   <div class="col-md-6">
@@ -16,6 +17,12 @@
       <option value="Cao">Cao</option>
       <option value="Khẩn cấp">Khẩn cấp</option>
     </select>
+  </div>
+  
+  <div class="col-md-6">
+    <label class="form-label">Mã thiết bị (tùy chọn)</label>
+    <input type="text" name="device_code" class="form-control" placeholder="Nhập mã thiết bị nếu liên quan">
+    <small class="form-text text-muted">Mã thiết bị liên quan đến lỗi (nếu có)</small>
   </div>
   
   <div class="col-12">

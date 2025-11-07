@@ -42,11 +42,11 @@
         <form method="POST" action="{{ url_for('db_config_update') }}">
             <div class="card">
                 <div class="card-header">
-                    <h5>Cấu hình Database mới</h5>
+                    <h5>Cấu hình Database</h5>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <label for="database_url" class="form-label">Đường dẫn Database</label>
+                        <label for="database_url" class="form-label">Đường dẫn Database chính (Primary) <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="database_url" name="database_url" 
                                value="{{ custom_db_url or '' }}" 
                                placeholder="sqlite:///inventory.db hoặc postgresql://user:pass@host:port/dbname">
@@ -54,10 +54,25 @@
                             Ví dụ:<br>
                             • SQLite: <code>sqlite:///inventory.db</code><br>
                             • PostgreSQL: <code>postgresql://username:password@hostname:5432/database_name</code><br>
-                            • MySQL: <code>mysql+pymysql://username:password@hostname:3306/database_name</code><br>
-                            <br>
-                            Để sử dụng cấu hình mặc định hoặc từ biến môi trường, để trống và nhấn "Lưu".
+                            • MySQL: <code>mysql+pymysql://username:password@hostname:3306/database_name</code>
                         </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="secondary_database_url" class="form-label">Đường dẫn Database phụ (Secondary - HA) <span class="text-muted">(Tùy chọn)</span></label>
+                        <input type="text" class="form-control" id="secondary_database_url" name="secondary_database_url" 
+                               value="{{ secondary_db_url or '' }}" 
+                               placeholder="postgresql://user:pass@host:port/dbname">
+                        <small class="form-text text-muted">
+                            Database phụ dùng cho High Availability (HA). Hệ thống sẽ tự động chuyển sang database phụ khi database chính gặp sự cố.<br>
+                            <strong>Lưu ý:</strong> Database phụ phải có cùng schema và dữ liệu đồng bộ với database chính.
+                        </small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>High Availability (HA):</strong> Khi cấu hình database phụ, hệ thống sẽ tự động failover sang database phụ nếu database chính không khả dụng.
+                        Để sử dụng cấu hình mặc định hoặc từ biến môi trường, để trống cả hai trường và nhấn "Lưu".
                     </div>
                     
                     <div class="alert alert-warning">
