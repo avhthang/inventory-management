@@ -328,6 +328,63 @@ def init_db():
 # Initialize database on startup
 init_db()
 
+# --- Database Migration Functions ---
+def migrate_bug_report_table():
+    """Migrate bug_report table to add device_code column if it doesn't exist"""
+    with app.app_context():
+        try:
+            from sqlalchemy import text, inspect
+            
+            # Check if bug_report table exists
+            try:
+                inspector = inspect(db.engine)
+                table_names = inspector.get_table_names()
+                if 'bug_report' not in table_names:
+                    return  # Table doesn't exist yet, will be created by SQLAlchemy
+            except Exception:
+                # If inspector fails, try direct query
+                try:
+                    with db.engine.connect() as conn:
+                        if is_external_database():
+                            result = conn.execute(text("""
+                                SELECT EXISTS (
+                                    SELECT FROM information_schema.tables 
+                                    WHERE table_schema = 'public' AND table_name = 'bug_report'
+                                );
+                            """))
+                            if not result.scalar():
+                                return
+                        else:
+                            result = conn.execute(text("""
+                                SELECT name FROM sqlite_master 
+                                WHERE type='table' AND name='bug_report';
+                            """))
+                            if result.fetchone() is None:
+                                return
+                except Exception:
+                    return  # Can't check, skip migration
+            
+            # Try to add device_code column
+            try:
+                with db.engine.connect() as conn:
+                    conn.execute(text('ALTER TABLE bug_report ADD COLUMN device_code VARCHAR(50)'))
+                    conn.commit()
+                    print("✓ Added device_code column to bug_report table")
+            except Exception as e:
+                error_msg = str(e).lower()
+                # Check if error is because column already exists
+                if any(keyword in error_msg for keyword in ['already exists', 'duplicate column', 'column "device_code" of relation "bug_report" already exists']):
+                    print("✓ device_code column already exists")
+                else:
+                    # Other error - might be table doesn't exist or other issue
+                    print(f"Migration note: {e}")
+        except Exception as e:
+            print(f"Migration error (non-critical): {e}")
+            # Don't fail app startup if migration fails
+
+# Run migrations on startup
+migrate_bug_report_table()
+
 # Ensure default admin exists on startup
 with app.app_context():
     try:
