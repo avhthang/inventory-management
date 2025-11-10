@@ -10,6 +10,32 @@
 
 <form method="GET" class="row g-2 mb-3">
   <div class="col-auto">
+    <select class="form-select" name="date_filter" id="date_filter">
+      <option value="">Tất cả thời gian</option>
+      <option value="1" {% if date_filter=='1' %}selected{% endif %}>1 ngày</option>
+      <option value="7" {% if date_filter=='7' %}selected{% endif %}>7 ngày</option>
+      <option value="30" {% if date_filter=='30' %}selected{% endif %}>30 ngày</option>
+      <option value="90" {% if date_filter=='90' %}selected{% endif %}>3 tháng</option>
+      <option value="custom" {% if date_filter=='custom' %}selected{% endif %}>Khoảng thời gian</option>
+    </select>
+  </div>
+  <div class="col-auto" id="date_range_group" style="display: {% if date_filter=='custom' %}block{% else %}none{% endif %};">
+    <input type="date" class="form-select" name="date_from" value="{{ date_from }}" placeholder="Từ ngày">
+  </div>
+  <div class="col-auto" id="date_to_group" style="display: {% if date_filter=='custom' %}block{% else %}none{% endif %};">
+    <input type="date" class="form-select" name="date_to" value="{{ date_to }}" placeholder="Đến ngày">
+  </div>
+  <div class="col-auto">
+    <select class="form-select" name="creator">
+      <option value="">Tất cả người báo lỗi</option>
+      {% for creator in creators %}
+      <option value="{{ creator.id }}" {% if creator_filter|string == creator.id|string %}selected{% endif %}>
+        {{ creator.full_name or creator.username }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
     <select class="form-select" name="status">
       <option value="">Tất cả trạng thái</option>
       <option value="Mới tạo" {% if status_filter=='Mới tạo' %}selected{% endif %}>Mới tạo</option>
@@ -34,6 +60,13 @@
     <a href="{{ url_for('bug_reports') }}" class="btn btn-outline-secondary">Reset</a>
   </div>
 </form>
+<script>
+document.getElementById('date_filter').addEventListener('change', function() {
+  const isCustom = this.value === 'custom';
+  document.getElementById('date_range_group').style.display = isCustom ? 'block' : 'none';
+  document.getElementById('date_to_group').style.display = isCustom ? 'block' : 'none';
+});
+</script>
 
 <div class="table-responsive">
   <table class="table table-striped table-hover">
@@ -43,8 +76,16 @@
         <th>Tiêu đề</th>
         <th>Mã thiết bị</th>
         <th>Người tạo</th>
-        <th>Người được gán</th>
-        <th>Mức độ</th>
+        <th>Người xử lý</th>
+        <th>
+          <select class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="filterByPriority(this.value)">
+            <option value="">Mức độ</option>
+            <option value="Thấp" {% if priority_filter=='Thấp' %}selected{% endif %}>Thấp</option>
+            <option value="Trung bình" {% if priority_filter=='Trung bình' %}selected{% endif %}>Trung bình</option>
+            <option value="Cao" {% if priority_filter=='Cao' %}selected{% endif %}>Cao</option>
+            <option value="Khẩn cấp" {% if priority_filter=='Khẩn cấp' %}selected{% endif %}>Khẩn cấp</option>
+          </select>
+        </th>
         <th>Trạng thái</th>
         <th>Ngày tạo</th>
         <th>Cập nhật</th>
@@ -60,9 +101,9 @@
             <i class="bi bi-paperclip text-muted"></i>
           {% endif %}
           {% if report.visibility == 'public' %}
-            <span class="badge bg-success ms-1">Công khai</span>
+            <i class="bi bi-globe ms-1" title="Công khai"></i>
           {% else %}
-            <span class="badge bg-secondary ms-1">Cá nhân</span>
+            <i class="bi bi-person ms-1" title="Cá nhân"></i>
           {% endif %}
           {% if report.reopen_requested %}
             <span class="badge bg-warning text-dark ms-1">Yêu cầu mở lại</span>
@@ -72,7 +113,7 @@
           {% set codes = report.device_code_list %}
           {% if codes %}
             {% for code in codes %}
-              <span class="badge bg-info text-dark me-1">{{ code }}</span>
+              <span class="badge bg-info me-1">{{ code }}</span>
             {% endfor %}
           {% else %}
             <span class="text-muted">—</span>
@@ -91,19 +132,7 @@
             <span class="badge bg-secondary">{{ report.priority }}</span>
           {% endif %}
         </td>
-        <td>
-          {% if report.status == 'Mới tạo' %}
-            <span class="badge bg-primary">{{ report.status }}</span>
-          {% elif report.status == 'Đang xử lý' %}
-            <span class="badge bg-warning">{{ report.status }}</span>
-          {% elif report.status == 'Đã xử lý' %}
-            <span class="badge bg-success">{{ report.status }}</span>
-          {% elif report.status == 'Đã đóng' %}
-            <span class="badge bg-secondary">{{ report.status }}</span>
-          {% else %}
-            <span class="badge bg-light text-dark">{{ report.status }}</span>
-          {% endif %}
-        </td>
+        <td>{{ report.status }}</td>
         <td>{{ report.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
         <td>{{ report.updated_at.strftime('%d-%m-%Y %H:%M') if report.updated_at else '—' }}</td>
       </tr>
@@ -119,7 +148,22 @@
 {% from '_pagination.html' import render_pagination %}
 {{ render_pagination(reports, 'bug_reports', {
   'status': status_filter,
-  'priority': priority_filter
+  'priority': priority_filter,
+  'date_filter': date_filter,
+  'date_from': date_from,
+  'date_to': date_to,
+  'creator': creator_filter
 }) }}
+<script>
+function filterByPriority(value) {
+  const url = new URL(window.location.href);
+  if (value) {
+    url.searchParams.set('priority', value);
+  } else {
+    url.searchParams.delete('priority');
+  }
+  window.location.href = url.toString();
+}
+</script>
 {% endblock %}
 

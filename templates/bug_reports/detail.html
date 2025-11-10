@@ -6,6 +6,11 @@
   <a href="{{ url_for('bug_reports') }}" class="btn btn-sm btn-secondary">
     <i class="bi bi-arrow-left"></i> Quay lại
   </a>
+  {% if is_creator or is_admin %}
+  <a href="{{ url_for('edit_bug_report', report_id=bug_report.id) }}" class="btn btn-sm btn-primary">
+    <i class="bi bi-pencil"></i> Sửa
+  </a>
+  {% endif %}
   {% if 'bug_reports.delete' in current_permissions %}
   <form method="POST" action="{{ url_for('delete_bug_report', report_id=bug_report.id) }}" class="d-inline" onsubmit="return confirm('Xóa báo lỗi này?')">
     <button class="btn btn-sm btn-danger" type="submit">
@@ -96,7 +101,7 @@
           </div>
           <div class="col-md-6">
             {% if bug_report.assignee %}
-            <strong>Người được gán:</strong> {{ bug_report.assignee.full_name or bug_report.assignee.username }}<br>
+            <strong>Người xử lý:</strong> {{ bug_report.assignee.full_name or bug_report.assignee.username }}<br>
             {% endif %}
             <strong>Cập nhật lần cuối:</strong> {{ bug_report.updated_at.strftime('%d-%m-%Y %H:%M') if bug_report.updated_at else '—' }}
           </div>
@@ -136,15 +141,15 @@
               </select>
             </div>
           </div>
-          {% if 'bug_reports.assign' in current_permissions and admins %}
+          {% if 'bug_reports.assign' in current_permissions and employees %}
           <div class="row g-3 mb-3">
             <div class="col-md-6">
-              <label class="form-label">Gán cho</label>
+              <label class="form-label">Người xử lý</label>
               <select name="assigned_to" class="form-select">
                 <option value="">— Chưa gán —</option>
-                {% for admin in admins %}
-                <option value="{{ admin.id }}" {% if bug_report.assigned_to == admin.id %}selected{% endif %}>
-                  {{ admin.full_name or admin.username }}
+                {% for employee in employees %}
+                <option value="{{ employee.id }}" {% if bug_report.assigned_to == employee.id %}selected{% endif %}>
+                  {{ employee.full_name or employee.username }}
                 </option>
                 {% endfor %}
               </select>
@@ -237,9 +242,9 @@
         <div class="mb-2">
           <strong>Phạm vi:</strong><br>
           {% if bug_report.visibility == 'public' %}
-            <span class="badge bg-success">Công khai</span>
+            <i class="bi bi-globe" title="Công khai"></i> Công khai
           {% else %}
-            <span class="badge bg-secondary">Cá nhân</span>
+            <i class="bi bi-person" title="Cá nhân"></i> Cá nhân
           {% endif %}
         </div>
         <div class="mb-2">
@@ -260,7 +265,7 @@
         </div>
         {% if bug_report.assignee %}
         <div class="mb-2">
-          <strong>Người được gán:</strong><br>
+          <strong>Người xử lý:</strong><br>
           {{ bug_report.assignee.full_name or bug_report.assignee.username }}
         </div>
         {% endif %}

@@ -1115,7 +1115,42 @@ def roles_permissions():
     roles = Role.query.order_by(Role.name).all()
     permissions = Permission.query.order_by(Permission.code).all()
     role_to_perms = {r.id: [rp.permission.code for rp in r.role_permissions] for r in roles}
-    return render_template('roles_permissions.html', roles=roles, permissions=permissions, role_to_perms=role_to_perms)
+    
+    # Group permissions by module/feature
+    permission_groups = {
+        'Thiết bị': ['devices.view', 'devices.edit', 'devices.delete'],
+        'Nhóm thiết bị': ['device_groups.view', 'device_groups.edit', 'device_groups.delete'],
+        'Phòng server': ['server_room.view', 'server_room.edit', 'server_room.delete'],
+        'Bàn giao thiết bị': ['handovers.view', 'handovers.edit', 'handovers.delete'],
+        'Phiếu nhập kho': ['inventory.view', 'inventory.edit', 'inventory.delete'],
+        'Đề xuất cấu hình': ['config_proposals.view', 'config_proposals.edit', 'config_proposals.delete'],
+        'Báo lỗi': ['bug_reports.create', 'bug_reports.view', 'bug_reports.edit', 'bug_reports.delete', 'bug_reports.assign'],
+        'Người dùng': ['users.view', 'users.edit', 'users.delete'],
+        'Phòng ban': ['departments.view', 'departments.edit', 'departments.delete'],
+        'Backup': ['backup.view', 'backup.edit', 'backup.delete'],
+        'Phân quyền': ['rbac.view', 'rbac.edit', 'rbac.delete', 'rbac.manage'],
+        'Bảo trì': ['maintenance.view', 'maintenance.add', 'maintenance.edit', 'maintenance.delete', 'maintenance.upload', 'maintenance.download']
+    }
+    
+    # Build actual groups from existing permissions
+    actual_groups = {}
+    perm_code_to_name = {p.code: p.name for p in permissions}
+    for group_name, codes in permission_groups.items():
+        actual_groups[group_name] = []
+        for code in codes:
+            perm = next((p for p in permissions if p.code == code), None)
+            if perm:
+                actual_groups[group_name].append(perm)
+    
+    # Add any permissions not in groups to "Khác"
+    grouped_codes = set()
+    for codes in permission_groups.values():
+        grouped_codes.update(codes)
+    other_perms = [p for p in permissions if p.code not in grouped_codes]
+    if other_perms:
+        actual_groups['Khác'] = other_perms
+    
+    return render_template('roles_permissions.html', roles=roles, permissions=permissions, role_to_perms=role_to_perms, permission_groups=actual_groups)
 
 @app.route('/health')
 def health_check():
@@ -1531,9 +1566,24 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 # ... (Device routes) ...
+def get_subordinate_department_ids(dept_id):
+    """Get all subordinate department IDs recursively"""
+    dept = Department.query.get(dept_id)
+    if not dept:
+        return []
+    
+    result = [dept_id]
+    for child in dept.children:
+        result.extend(get_subordinate_department_ids(child.id))
+    return result
+
 @app.route('/devices')
 def device_list():
     if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    current_permissions = _get_current_permissions()
+    user = User.query.get(user_id)
+    
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     # Load current filters from query params or session-saved defaults
@@ -1560,6 +1610,29 @@ def device_list():
         filter_department = saved_filters.get('filter_department', '')
     
     query = Device.query
+    
+    # Apply permission-based filtering
+    # Admin or users with full devices.view permission see all devices
+    is_admin = user.role == 'admin' if user else False
+    has_full_view = 'devices.view' in current_permissions and is_admin
+    
+    if not has_full_view:
+        # Personal accounts: only see devices they manage
+        if user and user.department_id:
+            dept = Department.query.get(user.department_id)
+            if dept and dept.manager_id == user_id:
+                # Manager: see devices of people in their department and sub-departments
+                dept_ids = get_subordinate_department_ids(dept.id)
+                # Get all users in these departments
+                dept_user_ids = [u.id for u in User.query.filter(User.department_id.in_(dept_ids)).all()]
+                dept_user_ids.append(user_id)  # Include self
+                query = query.filter(Device.manager_id.in_(dept_user_ids))
+            else:
+                # Regular user: only see devices they manage
+                query = query.filter(Device.manager_id == user_id)
+        else:
+            # No department: only see own devices
+            query = query.filter(Device.manager_id == user_id)
     if filter_device_code:
         query = query.filter(Device.device_code.ilike(f'%{filter_device_code}%'))
     if filter_name:
@@ -3899,6 +3972,10 @@ def bug_reports():
     per_page = request.args.get('per_page', 20, type=int)
     status_filter = request.args.get('status', '').strip()
     priority_filter = request.args.get('priority', '').strip()
+    date_filter = request.args.get('date_filter', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    creator_filter = request.args.get('creator', '').strip()
     
     # Người dùng thường chỉ thấy báo lỗi của mình/được gán hoặc báo lỗi công khai
     is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
@@ -3918,15 +3995,97 @@ def bug_reports():
     if priority_filter:
         q = q.filter(BugReport.priority == priority_filter)
     
+    # Date filtering
+    if date_filter:
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        if date_filter == '1':
+            # 1 ngày
+            q = q.filter(BugReport.created_at >= now - timedelta(days=1))
+        elif date_filter == '7':
+            # 7 ngày
+            q = q.filter(BugReport.created_at >= now - timedelta(days=7))
+        elif date_filter == '30':
+            # 30 ngày
+            q = q.filter(BugReport.created_at >= now - timedelta(days=30))
+        elif date_filter == '90':
+            # 3 tháng
+            q = q.filter(BugReport.created_at >= now - timedelta(days=90))
+        elif date_filter == 'custom':
+            # Khoảng thời gian
+            if date_from:
+                try:
+                    date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+                    q = q.filter(BugReport.created_at >= date_from_obj)
+                except ValueError:
+                    pass
+            if date_to:
+                try:
+                    date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+                    q = q.filter(BugReport.created_at < date_to_obj)
+                except ValueError:
+                    pass
+    
+    # Filter by creator
+    if creator_filter:
+        try:
+            creator_id = int(creator_filter)
+            q = q.filter(BugReport.created_by == creator_id)
+        except ValueError:
+            pass
+    
     reports = q.order_by(BugReport.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    return render_template('bug_reports/list.html', reports=reports, status_filter=status_filter, priority_filter=priority_filter, current_user_id=user_id, current_permissions=current_permissions)
+    
+    # Get list of users who created reports (for filter dropdown)
+    creators = db.session.query(User).join(BugReport, User.id == BugReport.created_by).distinct().order_by(User.full_name, User.username).all()
+    
+    return render_template('bug_reports/list.html', 
+                         reports=reports, 
+                         status_filter=status_filter, 
+                         priority_filter=priority_filter,
+                         date_filter=date_filter,
+                         date_from=date_from,
+                         date_to=date_to,
+                         creator_filter=creator_filter,
+                         creators=creators,
+                         current_user_id=user_id, 
+                         current_permissions=current_permissions)
 
 @app.route('/bug_reports/create', methods=['GET', 'POST'])
 def create_bug_report():
     """Tạo báo lỗi - bất kỳ người dùng nào đã đăng nhập đều có thể tạo"""
     if 'user_id' not in session: return redirect(url_for('login'))
     user_id = session.get('user_id')
-    devices = Device.query.order_by(Device.device_code).all()
+    current_permissions = _get_current_permissions()
+    
+    # Chỉ hiển thị thiết bị được gán cho user (trừ khi là admin)
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
+    if is_admin:
+        devices = Device.query.order_by(Device.device_code).all()
+    else:
+        devices = Device.query.filter_by(manager_id=user_id).order_by(Device.device_code).all()
+    
+    # Get list of users for "báo lỗi hộ" feature
+    # Users can report on behalf of people they manage devices for, or people in their department
+    user = User.query.get(user_id)
+    reportable_users = [user]  # Always include self
+    
+    # If user is a manager, include users in their department
+    if user and user.department_id:
+        dept = Department.query.get(user.department_id)
+        if dept and dept.manager_id == user_id:
+            # User is department manager, include all users in department
+            dept_users = User.query.filter_by(department_id=dept.id).all()
+            reportable_users.extend(dept_users)
+    
+    # Remove duplicates
+    seen_ids = set()
+    unique_users = []
+    for u in reportable_users:
+        if u.id not in seen_ids:
+            seen_ids.add(u.id)
+            unique_users.append(u)
+    reportable_users = sorted(unique_users, key=lambda x: (x.full_name or x.username or ''))
  
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
@@ -3935,6 +4094,18 @@ def create_bug_report():
         visibility = (request.form.get('visibility') or 'private').strip().lower()
         if visibility not in ['private', 'public']:
             visibility = 'private'
+        
+        # Handle "báo lỗi hộ" - created_by can be different from current user
+        created_by_id = user_id
+        report_for_user = request.form.get('report_for_user', '').strip()
+        if report_for_user:
+            try:
+                report_for_id = int(report_for_user)
+                # Verify that user can report for this person
+                if any(u.id == report_for_id for u in reportable_users):
+                    created_by_id = report_for_id
+            except ValueError:
+                pass
 
         # Hỗ trợ chọn nhiều mã thiết bị hoặc nhập thủ công
         device_codes = request.form.getlist('device_codes')
@@ -3951,15 +4122,23 @@ def create_bug_report():
                 seen.add(key)
                 deduped_codes.append(code)
         device_codes_str = ','.join(deduped_codes) if deduped_codes else None
+        
+        # If reporting for someone else, also show their devices
+        if created_by_id != user_id and is_admin:
+            # Admin can see all devices when reporting for someone
+            devices = Device.query.order_by(Device.device_code).all()
+        elif created_by_id != user_id:
+            # Show devices assigned to the person being reported for
+            devices = Device.query.filter_by(manager_id=created_by_id).order_by(Device.device_code).all()
  
         if not title or not description:
             flash('Vui lòng nhập tiêu đề và mô tả.', 'danger')
-            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description)
+            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description, reportable_users=reportable_users, selected_report_for=report_for_user)
  
         # Validate title length
         if len(title) > 100:
             flash('Tiêu đề không được vượt quá 100 ký tự.', 'danger')
-            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description)
+            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description, reportable_users=reportable_users, selected_report_for=report_for_user)
  
         try:
             bug_report = BugReport(
@@ -3968,7 +4147,7 @@ def create_bug_report():
                 priority=priority,
                 device_code=device_codes_str,
                 visibility=visibility,
-                created_by=user_id,
+                created_by=created_by_id,
                 status='Mới tạo'
             )
             db.session.add(bug_report)
@@ -3997,9 +4176,9 @@ def create_bug_report():
             db.session.rollback()
             app.logger.error(f'Error creating bug report: {str(e)}', exc_info=True)
             flash(f'Lỗi khi tạo báo lỗi: {str(e)}', 'danger')
-            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description)
+            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description, reportable_users=reportable_users, selected_report_for='')
     
-    return render_template('bug_reports/create.html', devices=devices, selected_device_codes=[], selected_visibility='private', selected_priority='Trung bình', draft_title='', draft_description='')
+    return render_template('bug_reports/create.html', devices=devices, selected_device_codes=[], selected_visibility='private', selected_priority='Trung bình', draft_title='', draft_description='', reportable_users=reportable_users, selected_report_for='')
 
 @app.route('/bug_reports/<int:report_id>')
 def bug_report_detail(report_id):
@@ -4018,10 +4197,8 @@ def bug_report_detail(report_id):
         flash('Bạn không có quyền xem báo lỗi này.', 'danger')
         return redirect(url_for('bug_reports'))
     
-    # Lấy danh sách admin để gán
-    admins = User.query.filter(or_(User.role == 'admin', User.id.in_(
-        db.session.query(UserRole.user_id).join(Role).filter(Role.name == 'Admin')
-    ))).all() if 'bug_reports.assign' in current_permissions else []
+    # Lấy danh sách nhân viên để gán (tất cả nhân viên, không chỉ admin)
+    employees = User.query.order_by(User.full_name, User.username).all() if 'bug_reports.assign' in current_permissions or is_admin else []
     
     is_closed = bug_report.status == 'Đã đóng'
     can_comment = (not is_closed) and (bug_report.is_public or is_admin or is_creator or is_assignee)
@@ -4033,7 +4210,7 @@ def bug_report_detail(report_id):
     return render_template(
         'bug_reports/detail.html',
         bug_report=bug_report,
-        admins=admins,
+        employees=employees,
         current_user_id=user_id,
         current_permissions=current_permissions,
         is_admin=is_admin,
@@ -4045,6 +4222,103 @@ def bug_report_detail(report_id):
         can_rate=can_rate,
         can_close=can_close
     )
+
+@app.route('/bug_reports/<int:report_id>/edit', methods=['GET', 'POST'])
+def edit_bug_report(report_id):
+    """Sửa báo lỗi - cho phép sửa tiêu đề, mô tả, mã thiết bị"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    current_permissions = _get_current_permissions()
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    
+    # Check permission: creator or admin
+    is_creator = bug_report.created_by == user_id
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.edit', 'bug_reports.assign'])
+    
+    if not (is_creator or is_admin):
+        flash('Bạn không có quyền sửa báo lỗi này.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        priority = request.form.get('priority', 'Trung bình')
+        visibility = (request.form.get('visibility') or 'private').strip().lower()
+        if visibility not in ['private', 'public']:
+            visibility = 'private'
+        
+        # Handle device codes
+        device_codes = request.form.getlist('device_codes')
+        if len(device_codes) == 1 and ',' in device_codes[0]:
+            device_codes = [code.strip() for code in device_codes[0].split(',')]
+        device_codes = [code.strip() for code in device_codes if code and code.strip()]
+        seen = set()
+        deduped_codes = []
+        for code in device_codes:
+            key = code.lower()
+            if key not in seen:
+                seen.add(key)
+                deduped_codes.append(code)
+        device_codes_str = ','.join(deduped_codes) if deduped_codes else None
+        
+        if not title or not description:
+            flash('Vui lòng nhập tiêu đề và mô tả.', 'danger')
+            devices = Device.query.order_by(Device.device_code).all()
+            return render_template('bug_reports/edit.html', bug_report=bug_report, devices=devices, 
+                                 selected_device_codes=deduped_codes, selected_visibility=visibility, 
+                                 selected_priority=priority, draft_title=title, draft_description=description)
+        
+        if len(title) > 100:
+            flash('Tiêu đề không được vượt quá 100 ký tự.', 'danger')
+            devices = Device.query.order_by(Device.device_code).all()
+            return render_template('bug_reports/edit.html', bug_report=bug_report, devices=devices,
+                                 selected_device_codes=deduped_codes, selected_visibility=visibility,
+                                 selected_priority=priority, draft_title=title, draft_description=description)
+        
+        try:
+            bug_report.title = title
+            bug_report.description = description
+            bug_report.priority = priority
+            bug_report.visibility = visibility
+            bug_report.device_code = device_codes_str
+            bug_report.updated_at = datetime.utcnow()
+            
+            # Handle new attachments
+            files = request.files.getlist('attachments')
+            if files and any(f.filename for f in files):
+                upload_dir = os.path.join(instance_path, 'bug_report_attachments', str(bug_report.id))
+                os.makedirs(upload_dir, exist_ok=True)
+                for f in files:
+                    if f and f.filename:
+                        filename = f.filename.replace('..', '_').replace('/', '_').replace('\\', '_')
+                        dest = os.path.join(upload_dir, filename)
+                        f.save(dest)
+                        db.session.add(BugReportAttachment(
+                            bug_report_id=bug_report.id,
+                            file_name=filename,
+                            file_path=dest
+                        ))
+            
+            db.session.commit()
+            flash('Đã cập nhật báo lỗi thành công.', 'success')
+            return redirect(url_for('bug_report_detail', report_id=report_id))
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Error editing bug report: {str(e)}', exc_info=True)
+            flash(f'Lỗi khi cập nhật báo lỗi: {str(e)}', 'danger')
+            devices = Device.query.order_by(Device.device_code).all()
+            return render_template('bug_reports/edit.html', bug_report=bug_report, devices=devices,
+                                 selected_device_codes=deduped_codes, selected_visibility=visibility,
+                                 selected_priority=priority, draft_title=title, draft_description=description)
+    
+    # GET request - show edit form
+    devices = Device.query.order_by(Device.device_code).all()
+    selected_codes = bug_report.device_code_list
+    return render_template('bug_reports/edit.html', bug_report=bug_report, devices=devices,
+                         selected_device_codes=selected_codes, selected_visibility=bug_report.visibility,
+                         selected_priority=bug_report.priority, draft_title=bug_report.title,
+                         draft_description=bug_report.description)
 
 @app.route('/bug_reports/<int:report_id>/update', methods=['POST'])
 def update_bug_report(report_id):

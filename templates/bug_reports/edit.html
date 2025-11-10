@@ -1,32 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Tạo báo lỗi{% endblock %}
+{% block title %}Sửa báo lỗi{% endblock %}
 {% block content %}
-<h3 class="mb-3">Tạo báo lỗi mới</h3>
-<form method="POST" enctype="multipart/form-data" class="row g-3" id="createForm">
-  {% if reportable_users|length > 1 %}
-  <div class="col-12">
-    <label class="form-label">Báo lỗi cho</label>
-    <select name="report_for_user" id="report_for_user" class="form-select" onchange="updateDeviceList()">
-      <option value="">Báo lỗi cho chính mình</option>
-      {% for u in reportable_users %}
-      <option value="{{ u.id }}" {% if selected_report_for|string == u.id|string %}selected{% endif %}>
-        {{ u.full_name or u.username }}
-      </option>
-      {% endfor %}
-    </select>
-    <small class="form-text text-muted">Chọn người mà bạn muốn báo lỗi hộ</small>
-  </div>
-  {% endif %}
+<h3 class="mb-3">Sửa báo lỗi</h3>
+<form method="POST" enctype="multipart/form-data" class="row g-3">
   <div class="col-12">
     <label class="form-label">Tiêu đề <span class="text-danger">*</span></label>
-    <input type="text" name="title" class="form-control" required maxlength="100" placeholder="Mô tả ngắn gọn về lỗi (tối đa 100 ký tự)" value="{{ draft_title or '' }}">
+    <input type="text" name="title" class="form-control" required maxlength="100" placeholder="Mô tả ngắn gọn về lỗi (tối đa 100 ký tự)" value="{{ draft_title or bug_report.title }}">
     <small class="form-text text-muted">Tối đa 100 ký tự</small>
   </div>
   
   <div class="col-md-6">
     <label class="form-label">Mức độ ưu tiên</label>
     <select name="priority" class="form-select">
-      {% set priority = selected_priority or 'Trung bình' %}
+      {% set priority = selected_priority or bug_report.priority or 'Trung bình' %}
       <option value="Thấp" {% if priority=='Thấp' %}selected{% endif %}>Thấp</option>
       <option value="Trung bình" {% if priority=='Trung bình' %}selected{% endif %}>Trung bình</option>
       <option value="Cao" {% if priority=='Cao' %}selected{% endif %}>Cao</option>
@@ -36,7 +22,7 @@
   
   <div class="col-md-6">
     <label class="form-label">Phạm vi hiển thị</label>
-    {% set visibility = selected_visibility or 'private' %}
+    {% set visibility = selected_visibility or bug_report.visibility or 'private' %}
     <select name="visibility" class="form-select">
       <option value="private" {% if visibility=='private' %}selected{% endif %}>Cá nhân (chỉ người tạo, quản trị và người xử lý)</option>
       <option value="public" {% if visibility=='public' %}selected{% endif %}>Công khai (mọi người có thể xem và bình luận)</option>
@@ -46,8 +32,7 @@
   <div class="col-12">
     <label class="form-label">Mã thiết bị (tùy chọn)</label>
     <select name="device_codes" id="device_codes" class="form-select" multiple>
-      {% set selected_codes = selected_device_codes or [] %}
-      {% set catalog_codes = device_catalog_codes or [] %}
+      {% set selected_codes = selected_device_codes or bug_report.device_code_list or [] %}
       {% for device in devices %}
         {% set code = device.device_code %}
         <option value="{{ code }}" {% if code in selected_codes %}selected{% endif %}>
@@ -55,7 +40,13 @@
         </option>
       {% endfor %}
       {% for code in selected_codes %}
-        {% if code not in catalog_codes %}
+        {% set found = false %}
+        {% for device in devices %}
+          {% if device.device_code == code %}
+            {% set found = true %}
+          {% endif %}
+        {% endfor %}
+        {% if not found %}
           <option value="{{ code }}" selected>{{ code }}</option>
         {% endif %}
       {% endfor %}
@@ -65,20 +56,20 @@
   
   <div class="col-12">
     <label class="form-label">Mô tả chi tiết <span class="text-danger">*</span></label>
-    <textarea name="description" class="form-control" rows="8" required placeholder="Mô tả chi tiết về lỗi, các bước để tái hiện, môi trường xảy ra lỗi...">{{ draft_description or '' }}</textarea>
+    <textarea name="description" class="form-control" rows="8" required placeholder="Mô tả chi tiết về lỗi, các bước để tái hiện, môi trường xảy ra lỗi...">{{ draft_description or bug_report.description }}</textarea>
     <small class="form-text text-muted">Cung cấp càng nhiều thông tin càng tốt để quản trị viên có thể xử lý nhanh chóng.</small>
   </div>
   
   <div class="col-12">
-    <label class="form-label">File đính kèm (tùy chọn)</label>
+    <label class="form-label">File đính kèm mới (tùy chọn)</label>
     <input type="file" name="attachments" class="form-control" multiple>
     <small class="form-text text-muted">Có thể đính kèm hình ảnh, log file, hoặc các file khác liên quan đến lỗi.</small>
   </div>
   
   <div class="col-12">
-    <a href="{{ url_for('bug_reports') }}" class="btn btn-secondary">Hủy</a>
+    <a href="{{ url_for('bug_report_detail', report_id=bug_report.id) }}" class="btn btn-secondary">Hủy</a>
     <button class="btn btn-primary" type="submit">
-      <i class="bi bi-send"></i> Gửi báo lỗi
+      <i class="bi bi-save"></i> Lưu thay đổi
     </button>
   </div>
 </form>
@@ -100,12 +91,6 @@
       });
     }
   });
-  
-  function updateDeviceList() {
-    // This would ideally reload the device list via AJAX, but for now
-    // the form will submit and server will handle it
-    // The device list is already filtered on the server side
-  }
 </script>
 {% endblock %}
 
