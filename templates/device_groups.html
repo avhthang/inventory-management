@@ -8,7 +8,9 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="card-title mb-0">Nhóm Thiết Bị</h2>
             <div>
+                {% if current_permissions and 'device_groups.edit' in current_permissions %}
                 <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createGroupModal"><i class="bi bi-plus"></i> Tạo nhóm</button>
+                {% endif %}
             </div>
         </div>
 

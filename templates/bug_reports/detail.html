@@ -145,16 +145,25 @@
           <div class="row g-3 mb-3">
             <div class="col-md-6">
               <label class="form-label">Người xử lý</label>
-              <select name="assigned_to" class="form-select">
+              <select name="assigned_to" id="assigned_to" class="form-select">
                 <option value="">— Chưa gán —</option>
                 {% for employee in employees %}
                 <option value="{{ employee.id }}" {% if bug_report.assigned_to == employee.id %}selected{% endif %}>
-                  {{ employee.full_name or employee.username }}
+                  {{ employee.full_name or employee.username }} ({{ employee.username }})
                 </option>
                 {% endfor %}
               </select>
             </div>
           </div>
+          <script>
+          $(document).ready(function() {
+            $('#assigned_to').select2({
+              width: '100%',
+              placeholder: 'Tìm kiếm người xử lý...',
+              allowClear: true
+            });
+          });
+          </script>
           {% endif %}
           <div class="mb-3">
             <label class="form-label">Giải pháp/Ghi chú</label>

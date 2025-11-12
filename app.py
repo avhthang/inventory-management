@@ -581,6 +581,7 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Permission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1021,16 +1022,20 @@ def ensure_tables_once():
 def inject_user():
     if 'user_id' in session:
         current_user = User.query.get(session['user_id'])
-        # derive permission codes for template checks
-        role_ids = [ur.role_id for ur in UserRole.query.filter_by(user_id=current_user.id).all()]
-        perm_codes = set()
-        if role_ids:
-            for rp in RolePermission.query.filter(RolePermission.role_id.in_(role_ids)).all():
-                perm = Permission.query.get(rp.permission_id)
-                if perm:
-                    perm_codes.add(perm.code)
+        # Admin always has all permissions
+        if current_user and current_user.role == 'admin':
+            perm_codes = {p.code for p in Permission.query.all()}
+        else:
+            # derive permission codes for template checks
+            role_ids = [ur.role_id for ur in UserRole.query.filter_by(user_id=current_user.id).all()] if current_user else []
+            perm_codes = set()
+            if role_ids:
+                for rp in RolePermission.query.filter(RolePermission.role_id.in_(role_ids)).all():
+                    perm = Permission.query.get(rp.permission_id)
+                    if perm:
+                        perm_codes.add(perm.code)
         return dict(current_user=current_user, current_permissions=perm_codes)
-    return dict(current_user=None)
+    return dict(current_user=None, current_permissions=set())
 
 @app.template_filter('vnd')
 def format_vnd(value):
@@ -1151,6 +1156,128 @@ def roles_permissions():
         actual_groups['Khác'] = other_perms
     
     return render_template('roles_permissions.html', roles=roles, permissions=permissions, role_to_perms=role_to_perms, permission_groups=actual_groups)
+
+@app.route('/roles')
+def roles_list():
+    """Danh sách quyền với các cột: STT, Tên quyền, mô tả, ngày tạo, Hành động"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    if (user.role != 'admin') and ('rbac.manage' not in _get_current_permissions()):
+        flash('Bạn không có quyền truy cập trang phân quyền.', 'danger')
+        return redirect(url_for('home'))
+    
+    roles = Role.query.order_by(Role.created_at.desc()).all()
+    return render_template('roles/list.html', roles=roles)
+
+@app.route('/roles/<int:role_id>', methods=['GET', 'POST'])
+def role_detail(role_id):
+    """Chi tiết quyền với 2 tab: Chức năng và Danh sách người dùng"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    if (user.role != 'admin') and ('rbac.manage' not in _get_current_permissions()):
+        flash('Bạn không có quyền truy cập trang phân quyền.', 'danger')
+        return redirect(url_for('home'))
+    
+    role = Role.query.get_or_404(role_id)
+    tab = request.args.get('tab', 'permissions')
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'save_role_perms':
+            # Cập nhật quyền của vai trò
+            perm_codes = request.form.getlist('perm_codes')
+            RolePermission.query.filter_by(role_id=role.id).delete()
+            for code in perm_codes:
+                perm = Permission.query.filter_by(code=code).first()
+                if perm:
+                    db.session.add(RolePermission(role_id=role.id, permission_id=perm.id))
+            db.session.commit()
+            flash('Cập nhật quyền của vai trò thành công.', 'success')
+            return redirect(url_for('role_detail', role_id=role_id, tab='permissions'))
+        
+        elif action == 'update_role':
+            # Cập nhật tên và mô tả quyền
+            name = request.form.get('name', '').strip()
+            description = request.form.get('description', '').strip()
+            if name and name != role.name:
+                # Kiểm tra trùng tên
+                if Role.query.filter(Role.name == name, Role.id != role.id).first():
+                    flash('Tên quyền đã tồn tại.', 'danger')
+                else:
+                    role.name = name
+            role.description = description
+            db.session.commit()
+            flash('Cập nhật quyền thành công.', 'success')
+            return redirect(url_for('role_detail', role_id=role_id, tab=tab))
+        
+        elif action == 'add_user_to_role':
+            # Thêm người dùng vào quyền
+            user_id = request.form.get('user_id', type=int)
+            if user_id:
+                existing = UserRole.query.filter_by(user_id=user_id, role_id=role.id).first()
+                if not existing:
+                    db.session.add(UserRole(user_id=user_id, role_id=role.id))
+                    db.session.commit()
+                    flash('Đã thêm người dùng vào quyền.', 'success')
+                else:
+                    flash('Người dùng đã có quyền này.', 'warning')
+            return redirect(url_for('role_detail', role_id=role_id, tab='users'))
+        
+        elif action == 'remove_user_from_role':
+            # Xóa người dùng khỏi quyền
+            user_id = request.form.get('user_id', type=int)
+            if user_id:
+                UserRole.query.filter_by(user_id=user_id, role_id=role.id).delete()
+                db.session.commit()
+                flash('Đã xóa người dùng khỏi quyền.', 'success')
+            return redirect(url_for('role_detail', role_id=role_id, tab='users'))
+    
+    # GET request
+    permissions = Permission.query.order_by(Permission.code).all()
+    role_perms = [rp.permission.code for rp in role.role_permissions]
+    
+    # Group permissions
+    permission_groups = {
+        'Thiết bị': ['devices.view', 'devices.edit', 'devices.delete'],
+        'Nhóm thiết bị': ['device_groups.view', 'device_groups.edit', 'device_groups.delete'],
+        'Phòng server': ['server_room.view', 'server_room.edit', 'server_room.delete'],
+        'Bàn giao thiết bị': ['handovers.view', 'handovers.edit', 'handovers.delete'],
+        'Phiếu nhập kho': ['inventory.view', 'inventory.edit', 'inventory.delete'],
+        'Đề xuất cấu hình': ['config_proposals.view', 'config_proposals.edit', 'config_proposals.delete'],
+        'Báo lỗi': ['bug_reports.create', 'bug_reports.view', 'bug_reports.edit', 'bug_reports.delete', 'bug_reports.assign'],
+        'Người dùng': ['users.view', 'users.edit', 'users.delete'],
+        'Phòng ban': ['departments.view', 'departments.edit', 'departments.delete'],
+        'Backup': ['backup.view', 'backup.edit', 'backup.delete'],
+        'Phân quyền': ['rbac.view', 'rbac.edit', 'rbac.delete', 'rbac.manage'],
+        'Bảo trì': ['maintenance.view', 'maintenance.add', 'maintenance.edit', 'maintenance.delete', 'maintenance.upload', 'maintenance.download']
+    }
+    
+    actual_groups = {}
+    for group_name, codes in permission_groups.items():
+        actual_groups[group_name] = []
+        for code in codes:
+            perm = next((p for p in permissions if p.code == code), None)
+            if perm:
+                actual_groups[group_name].append(perm)
+    
+    grouped_codes = set()
+    for codes in permission_groups.values():
+        grouped_codes.update(codes)
+    other_perms = [p for p in permissions if p.code not in grouped_codes]
+    if other_perms:
+        actual_groups['Khác'] = other_perms
+    
+    # Lấy danh sách người dùng trong quyền
+    user_roles = UserRole.query.filter_by(role_id=role.id).all()
+    users_in_role = [User.query.get(ur.user_id) for ur in user_roles if User.query.get(ur.user_id)]
+    
+    # Lấy danh sách tất cả người dùng để thêm vào quyền
+    all_users = User.query.order_by(User.full_name, User.username).all()
+    
+    return render_template('roles/detail.html', role=role, permissions=permissions, 
+                         role_perms=role_perms, permission_groups=actual_groups,
+                         users_in_role=users_in_role, all_users=all_users, tab=tab)
 
 @app.route('/health')
 def health_check():
@@ -3311,6 +3438,16 @@ def add_user():
             except Exception:
                 new_user.last_name_token = None
         db.session.add(new_user)
+        db.session.flush()  # Để lấy ID của user mới
+        
+        # Tự động gán quyền User cho người dùng mới
+        user_role = Role.query.filter_by(name='User').first()
+        if user_role:
+            # Kiểm tra xem đã có quyền chưa
+            existing = UserRole.query.filter_by(user_id=new_user.id, role_id=user_role.id).first()
+            if not existing:
+                db.session.add(UserRole(user_id=new_user.id, role_id=user_role.id))
+        
         db.session.commit()
         flash('Thêm người dùng mới thành công!', 'success')
         return redirect(url_for('user_list'))
@@ -3405,6 +3542,26 @@ def edit_user(user_id):
         if new_password:
             user.password = generate_password_hash(new_password)
         
+        # Xử lý quyền (roles)
+        selected_role_ids = request.form.getlist('user_roles')
+        try:
+            selected_role_ids = [int(rid) for rid in selected_role_ids]
+        except ValueError:
+            selected_role_ids = []
+        
+        # Xóa các quyền cũ không được chọn
+        if selected_role_ids:
+            UserRole.query.filter_by(user_id=user_id).filter(~UserRole.role_id.in_(selected_role_ids)).delete()
+        else:
+            # Nếu không chọn quyền nào, xóa tất cả
+            UserRole.query.filter_by(user_id=user_id).delete()
+        
+        # Thêm các quyền mới
+        existing_role_ids = {ur.role_id for ur in UserRole.query.filter_by(user_id=user_id).all()}
+        for role_id in selected_role_ids:
+            if role_id not in existing_role_ids:
+                db.session.add(UserRole(user_id=user_id, role_id=role_id))
+        
         # Xử lý nghỉ việc - tự động tạo phiếu trả thiết bị
         if new_status == 'Nghỉ việc' and old_status != 'Nghỉ việc':
             success = create_return_handover_for_user(user_id, session.get('user_id'))
@@ -3439,9 +3596,17 @@ def edit_user(user_id):
             pass
         return redirect(url_for('user_list'))
     departments = Department.query.all()
+    
+    # Lấy danh sách quyền của user
+    user_roles = UserRole.query.filter_by(user_id=user_id).all()
+    user_role_ids = [ur.role_id for ur in user_roles]
+    
+    # Lấy tất cả quyền để hiển thị
+    all_roles = Role.query.order_by(Role.name).all()
+    
     # Preserve next/back url
     next_url = request.referrer if request.referrer and ('/edit_user/' not in request.referrer) else url_for('user_list')
-    return render_template('edit_user.html', user=user, departments=departments, next_url=next_url)
+    return render_template('edit_user.html', user=user, departments=departments, all_roles=all_roles, user_role_ids=user_role_ids, next_url=next_url)
 
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
@@ -4013,13 +4178,24 @@ def bug_reports():
             q = q.filter(BugReport.created_at >= now - timedelta(days=90))
         elif date_filter == 'custom':
             # Khoảng thời gian
-            if date_from:
+            if date_from and date_to:
+                try:
+                    date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+                    date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+                    if date_from_obj > date_to_obj:
+                        flash('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc!', 'danger')
+                    else:
+                        q = q.filter(BugReport.created_at >= date_from_obj)
+                        q = q.filter(BugReport.created_at < date_to_obj + timedelta(days=1))
+                except ValueError:
+                    pass
+            elif date_from:
                 try:
                     date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
                     q = q.filter(BugReport.created_at >= date_from_obj)
                 except ValueError:
                     pass
-            if date_to:
+            elif date_to:
                 try:
                     date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
                     q = q.filter(BugReport.created_at < date_to_obj)
@@ -4188,6 +4364,13 @@ def bug_report_detail(report_id):
     current_permissions = _get_current_permissions()
     
     bug_report = BugReport.query.get_or_404(report_id)
+    
+    # Đánh dấu đã đọc
+    if 'read_reports' not in session:
+        session['read_reports'] = []
+    if report_id not in session['read_reports']:
+        session['read_reports'].append(report_id)
+        session.modified = True
     
     is_creator = bug_report.created_by == user_id
     is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False

@@ -9,13 +9,19 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="card-title mb-0">Danh sách Thiết bị</h2>
             <div>
+                {% if current_permissions and 'devices.delete' in current_permissions %}
                 <button type="button" id="deleteSelectedBtn" class="btn btn-danger me-2" style="display: none;" onclick="showBulkDeleteConfirm()">
                     <i class="bi bi-trash"></i> Xóa thiết bị đã chọn
                 </button>
+                {% endif %}
+                {% if current_permissions and 'devices.edit' in current_permissions %}
                 <a href="{{ url_for('add_device') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Thêm mới</a>
                 <a href="{{ url_for('add_devices_bulk') }}" class="btn btn-warning ms-2"><i class="bi bi-plus-square"></i> Thêm thiết bị</a>
                 <a href="{{ url_for('import_devices') }}" class="btn btn-info ms-2"><i class="bi bi-upload"></i> Nhập Excel</a>
+                {% endif %}
+                {% if current_permissions and 'devices.view' in current_permissions %}
                 <a href="{{ url_for('export_devices_excel') }}" class="btn btn-success ms-2"><i class="bi bi-download"></i> Xuất Excel</a>
+                {% endif %}
             </div>
         </div>
         <hr>
@@ -153,11 +159,17 @@
                             {% endif %}
                         </td>
                         <td class="text-center text-nowrap">
+                            {% if current_permissions and 'devices.view' in current_permissions %}
                             <a href="{{ url_for('device_detail', device_id=device.id) }}" class="btn btn-sm btn-outline-info" title="Xem chi tiết"><i class="bi bi-eye"></i></a>
+                            {% endif %}
+                            {% if current_permissions and 'devices.edit' in current_permissions %}
                             <a href="{{ url_for('edit_device', device_id=device.id) }}" class="btn btn-sm btn-outline-warning ms-1" title="Sửa"><i class="bi bi-pencil"></i></a>
+                            {% endif %}
+                            {% if current_permissions and 'devices.delete' in current_permissions %}
                             <form method="POST" action="{{ url_for('delete_device', device_id=device.id) }}" onsubmit="return confirm('Bạn chắc chắn muốn xóa thiết bị này?')" class="d-inline">
                                 <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i class="bi bi-trash"></i></button>
                             </form>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

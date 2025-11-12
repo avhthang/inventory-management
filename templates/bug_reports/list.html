@@ -3,9 +3,11 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h3>Báo lỗi</h3>
+  {% if current_permissions and 'bug_reports.create' in current_permissions %}
   <a class="btn btn-primary" href="{{ url_for('create_bug_report') }}">
     <i class="bi bi-plus-circle"></i> Tạo báo lỗi mới
   </a>
+  {% endif %}
 </div>
 
 <form method="GET" class="row g-2 mb-3">
@@ -66,62 +68,90 @@ document.getElementById('date_filter').addEventListener('change', function() {
   document.getElementById('date_range_group').style.display = isCustom ? 'block' : 'none';
   document.getElementById('date_to_group').style.display = isCustom ? 'block' : 'none';
 });
+
+// Validate date range
+document.querySelector('form').addEventListener('submit', function(e) {
+  const dateFilter = document.getElementById('date_filter').value;
+  if (dateFilter === 'custom') {
+    const dateFrom = document.querySelector('input[name="date_from"]').value;
+    const dateTo = document.querySelector('input[name="date_to"]').value;
+    if (dateFrom && dateTo && new Date(dateFrom) > new Date(dateTo)) {
+      e.preventDefault();
+      alert('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc!');
+      return false;
+    }
+  }
+});
 </script>
 
 <div class="table-responsive">
   <table class="table table-striped table-hover">
     <thead>
       <tr>
-        <th>#</th>
-        <th>Tiêu đề</th>
-        <th>Mã thiết bị</th>
-        <th>Người tạo</th>
-        <th>Người xử lý</th>
-        <th>
-          <select class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="filterByPriority(this.value)">
-            <option value="">Mức độ</option>
-            <option value="Thấp" {% if priority_filter=='Thấp' %}selected{% endif %}>Thấp</option>
-            <option value="Trung bình" {% if priority_filter=='Trung bình' %}selected{% endif %}>Trung bình</option>
-            <option value="Cao" {% if priority_filter=='Cao' %}selected{% endif %}>Cao</option>
-            <option value="Khẩn cấp" {% if priority_filter=='Khẩn cấp' %}selected{% endif %}>Khẩn cấp</option>
-          </select>
+        <th class="text-center" style="white-space: nowrap;">#</th>
+        <th class="text-center" style="white-space: nowrap;"><strong>Tiêu đề</strong></th>
+        <th class="text-center" style="white-space: nowrap;"><strong>Mã thiết bị</strong></th>
+        <th class="text-center" style="white-space: nowrap;"><strong>Người tạo</strong></th>
+        <th class="text-center" style="white-space: nowrap;"><strong>Người xử lý</strong></th>
+        <th class="text-center" style="white-space: nowrap;">
+          <strong>Mức độ</strong>
+          <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-bs-toggle="dropdown" title="Lọc mức độ">
+            <i class="bi bi-funnel"></i>
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="?priority=">Tất cả</a></li>
+            <li><a class="dropdown-item" href="?priority=Thấp">Thấp</a></li>
+            <li><a class="dropdown-item" href="?priority=Trung bình">Trung bình</a></li>
+            <li><a class="dropdown-item" href="?priority=Cao">Cao</a></li>
+            <li><a class="dropdown-item" href="?priority=Khẩn cấp">Khẩn cấp</a></li>
+          </ul>
         </th>
-        <th>Trạng thái</th>
-        <th>Ngày tạo</th>
-        <th>Cập nhật</th>
+        <th class="text-center" style="white-space: nowrap;"><strong>Trạng thái</strong></th>
+        <th class="text-center" style="white-space: nowrap;"><strong>Ngày tạo</strong></th>
+        <th class="text-center" style="white-space: nowrap;"><strong>Cập nhật</strong></th>
       </tr>
     </thead>
     <tbody>
       {% for report in reports.items %}
+      {% set is_read = session.get('read_reports', [])|list %}
+      {% set report_read = report.id in is_read %}
       <tr onclick="window.location='{{ url_for('bug_report_detail', report_id=report.id) }}'" style="cursor:pointer">
-        <td>{{ reports.first + loop.index - 1 }}</td>
-        <td>
-          <strong>{{ report.title }}</strong>
+        <td class="text-center" style="white-space: nowrap;">{{ reports.first + loop.index - 1 }}</td>
+        <td style="white-space: nowrap;">
+          <div class="text-truncate" style="max-width: 300px;" title="{{ report.title }}">
+            {% if report_read %}
+            {{ report.title }}
+            {% else %}
+            <strong>{{ report.title }}</strong>
+            {% endif %}
+          </div>
           {% if report.attachments|length > 0 %}
             <i class="bi bi-paperclip text-muted"></i>
           {% endif %}
           {% if report.visibility == 'public' %}
-            <i class="bi bi-globe ms-1" title="Công khai"></i>
+            <i class="bi bi-globe ms-1 text-muted" style="opacity: 0.5; font-size: 0.8em;" title="Công khai"></i>
           {% else %}
-            <i class="bi bi-person ms-1" title="Cá nhân"></i>
+            <i class="bi bi-person ms-1 text-muted" style="opacity: 0.5; font-size: 0.8em;" title="Cá nhân"></i>
           {% endif %}
           {% if report.reopen_requested %}
             <span class="badge bg-warning text-dark ms-1">Yêu cầu mở lại</span>
           {% endif %}
         </td>
-        <td>
+        <td style="white-space: nowrap;">
           {% set codes = report.device_code_list %}
           {% if codes %}
-            {% for code in codes %}
-              <span class="badge bg-info me-1">{{ code }}</span>
-            {% endfor %}
+            <div class="text-truncate" style="max-width: 200px;" title="{{ codes|join(', ') }}">
+              {% for code in codes %}
+                <span class="me-1">{{ code }}</span>{% if not loop.last %},{% endif %}
+              {% endfor %}
+            </div>
           {% else %}
             <span class="text-muted">—</span>
           {% endif %}
         </td>
-        <td>{{ report.creator.full_name or report.creator.username }}</td>
-        <td>{{ report.assignee.full_name or report.assignee.username if report.assignee else '—' }}</td>
-        <td>
+        <td class="text-center" style="white-space: nowrap;">{{ report.creator.full_name or report.creator.username }}</td>
+        <td class="text-center" style="white-space: nowrap;">{{ report.assignee.full_name or report.assignee.username if report.assignee else '—' }}</td>
+        <td class="text-center" style="white-space: nowrap;">
           {% if report.priority == 'Khẩn cấp' %}
             <span class="badge bg-danger">{{ report.priority }}</span>
           {% elif report.priority == 'Cao' %}
@@ -132,9 +162,9 @@ document.getElementById('date_filter').addEventListener('change', function() {
             <span class="badge bg-secondary">{{ report.priority }}</span>
           {% endif %}
         </td>
-        <td>{{ report.status }}</td>
-        <td>{{ report.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
-        <td>{{ report.updated_at.strftime('%d-%m-%Y %H:%M') if report.updated_at else '—' }}</td>
+        <td class="text-center" style="white-space: nowrap;">{{ report.status }}</td>
+        <td class="text-center" style="white-space: nowrap;">{{ report.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
+        <td class="text-center" style="white-space: nowrap;">{{ report.updated_at.strftime('%d-%m-%Y %H:%M') if report.updated_at else '—' }}</td>
       </tr>
       {% else %}
       <tr>

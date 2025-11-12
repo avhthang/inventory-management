@@ -5,7 +5,12 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h3 class="mb-0">Phân quyền</h3>
-      <small class="text-muted">Chỉ Admin hoặc người có quyền "rbac.manage"</small>
+      <div>
+        <a href="{{ url_for('roles_list') }}" class="btn btn-outline-primary">
+          <i class="bi bi-list"></i> Danh sách Quyền
+        </a>
+        <small class="text-muted ms-2">Chỉ Admin hoặc người có quyền "rbac.manage"</small>
+      </div>
     </div>
 
     <form method="POST" id="rbac-form">

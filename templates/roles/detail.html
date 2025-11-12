@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+{% block title %}Chi tiết Quyền: {{ role.name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3 class="mb-0">Chi tiết Quyền: {{ role.name }}</h3>
+      <a href="{{ url_for('roles_list') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Quay lại
+      </a>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-3">
+      <li class="nav-item">
+        <a class="nav-link {% if tab == 'permissions' %}active{% endif %}" href="{{ url_for('role_detail', role_id=role.id, tab='permissions') }}">
+          Chức năng
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if tab == 'users' %}active{% endif %}" href="{{ url_for('role_detail', role_id=role.id, tab='users') }}">
+          Danh sách người dùng
+        </a>
+      </li>
+    </ul>
+
+    {% if tab == 'permissions' %}
+    <!-- Tab Chức năng -->
+    <form method="POST" action="{{ url_for('role_detail', role_id=role.id, tab='permissions') }}">
+      <input type="hidden" name="action" value="save_role_perms">
+      
+      <div class="mb-3">
+        <label class="form-label">Tên quyền</label>
+        <input type="text" class="form-control" name="name" value="{{ role.name }}" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Mô tả</label>
+        <textarea class="form-control" name="description" rows="2">{{ role.description or '' }}</textarea>
+      </div>
+      <div class="mb-3">
+        <button type="submit" name="action" value="update_role" class="btn btn-primary">Cập nhật thông tin</button>
+      </div>
+      
+      <hr>
+      
+      <h5>Chức năng</h5>
+      <div class="border rounded p-3" style="max-height: 600px; overflow: auto;">
+        {% if permission_groups %}
+          {% for group_name, group_perms in permission_groups.items() %}
+          <div class="mb-4">
+            <h6 class="border-bottom pb-2 mb-2">{{ group_name }}</h6>
+            <div class="row g-2">
+              {% for perm in group_perms %}
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input perm-checkbox" type="checkbox" value="{{ perm.code }}" name="perm_codes" id="perm-{{ perm.id }}" {% if perm.code in role_perms %}checked{% endif %}>
+                  <label class="form-check-label" for="perm-{{ perm.id }}">
+                    {{ perm.name }}
+                    <small class="text-muted">({{ perm.code }})</small>
+                  </label>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-muted">Chưa có quyền nào.</div>
+        {% endif %}
+      </div>
+      
+      <div class="mt-3">
+        <button type="submit" name="action" value="save_role_perms" class="btn btn-primary">Lưu quyền</button>
+      </div>
+    </form>
+    
+    {% elif tab == 'users' %}
+    <!-- Tab Danh sách người dùng -->
+    <div class="mb-3">
+      <h5>Thêm người dùng vào quyền</h5>
+      <form method="POST" action="{{ url_for('role_detail', role_id=role.id, tab='users') }}" class="row g-2">
+        <input type="hidden" name="action" value="add_user_to_role">
+        <div class="col-md-8">
+          <select name="user_id" class="form-select" required>
+            <option value="">— Chọn người dùng —</option>
+            {% for user in all_users %}
+            {% set has_role = user.id in [u.id for u in users_in_role] %}
+            {% if not has_role %}
+            <option value="{{ user.id }}">{{ user.full_name or user.username }} ({{ user.username }})</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-primary w-100">Thêm người dùng</button>
+        </div>
+      </form>
+    </div>
+    
+    <hr>
+    
+    <h5>Danh sách người dùng trong quyền</h5>
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <thead class="table-light">
+          <tr>
+            <th>STT</th>
+            <th>Tên đăng nhập</th>
+            <th>Họ và tên</th>
+            <th>Email</th>
+            <th>Phòng ban</th>
+            <th class="text-center">Hành động</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users_in_role %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.full_name or '—' }}</td>
+            <td>{{ user.email or '—' }}</td>
+            <td>{{ user.department_info.name if user.department_info else '—' }}</td>
+            <td class="text-center">
+              <form method="POST" action="{{ url_for('role_detail', role_id=role.id, tab='users') }}" class="d-inline" onsubmit="return confirm('Xóa người dùng này khỏi quyền?')">
+                <input type="hidden" name="action" value="remove_user_from_role">
+                <input type="hidden" name="user_id" value="{{ user.id }}">
+                <button type="submit" class="btn btn-sm btn-danger">
+                  <i class="bi bi-trash"></i> Xóa
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center text-muted">Chưa có người dùng nào trong quyền này.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+

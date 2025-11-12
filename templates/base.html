@@ -29,28 +29,54 @@
                 {% set config_endpoints = ['user_list', 'list_departments', 'backup_page', 'backup_config', 'backup_list', 'db_config'] %}
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Dashboard</a></li>
+                    {% if current_permissions and 'devices.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['device_list', 'device_detail'] %}active{% endif %}" href="{{ url_for('device_list') }}">Thiết bị</a></li>
+                    {% endif %}
+                    {% if current_permissions and 'device_groups.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['device_groups', 'device_group_detail'] %}active{% endif %}" href="{{ url_for('device_groups') }}">Nhóm thiết bị</a></li>
+                    {% endif %}
+                    {% if current_permissions and 'server_room.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'server_room' %}active{% endif %}" href="{{ url_for('server_room') }}">Phòng server</a></li>
+                    {% endif %}
+                    {% if current_permissions and 'handovers.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['handover_list', 'handover_report'] %}active{% endif %}" href="{{ url_for('handover_list') }}">Bàn giao thiết bị</a></li>
+                    {% endif %}
                     {% if current_permissions and 'maintenance.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['maintenance_logs', 'add_maintenance_log', 'maintenance_log_detail', 'edit_maintenance_log'] %}active{% endif %}" href="{{ url_for('maintenance_logs') }}">Nhật ký bảo trì</a></li>
                     {% endif %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint in ['bug_reports', 'create_bug_report', 'bug_report_detail'] %}active{% endif %}" href="{{ url_for('bug_reports') }}">Báo lỗi</a></li>
+                    {% if current_permissions and 'bug_reports.view' in current_permissions %}
+                    <li class="nav-item"><a class="nav-link {% if active_endpoint in ['bug_reports', 'create_bug_report', 'bug_report_detail', 'edit_bug_report'] %}active{% endif %}" href="{{ url_for('bug_reports') }}">Báo lỗi</a></li>
+                    {% endif %}
+                    {% if current_permissions and 'inventory.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['inventory_receipts'] %}active{% endif %}" href="{{ url_for('inventory_receipts') }}">Phiếu nhập kho</a></li>
+                    {% endif %}
+                    {% if current_permissions and 'config_proposals.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'config_proposals' %}active{% endif %}" href="{{ url_for('config_proposals') }}">Đề xuất cấu hình</a></li>
+                    {% endif %}
+                    {% if current_permissions and ('users.view' in current_permissions or 'departments.view' in current_permissions or 'backup.view' in current_permissions or 'rbac.view' in current_permissions or 'rbac.manage' in current_permissions) %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if active_endpoint in config_endpoints %}active{% endif %}" href="#" id="navbarConfigDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             Cấu hình
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="navbarConfigDropdown">
+                            {% if current_permissions and 'users.view' in current_permissions %}
                             <li><a class="dropdown-item {% if active_endpoint == 'user_list' %}active{% endif %}" href="{{ url_for('user_list') }}">Người dùng</a></li>
+                            {% endif %}
+                            {% if current_permissions and 'departments.view' in current_permissions %}
                             <li><a class="dropdown-item {% if active_endpoint in ['list_departments', 'department_users'] %}active{% endif %}" href="{{ url_for('list_departments') }}">Phòng ban</a></li>
+                            {% endif %}
+                            {% if current_permissions and 'backup.view' in current_permissions %}
                             <li><a class="dropdown-item {% if active_endpoint in ['backup_page', 'backup_config', 'backup_list'] %}active{% endif %}" href="{{ url_for('backup_page') }}">Backup</a></li>
+                            {% endif %}
+                            {% if current_user.role == 'admin' %}
                             <li><a class="dropdown-item {% if active_endpoint in ['db_config'] %}active{% endif %}" href="{{ url_for('db_config') }}">Cấu hình DB</a></li>
-                            <li><a class="dropdown-item {% if active_endpoint in ['roles_permissions'] %}active{% endif %}" href="{{ url_for('roles_permissions') }}">Phân quyền</a></li>
+                            {% endif %}
+                            {% if current_permissions and ('rbac.view' in current_permissions or 'rbac.manage' in current_permissions) %}
+                            <li><a class="dropdown-item {% if active_endpoint in ['roles_permissions', 'roles_list', 'role_detail'] %}active{% endif %}" href="{{ url_for('roles_permissions') }}">Phân quyền</a></li>
+                            {% endif %}
                         </ul>
                     </li>
+                    {% endif %}
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item dropdown">
