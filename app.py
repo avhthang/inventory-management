@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
-from sqlalchemy import or_, func, event, text
+from sqlalchemy import or_, func, event, text, inspect
 from sqlalchemy.exc import OperationalError
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
@@ -212,7 +212,8 @@ def init_db():
                         CREATE TABLE IF NOT EXISTS role (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             name TEXT NOT NULL UNIQUE,
-                            description TEXT
+                            description TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                         )
                     '''))
                     conn.execute(text('''
@@ -382,6 +383,34 @@ def migrate_bug_report_table():
             print(f"Migration error (non-critical): {e}")
             # Don't fail app startup if migration fails
 
+def migrate_role_created_at():
+    """Ensure role table has created_at column."""
+    with app.app_context():
+        try:
+            inspector = inspect(db.engine)
+            columns = {col['name'] for col in inspector.get_columns('role')}
+        except Exception:
+            columns = set()
+
+        if 'created_at' in columns:
+            return
+
+        try:
+            with db.engine.connect() as conn:
+                dialect = conn.dialect.name
+                if dialect == 'postgresql':
+                    conn.execute(text("ALTER TABLE role ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
+                else:
+                    conn.execute(text("ALTER TABLE role ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+                conn.commit()
+                print("✓ Added created_at column to role table")
+        except Exception as e:
+            msg = str(e).lower()
+            if 'already exists' in msg or 'duplicate column' in msg:
+                print("✓ created_at column already exists on role table")
+            else:
+                print(f"Migration note (role created_at): {e}")
+
 def migrate_bug_report_enhancements():
     """Ensure new columns related to bug report workflow exist."""
     with app.app_context():
@@ -450,6 +479,7 @@ def migrate_bug_report_enhancements():
 # Run migrations on startup
 migrate_bug_report_table()
 migrate_bug_report_enhancements()
+migrate_role_created_at()
 
 # Ensure default admin exists on startup
 with app.app_context():
@@ -1024,16 +1054,22 @@ def inject_user():
         current_user = User.query.get(session['user_id'])
         # Admin always has all permissions
         if current_user and current_user.role == 'admin':
-            perm_codes = {p.code for p in Permission.query.all()}
+            try:
+                perm_codes = {p.code for p in Permission.query.all()}
+            except Exception:
+                perm_codes = set()
         else:
             # derive permission codes for template checks
             role_ids = [ur.role_id for ur in UserRole.query.filter_by(user_id=current_user.id).all()] if current_user else []
             perm_codes = set()
             if role_ids:
-                for rp in RolePermission.query.filter(RolePermission.role_id.in_(role_ids)).all():
-                    perm = Permission.query.get(rp.permission_id)
-                    if perm:
-                        perm_codes.add(perm.code)
+                try:
+                    for rp in RolePermission.query.filter(RolePermission.role_id.in_(role_ids)).all():
+                        perm = Permission.query.get(rp.permission_id)
+                        if perm:
+                            perm_codes.add(perm.code)
+                except Exception:
+                    pass
         return dict(current_user=current_user, current_permissions=perm_codes)
     return dict(current_user=None, current_permissions=set())
 

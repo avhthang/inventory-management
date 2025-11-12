@@ -37,38 +37,40 @@
 <div class="row g-3">
   <div class="col-md-8">
     <div class="card mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">{{ bug_report.title }}</h5>
-        <div>
-          {% if bug_report.priority == 'Khẩn cấp' %}
-            <span class="badge bg-danger">{{ bug_report.priority }}</span>
-          {% elif bug_report.priority == 'Cao' %}
-            <span class="badge bg-warning">{{ bug_report.priority }}</span>
-          {% elif bug_report.priority == 'Trung bình' %}
-            <span class="badge bg-info">{{ bug_report.priority }}</span>
-          {% else %}
-            <span class="badge bg-secondary">{{ bug_report.priority }}</span>
-          {% endif %}
-          {% if bug_report.status == 'Mới tạo' %}
-            <span class="badge bg-primary">{{ bug_report.status }}</span>
-          {% elif bug_report.status == 'Đang xử lý' %}
-            <span class="badge bg-warning">{{ bug_report.status }}</span>
-          {% elif bug_report.status == 'Đã xử lý' %}
-            <span class="badge bg-success">{{ bug_report.status }}</span>
-          {% elif bug_report.status == 'Đã đóng' %}
-            <span class="badge bg-secondary">{{ bug_report.status }}</span>
-          {% else %}
-            <span class="badge bg-light text-dark">{{ bug_report.status }}</span>
-          {% endif %}
+      <div class="card-header">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <h5 class="mb-0 text-break">{{ bug_report.title }}</h5>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            {% if bug_report.priority == 'Khẩn cấp' %}
+              <span class="badge bg-danger">{{ bug_report.priority }}</span>
+            {% elif bug_report.priority == 'Cao' %}
+              <span class="badge bg-warning">{{ bug_report.priority }}</span>
+            {% elif bug_report.priority == 'Trung bình' %}
+              <span class="badge bg-info">{{ bug_report.priority }}</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ bug_report.priority }}</span>
+            {% endif %}
+            {% if bug_report.status == 'Mới tạo' %}
+              <span class="badge bg-primary">{{ bug_report.status }}</span>
+            {% elif bug_report.status == 'Đang xử lý' %}
+              <span class="badge bg-warning">{{ bug_report.status }}</span>
+            {% elif bug_report.status == 'Đã xử lý' %}
+              <span class="badge bg-success">{{ bug_report.status }}</span>
+            {% elif bug_report.status == 'Đã đóng' %}
+              <span class="badge bg-secondary">{{ bug_report.status }}</span>
+            {% else %}
+              <span class="badge bg-light text-dark">{{ bug_report.status }}</span>
+            {% endif %}
+          </div>
         </div>
       </div>
       <div class="card-body">
         {% if codes %}
         <div class="mb-3">
           <strong>Mã thiết bị:</strong>
-          <div class="mt-2 d-flex flex-wrap gap-1">
+          <div class="mt-2 d-flex flex-wrap gap-2">
             {% for code in codes %}
-            <span class="badge bg-info text-dark">{{ code }}</span>
+            <span class="me-1 text-body">{{ code }}</span>
             {% endfor %}
           </div>
         </div>
@@ -236,8 +238,8 @@
     <div class="card">
       <div class="card-header"><strong>Thông tin</strong></div>
       <div class="card-body">
-        <div class="mb-2">
-          <strong>Trạng thái:</strong><br>
+        <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
+          <strong>Trạng thái:</strong>
           {% if bug_report.status == 'Mới tạo' %}
             <span class="badge bg-primary">{{ bug_report.status }}</span>
           {% elif bug_report.status == 'Đang xử lý' %}
@@ -248,16 +250,16 @@
             <span class="badge bg-secondary">{{ bug_report.status }}</span>
           {% endif %}
         </div>
-        <div class="mb-2">
-          <strong>Phạm vi:</strong><br>
+        <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
+          <strong>Phạm vi:</strong>
           {% if bug_report.visibility == 'public' %}
             <i class="bi bi-globe" title="Công khai"></i> Công khai
           {% else %}
             <i class="bi bi-person" title="Cá nhân"></i> Cá nhân
           {% endif %}
         </div>
-        <div class="mb-2">
-          <strong>Mức độ:</strong><br>
+        <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
+          <strong>Mức độ:</strong>
           {% if bug_report.priority == 'Khẩn cấp' %}
             <span class="badge bg-danger">{{ bug_report.priority }}</span>
           {% elif bug_report.priority == 'Cao' %}
@@ -274,34 +276,34 @@
         </div>
         {% if bug_report.assignee %}
         <div class="mb-2">
-          <strong>Người xử lý:</strong><br>
-          {{ bug_report.assignee.full_name or bug_report.assignee.username }}
+          <strong>Người xử lý:</strong>
+          <span class="ms-1">{{ bug_report.assignee.full_name or bug_report.assignee.username }}</span>
         </div>
         {% endif %}
         {% if codes %}
         <div class="mb-2">
-          <strong>Mã thiết bị:</strong><br>
-          <div class="mt-1 d-flex flex-wrap gap-1">
+          <strong>Mã thiết bị:</strong>
+          <div class="mt-1 d-flex flex-wrap gap-2">
             {% for code in codes %}
-            <span class="badge bg-info text-dark">{{ code }}</span>
+            <span class="me-1 text-body">{{ code }}</span>
             {% endfor %}
           </div>
         </div>
         {% endif %}
         <div class="mb-2">
-          <strong>Ngày tạo:</strong><br>
-          {{ bug_report.created_at.strftime('%d-%m-%Y %H:%M') }}
+          <strong>Ngày tạo:</strong>
+          <span class="ms-1">{{ bug_report.created_at.strftime('%d-%m-%Y %H:%M') }}</span>
         </div>
         {% if bug_report.resolved_at %}
         <div class="mb-2">
-          <strong>Đã xử lý:</strong><br>
-          {{ bug_report.resolved_at.strftime('%d-%m-%Y %H:%M') }}
+          <strong>Đã xử lý:</strong>
+          <span class="ms-1">{{ bug_report.resolved_at.strftime('%d-%m-%Y %H:%M') }}</span>
         </div>
         {% endif %}
         {% if bug_report.resolution %}
         <div class="mb-2">
-          <strong>Giải pháp:</strong><br>
-          <div style="white-space: pre-wrap; font-size: 0.9em;">{{ bug_report.resolution }}</div>
+          <strong>Giải pháp:</strong>
+          <div class="ms-1" style="white-space: pre-wrap; font-size: 0.9em;">{{ bug_report.resolution }}</div>
         </div>
         {% endif %}
         {% if bug_report.reopen_requested %}

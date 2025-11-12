@@ -140,7 +140,9 @@
             wrapper.setAttribute('role','alert');
             wrapper.setAttribute('aria-live','assertive');
             wrapper.setAttribute('aria-atomic','true');
-            wrapper.style.minWidth = '320px';
+            wrapper.style.minWidth = '0';
+            wrapper.style.width = 'auto';
+            wrapper.style.maxWidth = '360px';
 
             const body = document.createElement('div');
             body.className = 'd-flex';

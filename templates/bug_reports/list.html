@@ -118,24 +118,28 @@ document.querySelector('form').addEventListener('submit', function(e) {
       <tr onclick="window.location='{{ url_for('bug_report_detail', report_id=report.id) }}'" style="cursor:pointer">
         <td class="text-center" style="white-space: nowrap;">{{ reports.first + loop.index - 1 }}</td>
         <td style="white-space: nowrap;">
-          <div class="text-truncate" style="max-width: 300px;" title="{{ report.title }}">
-            {% if report_read %}
-            {{ report.title }}
-            {% else %}
-            <strong>{{ report.title }}</strong>
-            {% endif %}
+          <div class="d-flex align-items-center gap-2" style="max-width: 340px;">
+            <span class="text-truncate" title="{{ report.title }}">
+              {% if report_read %}
+              {{ report.title }}
+              {% else %}
+              <strong>{{ report.title }}</strong>
+              {% endif %}
+            </span>
+            <span class="d-flex align-items-center gap-1 flex-shrink-0">
+              {% if report.visibility == 'public' %}
+                <i class="bi bi-globe text-muted" style="opacity: 0.5; font-size: 0.85em;" title="Công khai"></i>
+              {% else %}
+                <i class="bi bi-person text-muted" style="opacity: 0.5; font-size: 0.85em;" title="Cá nhân"></i>
+              {% endif %}
+              {% if report.attachments|length > 0 %}
+                <i class="bi bi-paperclip text-muted" title="Có tệp đính kèm"></i>
+              {% endif %}
+              {% if report.reopen_requested %}
+                <span class="badge bg-warning text-dark">Yêu cầu mở lại</span>
+              {% endif %}
+            </span>
           </div>
-          {% if report.attachments|length > 0 %}
-            <i class="bi bi-paperclip text-muted"></i>
-          {% endif %}
-          {% if report.visibility == 'public' %}
-            <i class="bi bi-globe ms-1 text-muted" style="opacity: 0.5; font-size: 0.8em;" title="Công khai"></i>
-          {% else %}
-            <i class="bi bi-person ms-1 text-muted" style="opacity: 0.5; font-size: 0.8em;" title="Cá nhân"></i>
-          {% endif %}
-          {% if report.reopen_requested %}
-            <span class="badge bg-warning text-dark ms-1">Yêu cầu mở lại</span>
-          {% endif %}
         </td>
         <td style="white-space: nowrap;">
           {% set codes = report.device_code_list %}
