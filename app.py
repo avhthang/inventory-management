@@ -1462,11 +1462,13 @@ def list_departments():
     departments = Department.query.all()
     all_departments = Department.query.order_by(Department.order_index).all()
     users = User.query.filter_by(status='Đang làm').all()
+    current_permissions = _get_current_permissions()
     
     return render_template('departments/list.html', 
                          departments=departments,
                          all_departments=all_departments,
-                         users=users)
+                         users=users,
+                         current_permissions=current_permissions)
 
 @app.route('/departments/<int:id>/users')
 def department_users(id):
@@ -2091,7 +2093,8 @@ def device_detail(device_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     device = Device.query.get_or_404(device_id)
     handovers = DeviceHandover.query.filter_by(device_id=device_id).order_by(DeviceHandover.handover_date.desc()).all()
-    return render_template('device_detail.html', device=device, handovers=handovers)
+    current_permissions = _get_current_permissions()
+    return render_template('device_detail.html', device=device, handovers=handovers, current_permissions=current_permissions)
 
 # --- Device Groups Routes ---
 @app.route('/device_groups', methods=['GET', 'POST'])
@@ -3392,6 +3395,7 @@ def user_list():
     departments = [d.name for d in Department.query.order_by(Department.name).all()]
     positions = [p[0] for p in db.session.query(User.position).filter(User.position.isnot(None)).distinct().order_by(User.position)]
     statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Nghỉ việc', 'Khác']
+    current_permissions = _get_current_permissions()
 
     return render_template('users.html', 
                            users=users_pagination, 
@@ -3402,7 +3406,8 @@ def user_list():
                            filter_status=filter_status,
                            departments=departments,
                            positions=positions,
-                           statuses=statuses)
+                           statuses=statuses,
+                           current_permissions=current_permissions)
 
 @app.route('/users/default_status', methods=['POST'])
 def set_users_default_status():
@@ -3476,19 +3481,23 @@ def add_user():
         db.session.add(new_user)
         db.session.flush()  # Để lấy ID của user mới
         
-        # Tự động gán quyền User cho người dùng mới
-        user_role = Role.query.filter_by(name='User').first()
-        if user_role:
-            # Kiểm tra xem đã có quyền chưa
-            existing = UserRole.query.filter_by(user_id=new_user.id, role_id=user_role.id).first()
-            if not existing:
-                db.session.add(UserRole(user_id=new_user.id, role_id=user_role.id))
+        # Xử lý quyền (roles) từ form
+        selected_role_ids = request.form.getlist('user_roles')
+        try:
+            selected_role_ids = [int(rid) for rid in selected_role_ids]
+        except ValueError:
+            selected_role_ids = []
+        
+        # Thêm các quyền được chọn
+        for role_id in selected_role_ids:
+            db.session.add(UserRole(user_id=new_user.id, role_id=role_id))
         
         db.session.commit()
         flash('Thêm người dùng mới thành công!', 'success')
         return redirect(url_for('user_list'))
     departments = Department.query.all()
-    return render_template('add_user.html', departments=departments)
+    all_roles = Role.query.order_by(Role.name).all()
+    return render_template('add_user.html', departments=departments, all_roles=all_roles)
 
 def create_return_handover_for_user(user_id, current_user_id):
     """Tạo phiếu trả thiết bị về kho khi nhân viên nghỉ việc"""
@@ -3671,7 +3680,8 @@ def user_detail(user_id):
     # Lịch sử bàn giao liên quan
     given = DeviceHandover.query.filter_by(giver_id=user.id).order_by(DeviceHandover.handover_date.desc()).all()
     received = DeviceHandover.query.filter_by(receiver_id=user.id).order_by(DeviceHandover.handover_date.desc()).all()
-    return render_template('user_detail.html', user=user, devices=devices, given=given, received=received)
+    current_permissions = _get_current_permissions()
+    return render_template('user_detail.html', user=user, devices=devices, given=given, received=received, current_permissions=current_permissions)
 
 # --- CẬP NHẬT API ĐỂ TRẢ VỀ THÊM SERIAL NUMBER ---
 @app.route('/api/device_info/<int:device_id>')
@@ -4171,14 +4181,19 @@ def bug_reports():
     
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
-    status_filter = request.args.get('status', '').strip()
-    priority_filter = request.args.get('priority', '').strip()
-    date_filter = request.args.get('date_filter', '').strip()
-    date_from = request.args.get('date_from', '').strip()
-    date_to = request.args.get('date_to', '').strip()
-    creator_filter = request.args.get('creator', '').strip()
     
-    # Người dùng thường chỉ thấy báo lỗi của mình/được gán hoặc báo lỗi công khai
+    # Load saved filters from session first
+    saved_filters = session.get('bug_reports_filters', {}) or {}
+    
+    # Get filters from query params, fallback to saved filters
+    status_filter = request.args.get('status', '').strip() or saved_filters.get('status', '')
+    priority_filter = request.args.get('priority', '').strip() or saved_filters.get('priority', '')
+    date_filter = request.args.get('date_filter', '').strip() or saved_filters.get('date_filter', '')
+    date_from = request.args.get('date_from', '').strip() or saved_filters.get('date_from', '')
+    date_to = request.args.get('date_to', '').strip() or saved_filters.get('date_to', '')
+    creator_filter = request.args.get('creator', '').strip() or saved_filters.get('creator', '')
+    
+    # Người dùng thường chỉ thấy báo lỗi của mình hoặc báo lỗi công khai
     is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
     if is_admin:
         q = BugReport.query
@@ -4186,8 +4201,7 @@ def bug_reports():
         q = BugReport.query.filter(
             or_(
                 BugReport.visibility == 'public',
-                BugReport.created_by == user_id,
-                BugReport.assigned_to == user_id
+                BugReport.created_by == user_id
             )
         )
     
@@ -4262,6 +4276,22 @@ def bug_reports():
                          creators=creators,
                          current_user_id=user_id, 
                          current_permissions=current_permissions)
+
+@app.route('/bug_reports/save_filters', methods=['POST'])
+def save_bug_report_filters():
+    """Lưu trạng thái lọc báo lỗi"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    filters = {
+        'date_filter': request.form.get('date_filter', '').strip(),
+        'date_from': request.form.get('date_from', '').strip(),
+        'date_to': request.form.get('date_to', '').strip(),
+        'creator': request.form.get('creator', '').strip(),
+        'status': request.form.get('status', '').strip(),
+        'priority': request.form.get('priority', '').strip(),
+    }
+    session['bug_reports_filters'] = filters
+    flash('Đã lưu bộ lọc báo lỗi.', 'success')
+    return redirect(url_for('bug_reports'))
 
 @app.route('/bug_reports/create', methods=['GET', 'POST'])
 def create_bug_report():
@@ -4416,8 +4446,19 @@ def bug_report_detail(report_id):
         flash('Bạn không có quyền xem báo lỗi này.', 'danger')
         return redirect(url_for('bug_reports'))
     
-    # Lấy danh sách nhân viên để gán (tất cả nhân viên, không chỉ admin)
-    employees = User.query.order_by(User.full_name, User.username).all() if 'bug_reports.assign' in current_permissions or is_admin else []
+    # Lấy danh sách nhân viên để gán
+    # Admin: tất cả nhân viên
+    # Người khác: chỉ nhân viên trong phòng ban của mình và các phòng ban con
+    user = User.query.get(user_id)
+    employees = []
+    if is_admin:
+        employees = User.query.order_by(User.full_name, User.username).all()
+    elif user.department_id and ('bug_reports.assign' in current_permissions):
+        dept = Department.query.get(user.department_id)
+        if dept:
+            dept_ids = get_subordinate_department_ids(dept.id)
+            dept_ids.append(dept.id)  # Include own department
+            employees = User.query.filter(User.department_id.in_(dept_ids)).order_by(User.full_name, User.username).all()
     
     is_closed = bug_report.status == 'Đã đóng'
     can_comment = (not is_closed) and (bug_report.is_public or is_admin or is_creator or is_assignee)
@@ -4451,11 +4492,10 @@ def edit_bug_report(report_id):
     
     bug_report = BugReport.query.get_or_404(report_id)
     
-    # Check permission: creator or admin
+    # Check permission: only creator can edit their own reports
     is_creator = bug_report.created_by == user_id
-    is_admin = any(perm in current_permissions for perm in ['bug_reports.edit', 'bug_reports.assign'])
     
-    if not (is_creator or is_admin):
+    if not is_creator:
         flash('Bạn không có quyền sửa báo lỗi này.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
     
@@ -4543,10 +4583,11 @@ def edit_bug_report(report_id):
 def update_bug_report(report_id):
     """Cập nhật trạng thái báo lỗi - chỉ admin"""
     if 'user_id' not in session: return redirect(url_for('login'))
-    current_permissions = _get_current_permissions()
+    user = User.query.get(session.get('user_id'))
     
-    if 'bug_reports.edit' not in current_permissions:
-        flash('Bạn không có quyền cập nhật báo lỗi.', 'danger')
+    # Only admin can update bug reports
+    if user.role != 'admin':
+        flash('Bạn không có quyền cập nhật báo lỗi. Chức năng này chỉ dành cho quản trị viên.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
     
     bug_report = BugReport.query.get_or_404(report_id)
@@ -4715,15 +4756,15 @@ def download_bug_report_file(report_id, filename):
 
 @app.route('/bug_reports/<int:report_id>/delete', methods=['POST'])
 def delete_bug_report(report_id):
-    """Xóa báo lỗi - chỉ admin"""
+    """Xóa báo lỗi - chỉ người tạo"""
     if 'user_id' not in session: return redirect(url_for('login'))
-    current_permissions = _get_current_permissions()
-    
-    if 'bug_reports.delete' not in current_permissions:
-        flash('Bạn không có quyền xóa báo lỗi.', 'danger')
-        return redirect(url_for('bug_report_detail', report_id=report_id))
-    
+    user_id = session.get('user_id')
     bug_report = BugReport.query.get_or_404(report_id)
+    
+    # Only creator can delete their own reports
+    if bug_report.created_by != user_id:
+        flash('Bạn không có quyền xóa báo lỗi này. Chỉ người tạo mới có quyền xóa.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
     
     try:
         # Xóa file đính kèm

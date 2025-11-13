@@ -72,7 +72,7 @@
                             <li><a class="dropdown-item {% if active_endpoint in ['db_config'] %}active{% endif %}" href="{{ url_for('db_config') }}">Cấu hình DB</a></li>
                             {% endif %}
                             {% if current_permissions and ('rbac.view' in current_permissions or 'rbac.manage' in current_permissions) %}
-                            <li><a class="dropdown-item {% if active_endpoint in ['roles_permissions', 'roles_list', 'role_detail'] %}active{% endif %}" href="{{ url_for('roles_permissions') }}">Phân quyền</a></li>
+                            <li><a class="dropdown-item {% if active_endpoint in ['roles_permissions', 'roles_list', 'role_detail'] %}active{% endif %}" href="{{ url_for('roles_list') }}">Phân quyền</a></li>
                             {% endif %}
                         </ul>
                     </li>

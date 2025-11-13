@@ -22,6 +22,7 @@
                title="Quản lý người dùng">
                 <i class="bi bi-people"></i>
             </a>
+            {% if current_permissions and 'departments.edit' in current_permissions %}
             <button type="button" class="btn btn-sm btn-outline-primary edit-dept" 
                     data-id="{{ dept.id }}"
                     data-name="{{ dept.name }}"
@@ -30,9 +31,12 @@
                     data-manager-id="{{ dept.manager_id or '' }}">
                 <i class="bi bi-pencil"></i>
             </button>
+            {% endif %}
+            {% if current_permissions and 'departments.delete' in current_permissions %}
             <button type="button" class="btn btn-sm btn-outline-danger delete-dept" data-id="{{ dept.id }}" title="Xóa">
                 <i class="bi bi-trash"></i>
             </button>
+            {% endif %}
         </div>
     </div>
     {% if dept.children %}

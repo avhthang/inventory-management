@@ -14,7 +14,6 @@
                     <div class="mb-3"><label class="form-label">Họ và tên</label><input type="text" name="full_name" class="form-control"></div>
                     <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control"></div>
                     <div class="mb-3"><label class="form-label">Ngày sinh</label><input type="date" name="date_of_birth" class="form-control"></div>
-                    <div class="mb-3"><label class="form-label">Vai trò</label><select name="role" class="form-control"><option value="user">Người dùng</option><option value="admin">Quản trị viên</option></select></div>
                 </div>
                 <div class="col-md-6">
                     <div class="mb-3">
@@ -52,6 +51,19 @@
                     <div class="mb-3"><label class="form-label">Ngày offboard</label><input type="date" name="offboard_date" class="form-control"></div>
                 </div>
             </div>
+            
+            <hr>
+            <h5 class="mt-4">Quyền truy cập</h5>
+            <div class="mb-3">
+                <label class="form-label">Quyền truy cập của người dùng</label>
+                <select name="user_roles" id="user_roles" class="form-select" multiple>
+                    {% for role in all_roles %}
+                    <option value="{{ role.id }}">
+                        {{ role.name }} - {{ role.description or '' }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
 
             <div class="form-group mt-3">
                 <a href="{{ url_for('user_list') }}" class="btn btn-secondary">Hủy bỏ</a>
@@ -60,4 +72,16 @@
         </form>
     </div>
 </div>
+{% block scripts %}
+{{ super() }}
+<script>
+$(document).ready(function() {
+    $('#user_roles').select2({
+        width: '100%',
+        placeholder: 'Chọn quyền cho người dùng...',
+        allowClear: true
+    });
+});
+</script>
+{% endblock %}
 {% endblock %}

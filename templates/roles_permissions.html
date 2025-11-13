@@ -27,9 +27,15 @@
             {% endif %}
           </select>
           <div class="mt-3">
-            <input type="text" class="form-control mb-2" name="new_role_name" placeholder="Tên vai trò mới">
-            <button type="submit" name="action" value="add_role" class="btn btn-outline-primary btn-sm w-100">Thêm vai trò</button>
-            <button type="submit" name="action" value="delete_role" class="btn btn-outline-danger btn-sm w-100 mt-2" onclick="return confirm('Xóa vai trò hiện chọn?')">Xóa vai trò</button>
+            <div class="input-group mb-2">
+              <input type="text" class="form-control" name="new_role_name" placeholder="Tên vai trò mới">
+              <button type="submit" name="action" value="add_role" class="btn btn-outline-primary">
+                <i class="bi bi-plus-circle"></i> Thêm vai trò
+              </button>
+            </div>
+            <button type="submit" name="action" value="delete_role" class="btn btn-outline-danger btn-sm w-100" onclick="return confirm('Xóa vai trò hiện chọn?')">
+              <i class="bi bi-trash"></i> Xóa vai trò
+            </button>
           </div>
         </div>
         <div class="col-md-9">
@@ -60,21 +66,6 @@
           </div>
           <div class="mt-3">
             <button type="submit" name="action" value="save_role_perms" class="btn btn-primary">Lưu quyền</button>
-          </div>
-        </div>
-      </div>
-      
-      <div class="mt-4 border-top pt-3">
-        <h5>Thêm quyền mới</h5>
-        <div class="row g-2">
-          <div class="col-md-4">
-            <input type="text" class="form-control" name="new_perm_code" placeholder="Mã quyền (ví dụ: feature.action)">
-          </div>
-          <div class="col-md-6">
-            <input type="text" class="form-control" name="new_perm_name" placeholder="Tên quyền (ví dụ: Xem danh sách)">
-          </div>
-          <div class="col-md-2">
-            <button type="submit" name="action" value="add_permission" class="btn btn-success w-100">Thêm quyền</button>
           </div>
         </div>
       </div>

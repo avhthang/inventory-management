@@ -17,9 +17,11 @@
                 {% if current_permissions and 'devices.edit' in current_permissions %}
                 <a href="{{ url_for('add_device') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Thêm mới</a>
                 <a href="{{ url_for('add_devices_bulk') }}" class="btn btn-warning ms-2"><i class="bi bi-plus-square"></i> Thêm thiết bị</a>
+                {% if current_user.role == 'admin' %}
                 <a href="{{ url_for('import_devices') }}" class="btn btn-info ms-2"><i class="bi bi-upload"></i> Nhập Excel</a>
                 {% endif %}
-                {% if current_permissions and 'devices.view' in current_permissions %}
+                {% endif %}
+                {% if current_user.role == 'admin' %}
                 <a href="{{ url_for('export_devices_excel') }}" class="btn btn-success ms-2"><i class="bi bi-download"></i> Xuất Excel</a>
                 {% endif %}
             </div>
@@ -92,7 +94,9 @@
 
         <form method="POST" action="{{ url_for('devices_bulk_update') }}">
         <div class="mb-2">
+            {% if current_permissions and 'devices.edit' in current_permissions %}
             <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#advancedBulk" aria-expanded="false" aria-controls="advancedBulk"><i class="bi bi-sliders"></i> Nâng cao</button>
+            {% endif %}
         </div>
         <div class="collapse" id="advancedBulk">
             <div class="row g-2 align-items-end mb-2">

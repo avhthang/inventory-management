@@ -17,14 +17,6 @@
                     <div class="mb-3"><label class="form-label required">Họ và tên</label><input type="text" name="full_name" class="form-control" value="{{ user.full_name or '' }}" required></div>
                     <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="{{ user.email or '' }}"></div>
                     <div class="mb-3"><label class="form-label">Ngày sinh</label><input type="date" name="date_of_birth" class="form-control" value="{{ user.date_of_birth.strftime('%Y-%m-%d') if user.date_of_birth else '' }}"></div>
-                    <div class="mb-3">
-                        <label class="form-label">Vai trò hệ thống</label>
-                        <select name="role" class="form-control">
-                            <option value="user" {% if user.role == 'user' %}selected{% endif %}>Người dùng</option>
-                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Quản trị viên</option>
-                        </select>
-                        <small class="form-text text-muted">Vai trò hệ thống (legacy). Quyền thực tế được quản lý ở phần Quyền bên dưới.</small>
-                    </div>
                 </div>
                 <div class="col-md-6">
                     <div class="mb-3">
@@ -43,9 +35,9 @@
             </div>
             
             <hr>
-            <h5 class="mt-4">Quyền</h5>
+            <h5 class="mt-4">Quyền truy cập</h5>
             <div class="mb-3">
-                <label class="form-label">Quyền của người dùng</label>
+                <label class="form-label">Quyền truy cập của người dùng</label>
                 <select name="user_roles" id="user_roles" class="form-select" multiple>
                     {% for role in all_roles %}
                     <option value="{{ role.id }}" {% if role.id in user_role_ids %}selected{% endif %}>
@@ -53,7 +45,6 @@
                     </option>
                     {% endfor %}
                 </select>
-                <small class="form-text text-muted">Chọn các quyền cho người dùng này. Người dùng có thể có nhiều quyền.</small>
             </div>
             
             <hr>

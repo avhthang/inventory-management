@@ -11,9 +11,11 @@
 
     <div class="flex-shrink-0">
         <a href="{{ url_for('device_list') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Quay lại</a>
+        {% if current_permissions and 'devices.edit' in current_permissions %}
         <a href="{{ url_for('edit_device', device_id=device.id) }}" class="btn btn-warning ms-2"><i class="bi bi-pencil"></i> Chỉnh sửa</a>
         {% if device.status == 'Sẵn sàng' %}
             <a href="{{ url_for('add_handover', device_id=device.id) }}" class="btn btn-primary ms-2"><i class="bi bi-arrow-right-square"></i> Tạo Phiếu Bàn Giao</a>
+        {% endif %}
         {% endif %}
     </div>
 </div>

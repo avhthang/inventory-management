@@ -61,7 +61,33 @@
   <div class="col-auto">
     <a href="{{ url_for('bug_reports') }}" class="btn btn-outline-secondary">Reset</a>
   </div>
+  <div class="col-auto">
+    <button type="button" class="btn btn-outline-success" title="Lưu trạng thái lọc" onclick="saveBugReportFilters()">
+      <i class="bi bi-bookmark-check"></i>
+    </button>
+  </div>
 </form>
+<form id="saveBugReportFiltersForm" method="POST" action="{{ url_for('save_bug_report_filters') }}" class="d-none">
+  <input type="hidden" name="date_filter" value="{{ date_filter }}">
+  <input type="hidden" name="date_from" value="{{ date_from }}">
+  <input type="hidden" name="date_to" value="{{ date_to }}">
+  <input type="hidden" name="creator" value="{{ creator_filter }}">
+  <input type="hidden" name="status" value="{{ status_filter }}">
+  <input type="hidden" name="priority" value="{{ priority_filter }}">
+</form>
+<script>
+function saveBugReportFilters() {
+  const form = document.getElementById('saveBugReportFiltersForm');
+  if (!form) return;
+  form.querySelector('[name="date_filter"]').value = document.querySelector('[name="date_filter"]').value || '';
+  form.querySelector('[name="date_from"]').value = document.querySelector('[name="date_from"]').value || '';
+  form.querySelector('[name="date_to"]').value = document.querySelector('[name="date_to"]').value || '';
+  form.querySelector('[name="creator"]').value = document.querySelector('[name="creator"]').value || '';
+  form.querySelector('[name="status"]').value = document.querySelector('[name="status"]').value || '';
+  form.querySelector('[name="priority"]').value = document.querySelector('[name="priority"]').value || '';
+  form.submit();
+}
+</script>
 <script>
 document.getElementById('date_filter').addEventListener('change', function() {
   const isCustom = this.value === 'custom';

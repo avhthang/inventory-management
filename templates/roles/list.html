@@ -5,8 +5,8 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h3 class="mb-0">Danh sách Quyền</h3>
-      <a href="{{ url_for('roles_permissions') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> Quay lại
+      <a href="{{ url_for('roles_permissions') }}" class="btn btn-outline-primary">
+        <i class="bi bi-shield-check"></i> Phân quyền
       </a>
     </div>
 
@@ -29,18 +29,18 @@
             <td>{{ role.description or '—' }}</td>
             <td class="text-center">{{ role.created_at.strftime('%d-%m-%Y %H:%M') if role.created_at else '—' }}</td>
             <td class="text-center">
-              <a href="{{ url_for('role_detail', role_id=role.id) }}" class="btn btn-sm btn-primary" title="Xem">
-                <i class="bi bi-eye"></i> Xem
+              <a href="{{ url_for('role_detail', role_id=role.id) }}" class="btn btn-sm btn-outline-info" title="Xem">
+                <i class="bi bi-eye"></i>
               </a>
-              <a href="{{ url_for('role_detail', role_id=role.id, tab='permissions') }}" class="btn btn-sm btn-warning" title="Sửa">
-                <i class="bi bi-pencil"></i> Sửa
+              <a href="{{ url_for('role_detail', role_id=role.id, tab='permissions') }}" class="btn btn-sm btn-outline-warning ms-1" title="Sửa">
+                <i class="bi bi-pencil"></i>
               </a>
               {% if role.name != 'Admin' %}
-              <form method="POST" action="{{ url_for('roles_permissions') }}" class="d-inline" onsubmit="return confirm('Xóa quyền này?')">
+              <form method="POST" action="{{ url_for('roles_permissions') }}" class="d-inline ms-1" onsubmit="return confirm('Xóa quyền này?')">
                 <input type="hidden" name="action" value="delete_role">
                 <input type="hidden" name="role_id" value="{{ role.id }}">
-                <button type="submit" class="btn btn-sm btn-danger" title="Xóa">
-                  <i class="bi bi-trash"></i> Xóa
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa">
+                  <i class="bi bi-trash"></i>
                 </button>
               </form>
               {% endif %}

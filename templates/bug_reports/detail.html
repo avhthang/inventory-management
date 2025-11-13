@@ -111,9 +111,9 @@
       </div>
     </div>
     
-    {% if 'bug_reports.edit' in current_permissions %}
+    {% if is_admin %}
     <div class="card mb-3">
-      <div class="card-header"><strong>Cập nhật báo lỗi</strong></div>
+      <div class="card-header"><strong>Cập nhật báo lỗi</strong> <small class="text-muted">(Chỉ dành cho quản trị viên)</small></div>
       <div class="card-body">
         <form method="POST" action="{{ url_for('update_bug_report', report_id=bug_report.id) }}">
           <div class="row g-3 mb-3">
