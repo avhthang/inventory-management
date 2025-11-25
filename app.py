@@ -806,12 +806,13 @@ class BugReport(db.Model):
                                      secondaryjoin=id == bug_report_relations.c.related_report_id,
                                      backref='related_to_reports',
                                      lazy='dynamic')
-    # Merged reports (one-to-many: one report can have many merged into it)
-    # Note: merged_into is a foreign key pointing to the parent report
-    merged_reports = db.relationship('BugReport',
-                                    foreign_keys=[merged_into],
-                                    remote_side=[id],
-                                    lazy='dynamic')
+    # Parent-child relationship for merged tickets
+    parent_report = db.relationship(
+        'BugReport',
+        remote_side=[id],
+        foreign_keys=[merged_into],
+        backref=db.backref('merged_reports', cascade='all, delete-orphan')
+    )
 
     @property
     def device_code_list(self):
