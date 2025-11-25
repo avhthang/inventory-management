@@ -84,7 +84,7 @@
           <select name="user_id" class="form-select" required>
             <option value="">— Chọn người dùng —</option>
             {% for user in all_users %}
-            {% set has_role = user.id in (users_in_role | map(attribute='id') | list) %}
+            {% set has_role = user.id in [u.id for u in users_in_role] %}
             {% if not has_role %}
             <option value="{{ user.id }}">{{ user.full_name or user.username }} ({{ user.username }})</option>
             {% endif %}
