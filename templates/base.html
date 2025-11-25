@@ -19,7 +19,8 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('home') }}">QLTB</a>
+            {% set dashboard_allowed = current_user and (current_user.role == 'admin' or (current_permissions and 'dashboard.view' in current_permissions)) %}
+            <a class="navbar-brand" href="{{ url_for('home') if dashboard_allowed else url_for('device_list') }}">QLTB</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -28,7 +29,9 @@
                 {% set active_endpoint = request.endpoint %}
                 {% set config_endpoints = ['user_list', 'list_departments', 'backup_page', 'backup_config', 'backup_list', 'db_config'] %}
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    {% if dashboard_allowed %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Dashboard</a></li>
+                    {% endif %}
                     {% if current_permissions and 'devices.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['device_list', 'device_detail'] %}active{% endif %}" href="{{ url_for('device_list') }}">Thiết bị</a></li>
                     {% endif %}

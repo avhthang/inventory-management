@@ -82,6 +82,7 @@
   <input type="hidden" name="creator" value="{{ creator_filter }}">
   <input type="hidden" name="status" value="{{ status_filter }}">
   <input type="hidden" name="priority" value="{{ priority_filter }}">
+  <input type="hidden" name="error_type" value="{{ error_type_filter }}">
 </form>
 <script>
 function saveBugReportFilters() {
@@ -93,6 +94,10 @@ function saveBugReportFilters() {
   form.querySelector('[name="creator"]').value = document.querySelector('[name="creator"]').value || '';
   form.querySelector('[name="status"]').value = document.querySelector('[name="status"]').value || '';
   form.querySelector('[name="priority"]').value = document.querySelector('[name="priority"]').value || '';
+  const errorTypeSelect = document.querySelector('select[name="error_type"]');
+  if (errorTypeSelect) {
+    form.querySelector('[name="error_type"]').value = errorTypeSelect.value || '';
+  }
   form.submit();
 }
 </script>
@@ -205,8 +210,8 @@ document.querySelector('form').addEventListener('submit', function(e) {
           <span class="badge bg-primary">{{ report.error_type or 'Thiết bị' }}</span>
         </td>
         <td class="text-center" style="white-space: nowrap;">{{ report.status }}</td>
-        <td class="text-center" style="white-space: nowrap;">{{ report.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
-        <td class="text-center" style="white-space: nowrap;">{{ report.updated_at.strftime('%d-%m-%Y %H:%M') if report.updated_at else '—' }}</td>
+        <td class="text-center" style="white-space: nowrap;">{{ report.created_at|localtime }}</td>
+        <td class="text-center" style="white-space: nowrap;">{{ report.updated_at|localtime if report.updated_at else '—' }}</td>
       </tr>
       {% else %}
       <tr>

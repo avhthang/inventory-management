@@ -99,13 +99,13 @@
         <div class="row text-muted small">
           <div class="col-md-6">
             <strong>Người tạo:</strong> {{ bug_report.creator.full_name or bug_report.creator.username }}<br>
-            <strong>Ngày tạo:</strong> {{ bug_report.created_at.strftime('%d-%m-%Y %H:%M') }}
+            <strong>Ngày tạo:</strong> {{ bug_report.created_at|localtime }}
           </div>
           <div class="col-md-6">
             {% if bug_report.assignee %}
             <strong>Người xử lý:</strong> {{ bug_report.assignee.full_name or bug_report.assignee.username }}<br>
             {% endif %}
-            <strong>Cập nhật lần cuối:</strong> {{ bug_report.updated_at.strftime('%d-%m-%Y %H:%M') if bug_report.updated_at else '—' }}
+            <strong>Cập nhật lần cuối:</strong> {{ bug_report.updated_at|localtime if bug_report.updated_at else '—' }}
           </div>
         </div>
       </div>
@@ -194,7 +194,7 @@
         <div class="mb-3 pb-3 border-bottom">
           <div class="d-flex justify-content-between mb-2">
             <strong>{{ comment.creator.full_name or comment.creator.username }}</strong>
-            <small class="text-muted">{{ comment.created_at.strftime('%d-%m-%Y %H:%M') }}</small>
+            <small class="text-muted">{{ comment.created_at|localtime }}</small>
           </div>
           <div style="white-space: pre-wrap;">{{ comment.comment }}</div>
         </div>
@@ -304,12 +304,12 @@
         {% endif %}
         <div class="mb-2">
           <strong>Ngày tạo:</strong>
-          <span class="ms-1">{{ bug_report.created_at.strftime('%d-%m-%Y %H:%M') }}</span>
+          <span class="ms-1">{{ bug_report.created_at|localtime }}</span>
         </div>
         {% if bug_report.resolved_at %}
         <div class="mb-2">
           <strong>Đã xử lý:</strong>
-          <span class="ms-1">{{ bug_report.resolved_at.strftime('%d-%m-%Y %H:%M') }}</span>
+          <span class="ms-1">{{ bug_report.resolved_at|localtime }}</span>
         </div>
         {% endif %}
         {% if bug_report.resolution %}
@@ -353,7 +353,7 @@
       </div>
     </div>
     
-    {% if related_reports or (is_admin or is_creator) %}
+{% if related_reports or can_manage_related %}
     <div class="card mt-3">
       <div class="card-header"><strong>Báo lỗi liên quan</strong></div>
       <div class="card-body">
@@ -370,7 +370,7 @@
                 {{ related.status }} - {{ related.priority }} - {{ related.error_type or 'Thiết bị' }}
               </small>
             </div>
-            {% if is_admin or is_creator %}
+        {% if can_manage_related %}
             <form method="POST" action="{{ url_for('remove_related_bug_report', report_id=bug_report.id, related_id=related.id) }}" class="d-inline" onsubmit="return confirm('Xóa liên kết này?')">
               <button type="submit" class="btn btn-sm btn-outline-danger">
                 <i class="bi bi-x"></i>
@@ -384,7 +384,7 @@
         <p class="text-muted mb-3">Chưa có báo lỗi liên quan.</p>
         {% endif %}
         
-        {% if is_admin or is_creator %}
+    {% if can_manage_related %}
         <form method="POST" action="{{ url_for('add_related_bug_report', report_id=bug_report.id) }}" class="row g-2">
           <div class="col-md-8">
             <select name="related_id" class="form-select" required>

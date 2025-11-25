@@ -174,6 +174,11 @@
                                 <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i class="bi bi-trash"></i></button>
                             </form>
                             {% endif %}
+                            {% if (current_user and device.manager_id == current_user.id) or (current_permissions and 'devices.edit' in current_permissions) %}
+                            <button type="button" class="btn btn-sm btn-outline-success ms-1" title="Trả thiết bị" data-bs-toggle="modal" data-bs-target="#returnModal-{{ device.id }}">
+                                <i class="bi bi-arrow-return-left"></i>
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -198,6 +203,54 @@
                 </div>
             </div>
             {% endif %}
+            <div class="modal fade" id="returnModal-{{ device.id }}" tabindex="-1" aria-labelledby="returnModalLabel-{{ device.id }}" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="returnModalLabel-{{ device.id }}">Trả thiết bị: {{ device.device_code }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <strong>Tên thiết bị:</strong> {{ device.name }}
+                                <br>
+                                <strong>Mã thiết bị:</strong> {{ device.device_code }}
+                                <br>
+                                <strong>Tình trạng hiện tại:</strong> {{ device.condition or 'Chưa cập nhật' }}
+                                <br>
+                                <a href="{{ url_for('device_detail', device_id=device.id) }}" target="_blank">Xem chi tiết cấu hình</a>
+                            </div>
+                            {% set current_manager = device.manager %}
+                            {% set dept_manager = current_manager.department_info.manager if current_manager and current_manager.department_info and current_manager.department_info.manager else None %}
+                            <form method="POST" action="{{ url_for('return_device', device_id=device.id) }}">
+                                <div class="mb-3">
+                                    <label class="form-label">Người nhận thiết bị</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="return_option" id="return-manager-{{ device.id }}" value="manager" {% if dept_manager %}checked{% else %}disabled{% endif %}>
+                                        <label class="form-check-label" for="return-manager-{{ device.id }}">
+                                            Trả phụ trách {% if dept_manager %}({{ dept_manager.full_name or dept_manager.username }}){% else %}(Chưa cấu hình phụ trách){% endif %}
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="return_option" id="return-admin-{{ device.id }}" value="admin" {% if not dept_manager %}checked{% endif %}>
+                                        <label class="form-check-label" for="return-admin-{{ device.id }}">
+                                            Trả quản trị viên {% if primary_admin %}({{ primary_admin.full_name or primary_admin.username }}){% endif %}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Lý do hoàn trả</label>
+                                    <textarea name="reason" class="form-control" rows="3" placeholder="Nhập lý do hoàn trả" required></textarea>
+                                </div>
+                                <div class="text-end">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                                    <button type="submit" class="btn btn-primary">Đồng ý</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
         {% endfor %}
 
         {% set filters = {'filter_device_code': filter_device_code, 'filter_name': filter_name, 'filter_device_type': filter_device_type, 'filter_status': filter_status, 'filter_manager_id': filter_manager_id, 'filter_department': filter_department} %}

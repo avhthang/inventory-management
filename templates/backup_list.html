@@ -40,7 +40,7 @@
                                 <span class="badge bg-success">Thủ công</span>
                             {% endif %}
                         </td>
-                        <td>{{ backup.created.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+                        <td>{{ backup.created|localtime('%d/%m/%Y %H:%M:%S') }}</td>
                         <td>{{ "%.1f"|format(backup.size / 1024 / 1024) }} MB</td>
                         <td>
                             <div class="btn-group btn-group-sm">

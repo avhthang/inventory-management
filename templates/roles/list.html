@@ -27,7 +27,7 @@
             <td class="text-center">{{ loop.index }}</td>
             <td><strong>{{ role.name }}</strong></td>
             <td>{{ role.description or '—' }}</td>
-            <td class="text-center">{{ role.created_at.strftime('%d-%m-%Y %H:%M') if role.created_at else '—' }}</td>
+            <td class="text-center">{{ role.created_at|localtime if role.created_at else '—' }}</td>
             <td class="text-center">
               <a href="{{ url_for('role_detail', role_id=role.id) }}" class="btn btn-sm btn-outline-info" title="Xem">
                 <i class="bi bi-eye"></i>
