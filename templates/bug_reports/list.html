@@ -56,6 +56,14 @@
     </select>
   </div>
   <div class="col-auto">
+    <select class="form-select" name="error_type">
+      <option value="">Tất cả loại</option>
+      <option value="Thiết bị" {% if error_type_filter=='Thiết bị' %}selected{% endif %}>Thiết bị</option>
+      <option value="Phần mềm" {% if error_type_filter=='Phần mềm' %}selected{% endif %}>Phần mềm</option>
+      <option value="Văn phòng" {% if error_type_filter=='Văn phòng' %}selected{% endif %}>Văn phòng</option>
+    </select>
+  </div>
+  <div class="col-auto">
     <button class="btn btn-outline-secondary" type="submit">Lọc</button>
   </div>
   <div class="col-auto">
@@ -132,6 +140,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
             <li><a class="dropdown-item" href="?priority=Khẩn cấp">Khẩn cấp</a></li>
           </ul>
         </th>
+        <th class="text-center" style="white-space: nowrap;"><strong>Loại</strong></th>
         <th class="text-center" style="white-space: nowrap;"><strong>Trạng thái</strong></th>
         <th class="text-center" style="white-space: nowrap;"><strong>Ngày tạo</strong></th>
         <th class="text-center" style="white-space: nowrap;"><strong>Cập nhật</strong></th>
@@ -191,6 +200,9 @@ document.querySelector('form').addEventListener('submit', function(e) {
           {% else %}
             <span class="badge bg-secondary">{{ report.priority }}</span>
           {% endif %}
+        </td>
+        <td class="text-center" style="white-space: nowrap;">
+          <span class="badge bg-primary">{{ report.error_type or 'Thiết bị' }}</span>
         </td>
         <td class="text-center" style="white-space: nowrap;">{{ report.status }}</td>
         <td class="text-center" style="white-space: nowrap;">{{ report.created_at.strftime('%d-%m-%Y %H:%M') }}</td>

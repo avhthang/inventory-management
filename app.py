@@ -458,6 +458,34 @@ def migrate_bug_report_enhancements():
                     _add_column(ddl)
                 if 'rating' not in columns:
                     _add_column('ALTER TABLE bug_report ADD COLUMN rating INTEGER')
+                if 'error_type' not in columns:
+                    _add_column("ALTER TABLE bug_report ADD COLUMN error_type VARCHAR(50) DEFAULT 'Thiết bị'")
+                if 'merged_into' not in columns:
+                    _add_column('ALTER TABLE bug_report ADD COLUMN merged_into INTEGER REFERENCES bug_report(id)')
+
+                # Create bug_report_relations table if it doesn't exist
+                try:
+                    if is_external_database():
+                        conn.execute(text('''
+                            CREATE TABLE IF NOT EXISTS bug_report_relations (
+                                report_id INTEGER NOT NULL REFERENCES bug_report(id) ON DELETE CASCADE,
+                                related_report_id INTEGER NOT NULL REFERENCES bug_report(id) ON DELETE CASCADE,
+                                PRIMARY KEY (report_id, related_report_id)
+                            )
+                        '''))
+                    else:
+                        conn.execute(text('''
+                            CREATE TABLE IF NOT EXISTS bug_report_relations (
+                                report_id INTEGER NOT NULL REFERENCES bug_report(id) ON DELETE CASCADE,
+                                related_report_id INTEGER NOT NULL REFERENCES bug_report(id) ON DELETE CASCADE,
+                                PRIMARY KEY (report_id, related_report_id)
+                            )
+                        '''))
+                    conn.commit()
+                except Exception as ex:
+                    msg = str(ex).lower()
+                    if 'already exists' not in msg and 'duplicate' not in msg:
+                        print(f"Migration note (bug_report_relations): {ex}")
 
                 if is_external_database():
                     try:
@@ -470,6 +498,7 @@ def migrate_bug_report_enhancements():
                 try:
                     conn.execute(text("UPDATE bug_report SET visibility = 'private' WHERE visibility IS NULL"))
                     conn.execute(text("UPDATE bug_report SET reopen_requested = FALSE WHERE reopen_requested IS NULL"))
+                    conn.execute(text("UPDATE bug_report SET error_type = 'Thiết bị' WHERE error_type IS NULL"))
                     conn.commit()
                 except Exception:
                     pass
@@ -744,6 +773,12 @@ class AuditLog(db.Model):
     changes = db.Column(db.Text)  # JSON string: { field: {"from": ..., "to": ...}, ... }
 
 # --- Bug Report Models ---
+# Association table for related bug reports (many-to-many)
+bug_report_relations = db.Table('bug_report_relations',
+    db.Column('report_id', db.Integer, db.ForeignKey('bug_report.id'), primary_key=True),
+    db.Column('related_report_id', db.Integer, db.ForeignKey('bug_report.id'), primary_key=True)
+)
+
 class BugReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)  # Giảm độ dài tiêu đề
@@ -751,9 +786,11 @@ class BugReport(db.Model):
     description = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), default='Mới tạo')  # Mới tạo, Đang xử lý, Đã xử lý, Đã đóng
     priority = db.Column(db.String(50), default='Trung bình')  # Thấp, Trung bình, Cao, Khẩn cấp
+    error_type = db.Column(db.String(50), default='Thiết bị')  # Thiết bị, Phần mềm, Văn phòng
     visibility = db.Column(db.String(20), default='private')  # private | public
     reopen_requested = db.Column(db.Boolean, default=False)
     rating = db.Column(db.Integer)  # 1-5 sao khi vấn đề đóng
+    merged_into = db.Column(db.Integer, db.ForeignKey('bug_report.id'))  # ID của báo lỗi đã được gộp vào
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     assigned_to = db.Column(db.Integer, db.ForeignKey('user.id'))  # Quản trị viên được gán
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -762,6 +799,18 @@ class BugReport(db.Model):
     resolution = db.Column(db.Text)  # Giải pháp/ghi chú khi xử lý xong
     creator = db.relationship('User', foreign_keys=[created_by], backref='created_bug_reports')
     assignee = db.relationship('User', foreign_keys=[assigned_to], backref='assigned_bug_reports')
+    # Related reports (many-to-many)
+    related_reports = db.relationship('BugReport',
+                                     secondary=bug_report_relations,
+                                     primaryjoin=id == bug_report_relations.c.report_id,
+                                     secondaryjoin=id == bug_report_relations.c.related_report_id,
+                                     backref='related_to_reports',
+                                     lazy='dynamic')
+    # Merged reports (one-to-many: one report can have many merged into it)
+    merged_reports = db.relationship('BugReport',
+                                    foreign_keys=[merged_into],
+                                    backref='parent_report',
+                                    lazy='dynamic')
 
     @property
     def device_code_list(self):
@@ -1240,12 +1289,13 @@ def role_detail(role_id):
                 # Kiểm tra trùng tên
                 if Role.query.filter(Role.name == name, Role.id != role.id).first():
                     flash('Tên quyền đã tồn tại.', 'danger')
+                    return redirect(url_for('role_detail', role_id=role_id, tab='permissions'))
                 else:
                     role.name = name
             role.description = description
             db.session.commit()
             flash('Cập nhật quyền thành công.', 'success')
-            return redirect(url_for('role_detail', role_id=role_id, tab=tab))
+            return redirect(url_for('role_detail', role_id=role_id, tab='permissions'))
         
         elif action == 'add_user_to_role':
             # Thêm người dùng vào quyền
@@ -1304,16 +1354,33 @@ def role_detail(role_id):
     if other_perms:
         actual_groups['Khác'] = other_perms
     
-    # Lấy danh sách người dùng trong quyền
+    # Lấy danh sách người dùng trong quyền với phân trang
     user_roles = UserRole.query.filter_by(role_id=role.id).all()
-    users_in_role = [User.query.get(ur.user_id) for ur in user_roles if User.query.get(ur.user_id)]
+    user_ids_in_role = [ur.user_id for ur in user_roles]
     
-    # Lấy danh sách tất cả người dùng để thêm vào quyền
-    all_users = User.query.order_by(User.full_name, User.username).all()
+    # Phân trang cho danh sách người dùng trong quyền
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    if user_ids_in_role:
+        users_query = User.query.filter(User.id.in_(user_ids_in_role)).filter(
+            ~User.status.in_(['Đã nghỉ', 'Nghỉ việc'])
+        ).order_by(User.full_name, User.username)
+        users_in_role_pagination = users_query.paginate(page=page, per_page=per_page, error_out=False)
+        users_in_role = users_in_role_pagination.items
+    else:
+        users_in_role_pagination = None
+        users_in_role = []
+    
+    # Lấy danh sách tất cả người dùng để thêm vào quyền (loại trừ người đã nghỉ việc)
+    all_users = User.query.filter(
+        ~User.status.in_(['Đã nghỉ', 'Nghỉ việc'])
+    ).order_by(User.full_name, User.username).all()
     
     return render_template('roles/detail.html', role=role, permissions=permissions, 
                          role_perms=role_perms, permission_groups=actual_groups,
-                         users_in_role=users_in_role, all_users=all_users, tab=tab)
+                         users_in_role=users_in_role, users_in_role_pagination=users_in_role_pagination,
+                         all_users=all_users, tab=tab)
 
 @app.route('/health')
 def health_check():
@@ -1417,6 +1484,10 @@ def login():
         remember = True if request.form.get('remember') else False
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password):
+            # Kiểm tra trạng thái người dùng
+            if user.status in ['Đã nghỉ', 'Nghỉ việc']:
+                flash('Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.', 'danger')
+                return render_template('login.html')
             session['user_id'] = user.id
             if remember:
                 session.permanent = True
@@ -3156,7 +3227,7 @@ def add_handover():
                            devices=devices, 
                            users=users,
                            groups=groups,
-                           now=datetime.now(),
+                           now=datetime.now(VIETNAM_TZ),
                            preselected_device_id=preselected_device_id)
 
 # ... (Các hàm edit_handover, delete_handover giữ nguyên) ...
@@ -3517,7 +3588,7 @@ def create_return_handover_for_user(user_id, current_user_id):
         # Tạo phiếu trả thiết bị cho từng thiết bị (vì mỗi handover chỉ handle 1 device)
         for device in devices:
             return_handover = DeviceHandover(
-                handover_date=datetime.now().date(),
+                handover_date=datetime.now(VIETNAM_TZ).date(),
                 device_id=device.id,
                 giver_id=user_id,  # Người giao là nhân viên nghỉ việc
                 receiver_id=current_user_id,  # Người nhận là admin hiện tại
@@ -3839,7 +3910,7 @@ def export_devices_excel():
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Devices')
     output.seek(0)
-    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'devices_list_{datetime.now().strftime("%Y%m%d")}.xlsx')
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'devices_list_{datetime.now(VIETNAM_TZ).strftime("%Y%m%d")}.xlsx')
 
 @app.route('/download/maintenance/<int:log_id>/<path:filename>')
 def _get_current_permissions():
@@ -3975,7 +4046,7 @@ def export_users_excel():
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Users')
     output.seek(0)
-    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'users_list_{datetime.now().strftime("%Y%m%d")}.xlsx')
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'users_list_{datetime.now(VIETNAM_TZ).strftime("%Y%m%d")}.xlsx')
 
 @app.route('/maintenance_logs')
 def maintenance_logs():
@@ -4188,20 +4259,24 @@ def bug_reports():
     # Get filters from query params, fallback to saved filters
     status_filter = request.args.get('status', '').strip() or saved_filters.get('status', '')
     priority_filter = request.args.get('priority', '').strip() or saved_filters.get('priority', '')
+    error_type_filter = request.args.get('error_type', '').strip() or saved_filters.get('error_type', '')
     date_filter = request.args.get('date_filter', '').strip() or saved_filters.get('date_filter', '')
     date_from = request.args.get('date_from', '').strip() or saved_filters.get('date_from', '')
     date_to = request.args.get('date_to', '').strip() or saved_filters.get('date_to', '')
     creator_filter = request.args.get('creator', '').strip() or saved_filters.get('creator', '')
     
-    # Người dùng thường chỉ thấy báo lỗi của mình hoặc báo lỗi công khai
+    # Người dùng thường chỉ thấy báo lỗi của mình, báo lỗi được gán cho mình, hoặc báo lỗi công khai
+    # Báo lỗi cá nhân (private) chỉ hiển thị cho người tạo, admin, và người được gán
     is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
     if is_admin:
-        q = BugReport.query
+        q = BugReport.query.filter(BugReport.merged_into.is_(None))  # Không hiển thị báo lỗi đã được gộp
     else:
         q = BugReport.query.filter(
+            BugReport.merged_into.is_(None),  # Không hiển thị báo lỗi đã được gộp
             or_(
                 BugReport.visibility == 'public',
-                BugReport.created_by == user_id
+                BugReport.created_by == user_id,
+                BugReport.assigned_to == user_id
             )
         )
     
@@ -4209,6 +4284,8 @@ def bug_reports():
         q = q.filter(BugReport.status == status_filter)
     if priority_filter:
         q = q.filter(BugReport.priority == priority_filter)
+    if error_type_filter:
+        q = q.filter(BugReport.error_type == error_type_filter)
     
     # Date filtering
     if date_filter:
@@ -4269,6 +4346,7 @@ def bug_reports():
                          reports=reports, 
                          status_filter=status_filter, 
                          priority_filter=priority_filter,
+                         error_type_filter=error_type_filter,
                          date_filter=date_filter,
                          date_from=date_from,
                          date_to=date_to,
@@ -4288,6 +4366,7 @@ def save_bug_report_filters():
         'creator': request.form.get('creator', '').strip(),
         'status': request.form.get('status', '').strip(),
         'priority': request.form.get('priority', '').strip(),
+        'error_type': request.form.get('error_type', '').strip(),
     }
     session['bug_reports_filters'] = filters
     flash('Đã lưu bộ lọc báo lỗi.', 'success')
@@ -4333,6 +4412,9 @@ def create_bug_report():
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         priority = request.form.get('priority', 'Trung bình')
+        error_type = request.form.get('error_type', 'Thiết bị')
+        if error_type not in ['Thiết bị', 'Phần mềm', 'Văn phòng']:
+            error_type = 'Thiết bị'
         visibility = (request.form.get('visibility') or 'private').strip().lower()
         if visibility not in ['private', 'public']:
             visibility = 'private'
@@ -4375,18 +4457,19 @@ def create_bug_report():
  
         if not title or not description:
             flash('Vui lòng nhập tiêu đề và mô tả.', 'danger')
-            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description, reportable_users=reportable_users, selected_report_for=report_for_user)
- 
+            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, selected_error_type=error_type, draft_title=title, draft_description=description, reportable_users=reportable_users, selected_report_for=report_for_user)
+
         # Validate title length
         if len(title) > 100:
             flash('Tiêu đề không được vượt quá 100 ký tự.', 'danger')
-            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description, reportable_users=reportable_users, selected_report_for=report_for_user)
+            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, selected_error_type=error_type, draft_title=title, draft_description=description, reportable_users=reportable_users, selected_report_for=report_for_user)
  
         try:
             bug_report = BugReport(
                 title=title,
                 description=description,
                 priority=priority,
+                error_type=error_type,
                 device_code=device_codes_str,
                 visibility=visibility,
                 created_by=created_by_id,
@@ -4418,9 +4501,9 @@ def create_bug_report():
             db.session.rollback()
             app.logger.error(f'Error creating bug report: {str(e)}', exc_info=True)
             flash(f'Lỗi khi tạo báo lỗi: {str(e)}', 'danger')
-            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, draft_title=title, draft_description=description, reportable_users=reportable_users, selected_report_for='')
+            return render_template('bug_reports/create.html', devices=devices, selected_device_codes=deduped_codes, selected_visibility=visibility, selected_priority=priority, selected_error_type=error_type, draft_title=title, draft_description=description, reportable_users=reportable_users, selected_report_for='')
     
-    return render_template('bug_reports/create.html', devices=devices, selected_device_codes=[], selected_visibility='private', selected_priority='Trung bình', draft_title='', draft_description='', reportable_users=reportable_users, selected_report_for='')
+    return render_template('bug_reports/create.html', devices=devices, selected_device_codes=[], selected_visibility='private', selected_priority='Trung bình', selected_error_type='Thiết bị', draft_title='', draft_description='', reportable_users=reportable_users, selected_report_for='')
 
 @app.route('/bug_reports/<int:report_id>')
 def bug_report_detail(report_id):
@@ -4466,11 +4549,22 @@ def bug_report_detail(report_id):
     can_request_reopen = is_closed and is_creator and not bug_report.reopen_requested
     can_rate = is_closed and is_creator
     can_close = (not is_closed) and is_creator
+    
+    # Lấy danh sách báo lỗi liên quan
+    related_reports = bug_report.related_reports.all() if bug_report.related_reports else []
+    
+    # Lấy danh sách báo lỗi có thể liên kết (không bao gồm chính nó và các báo lỗi đã được gộp)
+    available_reports = BugReport.query.filter(
+        BugReport.id != report_id,
+        BugReport.merged_into.is_(None)
+    ).order_by(BugReport.created_at.desc()).limit(100).all()
 
     return render_template(
         'bug_reports/detail.html',
         bug_report=bug_report,
         employees=employees,
+        related_reports=related_reports,
+        available_reports=available_reports,
         current_user_id=user_id,
         current_permissions=current_permissions,
         is_admin=is_admin,
@@ -4503,6 +4597,9 @@ def edit_bug_report(report_id):
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         priority = request.form.get('priority', 'Trung bình')
+        error_type = request.form.get('error_type', 'Thiết bị')
+        if error_type not in ['Thiết bị', 'Phần mềm', 'Văn phòng']:
+            error_type = 'Thiết bị'
         visibility = (request.form.get('visibility') or 'private').strip().lower()
         if visibility not in ['private', 'public']:
             visibility = 'private'
@@ -4539,6 +4636,7 @@ def edit_bug_report(report_id):
             bug_report.title = title
             bug_report.description = description
             bug_report.priority = priority
+            bug_report.error_type = error_type
             bug_report.visibility = visibility
             bug_report.device_code = device_codes_str
             bug_report.updated_at = datetime.utcnow()
@@ -4576,8 +4674,8 @@ def edit_bug_report(report_id):
     selected_codes = bug_report.device_code_list
     return render_template('bug_reports/edit.html', bug_report=bug_report, devices=devices,
                          selected_device_codes=selected_codes, selected_visibility=bug_report.visibility,
-                         selected_priority=bug_report.priority, draft_title=bug_report.title,
-                         draft_description=bug_report.description)
+                         selected_priority=bug_report.priority, selected_error_type=bug_report.error_type or 'Thiết bị',
+                         draft_title=bug_report.title, draft_description=bug_report.description)
 
 @app.route('/bug_reports/<int:report_id>/update', methods=['POST'])
 def update_bug_report(report_id):
@@ -4595,6 +4693,7 @@ def update_bug_report(report_id):
     try:
         status = request.form.get('status')
         priority = request.form.get('priority')
+        error_type = request.form.get('error_type')
         assigned_to = request.form.get('assigned_to')
         resolution = request.form.get('resolution', '').strip()
         visibility = (request.form.get('visibility') or bug_report.visibility or 'private').strip().lower()
@@ -4615,6 +4714,9 @@ def update_bug_report(report_id):
  
         if priority:
             bug_report.priority = priority
+        
+        if error_type and error_type in ['Thiết bị', 'Phần mềm', 'Văn phòng']:
+            bug_report.error_type = error_type
  
         if assigned_to:
             try:
@@ -4803,7 +4905,7 @@ def export_handovers_excel():
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Handovers')
     output.seek(0)
-    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'handover_history_{datetime.now().strftime("%Y%m%d")}.xlsx')
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'handover_history_{datetime.now(VIETNAM_TZ).strftime("%Y%m%d")}.xlsx')
 
 # --- Configuration Proposal Routes ---
 @app.route('/config_proposals')
@@ -5086,12 +5188,13 @@ def backup_export():
     if 'user_id' not in session: return redirect(url_for('login'))
     try:
         # Tạo file backup
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now(VIETNAM_TZ).strftime('%Y%m%d_%H%M%S')
         backup_filename = f'backup_inventory_{timestamp}.zip'
         
-        # Tạo file tạm
-        temp_dir = tempfile.mkdtemp()
-        backup_path = os.path.join(temp_dir, backup_filename)
+        # Tạo file tạm với delete=False để giữ file cho đến khi gửi xong
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip', dir=backup_path)
+        backup_path = temp_file.name
+        temp_file.close()
         
         files_added = 0
         
@@ -5119,16 +5222,30 @@ def backup_export():
         
         # Check if backup has content
         if files_added == 0:
+            os.unlink(backup_path)  # Xóa file tạm
             flash('Không có dữ liệu để backup. Hệ thống có thể chưa được khởi tạo.', 'warning')
             return redirect(url_for('backup_page'))
         
-        return send_file(
+        # Gửi file và xóa sau khi gửi xong
+        def remove_file(response):
+            try:
+                os.unlink(backup_path)
+            except Exception:
+                pass
+            return response
+        
+        return remove_file(send_file(
             backup_path,
             as_attachment=True,
             download_name=backup_filename,
             mimetype='application/zip'
-        )
+        ))
     except Exception as e:
+        try:
+            if 'backup_path' in locals() and os.path.exists(backup_path):
+                os.unlink(backup_path)
+        except Exception:
+            pass
         flash(f'Lỗi khi tạo backup: {str(e)}', 'danger')
         return redirect(url_for('backup_page'))
 
@@ -5161,7 +5278,7 @@ def backup_import():
                 db_path = os.path.join(instance_path, 'inventory.db')
                 # Backup database hiện tại
                 if os.path.exists(db_path):
-                    backup_db_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    backup_db_path = f"{db_path}.backup_{datetime.now(VIETNAM_TZ).strftime('%Y%m%d_%H%M%S')}"
                     os.rename(db_path, backup_db_path)
                 
                 # Extract new database
@@ -5374,7 +5491,7 @@ def backup_restore_from_file(filename):
         # Backup current database
         db_path = os.path.join(instance_path, 'inventory.db')
         if os.path.exists(db_path):
-            backup_db_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            backup_db_path = f"{db_path}.backup_{datetime.now(VIETNAM_TZ).strftime('%Y%m%d_%H%M%S')}"
             os.rename(db_path, backup_db_path)
         
         # Restore from backup
@@ -5593,6 +5710,130 @@ def rate_bug_report(report_id):
         db.session.rollback()
         flash(f'Lỗi khi lưu đánh giá: {str(e)}', 'danger')
 
+    return redirect(url_for('bug_report_detail', report_id=report_id))
+
+@app.route('/bug_reports/<int:report_id>/add_related', methods=['POST'])
+def add_related_bug_report(report_id):
+    """Thêm báo lỗi liên quan"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    current_permissions = _get_current_permissions()
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
+    is_creator = bug_report.created_by == user_id
+    
+    if not (is_admin or is_creator):
+        flash('Bạn không có quyền thêm báo lỗi liên quan.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    related_id = request.form.get('related_id', type=int)
+    if not related_id or related_id == report_id:
+        flash('Báo lỗi liên quan không hợp lệ.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    related_report = BugReport.query.get(related_id)
+    if not related_report:
+        flash('Báo lỗi không tồn tại.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    try:
+        # Kiểm tra xem đã liên kết chưa
+        if related_report not in bug_report.related_reports.all():
+            bug_report.related_reports.append(related_report)
+            # Tạo liên kết 2 chiều
+            if bug_report not in related_report.related_reports.all():
+                related_report.related_reports.append(bug_report)
+            db.session.commit()
+            flash('Đã thêm báo lỗi liên quan.', 'success')
+        else:
+            flash('Báo lỗi này đã được liên kết.', 'info')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi thêm báo lỗi liên quan: {str(e)}', 'danger')
+    
+    return redirect(url_for('bug_report_detail', report_id=report_id))
+
+@app.route('/bug_reports/<int:report_id>/remove_related/<int:related_id>', methods=['POST'])
+def remove_related_bug_report(report_id, related_id):
+    """Xóa báo lỗi liên quan"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    current_permissions = _get_current_permissions()
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
+    is_creator = bug_report.created_by == user_id
+    
+    if not (is_admin or is_creator):
+        flash('Bạn không có quyền xóa báo lỗi liên quan.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    try:
+        related_report = BugReport.query.get(related_id)
+        if related_report and related_report in bug_report.related_reports.all():
+            bug_report.related_reports.remove(related_report)
+            # Xóa liên kết 2 chiều
+            if bug_report in related_report.related_reports.all():
+                related_report.related_reports.remove(bug_report)
+            db.session.commit()
+            flash('Đã xóa báo lỗi liên quan.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi xóa báo lỗi liên quan: {str(e)}', 'danger')
+    
+    return redirect(url_for('bug_report_detail', report_id=report_id))
+
+@app.route('/bug_reports/<int:report_id>/merge', methods=['POST'])
+def merge_bug_reports(report_id):
+    """Gộp nhiều báo lỗi vào một báo lỗi chính"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    current_permissions = _get_current_permissions()
+    
+    bug_report = BugReport.query.get_or_404(report_id)
+    is_admin = any(perm in current_permissions for perm in ['bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'])
+    
+    if not is_admin:
+        flash('Chỉ quản trị viên mới có quyền gộp báo lỗi.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    merge_ids = request.form.getlist('merge_ids')
+    if not merge_ids:
+        flash('Vui lòng chọn ít nhất một báo lỗi để gộp.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=report_id))
+    
+    try:
+        merged_count = 0
+        for merge_id_str in merge_ids:
+            try:
+                merge_id = int(merge_id_str)
+                if merge_id == report_id:
+                    continue
+                merge_report = BugReport.query.get(merge_id)
+                if merge_report and not merge_report.merged_into:
+                    merge_report.merged_into = report_id
+                    # Cập nhật mô tả của báo lỗi chính để tham chiếu các báo lỗi đã gộp
+                    if merge_report.title:
+                        note = f"\n\n[Đã gộp từ báo lỗi #{merge_id}: {merge_report.title}]"
+                        if bug_report.resolution:
+                            bug_report.resolution += note
+                        else:
+                            bug_report.resolution = note
+                    merged_count += 1
+            except (ValueError, TypeError):
+                continue
+        
+        if merged_count > 0:
+            bug_report.updated_at = datetime.utcnow()
+            db.session.commit()
+            flash(f'Đã gộp {merged_count} báo lỗi vào báo lỗi này.', 'success')
+        else:
+            flash('Không có báo lỗi nào được gộp.', 'info')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi gộp báo lỗi: {str(e)}', 'danger')
+    
     return redirect(url_for('bug_report_detail', report_id=report_id))
 
 @app.route('/bug_reports/<int:report_id>/close', methods=['POST'])

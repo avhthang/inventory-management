@@ -117,7 +117,7 @@
       <div class="card-body">
         <form method="POST" action="{{ url_for('update_bug_report', report_id=bug_report.id) }}">
           <div class="row g-3 mb-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label">Trạng thái</label>
               <select name="status" class="form-select">
                 <option value="Mới tạo" {% if bug_report.status=='Mới tạo' %}selected{% endif %}>Mới tạo</option>
@@ -126,7 +126,15 @@
                 <option value="Đã đóng" {% if bug_report.status=='Đã đóng' %}selected{% endif %}>Đã đóng</option>
               </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+              <label class="form-label">Loại báo lỗi</label>
+              <select name="error_type" class="form-select">
+                <option value="Thiết bị" {% if (bug_report.error_type or 'Thiết bị')=='Thiết bị' %}selected{% endif %}>Thiết bị</option>
+                <option value="Phần mềm" {% if bug_report.error_type=='Phần mềm' %}selected{% endif %}>Phần mềm</option>
+                <option value="Văn phòng" {% if bug_report.error_type=='Văn phòng' %}selected{% endif %}>Văn phòng</option>
+              </select>
+            </div>
+            <div class="col-md-3">
               <label class="form-label">Mức độ</label>
               <select name="priority" class="form-select">
                 <option value="Thấp" {% if bug_report.priority=='Thấp' %}selected{% endif %}>Thấp</option>
@@ -135,7 +143,7 @@
                 <option value="Khẩn cấp" {% if bug_report.priority=='Khẩn cấp' %}selected{% endif %}>Khẩn cấp</option>
               </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label">Phạm vi</label>
               <select name="visibility" class="form-select">
                 <option value="private" {% if bug_report.visibility=='private' %}selected{% endif %}>Cá nhân</option>
@@ -259,6 +267,10 @@
           {% endif %}
         </div>
         <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
+          <strong>Loại báo lỗi:</strong>
+          <span class="badge bg-primary">{{ bug_report.error_type or 'Thiết bị' }}</span>
+        </div>
+        <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
           <strong>Mức độ:</strong>
           {% if bug_report.priority == 'Khẩn cấp' %}
             <span class="badge bg-danger">{{ bug_report.priority }}</span>
@@ -340,6 +352,93 @@
         {% endif %}
       </div>
     </div>
+    
+    {% if related_reports or (is_admin or is_creator) %}
+    <div class="card mt-3">
+      <div class="card-header"><strong>Báo lỗi liên quan</strong></div>
+      <div class="card-body">
+        {% if related_reports %}
+        <ul class="list-group mb-3">
+          {% for related in related_reports %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <a href="{{ url_for('bug_report_detail', report_id=related.id) }}" target="_blank" class="text-decoration-none">
+                <strong>#{{ related.id }}</strong> - {{ related.title }}
+              </a>
+              <br>
+              <small class="text-muted">
+                {{ related.status }} - {{ related.priority }} - {{ related.error_type or 'Thiết bị' }}
+              </small>
+            </div>
+            {% if is_admin or is_creator %}
+            <form method="POST" action="{{ url_for('remove_related_bug_report', report_id=bug_report.id, related_id=related.id) }}" class="d-inline" onsubmit="return confirm('Xóa liên kết này?')">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-x"></i>
+              </button>
+            </form>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted mb-3">Chưa có báo lỗi liên quan.</p>
+        {% endif %}
+        
+        {% if is_admin or is_creator %}
+        <form method="POST" action="{{ url_for('add_related_bug_report', report_id=bug_report.id) }}" class="row g-2">
+          <div class="col-md-8">
+            <select name="related_id" class="form-select" required>
+              <option value="">— Chọn báo lỗi liên quan —</option>
+              {% for report in available_reports %}
+                {% if report.id != bug_report.id and report not in related_reports %}
+                <option value="{{ report.id }}">
+                  #{{ report.id }} - {{ report.title }} ({{ report.status }} - {{ report.error_type or 'Thiết bị' }})
+                </option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="bi bi-plus-circle"></i> Thêm liên kết
+            </button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    
+    {% if is_admin %}
+    <div class="card mt-3">
+      <div class="card-header"><strong>Gộp báo lỗi</strong> <small class="text-muted">(Chỉ dành cho quản trị viên)</small></div>
+      <div class="card-body">
+        <p class="text-muted">Chọn các báo lỗi khác để gộp vào báo lỗi này. Các báo lỗi đã gộp sẽ không hiển thị trong danh sách chính.</p>
+        <form method="POST" action="{{ url_for('merge_bug_reports', report_id=bug_report.id) }}" onsubmit="return confirm('Bạn có chắc chắn muốn gộp các báo lỗi đã chọn vào báo lỗi này?')">
+          <div class="mb-3" style="max-height: 300px; overflow-y: auto;">
+            {% for report in available_reports %}
+              {% if report.id != bug_report.id and not report.merged_into %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="merge_ids" value="{{ report.id }}" id="merge_{{ report.id }}">
+                <label class="form-check-label" for="merge_{{ report.id }}">
+                  <strong>#{{ report.id }}</strong> - {{ report.title }}
+                  <br>
+                  <small class="text-muted">
+                    {{ report.status }} - {{ report.priority }} - {{ report.error_type or 'Thiết bị' }} - 
+                    Tạo bởi: {{ report.creator.full_name or report.creator.username }}
+                  </small>
+                </label>
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-warning">
+            <i class="bi bi-merge"></i> Gộp báo lỗi đã chọn
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

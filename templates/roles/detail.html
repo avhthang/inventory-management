@@ -113,31 +113,91 @@
           </tr>
         </thead>
         <tbody>
-          {% for user in users_in_role %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ user.username }}</td>
-            <td>{{ user.full_name or '—' }}</td>
-            <td>{{ user.email or '—' }}</td>
-            <td>{{ user.department_info.name if user.department_info else '—' }}</td>
-            <td class="text-center">
-              <form method="POST" action="{{ url_for('role_detail', role_id=role.id, tab='users') }}" class="d-inline" onsubmit="return confirm('Xóa người dùng này khỏi quyền?')">
-                <input type="hidden" name="action" value="remove_user_from_role">
-                <input type="hidden" name="user_id" value="{{ user.id }}">
-                <button type="submit" class="btn btn-sm btn-danger">
-                  <i class="bi bi-trash"></i> Xóa
-                </button>
-              </form>
-            </td>
-          </tr>
+          {% if users_in_role_pagination %}
+            {% for user in users_in_role %}
+            <tr>
+              <td>{{ users_in_role_pagination.first + loop.index - 1 }}</td>
+              <td>{{ user.username }}</td>
+              <td>{{ user.full_name or '—' }}</td>
+              <td>{{ user.email or '—' }}</td>
+              <td>{{ user.department_info.name if user.department_info else '—' }}</td>
+              <td class="text-center">
+                <form method="POST" action="{{ url_for('role_detail', role_id=role.id, tab='users') }}" class="d-inline" onsubmit="return confirm('Xóa người dùng này khỏi quyền?')">
+                  <input type="hidden" name="action" value="remove_user_from_role">
+                  <input type="hidden" name="user_id" value="{{ user.id }}">
+                  <button type="submit" class="btn btn-sm btn-danger">
+                    <i class="bi bi-trash"></i> Xóa
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
           {% else %}
-          <tr>
-            <td colspan="6" class="text-center text-muted">Chưa có người dùng nào trong quyền này.</td>
-          </tr>
-          {% endfor %}
+            {% for user in users_in_role %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ user.username }}</td>
+              <td>{{ user.full_name or '—' }}</td>
+              <td>{{ user.email or '—' }}</td>
+              <td>{{ user.department_info.name if user.department_info else '—' }}</td>
+              <td class="text-center">
+                <form method="POST" action="{{ url_for('role_detail', role_id=role.id, tab='users') }}" class="d-inline" onsubmit="return confirm('Xóa người dùng này khỏi quyền?')">
+                  <input type="hidden" name="action" value="remove_user_from_role">
+                  <input type="hidden" name="user_id" value="{{ user.id }}">
+                  <button type="submit" class="btn btn-sm btn-danger">
+                    <i class="bi bi-trash"></i> Xóa
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" class="text-center text-muted">Chưa có người dùng nào trong quyền này.</td>
+            </tr>
+            {% endfor %}
+          {% endif %}
         </tbody>
       </table>
     </div>
+    {% if users_in_role_pagination %}
+    {% from '_pagination.html' import render_pagination %}
+    {% set filters = {'role_id': role.id, 'tab': 'users'} %}
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <div>
+            <span class="text-muted">
+                Hiển thị <strong>{{ users_in_role_pagination.items|length }}</strong> trong tổng số <strong>{{ users_in_role_pagination.total }}</strong> bản ghi.
+            </span>
+        </div>
+        <div class="d-flex align-items-center">
+            <form method="GET" action="{{ url_for('role_detail', role_id=role.id, tab='users') }}" class="d-flex align-items-center me-3">
+                <label for="per_page_select" class="form-label me-2 mb-0">Số dòng:</label>
+                <select name="per_page" id="per_page_select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                    <option value="10" {% if users_in_role_pagination.per_page == 10 %}selected{% endif %}>10</option>
+                    <option value="20" {% if users_in_role_pagination.per_page == 20 %}selected{% endif %}>20</option>
+                    <option value="50" {% if users_in_role_pagination.per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if users_in_role_pagination.per_page == 100 %}selected{% endif %}>100</option>
+                </select>
+            </form>
+            <nav><ul class="pagination mb-0">
+                <li class="page-item {% if not users_in_role_pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('role_detail', role_id=role.id, tab='users', page=users_in_role_pagination.prev_num, per_page=users_in_role_pagination.per_page) if users_in_role_pagination.has_prev else '#' }}">Trước</a>
+                </li>
+                {% for num in users_in_role_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if num %}
+                        <li class="page-item {% if users_in_role_pagination.page == num %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('role_detail', role_id=role.id, tab='users', page=num, per_page=users_in_role_pagination.per_page) }}">{{ num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not users_in_role_pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('role_detail', role_id=role.id, tab='users', page=users_in_role_pagination.next_num, per_page=users_in_role_pagination.per_page) if users_in_role_pagination.has_next else '#' }}">Sau</a>
+                </li>
+            </ul></nav>
+        </div>
+    </div>
+    {% endif %}
     {% endif %}
   </div>
 </div>

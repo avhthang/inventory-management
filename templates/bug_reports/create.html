@@ -23,7 +23,17 @@
     <small class="form-text text-muted">Tối đa 100 ký tự</small>
   </div>
   
-  <div class="col-md-6">
+  <div class="col-md-4">
+    <label class="form-label">Loại báo lỗi</label>
+    {% set error_type = selected_error_type or 'Thiết bị' %}
+    <select name="error_type" class="form-select" required>
+      <option value="Thiết bị" {% if error_type=='Thiết bị' %}selected{% endif %}>Thiết bị</option>
+      <option value="Phần mềm" {% if error_type=='Phần mềm' %}selected{% endif %}>Phần mềm</option>
+      <option value="Văn phòng" {% if error_type=='Văn phòng' %}selected{% endif %}>Văn phòng</option>
+    </select>
+  </div>
+  
+  <div class="col-md-4">
     <label class="form-label">Mức độ ưu tiên</label>
     <select name="priority" class="form-select">
       {% set priority = selected_priority or 'Trung bình' %}
@@ -34,7 +44,7 @@
     </select>
   </div>
   
-  <div class="col-md-6">
+  <div class="col-md-4">
     <label class="form-label">Phạm vi hiển thị</label>
     {% set visibility = selected_visibility or 'private' %}
     <select name="visibility" class="form-select">
