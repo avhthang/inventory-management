@@ -807,9 +807,10 @@ class BugReport(db.Model):
                                      backref='related_to_reports',
                                      lazy='dynamic')
     # Merged reports (one-to-many: one report can have many merged into it)
+    # Note: merged_into is a foreign key pointing to the parent report
     merged_reports = db.relationship('BugReport',
                                     foreign_keys=[merged_into],
-                                    backref='parent_report',
+                                    remote_side=[id],
                                     lazy='dynamic')
 
     @property
