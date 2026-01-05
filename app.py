@@ -1564,6 +1564,13 @@ def list_departments():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    # Kiểm tra phân quyền: chỉ admin hoặc người có quyền departments.view mới được truy cập
+    if not (current_user and current_user.role == 'admin') and 'departments.view' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
+    
     departments = Department.query.all()
     all_departments = Department.query.order_by(Department.order_index).all()
     users = User.query.filter_by(status='Đang làm').all()
@@ -3553,6 +3560,12 @@ def import_handovers():
 @app.route('/users')
 def user_list():
     if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    # Kiểm tra phân quyền: chỉ admin hoặc người có quyền users.view mới được truy cập
+    if not (current_user and current_user.role == 'admin') and 'users.view' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     filter_username = request.args.get('filter_username', '')
@@ -4433,17 +4446,17 @@ def bug_reports():
     date_to = request.args.get('date_to', '').strip() or saved_filters.get('date_to', '')
     creator_filter = request.args.get('creator', '').strip() or saved_filters.get('creator', '')
     
-    # Người dùng thường chỉ thấy báo lỗi của mình, báo lỗi được gán cho mình, hoặc báo lỗi công khai
-    # Báo lỗi cá nhân (private) chỉ hiển thị cho người tạo, admin, và người được gán
+    # Người dùng thường chỉ thấy báo lỗi công khai hoặc báo lỗi của chính mình
+    # Báo lỗi cá nhân (private) CHỈ hiển thị cho người tạo (không phải người được gán)
+    # Admin và người có quyền xem tất cả thì thấy tất cả
     if can_view_all_reports:
         q = BugReport.query.filter(BugReport.merged_into.is_(None))  # Không hiển thị báo lỗi đã được gộp
     else:
         q = BugReport.query.filter(
             BugReport.merged_into.is_(None),  # Không hiển thị báo lỗi đã được gộp
             or_(
-                BugReport.visibility == 'public',
-                BugReport.created_by == user_id,
-                BugReport.assigned_to == user_id
+                BugReport.visibility == 'public',  # Báo lỗi công khai
+                BugReport.created_by == user_id    # Chỉ báo lỗi do chính mình tạo
             )
         )
     
@@ -4691,10 +4704,11 @@ def bug_report_detail(report_id):
         session.modified = True
     
     is_creator = bug_report.created_by == user_id
-    is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
     current_user = User.query.get(user_id)
     can_manage_bug_reports, can_view_all_reports = _bug_permission_flags(current_permissions, current_user)
-    can_view = can_view_all_reports or is_creator or is_assignee or bug_report.is_public
+    # Báo lỗi cá nhân chỉ người tạo mới thấy, báo lỗi công khai thì ai cũng thấy
+    # Admin và người có quyền xem tất cả thì thấy tất cả
+    can_view = can_view_all_reports or is_creator or bug_report.visibility == 'public'
     if not can_view:
         flash('Bạn không có quyền xem báo lỗi này.', 'danger')
         return redirect(url_for('bug_reports'))
@@ -5358,11 +5372,23 @@ def create_admin_command():
 @app.route('/backup')
 def backup_page():
     if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    # Kiểm tra phân quyền: chỉ admin hoặc người có quyền backup.view mới được truy cập
+    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     return render_template('backup.html')
 
 @app.route('/backup/export')
 def backup_export():
     if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    # Kiểm tra phân quyền: chỉ admin hoặc người có quyền backup.view mới được truy cập
+    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     temp_backup_file = None
     try:
         # Tạo file backup
@@ -5431,6 +5457,11 @@ def backup_export():
 @app.route('/backup/import', methods=['POST'])
 def backup_import():
     if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     if 'backup_file' not in request.files:
         flash('Vui lòng chọn file backup.', 'danger')
         return redirect(url_for('backup_page'))
@@ -5583,6 +5614,11 @@ backup_thread.start()
 @app.route('/backup/config', methods=['GET', 'POST'])
 def backup_config():
     if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.edit' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     
     if request.method == 'POST':
         # Update backup configuration
@@ -5634,6 +5670,11 @@ def backup_config():
 @app.route('/backup/list')
 def backup_list():
     if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     
     backups = []
     try:
@@ -5660,6 +5701,11 @@ def backup_list():
 @app.route('/backup/restore/<filename>')
 def backup_restore_from_file(filename):
     if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     
     try:
         backup_filepath = os.path.join(backup_path, filename)
@@ -5694,6 +5740,11 @@ def backup_restore_from_file(filename):
 @app.route('/backup/delete/<filename>', methods=['POST'])
 def backup_delete(filename):
     if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.delete' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
     
     try:
         backup_filepath = os.path.join(backup_path, filename)
@@ -5713,9 +5764,10 @@ def db_config():
     """Cấu hình đường dẫn database"""
     if 'user_id' not in session: return redirect(url_for('login'))
     current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
     
     # Chỉ admin mới có quyền cấu hình DB
-    if 'backup.edit' not in current_permissions and session.get('user_role') != 'admin':
+    if not (current_user and current_user.role == 'admin'):
         flash('Bạn không có quyền truy cập chức năng này.', 'danger')
         return redirect(url_for('home'))
     
@@ -5746,9 +5798,10 @@ def db_config_update():
     """Cập nhật cấu hình database"""
     if 'user_id' not in session: return redirect(url_for('login'))
     current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
     
     # Chỉ admin mới có quyền cấu hình DB
-    if 'backup.edit' not in current_permissions and session.get('user_role') != 'admin':
+    if not (current_user and current_user.role == 'admin'):
         flash('Bạn không có quyền truy cập chức năng này.', 'danger')
         return redirect(url_for('home'))
     

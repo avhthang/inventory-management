@@ -145,10 +145,8 @@ document.querySelector('form').addEventListener('submit', function(e) {
             <li><a class="dropdown-item" href="?priority=Khẩn cấp">Khẩn cấp</a></li>
           </ul>
         </th>
-        <th class="text-center" style="white-space: nowrap;"><strong>Loại</strong></th>
         <th class="text-center" style="white-space: nowrap;"><strong>Trạng thái</strong></th>
         <th class="text-center" style="white-space: nowrap;"><strong>Ngày tạo</strong></th>
-        <th class="text-center" style="white-space: nowrap;"><strong>Cập nhật</strong></th>
       </tr>
     </thead>
     <tbody>
@@ -196,26 +194,14 @@ document.querySelector('form').addEventListener('submit', function(e) {
         <td class="text-center" style="white-space: nowrap;">{{ report.creator.full_name or report.creator.username }}</td>
         <td class="text-center" style="white-space: nowrap;">{{ report.assignee.full_name or report.assignee.username if report.assignee else '—' }}</td>
         <td class="text-center" style="white-space: nowrap;">
-          {% if report.priority == 'Khẩn cấp' %}
-            <span class="badge bg-danger">{{ report.priority }}</span>
-          {% elif report.priority == 'Cao' %}
-            <span class="badge bg-warning">{{ report.priority }}</span>
-          {% elif report.priority == 'Trung bình' %}
-            <span class="badge bg-info">{{ report.priority }}</span>
-          {% else %}
-            <span class="badge bg-secondary">{{ report.priority }}</span>
-          {% endif %}
-        </td>
-        <td class="text-center" style="white-space: nowrap;">
-          <span class="badge bg-primary">{{ report.error_type or 'Thiết bị' }}</span>
+          {{ report.priority }}
         </td>
         <td class="text-center" style="white-space: nowrap;">{{ report.status }}</td>
         <td class="text-center" style="white-space: nowrap;">{{ report.created_at|localtime }}</td>
-        <td class="text-center" style="white-space: nowrap;">{{ report.updated_at|localtime if report.updated_at else '—' }}</td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="9" class="text-center text-muted">Chưa có báo lỗi nào.</td>
+        <td colspan="7" class="text-center text-muted">Chưa có báo lỗi nào.</td>
       </tr>
       {% endfor %}
     </tbody>

@@ -144,6 +144,31 @@ def require_admin(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def require_permission(permission_code):
+    """Decorator to require a specific permission"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            from flask import redirect, url_for, flash, session
+            from app import _get_current_permissions, _get_current_user
+            
+            if 'user_id' not in session:
+                return redirect(url_for('login'))
+            
+            current_user = _get_current_user()
+            if current_user and current_user.role == 'admin':
+                # Admin has all permissions
+                return f(*args, **kwargs)
+            
+            current_permissions = _get_current_permissions()
+            if permission_code not in current_permissions:
+                flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+                return redirect(url_for('home'))
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 def rate_limit(max_requests=100, window_minutes=60):
     """Simple rate limiting decorator"""
     def decorator(f):
