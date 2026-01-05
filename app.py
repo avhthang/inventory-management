@@ -85,6 +85,9 @@ elif _db_config_custom_url:
     app.config['SQLALCHEMY_DATABASE_URI'] = _db_config_custom_url
 app.permanent_session_lifetime = timedelta(days=30)
 
+# Initialize app with configuration (this sets up HTTPS/proxy support in production)
+config[config_name].init_app(app)
+
 db = SQLAlchemy(app)
 
 # Permission catalogue

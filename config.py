@@ -53,9 +53,25 @@ class ProductionConfig(Config):
     DEBUG = False
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     
+    # HTTPS/Proxy configuration
+    # Trust proxy headers (X-Forwarded-Proto, X-Forwarded-For, etc.)
+    # This is important when running behind nginx reverse proxy
+    PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME', 'https')
+    
     @classmethod
     def init_app(cls, app):
         Config.init_app(app)
+        
+        # Configure Flask to trust proxy headers
+        # This allows Flask to correctly detect HTTPS when behind nginx
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_proto=1,  # Trust X-Forwarded-Proto header
+            x_host=1,   # Trust X-Forwarded-Host header
+            x_port=1,   # Trust X-Forwarded-Port header
+            x_for=1     # Trust X-Forwarded-For header
+        )
         
         # Log to syslog
         import logging
