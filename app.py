@@ -4430,6 +4430,11 @@ def bug_reports():
     
     current_user = User.query.get(user_id)
     can_manage_bug_reports, can_view_all_reports = _bug_permission_flags(current_permissions, current_user)
+    # Admin/quyền mở rộng hoặc người tạo hoặc người được gán, hoặc báo lỗi công khai
+    can_view = can_view_all_reports or is_creator or is_assignee or bug_report.visibility == 'public'
+    if not can_view:
+        flash('Bạn không có quyền xem báo lỗi này.', 'danger')
+        return redirect(url_for('bug_reports'))
     
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
@@ -4446,8 +4451,7 @@ def bug_reports():
     date_to = request.args.get('date_to', '').strip() or saved_filters.get('date_to', '')
     creator_filter = request.args.get('creator', '').strip() or saved_filters.get('creator', '')
     
-    # Người dùng thường chỉ thấy báo lỗi công khai hoặc báo lỗi của chính mình
-    # Báo lỗi cá nhân (private) CHỈ hiển thị cho người tạo (không phải người được gán)
+    # Người dùng thường chỉ thấy báo lỗi công khai, báo lỗi mình tạo, hoặc được gán
     # Admin và người có quyền xem tất cả thì thấy tất cả
     if can_view_all_reports:
         q = BugReport.query.filter(BugReport.merged_into.is_(None))  # Không hiển thị báo lỗi đã được gộp
@@ -4455,8 +4459,9 @@ def bug_reports():
         q = BugReport.query.filter(
             BugReport.merged_into.is_(None),  # Không hiển thị báo lỗi đã được gộp
             or_(
-                BugReport.visibility == 'public',  # Báo lỗi công khai
-                BugReport.created_by == user_id    # Chỉ báo lỗi do chính mình tạo
+                BugReport.visibility == 'public',      # Báo lỗi công khai
+                BugReport.created_by == user_id,       # Báo lỗi do chính mình tạo
+                BugReport.assigned_to == user_id       # Báo lỗi được gán cho mình
             )
         )
     
@@ -4704,15 +4709,9 @@ def bug_report_detail(report_id):
         session.modified = True
     
     is_creator = bug_report.created_by == user_id
+    is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
     current_user = User.query.get(user_id)
     can_manage_bug_reports, can_view_all_reports = _bug_permission_flags(current_permissions, current_user)
-    # Báo lỗi cá nhân chỉ người tạo mới thấy, báo lỗi công khai thì ai cũng thấy
-    # Admin và người có quyền xem tất cả thì thấy tất cả
-    can_view = can_view_all_reports or is_creator or bug_report.visibility == 'public'
-    if not can_view:
-        flash('Bạn không có quyền xem báo lỗi này.', 'danger')
-        return redirect(url_for('bug_reports'))
-    
     # Lấy danh sách nhân viên để gán
     # Admin: tất cả nhân viên
     # Người khác: chỉ nhân viên trong phòng ban của mình và các phòng ban con
