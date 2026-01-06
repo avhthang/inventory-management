@@ -73,6 +73,20 @@ class ProductionConfig(Config):
             x_for=1     # Trust X-Forwarded-For header
         )
         
+        # Force HTTPS - redirect HTTP to HTTPS
+        @app.before_request
+        def force_https():
+            from flask import request, redirect, url_for
+            # Skip for health check and if already HTTPS
+            if request.endpoint == 'health_check':
+                return
+            # Check if request is HTTP (not HTTPS)
+            # In production behind nginx, check X-Forwarded-Proto header
+            if request.headers.get('X-Forwarded-Proto') == 'http':
+                # Redirect to HTTPS version
+                url = request.url.replace('http://', 'https://', 1)
+                return redirect(url, code=301)
+        
         # Log to syslog
         import logging
         from logging.handlers import SysLogHandler

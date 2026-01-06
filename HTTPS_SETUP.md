@@ -1,11 +1,15 @@
 # Hướng dẫn thiết lập HTTPS
 
-Hệ thống hiện đã hỗ trợ cả HTTP và HTTPS. Bạn có thể truy cập ứng dụng qua cả hai giao thức.
+**Hệ thống hiện chỉ chạy trên HTTPS.** Tất cả lưu lượng HTTP sẽ tự động được chuyển hướng sang HTTPS để đảm bảo bảo mật.
 
 ## Cấu hình hiện tại
 
-- **HTTP**: Port 80 - Hoạt động ngay lập tức
-- **HTTPS**: Port 443 - Cần cấu hình SSL certificate
+- **HTTP (Port 80)**: Tự động redirect sang HTTPS
+- **HTTPS (Port 443)**: Giao thức chính - cần cấu hình SSL certificate
+
+## ⚠️ QUAN TRỌNG
+
+Hệ thống **BẮT BUỘC** phải có SSL certificate để hoạt động. Nếu không có certificate, nginx sẽ không khởi động được.
 
 ## Các bước thiết lập HTTPS
 
@@ -80,28 +84,22 @@ sudo systemctl restart nginx
 
 ### 4. Kiểm tra
 
-- **HTTP**: http://your-domain hoặc http://localhost
-- **HTTPS**: https://your-domain hoặc https://localhost
+- **HTTP**: http://your-domain hoặc http://localhost → Tự động redirect sang HTTPS
+- **HTTPS**: https://your-domain hoặc https://localhost → Giao thức chính
 
-## Tùy chọn: Chuyển hướng HTTP sang HTTPS
+## Chuyển hướng HTTP sang HTTPS
 
-Nếu bạn muốn tự động chuyển hướng tất cả lưu lượng HTTP sang HTTPS, thêm đoạn code sau vào server block HTTP (port 80) trong `nginx.conf`:
+Hệ thống đã được cấu hình để **tự động chuyển hướng tất cả lưu lượng HTTP sang HTTPS**. Điều này được thực hiện ở 2 tầng:
 
-```nginx
-server {
-    listen 80;
-    server_name _;
-    
-    # Redirect HTTP to HTTPS
-    return 301 https://$host$request_uri;
-}
-```
+1. **Nginx level**: Tất cả request HTTP (port 80) sẽ được redirect 301 sang HTTPS
+2. **Flask level**: Middleware sẽ kiểm tra và redirect nếu phát hiện request HTTP
 
-**Lưu ý**: Nếu thêm redirect này, HTTP sẽ không còn hoạt động độc lập nữa - tất cả sẽ được chuyển sang HTTPS.
+**Lưu ý**: HTTP không còn hoạt động độc lập - tất cả sẽ được chuyển sang HTTPS để đảm bảo bảo mật.
 
 ## Cấu hình Flask
 
 Flask đã được cấu hình để:
+- **Force HTTPS**: Tự động redirect HTTP sang HTTPS ở application level
 - Nhận diện HTTPS khi đứng sau nginx proxy
 - Tự động sử dụng HTTPS cho các URL được tạo bởi `url_for()`
 - Xử lý các proxy headers (`X-Forwarded-Proto`, `X-Forwarded-For`, etc.)
