@@ -57,6 +57,8 @@ class ProductionConfig(Config):
     # Trust proxy headers (X-Forwarded-Proto, X-Forwarded-For, etc.)
     # This is important when running behind nginx reverse proxy
     PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME', 'https')
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
     
     @classmethod
     def init_app(cls, app):

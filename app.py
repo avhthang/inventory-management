@@ -4708,8 +4708,9 @@ def bug_report_detail(report_id):
         session['read_reports'].append(report_id)
         session.modified = True
     
+    # Xác định vai trò người truy cập
     is_creator = bug_report.created_by == user_id
-    is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
+    is_assignee = bool(bug_report.assigned_to == user_id) if bug_report.assigned_to else False
     current_user = User.query.get(user_id)
     can_manage_bug_reports, can_view_all_reports = _bug_permission_flags(current_permissions, current_user)
     # Lấy danh sách nhân viên để gán
