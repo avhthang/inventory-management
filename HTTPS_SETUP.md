@@ -1,138 +1,90 @@
-# Hướng dẫn thiết lập HTTPS
+# Hướng Dẫn Triển Khai & Cấu Hình HTTPS
 
-**Hệ thống hiện chỉ chạy trên HTTPS.** Tất cả lưu lượng HTTP sẽ tự động được chuyển hướng sang HTTPS để đảm bảo bảo mật.
+Hệ thống Inventory Management mặc định chạy trên giao thức HTTPS để đảm bảo bảo mật. Tài liệu này hướng dẫn cách thiết lập SSL và triển khai hệ thống an toàn.
 
-## Cấu hình hiện tại
+## Yêu Cầu Cài Đặt
+- Docker & Docker Compose
+- Git
+- Port 80 và 443 chưa được sử dụng (nếu chạy Production)
 
-- **HTTP (Port 80)**: Tự động redirect sang HTTPS
-- **HTTPS (Port 443)**: Giao thức chính - cần cấu hình SSL certificate
+---
 
-## ⚠️ QUAN TRỌNG
+## 🚀 Quy Trình Triển Khai Nhanh
 
-Hệ thống **BẮT BUỘC** phải có SSL certificate để hoạt động. Nếu không có certificate, nginx sẽ không khởi động được.
+Chúng tôi cung cấp script tự động `setup_ssl.sh` giúp bạn cài đặt môi trường, sinh Secret Key và cài đặt SSL chỉ với một lệnh.
 
-## Các bước thiết lập HTTPS
+### Bước 1: Tải mã nguồn mới nhất
+```bash
+git pull origin main
+```
 
-### 1. Tạo SSL Certificate
-
-Có 3 cách để thiết lập SSL certificate:
-
-#### Cách 1: Sử dụng script tự động (Khuyến nghị)
+### Bước 2: Chạy Script Cài Đặt
+Script này sẽ kiểm tra mọi thứ cần thiết (file .env, SECRET_KEY, SSL Certificate).
 
 ```bash
-./setup_ssl.sh
+bash setup_ssl.sh
 ```
 
-Script sẽ hướng dẫn bạn qua các bước:
-- Tạo self-signed certificate (cho development/testing)
-- Thiết lập Let's Encrypt certificate (cho production)
-- Sử dụng certificate có sẵn
+Bạn sẽ thấy menu lựa chọn:
+- **1) Generate Self-Signed Certificate**: Chọn nếu chạy test ở **Localhost**.
+    - *Lưu ý*: Trình duyệt sẽ báo lỗi "Not Secure" (vì chứng chỉ tự ký), bạn cần chấp nhận rủi ro để tiếp tục.
+- **2) Setup Let's Encrypt**: Chọn nếu chạy **Production** (Cần có Domain thật trỏ về IP server).
+    - Script sẽ tự động cài Certbot, lấy chứng chỉ và lưu vào thư mục `./ssl`.
+    - Tự động cấu hình Nginx để dùng chứng chỉ này.
 
-#### Cách 2: Tạo self-signed certificate thủ công (Development)
+### Bước 3: Khởi động hệ thống
+Sau khi script chạy xong, hãy khởi động lại container để áp dụng cấu hình:
 
 ```bash
-# Tạo thư mục SSL
-mkdir -p ssl
-
-# Tạo private key
-openssl genrsa -out ssl/key.pem 2048
-
-# Tạo certificate
-openssl req -new -x509 -key ssl/key.pem -out ssl/cert.pem -days 365 \
-    -subj "/C=VN/ST=HoChiMinh/L=HoChiMinh/O=Inventory Management/CN=localhost"
+docker-compose down
+docker-compose up -d --build
 ```
 
-**Lưu ý**: Self-signed certificate sẽ hiển thị cảnh báo bảo mật trên trình duyệt. Chỉ dùng cho development/testing.
+---
 
-#### Cách 3: Sử dụng Let's Encrypt (Production)
+## 🔒 Xử lý các vấn đề thường gặp
 
+### 1. Tại sao tôi bị đăng nhập lại liên tục?
+Nếu bạn gặp tình trạng vừa đăng nhập xong, refresh trang lại bị văng ra (logout), đó là do `SECRET_KEY` thay đổi.
+- **Nguyên nhân**: Flask mặc định sinh `SECRET_KEY` ngẫu nhiên mỗi khi restart app nếu không cấu hình cố định.
+- **Khắc phục**: Script `setup_ssl.sh` ở trên đã tự động sinh một key cố định và lưu vào file `.env`.
+- **Kiểm tra**: Mở file `.env` và đảm bảo dòng `SECRET_KEY=...` tồn tại và có giá trị.
+
+### 2. Trình duyệt báo lỗi bảo mật (Warning: Potential Security Risk)
+Đây là bình thường nếu bạn sử dụng **Option 1 (Self-Signed)**.
+- Vì chứng chỉ do bạn tự tạo, không phải tổ chức uy tín xác thực.
+- Hãy nhấn **Advanced** -> **Proceed to localhost (unsafe)**.
+
+### 3. HTTPS không hoạt động (Connection Refused)
+- Kiểm tra Docker container có đang chạy không:
+  ```bash
+  docker-compose ps
+  ```
+- Kiểm tra logs của Nginx:
+  ```bash
+  docker-compose logs nginx
+  ```
+- Đảm bảo firewall (AWS Security Group, UFW) đã mở port **443**.
+
+---
+
+## ⚙️ Chi Tiết Cấu Hình (Dành cho nâng cao)
+
+### Cấu hình Nginx (`nginx.conf`)
+Nginx đóng vai trò Reverse Proxy và SSL Termination:
+- **Port 80**: Redirect 301 vĩnh viễn sang 443.
+- **Port 443**: Xử lý SSL, thêm Security Headers (HSTS, X-Frame-Options).
+- **Proxy Headers**: Thêm `X-Forwarded-Proto` để Flask biết request đến từ HTTPS.
+
+### Cấu hình Flask (`config.py`)
+Ứng dụng Flask tự động nhận diện môi trường Production:
+- **Session Security**: `Secure=True` (Cookie chỉ gửi qua HTTPS), `HttpOnly=True`.
+- **ProxyFix**: Tin cậy các headers từ Nginx để xử lý URL redirect chính xác.
+
+---
+
+## Backup & Restore
+Hệ thống tự động backup mỗi ngày nếu được cấu hình trong `deploy.sh`. Để backup thủ công:
 ```bash
-# Cài đặt certbot
-sudo apt-get update
-sudo apt-get install -y certbot python3-certbot-nginx
-
-# Lấy certificate (thay your-domain.com bằng domain của bạn)
-sudo certbot certonly --standalone -d your-domain.com
-
-# Cập nhật nginx.conf với đường dẫn certificate
-# Thay đổi các dòng sau trong nginx.conf:
-# ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-# ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+docker-compose exec app python backup_restore.py backup
 ```
-
-### 2. Cấu hình nginx.conf
-
-File `nginx.conf` đã được cấu hình để hỗ trợ cả HTTP và HTTPS. Nếu bạn sử dụng Let's Encrypt hoặc certificate ở vị trí khác, cần cập nhật các dòng sau trong phần HTTPS server block:
-
-```nginx
-ssl_certificate /path/to/your/cert.pem;
-ssl_certificate_key /path/to/your/key.pem;
-```
-
-### 3. Khởi động lại nginx
-
-#### Nếu dùng Docker:
-```bash
-docker-compose restart nginx
-```
-
-#### Nếu cài đặt trực tiếp:
-```bash
-sudo nginx -t  # Kiểm tra cấu hình
-sudo systemctl restart nginx
-```
-
-### 4. Kiểm tra
-
-- **HTTP**: http://your-domain hoặc http://localhost → Tự động redirect sang HTTPS
-- **HTTPS**: https://your-domain hoặc https://localhost → Giao thức chính
-
-## Chuyển hướng HTTP sang HTTPS
-
-Hệ thống đã được cấu hình để **tự động chuyển hướng tất cả lưu lượng HTTP sang HTTPS**. Điều này được thực hiện ở 2 tầng:
-
-1. **Nginx level**: Tất cả request HTTP (port 80) sẽ được redirect 301 sang HTTPS
-2. **Flask level**: Middleware sẽ kiểm tra và redirect nếu phát hiện request HTTP
-
-**Lưu ý**: HTTP không còn hoạt động độc lập - tất cả sẽ được chuyển sang HTTPS để đảm bảo bảo mật.
-
-## Cấu hình Flask
-
-Flask đã được cấu hình để:
-- **Force HTTPS**: Tự động redirect HTTP sang HTTPS ở application level
-- Nhận diện HTTPS khi đứng sau nginx proxy
-- Tự động sử dụng HTTPS cho các URL được tạo bởi `url_for()`
-- Xử lý các proxy headers (`X-Forwarded-Proto`, `X-Forwarded-For`, etc.)
-
-Cấu hình này được thiết lập tự động trong `config.py` khi `FLASK_ENV=production`.
-
-## Troubleshooting
-
-### Lỗi: "SSL certificate not found"
-- Kiểm tra đường dẫn certificate trong `nginx.conf`
-- Đảm bảo file certificate và key tồn tại
-- Kiểm tra quyền truy cập file (nginx cần đọc được)
-
-### Lỗi: "Connection refused" khi truy cập HTTPS
-- Kiểm tra port 443 đã được mở trong firewall
-- Kiểm tra nginx đã được khởi động lại sau khi cấu hình
-- Xem log nginx: `sudo tail -f /var/log/nginx/error.log`
-
-### Certificate hết hạn (Let's Encrypt)
-Let's Encrypt certificates có thời hạn 90 ngày. Để tự động gia hạn:
-
-```bash
-# Thêm vào crontab
-sudo crontab -e
-
-# Thêm dòng sau để kiểm tra và gia hạn mỗi ngày
-0 0 * * * certbot renew --quiet --deploy-hook "systemctl reload nginx"
-```
-
-## Bảo mật
-
-- Luôn sử dụng HTTPS cho production
-- Cấu hình HSTS (HTTP Strict Transport Security) - đã được bật trong nginx.conf
-- Sử dụng Let's Encrypt cho production thay vì self-signed certificates
-- Đảm bảo certificate được gia hạn tự động
-
