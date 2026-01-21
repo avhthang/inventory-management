@@ -58,6 +58,7 @@ class ProductionConfig(Config):
     # This is important when running behind nginx reverse proxy
     PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME', 'https')
     SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     
     @classmethod
@@ -72,14 +73,15 @@ class ProductionConfig(Config):
             x_proto=1,  # Trust X-Forwarded-Proto header
             x_host=1,   # Trust X-Forwarded-Host header
             x_port=1,   # Trust X-Forwarded-Port header
-            x_for=1     # Trust X-Forwarded-For header
+            x_for=1,    # Trust X-Forwarded-For header
+            x_prefix=1  # Trust X-Forwarded-Prefix header
         )
         
         # Force HTTPS - redirect HTTP to HTTPS
         @app.before_request
         def force_https():
-            from flask import request, redirect, url_for
-            # Skip for health check and if already HTTPS
+            from flask import request, redirect
+            # Skip for health check
             if request.endpoint == 'health_check':
                 return
             # Check if request is HTTP (not HTTPS)
@@ -100,6 +102,7 @@ class TestingConfig(Config):
     """Testing configuration"""
     TESTING = True
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///:memory:'
+    WTF_CSRF_ENABLED = False
 
 # Configuration dictionary
 config = {
