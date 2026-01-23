@@ -41,6 +41,9 @@
                     {% if current_permissions and 'server_room.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'server_room' %}active{% endif %}" href="{{ url_for('server_room') }}">Phòng server</a></li>
                     {% endif %}
+                    {% if current_permissions and 'resources.view' in current_permissions %}
+                    <li class="nav-item"><a class="nav-link {% if active_endpoint == 'resources' %}active{% endif %}" href="{{ url_for('resources') }}">Quản lý tài nguyên</a></li>
+                    {% endif %}
                     {% if current_permissions and 'handovers.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint in ['handover_list', 'handover_report'] %}active{% endif %}" href="{{ url_for('handover_list') }}">Bàn giao thiết bị</a></li>
                     {% endif %}

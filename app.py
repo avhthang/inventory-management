@@ -149,6 +149,10 @@ PERMISSIONS = [
     ('bug_reports.delete', 'Xóa báo lỗi'),
     ('bug_reports.assign', 'Gán báo lỗi cho quản trị viên'),
     ('bug_reports.manage_advanced', 'Quản trị báo lỗi nâng cao'),
+    # Tài nguyên (Resource Management)
+    ('resources.view', 'Xem danh sách tài nguyên'),
+    ('resources.edit', 'Thêm/Sửa tài nguyên'),
+    ('resources.delete', 'Xóa tài nguyên'),
 ]
 
 # Register SQLite function last_token for sorting by given name
@@ -516,6 +520,36 @@ migrate_bug_report_table()
 migrate_bug_report_enhancements()
 migrate_role_created_at()
 
+def migrate_resource_table():
+    """Create resource table if it doesn't exist."""
+    with app.app_context():
+        try:
+            from sqlalchemy import text, inspect
+            try:
+                inspector = inspect(db.engine)
+                if 'resource' not in inspector.get_table_names():
+                    with db.engine.connect() as conn:
+                        conn.execute(text('''
+                            CREATE TABLE IF NOT EXISTS resource (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                ip_address VARCHAR(100) NOT NULL,
+                                service VARCHAR(255),
+                                status VARCHAR(50) DEFAULT 'Offline',
+                                device_id INTEGER REFERENCES device(id),
+                                notes TEXT,
+                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                            )
+                        '''))
+                        conn.commit()
+                    print("✓ Created resource table")
+            except Exception as e:
+                print(f"Migration error (resource): {e}")
+        except Exception as e:
+            print(f"Migration error (resource wrapper): {e}")
+
+migrate_resource_table()
+
 # Ensure default admin exists on startup
 with app.app_context():
     try:
@@ -712,6 +746,18 @@ class ServerRoomDeviceInfo(db.Model):
     department = db.Column(db.String(100))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     device = db.relationship('Device', backref=db.backref('server_room_info', uselist=False, cascade='all, delete-orphan'))
+
+class Resource(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(100), nullable=False)
+    service = db.Column(db.String(255))
+    status = db.Column(db.String(50), default='Offline')  # Online, Offline, Maintenance
+    device_id = db.Column(db.Integer, db.ForeignKey('device.id'))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    device = db.relationship('Device', backref=db.backref('resources', lazy='dynamic'))
 
 # --- Inventory Receipt Models ---
 class InventoryReceipt(db.Model):
@@ -6099,6 +6145,85 @@ def close_bug_report(report_id):
         flash(f'Lỗi khi đóng vấn đề: {str(e)}', 'danger')
 
     return redirect(url_for('bug_report_detail', report_id=report_id))
+
+
+# --- Resource Management Routes ---
+@app.route('/resources')
+def resources():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    perms = _get_current_permissions()
+    if 'resources.view' not in perms and session.get('role') != 'admin':
+        flash('Bạn không có quyền xem danh sách tài nguyên.', 'danger')
+        return redirect(url_for('home'))
+        
+    resources = Resource.query.all()
+    devices = Device.query.all()
+    return render_template('resources/index.html', resources=resources, devices=devices)
+
+@app.route('/resources/add', methods=['POST'])
+def add_resource():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    perms = _get_current_permissions()
+    if 'resources.edit' not in perms and session.get('role') != 'admin':
+        flash('Bạn không có quyền thêm tài nguyên.', 'danger')
+        return redirect(url_for('resources'))
+    
+    ip_address = request.form.get('ip_address')
+    service = request.form.get('service')
+    status = request.form.get('status', 'Offline')
+    device_id = request.form.get('device_id')
+    notes = request.form.get('notes')
+    
+    if not ip_address:
+        flash('Vui lòng nhập địa chỉ IP.', 'danger')
+        return redirect(url_for('resources'))
+        
+    resource = Resource(
+        ip_address=ip_address,
+        service=service,
+        status=status,
+        device_id=int(device_id) if device_id else None,
+        notes=notes
+    )
+    db.session.add(resource)
+    db.session.commit()
+    flash('Thêm tài nguyên thành công!', 'success')
+    return redirect(url_for('resources'))
+
+@app.route('/resources/edit/<int:id>', methods=['POST'])
+def edit_resource(id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    perms = _get_current_permissions()
+    if 'resources.edit' not in perms and session.get('role') != 'admin':
+        flash('Bạn không có quyền sửa tài nguyên.', 'danger')
+        return redirect(url_for('resources'))
+    
+    resource = Resource.query.get_or_404(id)
+    
+    resource.ip_address = request.form.get('ip_address')
+    resource.service = request.form.get('service')
+    resource.status = request.form.get('status')
+    device_id = request.form.get('device_id')
+    resource.device_id = int(device_id) if device_id else None
+    resource.notes = request.form.get('notes')
+    
+    db.session.commit()
+    flash('Cập nhật tài nguyên thành công!', 'success')
+    return redirect(url_for('resources'))
+
+@app.route('/resources/delete/<int:id>', methods=['POST'])
+def delete_resource(id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    perms = _get_current_permissions()
+    if 'resources.delete' not in perms and session.get('role') != 'admin':
+        flash('Bạn không có quyền xóa tài nguyên.', 'danger')
+        return redirect(url_for('resources'))
+    
+    resource = Resource.query.get_or_404(id)
+    db.session.delete(resource)
+    db.session.commit()
+    flash('Đã xóa tài nguyên.', 'success')
+    return redirect(url_for('resources'))
 
 if __name__ == '__main__':
     app.run(debug=True)
