@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Sửa nhật ký: {{ log.device.device_code }}{% endblock %}
+{% block title %}Sửa chữa: {{ log.device.device_code }}{% endblock %}
 {% block content %}
-<h3 class="mb-3">Sửa nhật ký bảo trì</h3>
+<h3 class="mb-3">Cập nhật sửa chữa</h3>
 <form method="POST" class="row g-3">
   <div class="col-md-4">
     <label class="form-label">Thiết bị</label>
@@ -15,9 +15,9 @@
     <label class="form-label">Trạng thái xử lý</label>
     <select name="status" class="form-select">
       {% set st = (log.status or '').strip() %}
-      <option value="Mới tạo" {% if st == 'Mới tạo' %}selected{% endif %}>Mới tạo</option>
-      <option value="Đang xử lý" {% if st == 'Đang xử lý' %}selected{% endif %}>Đang xử lý</option>
-      <option value="Đã xong" {% if st == 'Đã xong' %}selected{% endif %}>Đã xong</option>
+      <option value="Mới tạo" {% if st=='Mới tạo' %}selected{% endif %}>Mới tạo</option>
+      <option value="Đang xử lý" {% if st=='Đang xử lý' %}selected{% endif %}>Đang xử lý</option>
+      <option value="Đã xong" {% if st=='Đã xong' %}selected{% endif %}>Đã xong</option>
     </select>
   </div>
   <div class="col-12">

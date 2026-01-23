@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_pagination.html' import render_pagination %}
 
 {% block title %}Quản lý tài nguyên{% endblock %}
 
@@ -15,32 +16,57 @@
         </div>
         <hr>
 
+        <!-- Search Form -->
+        <p class="mb-2"><strong><i class="bi bi-funnel"></i> Tìm kiếm</strong></p>
+        <form method="GET" class="mb-3">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <input type="text" name="search" class="form-control" placeholder="Tìm theo IP, Tên dịch vụ..."
+                        value="{{ search }}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Tìm</button>
+                    <a href="{{ url_for('resources') }}" class="btn btn-secondary">Reset</a>
+                </div>
+            </div>
+        </form>
+
         <div class="table-responsive">
-            <table class="table table-striped table-hover mt-2">
+            <table class="table table-striped table-hover mt-2 align-middle">
                 <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 50px;">STT</th>
                         <th>IP Address</th>
-                        <th>Dịch vụ</th>
+                        <th>Web UI</th>
+                        <th>Tên dịch vụ</th>
                         <th>Thiết bị (Server/PC)</th>
                         <th>Trạng thái</th>
                         <th>Ghi chú</th>
-                        <th class="text-center">Hành động</th>
+                        <th class="text-center" style="width: 150px;">Hành động</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% if resources %}
-                    {% for resource in resources %}
+                    {% if resources.items %}
+                    {% for resource in resources.items %}
                     <tr>
-                        <td class="text-center">{{ loop.index }}</td>
+                        <td class="text-center">{{ (resources.page - 1) * resources.per_page + loop.index }}</td>
                         <td><strong>{{ resource.ip_address }}</strong></td>
-                        <td>{{ resource.service or '-' }}</td>
+                        <td>
+                            {% if resource.web_ui %}
+                            <a href="{{ resource.web_ui }}" target="_blank">{{ resource.web_ui }}</a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ resource.service_name or '-' }}</td>
                         <td>
                             {% if resource.device %}
                             <a href="{{ url_for('device_detail', device_id=resource.device.id) }}">
                                 {{ resource.device.device_code }}
                             </a>
-                            <small class="text-muted">({{ resource.device.name }})</small>
+                            <br>
+                            <small class="text-muted text-truncate d-inline-block" style="max-width: 150px;">{{
+                                resource.device.name }}</small>
                             {% else %}
                             <span class="text-muted">-</span>
                             {% endif %}
@@ -58,33 +84,97 @@
                         </td>
                         <td>{{ resource.notes or '' }}</td>
                         <td class="text-center">
-                            {% if current_permissions and 'resources.edit' in current_permissions %}
-                            <button class="btn btn-sm btn-outline-warning btn-edit" data-id="{{ resource.id }}"
-                                data-ip="{{ resource.ip_address }}" data-service="{{ resource.service }}"
-                                data-status="{{ resource.status }}" data-device="{{ resource.device_id }}"
-                                data-notes="{{ resource.notes }}" title="Sửa">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            {% endif %}
-                            {% if current_permissions and 'resources.delete' in current_permissions %}
                             <form method="POST" action="{{ url_for('delete_resource', id=resource.id) }}"
                                 class="d-inline"
                                 onsubmit="return confirm('Bạn chắc chắn muốn xóa tài nguyên IP {{ resource.ip_address }}?');">
-                                <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i
-                                        class="bi bi-trash"></i></button>
+                                <div class="btn-group gap-1" role="group">
+                                    <!-- View Icon (Dummy for now or Quick View) -->
+                                    <button type="button" class="btn btn-sm btn-outline-info" title="Xem chi tiết"
+                                        data-bs-toggle="modal" data-bs-target="#viewResourceModal-{{ resource.id }}">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+
+                                    {% if current_permissions and 'resources.edit' in current_permissions %}
+                                    <button type="button" class="btn btn-sm btn-outline-warning btn-edit"
+                                        data-id="{{ resource.id }}" data-ip="{{ resource.ip_address }}"
+                                        data-web_ui="{{ resource.web_ui }}"
+                                        data-service_name="{{ resource.service_name }}"
+                                        data-status="{{ resource.status }}" data-device="{{ resource.device_id }}"
+                                        data-notes="{{ resource.notes }}" title="Sửa">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    {% endif %}
+
+                                    {% if current_permissions and 'resources.delete' in current_permissions %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa"><i
+                                            class="bi bi-trash"></i></button>
+                                    {% endif %}
+                                </div>
                             </form>
-                            {% endif %}
                         </td>
                     </tr>
+
+                    <!-- View Modal -->
+                    <div class="modal fade" id="viewResourceModal-{{ resource.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Chi tiết tài nguyên</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                        aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p><strong>IP Address:</strong> {{ resource.ip_address }}</p>
+                                    <p><strong>Web UI:</strong> <a href="{{ resource.web_ui or '#' }}"
+                                            target="_blank">{{ resource.web_ui or 'N/A' }}</a></p>
+                                    <p><strong>Tên dịch vụ:</strong> {{ resource.service_name or 'N/A' }}</p>
+                                    <p><strong>Thiết bị:</strong> {{ resource.device.name if resource.device else 'N/A'
+                                        }} ({{ resource.device.device_code if resource.device else ''}})</p>
+                                    <p><strong>Trạng thái:</strong> {{ resource.status }}</p>
+                                    <p><strong>Ghi chú:</strong> {{ resource.notes }}</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary"
+                                        data-bs-dismiss="modal">Đóng</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     {% endfor %}
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted">Chưa có dữ liệu tài nguyên</td>
+                        <td colspan="8" class="text-center text-muted">Chưa có dữ liệu tài nguyên</td>
                     </tr>
                     {% endif %}
                 </tbody>
             </table>
         </div>
+
+        <!-- Pagination -->
+        {% if resources.pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                <li class="page-item {% if not resources.has_prev %}disabled{% endif %}">
+                    <a class="page-link"
+                        href="{{ url_for('resources', page=resources.prev_num, search=search) }}">Trước</a>
+                </li>
+                {% for page_num in resources.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                <li class="page-item {% if page_num == resources.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('resources', page=page_num, search=search) }}">{{ page_num
+                        }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not resources.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                        href="{{ url_for('resources', page=resources.next_num, search=search) }}">Sau</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
     </div>
 </div>
 
@@ -104,13 +194,16 @@
                             placeholder="xxx.xxx.xxx.xxx">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Dịch vụ đang chạy</label>
-                        <input type="text" name="service" class="form-control"
-                            placeholder="Ví dụ: Web Server, Database...">
+                        <label class="form-label">Web UI</label>
+                        <input type="text" name="web_ui" class="form-control" placeholder="http://...">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tên dịch vụ</label>
+                        <input type="text" name="service_name" class="form-control" placeholder="Tên dịch vụ">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Gán thiết bị (Server/PC)</label>
-                        <select name="device_id" class="form-select select2-device">
+                        <select name="device_id" class="form-select select2-device" style="width: 100%;">
                             <option value="">-- Chọn thiết bị --</option>
                             {% for device in devices %}
                             <option value="{{ device.id }}">{{ device.device_code }} - {{ device.name }}</option>
@@ -154,8 +247,12 @@
                         <input type="text" name="ip_address" id="edit_ip" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Dịch vụ đang chạy</label>
-                        <input type="text" name="service" id="edit_service" class="form-control">
+                        <label class="form-label">Web UI</label>
+                        <input type="text" name="web_ui" id="edit_web_ui" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tên dịch vụ</label>
+                        <input type="text" name="service_name" id="edit_service_name" class="form-control">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Gán thiết bị (Server/PC)</label>
@@ -195,6 +292,7 @@
 {{ super() }}
 <script>
     $(document).ready(function () {
+        // Init Select2 for Add Modal
         $('.select2-device').select2({
             theme: "bootstrap-5",
             dropdownParent: $('#addResourceModal')
@@ -204,14 +302,16 @@
         $('.btn-edit').click(function () {
             const id = $(this).data('id');
             const ip = $(this).data('ip');
-            const service = $(this).data('service');
+            const web_ui = $(this).data('web_ui');
+            const service_name = $(this).data('service_name');
             const status = $(this).data('status');
             const device = $(this).data('device');
             const notes = $(this).data('notes');
 
             // Populate modal fields
             $('#edit_ip').val(ip);
-            $('#edit_service').val(service || '');
+            $('#edit_web_ui').val(web_ui || '');
+            $('#edit_service_name').val(service_name || '');
             $('#edit_status').val(status);
             $('#edit_notes').val(notes || '');
 

@@ -521,10 +521,12 @@ migrate_bug_report_enhancements()
 migrate_role_created_at()
 
 def migrate_resource_table():
-    """Create resource table if it doesn't exist."""
+    """Create resource table if it doesn't exist, and ensure new columns exist."""
     with app.app_context():
         try:
             from sqlalchemy import text, inspect
+            
+            # 1. Create table if not exists
             try:
                 inspector = inspect(db.engine)
                 if 'resource' not in inspector.get_table_names():
@@ -534,6 +536,8 @@ def migrate_resource_table():
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 ip_address VARCHAR(100) NOT NULL,
                                 service VARCHAR(255),
+                                web_ui VARCHAR(255),
+                                service_name VARCHAR(255),
                                 status VARCHAR(50) DEFAULT 'Offline',
                                 device_id INTEGER REFERENCES device(id),
                                 notes TEXT,
@@ -543,8 +547,32 @@ def migrate_resource_table():
                         '''))
                         conn.commit()
                     print("✓ Created resource table")
+                    return # Created with all columns, done.
             except Exception as e:
-                print(f"Migration error (resource): {e}")
+                print(f"Migration error (resource create): {e}")
+
+            # 2. Add new columns if table exists (Migrate v1 -> v2)
+            try:
+                inspector = inspect(db.engine)
+                columns = {col['name'] for col in inspector.get_columns('resource')}
+                
+                with db.engine.connect() as conn:
+                    if 'web_ui' not in columns:
+                        conn.execute(text("ALTER TABLE resource ADD COLUMN web_ui VARCHAR(255)"))
+                        # Optional: migrate data from 'service' if needed, but assuming empty or manual
+                    if 'service_name' not in columns:
+                        conn.execute(text("ALTER TABLE resource ADD COLUMN service_name VARCHAR(255)"))
+                        # Optional: migrate data from 'notes' -> 'service_name' ??
+                        # User request: "Ghi chú thành tên dịch vụ".
+                        # Let's try to update service_name from notes if notes is not null
+                        conn.execute(text("UPDATE resource SET service_name = notes WHERE service_name IS NULL"))
+                        conn.execute(text("UPDATE resource SET notes = NULL")) # Clear notes to be "new column"
+                    
+                    conn.commit()
+                    print("✓ Updated resource table schema (v2)")
+            except Exception as e:
+                print(f"Migration error (resource alter): {e}")
+
         except Exception as e:
             print(f"Migration error (resource wrapper): {e}")
 
@@ -750,7 +778,10 @@ class ServerRoomDeviceInfo(db.Model):
 class Resource(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ip_address = db.Column(db.String(100), nullable=False)
-    service = db.Column(db.String(255))
+    # service field kept for backward compatibility or can be deprecated
+    service = db.Column(db.String(255)) 
+    web_ui = db.Column(db.String(255))
+    service_name = db.Column(db.String(255))
     status = db.Column(db.String(50), default='Offline')  # Online, Offline, Maintenance
     device_id = db.Column(db.Integer, db.ForeignKey('device.id'))
     notes = db.Column(db.Text)
@@ -2511,7 +2542,10 @@ def inventory_receipts():
     
     # Get filter parameters
     sort_by = request.args.get('sort', 'date_desc')
+    filter_code = request.args.get('filter_code', '').strip()
     filter_supplier = request.args.get('filter_supplier', '').strip()
+    filter_importer = request.args.get('filter_importer', '').strip()
+    filter_notes = request.args.get('filter_notes', '').strip()
     date_from = request.args.get('date_from', '').strip()
     date_to = request.args.get('date_to', '').strip()
     
@@ -2521,8 +2555,14 @@ def inventory_receipts():
     # Build query with filters
     query = InventoryReceipt.query
     
+    if filter_code:
+        query = query.filter(InventoryReceipt.code.ilike(f'%{filter_code}%'))
     if filter_supplier:
         query = query.filter(InventoryReceipt.supplier.ilike(f'%{filter_supplier}%'))
+    if filter_importer:
+        query = query.filter(InventoryReceipt.importer.ilike(f'%{filter_importer}%'))
+    if filter_notes:
+        query = query.filter(InventoryReceipt.notes.ilike(f'%{filter_notes}%'))
     
     if date_from:
         try:
@@ -2558,7 +2598,10 @@ def inventory_receipts():
     return render_template('inventory_receipts.html', 
                          receipts=receipts, 
                          sort_by=sort_by,
+                         filter_code=filter_code,
                          filter_supplier=filter_supplier,
+                         filter_importer=filter_importer,
+                         filter_notes=filter_notes,
                          date_from=date_from,
                          date_to=date_to,
                          suppliers=suppliers)
@@ -4287,6 +4330,7 @@ def maintenance_logs():
     device_type = request.args.get('device_type', '').strip()
     start_date = request.args.get('start_date', '').strip()
     end_date = request.args.get('end_date', '').strip()
+    manager_name = request.args.get('filter_manager_name', '').strip()
 
     query = DeviceMaintenanceLog.query.join(Device)
     if device_code:
@@ -4297,6 +4341,10 @@ def maintenance_logs():
         query = query.filter(Device.device_type.ilike(f"%{device_type}%"))
     if status:
         query = query.filter(DeviceMaintenanceLog.status.ilike(f"%{status}%"))
+    if manager_name:
+        query = query.join(User, Device.manager_id == User.id).filter(
+            or_(User.full_name.ilike(f"%{manager_name}%"), User.username.ilike(f"%{manager_name}%"))
+        )
     if start_date:
         try:
             sd = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -4323,6 +4371,7 @@ def maintenance_logs():
         start_date=start_date,
         end_date=end_date,
         device_types=device_types,
+        filter_manager_name=manager_name
     )
 
 @app.route('/maintenance_logs/add', methods=['GET', 'POST'])
@@ -5804,117 +5853,7 @@ def backup_delete(filename):
     
     return redirect(url_for('backup_list'))
 
-# --- Database Configuration Routes ---
-@app.route('/db_config')
-def db_config():
-    """Cấu hình đường dẫn database"""
-    if 'user_id' not in session: return redirect(url_for('login'))
-    current_permissions = _get_current_permissions()
-    current_user = _get_current_user()
-    
-    # Chỉ admin mới có quyền cấu hình DB
-    if not (current_user and current_user.role == 'admin'):
-        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
-        return redirect(url_for('home'))
-    
-    # Load current configuration
-    current_db_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-    custom_db_url = None
-    secondary_db_url = None
-    try:
-        if os.path.exists(_db_cfg_path):
-            with open(_db_cfg_path, 'r', encoding='utf-8') as f:
-                _db_cfg = json.load(f)
-                custom_db_url = _db_cfg.get('database_url', '')
-                secondary_db_url = _db_cfg.get('secondary_database_url', '')
-    except Exception:
-        pass
-    
-    # Get database info
-    db_info = get_database_info()
-    
-    return render_template('db_config.html', 
-                         current_db_url=current_db_url,
-                         custom_db_url=custom_db_url,
-                         secondary_db_url=secondary_db_url,
-                         db_info=db_info)
 
-@app.route('/db_config/update', methods=['POST'])
-def db_config_update():
-    """Cập nhật cấu hình database"""
-    if 'user_id' not in session: return redirect(url_for('login'))
-    current_permissions = _get_current_permissions()
-    current_user = _get_current_user()
-    
-    # Chỉ admin mới có quyền cấu hình DB
-    if not (current_user and current_user.role == 'admin'):
-        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
-        return redirect(url_for('home'))
-    
-    database_url = request.form.get('database_url', '').strip()
-    secondary_database_url = request.form.get('secondary_database_url', '').strip()
-    
-    config_data = {}
-    
-    if database_url:
-        # Validate database URL format
-        if not (database_url.startswith('sqlite:///') or 
-                database_url.startswith('postgresql://') or 
-                database_url.startswith('postgres://') or
-                database_url.startswith('mysql://') or
-                database_url.startswith('mysql+pymysql://')):
-            flash('Định dạng đường dẫn database chính không hợp lệ. Ví dụ: sqlite:///inventory.db hoặc postgresql://user:pass@host:port/dbname', 'danger')
-            return redirect(url_for('db_config'))
-        
-        # Normalize postgres URL
-        if database_url.startswith('postgres://'):
-            database_url = database_url.replace('postgres://', 'postgresql://', 1)
-        
-        config_data['database_url'] = database_url
-    
-    if secondary_database_url:
-        # Validate secondary database URL format
-        if not (secondary_database_url.startswith('sqlite:///') or 
-                secondary_database_url.startswith('postgresql://') or 
-                secondary_database_url.startswith('postgres://') or
-                secondary_database_url.startswith('mysql://') or
-                secondary_database_url.startswith('mysql+pymysql://')):
-            flash('Định dạng đường dẫn database phụ không hợp lệ.', 'danger')
-            return redirect(url_for('db_config'))
-        
-        # Normalize postgres URL
-        if secondary_database_url.startswith('postgres://'):
-            secondary_database_url = secondary_database_url.replace('postgres://', 'postgresql://', 1)
-        
-        config_data['secondary_database_url'] = secondary_database_url
-    
-    try:
-        if config_data:
-            # Load existing config and merge
-            existing_config = {}
-            if os.path.exists(_db_cfg_path):
-                with open(_db_cfg_path, 'r', encoding='utf-8') as f:
-                    existing_config = json.load(f)
-            
-            existing_config.update(config_data)
-            
-            # Save to configuration file
-            with open(_db_cfg_path, 'w', encoding='utf-8') as f:
-                json.dump(existing_config, f, ensure_ascii=False, indent=2)
-            
-            if secondary_database_url:
-                flash('Đã lưu cấu hình database chính và phụ (HA)! Vui lòng khởi động lại ứng dụng để áp dụng thay đổi.', 'success')
-            else:
-                flash('Đã lưu cấu hình database! Vui lòng khởi động lại ứng dụng để áp dụng thay đổi.', 'success')
-        else:
-            # Clear custom configuration
-            if os.path.exists(_db_cfg_path):
-                os.remove(_db_cfg_path)
-            flash('Đã xóa cấu hình tùy chỉnh. Hệ thống sẽ sử dụng cấu hình mặc định hoặc từ biến môi trường.', 'success')
-    except Exception as e:
-        flash(f'Lỗi khi lưu cấu hình: {str(e)}', 'danger')
-    
-    return redirect(url_for('db_config'))
 
 @app.route('/api/group_devices/<int:group_id>')
 def api_group_devices(group_id):
@@ -6156,9 +6095,26 @@ def resources():
         flash('Bạn không có quyền xem danh sách tài nguyên.', 'danger')
         return redirect(url_for('home'))
         
-    resources = Resource.query.all()
+    page = request.args.get('page', 1, type=int)
+    search_query = request.args.get('search', '').strip()
+    
+    query = Resource.query
+    
+    if search_query:
+        # Search by IP or Service Name or Web UI
+        query = query.filter(or_(
+            Resource.ip_address.ilike(f'%{search_query}%'),
+            Resource.service_name.ilike(f'%{search_query}%'),
+            Resource.web_ui.ilike(f'%{search_query}%')
+        ))
+    
+    # Order by ID desc
+    query = query.order_by(Resource.id.desc())
+    
+    pagination = query.paginate(page=page, per_page=20, error_out=False)
     devices = Device.query.all()
-    return render_template('resources/index.html', resources=resources, devices=devices)
+    
+    return render_template('resources/index.html', resources=pagination, devices=devices, search=search_query)
 
 @app.route('/resources/add', methods=['POST'])
 def add_resource():
@@ -6169,7 +6125,8 @@ def add_resource():
         return redirect(url_for('resources'))
     
     ip_address = request.form.get('ip_address')
-    service = request.form.get('service')
+    web_ui = request.form.get('web_ui')
+    service_name = request.form.get('service_name')
     status = request.form.get('status', 'Offline')
     device_id = request.form.get('device_id')
     notes = request.form.get('notes')
@@ -6180,7 +6137,8 @@ def add_resource():
         
     resource = Resource(
         ip_address=ip_address,
-        service=service,
+        web_ui=web_ui,
+        service_name=service_name,
         status=status,
         device_id=int(device_id) if device_id else None,
         notes=notes
@@ -6201,7 +6159,8 @@ def edit_resource(id):
     resource = Resource.query.get_or_404(id)
     
     resource.ip_address = request.form.get('ip_address')
-    resource.service = request.form.get('service')
+    resource.web_ui = request.form.get('web_ui')
+    resource.service_name = request.form.get('service_name')
     resource.status = request.form.get('status')
     device_id = request.form.get('device_id')
     resource.device_id = int(device_id) if device_id else None

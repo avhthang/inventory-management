@@ -1,13 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Nhật ký bảo trì thiết bị{% endblock %}
+{% block title %}Danh sách sửa chữa{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Nhật ký bảo trì thiết bị</h3>
-  <a class="btn btn-primary" href="{{ url_for('add_maintenance_log') }}">Thêm nhật ký</a>
-  </div>
+  <h3>Danh sách sửa chữa</h3>
+  <a class="btn btn-primary" href="{{ url_for('add_maintenance_log') }}">Thêm sửa chữa</a>
+</div>
 <form method="GET" class="row g-2 mb-3">
-  <div class="col-auto"><input class="form-control" name="device_code" placeholder="Mã thiết bị" value="{{ device_code }}"></div>
-  <div class="col-auto"><input class="form-control" name="device_name" placeholder="Tên thiết bị" value="{{ device_name }}"></div>
+  <div class="col-auto"><input class="form-control" name="device_code" placeholder="Mã thiết bị"
+      value="{{ device_code }}"></div>
+  <div class="col-auto"><input class="form-control" name="device_name" placeholder="Tên thiết bị"
+      value="{{ device_name }}"></div>
   <div class="col-auto">
     <select class="form-select" name="status">
       <option value="">Trạng thái xử lý</option>
@@ -24,50 +26,55 @@
       {% endfor %}
     </select>
   </div>
+  <div class="col-auto"><input class="form-control" name="filter_manager_name" placeholder="Người quản lý"
+      value="{{ filter_manager_name }}"></div>
   <div class="col-auto"><input class="form-control" type="date" name="start_date" value="{{ start_date }}"></div>
   <div class="col-auto"><input class="form-control" type="date" name="end_date" value="{{ end_date }}"></div>
   <div class="col-auto"><button class="btn btn-outline-secondary" type="submit">Lọc</button></div>
   <div class="col-auto"><a href="{{ url_for('maintenance_logs') }}" class="btn btn-outline-secondary">Reset</a></div>
 </form>
 <div class="table-responsive">
-<table class="table table-striped table-hover">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Mã thiết bị</th>
-      <th>Tên thiết bị</th>
-      <th>Ngày tháng</th>
-      <th>Tình trạng</th>
-      <th>Vấn đề</th>
-      <th>Trạng thái xử lý</th>
-      <th>Nhật ký xử lý</th>
-      <th>Ghi chú</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for item in logs.items %}
-    <tr onclick="window.location='{{ url_for('maintenance_log_detail', log_id=item.id) }}'" style="cursor:pointer">
-      <td>{{ logs.first + loop.index - 1 }}</td>
-      <td>{{ item.device.device_code }}</td>
-      <td>{{ item.device.name }}</td>
-      <td>{{ item.log_date.strftime('%d-%m-%Y') }}</td>
-      <td>{{ item.condition or '' }}</td>
-      <td class="text-truncate" style="max-width: 220px">{{ item.issue or '' }}</td>
-      <td>{{ item.status or '' }}</td>
-      <td class="text-truncate" style="max-width: 220px">{{ item.last_action or '' }}</td>
-      <td class="text-truncate" style="max-width: 220px">{{ item.notes or '' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+  <table class="table table-striped table-hover">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Mã thiết bị</th>
+        <th>Tên thiết bị</th>
+        <th>Người quản lý</th>
+        <th>Ngày tháng</th>
+        <th>Tình trạng</th>
+        <th>Vấn đề</th>
+        <th>Trạng thái xử lý</th>
+        <th>Nhật ký xử lý</th>
+        <th>Ghi chú</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in logs.items %}
+      <tr onclick="window.location='{{ url_for('maintenance_log_detail', log_id=item.id) }}'" style="cursor:pointer">
+        <td>{{ logs.first + loop.index - 1 }}</td>
+        <td>{{ item.device.device_code }}</td>
+        <td>{{ item.device.name }}</td>
+        <td>{{ item.device.manager.full_name or item.device.manager.username if item.device.manager else '-' }}</td>
+        <td>{{ item.log_date.strftime('%d-%m-%Y') }}</td>
+        <td>{{ item.condition or '' }}</td>
+        <td class="text-truncate" style="max-width: 220px">{{ item.issue or '' }}</td>
+        <td>{{ item.status or '' }}</td>
+        <td class="text-truncate" style="max-width: 220px">{{ item.last_action or '' }}</td>
+        <td class="text-truncate" style="max-width: 220px">{{ item.notes or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% from '_pagination.html' import render_pagination %}
 {{ render_pagination(logs, 'maintenance_logs', {
-  'device_code': device_code,
-  'device_name': device_name,
-  'status': status,
-  'device_type': device_type,
-  'start_date': start_date,
-  'end_date': end_date
+'device_code': device_code,
+'device_name': device_name,
+'status': status,
+'device_type': device_type,
+'start_date': start_date,
+'end_date': end_date,
+'filter_manager_name': filter_manager_name
 }) }}
 {% endblock %}

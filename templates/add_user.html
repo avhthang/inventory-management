@@ -4,16 +4,23 @@
 
 {% block content %}
 <div class="card">
-    <div class="card-header"><h2 class="card-title mb-0">Thêm người dùng mới</h2></div>
+    <div class="card-header">
+        <h2 class="card-title mb-0">Thêm người dùng mới</h2>
+    </div>
     <div class="card-body">
         <form method="POST">
             <div class="row">
                 <div class="col-md-6">
-                    <div class="mb-3"><label class="form-label required">Tên đăng nhập</label><input type="text" name="username" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label required">Mật khẩu</label><input type="password" name="password" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">Họ và tên</label><input type="text" name="full_name" class="form-control"></div>
-                    <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control"></div>
-                    <div class="mb-3"><label class="form-label">Ngày sinh</label><input type="date" name="date_of_birth" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label required">Tên đăng nhập</label><input type="text"
+                            name="username" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label required">Mật khẩu</label><input type="password"
+                            name="password" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Họ và tên</label><input type="text" name="full_name"
+                            class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email"
+                            class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Ngày sinh</label><input type="date" name="date_of_birth"
+                            class="form-control"></div>
                 </div>
                 <div class="col-md-6">
                     <div class="mb-3">
@@ -21,13 +28,16 @@
                         <select name="department_id" class="form-select">
                             <option value="">-- Chọn phòng ban --</option>
                             {% for dept in departments %}
-                                <option value="{{ dept.id }}">{{ dept.name }}</option>
+                            <option value="{{ dept.id }}">{{ dept.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-3"><label class="form-label">Chức vụ</label><input type="text" name="position" class="form-control"></div>
-                    <div class="mb-3"><label class="form-label">Số điện thoại</label><input type="text" name="phone_number" class="form-control"></div>
-                    <div class="mb-3"><label class="form-label">Ghi chú</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
+                    <div class="mb-3"><label class="form-label">Chức vụ</label><input type="text" name="position"
+                            class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Số điện thoại</label><input type="text"
+                            name="phone_number" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Ghi chú</label><textarea name="notes"
+                            class="form-control" rows="2"></textarea></div>
                 </div>
             </div>
             <hr>
@@ -45,20 +55,22 @@
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <div class="mb-3"><label class="form-label">Ngày onboard</label><input type="date" name="onboard_date" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Ngày onboard</label><input type="date"
+                            name="onboard_date" class="form-control"></div>
                 </div>
                 <div class="col-md-4">
-                    <div class="mb-3"><label class="form-label">Ngày offboard</label><input type="date" name="offboard_date" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Ngày offboard</label><input type="date"
+                            name="offboard_date" class="form-control"></div>
                 </div>
             </div>
-            
+
             <hr>
             <h5 class="mt-4">Quyền truy cập</h5>
             <div class="mb-3">
                 <label class="form-label">Quyền truy cập của người dùng</label>
                 <select name="user_roles" id="user_roles" class="form-select" multiple>
                     {% for role in all_roles %}
-                    <option value="{{ role.id }}">
+                    <option value="{{ role.id }}" {% if role.name=='User' %}selected{% endif %}>
                         {{ role.name }} - {{ role.description or '' }}
                     </option>
                     {% endfor %}
@@ -75,13 +87,13 @@
 {% block scripts %}
 {{ super() }}
 <script>
-$(document).ready(function() {
-    $('#user_roles').select2({
-        width: '100%',
-        placeholder: 'Chọn quyền cho người dùng...',
-        allowClear: true
+    $(document).ready(function () {
+        $('#user_roles').select2({
+            width: '100%',
+            placeholder: 'Chọn quyền cho người dùng...',
+            allowClear: true
+        });
     });
-});
 </script>
 {% endblock %}
 {% endblock %}

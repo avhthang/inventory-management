@@ -1,84 +1,113 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{% endblock %} - Quản lý Thiết bị</title>
-    
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    
+
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% if request.endpoint == 'list_departments' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/departments.css') }}">
     {% endif %}
 </head>
+
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
-            {% set dashboard_allowed = current_user and (current_user.role == 'admin' or (current_permissions and 'dashboard.view' in current_permissions)) %}
-            <a class="navbar-brand" href="{{ url_for('home') if dashboard_allowed else url_for('device_list') }}">QLTB</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            {% set dashboard_allowed = current_user and (current_user.role == 'admin' or (current_permissions and
+            'dashboard.view' in current_permissions)) %}
+            <a class="navbar-brand"
+                href="{{ url_for('home') if dashboard_allowed else url_for('device_list') }}">QLTB</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if current_user %}
                 {% set active_endpoint = request.endpoint %}
-                {% set config_endpoints = ['user_list', 'list_departments', 'backup_page', 'backup_config', 'backup_list', 'db_config'] %}
+                {% set config_endpoints = ['user_list', 'list_departments', 'backup_page', 'backup_config',
+                'backup_list', 'db_config'] %}
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     {% if dashboard_allowed %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link {% if active_endpoint == 'home' %}active{% endif %}"
+                            href="{{ url_for('home') }}">Dashboard</a></li>
                     {% endif %}
                     {% if current_permissions and 'devices.view' in current_permissions %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint in ['device_list', 'device_detail'] %}active{% endif %}" href="{{ url_for('device_list') }}">Thiết bị</a></li>
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint in ['device_list', 'device_detail'] %}active{% endif %}"
+                            href="{{ url_for('device_list') }}">Thiết bị</a></li>
                     {% endif %}
                     {% if current_permissions and 'device_groups.view' in current_permissions %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint in ['device_groups', 'device_group_detail'] %}active{% endif %}" href="{{ url_for('device_groups') }}">Nhóm thiết bị</a></li>
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint in ['device_groups', 'device_group_detail'] %}active{% endif %}"
+                            href="{{ url_for('device_groups') }}">Nhóm thiết bị</a></li>
                     {% endif %}
                     {% if current_permissions and 'server_room.view' in current_permissions %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint == 'server_room' %}active{% endif %}" href="{{ url_for('server_room') }}">Phòng server</a></li>
+                    <li class="nav-item"><a class="nav-link {% if active_endpoint == 'server_room' %}active{% endif %}"
+                            href="{{ url_for('server_room') }}">Phòng server</a></li>
                     {% endif %}
                     {% if current_permissions and 'resources.view' in current_permissions %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint == 'resources' %}active{% endif %}" href="{{ url_for('resources') }}">Quản lý tài nguyên</a></li>
+                    <li class="nav-item"><a class="nav-link {% if active_endpoint == 'resources' %}active{% endif %}"
+                            href="{{ url_for('resources') }}">Quản lý tài nguyên</a></li>
                     {% endif %}
                     {% if current_permissions and 'handovers.view' in current_permissions %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint in ['handover_list', 'handover_report'] %}active{% endif %}" href="{{ url_for('handover_list') }}">Bàn giao thiết bị</a></li>
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint in ['handover_list', 'handover_report'] %}active{% endif %}"
+                            href="{{ url_for('handover_list') }}">Bàn giao thiết bị</a></li>
                     {% endif %}
-                    {% if current_permissions and 'maintenance.view' in current_permissions %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint in ['maintenance_logs', 'add_maintenance_log', 'maintenance_log_detail', 'edit_maintenance_log'] %}active{% endif %}" href="{{ url_for('maintenance_logs') }}">Nhật ký bảo trì</a></li>
-                    {% endif %}
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint in ['maintenance_logs', 'add_maintenance_log', 'maintenance_log_detail', 'edit_maintenance_log'] %}active{% endif %}"
+                            href="{{ url_for('maintenance_logs') }}">Sửa chữa</a></li>
                     {% if current_permissions and 'bug_reports.view' in current_permissions %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint in ['bug_reports', 'create_bug_report', 'bug_report_detail', 'edit_bug_report'] %}active{% endif %}" href="{{ url_for('bug_reports') }}">Báo lỗi</a></li>
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint in ['bug_reports', 'create_bug_report', 'bug_report_detail', 'edit_bug_report'] %}active{% endif %}"
+                            href="{{ url_for('bug_reports') }}">Báo lỗi</a></li>
                     {% endif %}
                     {% if current_permissions and 'inventory.view' in current_permissions %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint in ['inventory_receipts'] %}active{% endif %}" href="{{ url_for('inventory_receipts') }}">Phiếu nhập kho</a></li>
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint in ['inventory_receipts'] %}active{% endif %}"
+                            href="{{ url_for('inventory_receipts') }}">Phiếu nhập kho</a></li>
                     {% endif %}
                     {% if current_permissions and 'config_proposals.view' in current_permissions %}
-                    <li class="nav-item"><a class="nav-link {% if active_endpoint == 'config_proposals' %}active{% endif %}" href="{{ url_for('config_proposals') }}">Đề xuất cấu hình</a></li>
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint == 'config_proposals' %}active{% endif %}"
+                            href="{{ url_for('config_proposals') }}">Đề xuất cấu hình</a></li>
                     {% endif %}
-                    {% if current_permissions and ('users.view' in current_permissions or 'departments.view' in current_permissions or 'backup.view' in current_permissions or 'rbac.view' in current_permissions or 'rbac.manage' in current_permissions) %}
+                    {% if current_permissions and ('users.view' in current_permissions or 'departments.view' in
+                    current_permissions or 'backup.view' in current_permissions or 'rbac.view' in current_permissions or
+                    'rbac.manage' in current_permissions) %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if active_endpoint in config_endpoints %}active{% endif %}" href="#" id="navbarConfigDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle {% if active_endpoint in config_endpoints %}active{% endif %}"
+                            href="#" id="navbarConfigDropdown" role="button" data-bs-toggle="dropdown"
+                            aria-expanded="false">
                             Cấu hình
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="navbarConfigDropdown">
                             {% if current_permissions and 'users.view' in current_permissions %}
-                            <li><a class="dropdown-item {% if active_endpoint == 'user_list' %}active{% endif %}" href="{{ url_for('user_list') }}">Người dùng</a></li>
+                            <li><a class="dropdown-item {% if active_endpoint == 'user_list' %}active{% endif %}"
+                                    href="{{ url_for('user_list') }}">Người dùng</a></li>
                             {% endif %}
                             {% if current_permissions and 'departments.view' in current_permissions %}
-                            <li><a class="dropdown-item {% if active_endpoint in ['list_departments', 'department_users'] %}active{% endif %}" href="{{ url_for('list_departments') }}">Phòng ban</a></li>
+                            <li><a class="dropdown-item {% if active_endpoint in ['list_departments', 'department_users'] %}active{% endif %}"
+                                    href="{{ url_for('list_departments') }}">Phòng ban</a></li>
                             {% endif %}
                             {% if current_permissions and 'backup.view' in current_permissions %}
-                            <li><a class="dropdown-item {% if active_endpoint in ['backup_page', 'backup_config', 'backup_list'] %}active{% endif %}" href="{{ url_for('backup_page') }}">Backup</a></li>
+                            <li><a class="dropdown-item {% if active_endpoint in ['backup_page', 'backup_config', 'backup_list'] %}active{% endif %}"
+                                    href="{{ url_for('backup_page') }}">Backup</a></li>
                             {% endif %}
-                            {% if current_user.role == 'admin' %}
-                            <li><a class="dropdown-item {% if active_endpoint in ['db_config'] %}active{% endif %}" href="{{ url_for('db_config') }}">Cấu hình DB</a></li>
-                            {% endif %}
-                            {% if current_permissions and ('rbac.view' in current_permissions or 'rbac.manage' in current_permissions) %}
-                            <li><a class="dropdown-item {% if active_endpoint in ['roles_permissions', 'roles_list', 'role_detail'] %}active{% endif %}" href="{{ url_for('roles_list') }}">Phân quyền</a></li>
+
+                            {% if current_permissions and ('rbac.view' in current_permissions or 'rbac.manage' in
+                            current_permissions) %}
+                            <li><a class="dropdown-item {% if active_endpoint in ['roles_permissions', 'roles_list', 'role_detail'] %}active{% endif %}"
+                                    href="{{ url_for('roles_list') }}">Phân quyền</a></li>
                             {% endif %}
                         </ul>
                     </li>
@@ -86,20 +115,23 @@
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button"
+                            data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-person-circle"></i> {{ current_user.full_name or current_user.username }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserDropdown">
                             <li><a class="dropdown-item" href="{{ url_for('change_password') }}">Đổi mật khẩu</a></li>
-                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}">Đăng xuất</a></li>
                         </ul>
                     </li>
                 </ul>
                 {% else %}
                 <ul class="navbar-nav ms-auto">
-                     <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Đăng nhập</a></li>
-                     <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">Đăng ký</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Đăng nhập</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">Đăng ký</a></li>
                 </ul>
                 {% endif %}
             </div>
@@ -108,44 +140,45 @@
     <div class="container mt-4">
         {% block content %}{% endblock %}
     </div>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-    // Toast container bottom-right
-    (function() {
-        const container = document.createElement('div');
-        container.id = 'toast-container';
-        container.style.position = 'fixed';
-        container.style.right = '16px';
-        container.style.bottom = '16px';
-        container.style.zIndex = '1080';
-        container.style.display = 'flex';
-        container.style.flexDirection = 'column';
-        container.style.gap = '8px';
-        document.addEventListener('DOMContentLoaded', () => {
-            document.body.appendChild(container);
-            // Render flashed messages as toasts
-            const messages = {{ get_flashed_messages(with_categories=true)|tojson|safe }};
-            const maxToasts = 3;
-            if (messages && messages.length) {
-                const overflow = Math.max(0, messages.length - maxToasts);
-                messages.slice(0, maxToasts).forEach(([category, text]) => createToast(category, text));
-                if (overflow > 0) {
-                    createToast('info', `+${overflow} thông báo khác.`, { collapsible: true });
-                }
+        // Toast container bottom-right
+        (function () {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.position = 'fixed';
+            container.style.right = '16px';
+            container.style.bottom = '16px';
+            container.style.zIndex = '1080';
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.gap = '8px';
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.appendChild(container);
+                // Render flashed messages as toasts
+                const messages = {{ get_flashed_messages(with_categories = true) | tojson | safe
+            }};
+        const maxToasts = 3;
+        if (messages && messages.length) {
+            const overflow = Math.max(0, messages.length - maxToasts);
+            messages.slice(0, maxToasts).forEach(([category, text]) => createToast(category, text));
+            if (overflow > 0) {
+                createToast('info', `+${overflow} thông báo khác.`, { collapsible: true });
             }
+        }
         });
 
-        function createToast(category, text, opts={}) {
+        function createToast(category, text, opts = {}) {
             const wrapper = document.createElement('div');
             wrapper.className = `toast align-items-center text-bg-${mapCategory(category)} border-0`;
-            wrapper.setAttribute('role','alert');
-            wrapper.setAttribute('aria-live','assertive');
-            wrapper.setAttribute('aria-atomic','true');
+            wrapper.setAttribute('role', 'alert');
+            wrapper.setAttribute('aria-live', 'assertive');
+            wrapper.setAttribute('aria-atomic', 'true');
             wrapper.style.minWidth = '0';
             wrapper.style.width = 'auto';
             wrapper.style.maxWidth = '360px';
@@ -169,8 +202,8 @@
             const closeBtn = document.createElement('button');
             closeBtn.type = 'button';
             closeBtn.className = 'btn-close btn-close-white me-2 m-auto';
-            closeBtn.setAttribute('data-bs-dismiss','toast');
-            closeBtn.setAttribute('aria-label','Close');
+            closeBtn.setAttribute('data-bs-dismiss', 'toast');
+            closeBtn.setAttribute('aria-label', 'Close');
             btnGroup.appendChild(closeBtn);
 
             body.appendChild(btnGroup);
@@ -193,11 +226,12 @@
 
         function openAllToastsModal() {
             // Build and show a modal listing all messages
-            const messages = {{ get_flashed_messages(with_categories=true)|tojson|safe }};
-            const modal = document.createElement('div');
-            modal.className = 'modal fade';
-            modal.tabIndex = -1;
-            modal.innerHTML = `
+            const messages = {{ get_flashed_messages(with_categories = true) | tojson | safe
+        }};
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.tabIndex = -1;
+        modal.innerHTML = `
             <div class="modal-dialog modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -212,17 +246,18 @@
                     </div>
                 </div>
             </div>`;
-            document.body.appendChild(modal);
-            const bsModal = new bootstrap.Modal(modal);
-            bsModal.show();
-            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        document.body.appendChild(modal);
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+        modal.addEventListener('hidden.bs.modal', () => modal.remove());
         }
 
         function escapeHtml(s) {
-            return String(s).replace(/[&<>"]+/g, function(m) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]); });
+            return String(s).replace(/[&<>"]+/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]); });
         }
-    })();
+    }) ();
     </script>
     {% block scripts %}{% endblock %}
 </body>
+
 </html>

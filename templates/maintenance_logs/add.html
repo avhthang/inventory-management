@@ -1,20 +1,23 @@
 {% extends "base.html" %}
-{% block title %}Thêm nhật ký bảo trì{% endblock %}
+{% block title %}Thêm sửa chữa{% endblock %}
 {% block content %}
-<h3 class="mb-3">Thêm nhật ký bảo trì</h3>
+<h3 class="mb-3">Thêm sửa chữa</h3>
 <form method="POST" class="row g-3">
   <div class="col-md-4">
     <label class="form-label">Thiết bị</label>
-    <input type="text" id="device_search" class="form-control form-control-sm mb-2" placeholder="Tìm tên thiết bị hoặc mã...">
+    <input type="text" id="device_search" class="form-control form-control-sm mb-2"
+      placeholder="Tìm tên thiết bị hoặc mã...">
     <select name="device_id" id="device_select" class="form-select" required>
       {% for d in devices %}
-      <option value="{{ d.id }}" data-name="{{ d.name|e }}" data-code="{{ d.device_code|e }}">{{ d.device_code }} - {{ d.name }}</option>
+      <option value="{{ d.id }}" data-name="{{ d.name|e }}" data-code="{{ d.device_code|e }}">{{ d.device_code }} - {{
+        d.name }}</option>
       {% endfor %}
     </select>
   </div>
   <div class="col-md-4">
     <label class="form-label">Ngày tháng</label>
-    <input type="date" name="log_date" class="form-control" value="{{ (now or '').strftime('%Y-%m-%d') if now else '' }}">
+    <input type="date" name="log_date" class="form-control"
+      value="{{ (now or '').strftime('%Y-%m-%d') if now else '' }}">
   </div>
   <div class="col-md-4">
     <label class="form-label">Trạng thái xử lý</label>
@@ -48,21 +51,21 @@
 {% block scripts %}
 {{ super() }}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  const search = document.getElementById('device_search');
-  const select = document.getElementById('device_select');
-  if (!search || !select) return;
-  function applyFilter() {
-    const q = (search.value || '').toLowerCase();
-    Array.from(select.options).forEach(o => {
-      const name = (o.dataset.name || '').toLowerCase();
-      const code = (o.dataset.code || '').toLowerCase();
-      const match = !q || name.includes(q) || code.includes(q);
-      o.hidden = !match;
-    });
-  }
-  search.addEventListener('input', applyFilter);
-});
+  document.addEventListener('DOMContentLoaded', function () {
+    const search = document.getElementById('device_search');
+    const select = document.getElementById('device_select');
+    if (!search || !select) return;
+    function applyFilter() {
+      const q = (search.value || '').toLowerCase();
+      Array.from(select.options).forEach(o => {
+        const name = (o.dataset.name || '').toLowerCase();
+        const code = (o.dataset.code || '').toLowerCase();
+        const match = !q || name.includes(q) || code.includes(q);
+        o.hidden = !match;
+      });
+    }
+    search.addEventListener('input', applyFilter);
+  });
 </script>
 {% endblock %}
 {% endblock %}
