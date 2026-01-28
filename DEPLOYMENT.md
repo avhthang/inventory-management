@@ -183,6 +183,95 @@ python3 app.py
 gunicorn -w 4 -b 0.0.0.0:8000 app:app
 ```
 
+### 5. Cấu hình Systemd Service (Chạy nền)
+
+Để ứng dụng chạy nền và tự động khởi động cùng hệ thống, tạo file service:
+
+```bash
+sudo nano /etc/systemd/system/inventory.service
+```
+
+Nội dung file:
+
+```ini
+[Unit]
+Description=Gunicorn instance to serve inventory app
+After=network.target
+
+[Service]
+User=your_username
+Group=www-data
+WorkingDirectory=/var/www/inventory-management
+Environment="PATH=/var/www/inventory-management/venv/bin"
+EnvironmentFile=/var/www/inventory-management/.env
+ExecStart=/var/www/inventory-management/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Lưu ý:** Thay `your_username` bằng tên user của bạn (ví dụ: `ubuntu`).
+
+Khởi động service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl start inventory
+sudo systemctl enable inventory
+# Kiểm tra trạng thái
+sudo systemctl status inventory
+```
+
+### 6. Cấu hình Nginx (Reverse Proxy)
+
+Nginx đóng vai trò reverse proxy và phục vụ static files.
+
+```bash
+sudo nano /etc/nginx/sites-available/inventory
+```
+
+Nội dung cấu hình:
+
+```nginx
+server {
+    listen 80;
+    server_name your_domain_or_ip;
+
+    # Cấu hình giới hạn upload size (quan trọng cho upload ảnh/file)
+    client_max_body_size 10M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Phục vụ static files trực tiếp để tối ưu hiệu năng
+    location /static {
+        alias /var/www/inventory-management/static;
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
+    }
+}
+```
+
+Kích hoạt cấu hình:
+
+```bash
+# Link file cấu hình
+sudo ln -s /etc/nginx/sites-available/inventory /etc/nginx/sites-enabled/
+
+# Xóa cấu hình default (nếu có)
+sudo rm /etc/nginx/sites-enabled/default
+
+# Kiểm tra cú pháp và restart Nginx
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
 ## Monitoring và Maintenance
 
 ### 1. Kiểm tra kết nối Database
