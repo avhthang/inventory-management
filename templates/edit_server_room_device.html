@@ -27,33 +27,38 @@
                 <label class="form-label">Trạng thái sử dụng</label>
                 <select name="usage_status" class="form-select">
                     {% set usage = info.usage_status if info else 'Đang hoạt động' %}
-                    <option value="Đang hoạt động" {% if usage == 'Đang hoạt động' %}selected{% endif %}>Đang hoạt động</option>
-                    <option value="Dừng" {% if usage == 'Dừng' %}selected{% endif %}>Dừng</option>
+                    <option value="Đang hoạt động" {% if usage=='Đang hoạt động' %}selected{% endif %}>Đang hoạt động
+                    </option>
+                    <option value="Dừng" {% if usage=='Dừng' %}selected{% endif %}>Dừng</option>
                 </select>
             </div>
             <div class="col-md-5">
-                <label class="form-label">Người quản lý</label>
+                <label class="form-label">Trưởng phòng</label>
                 <select name="manager_id" class="form-select">
                     <option value="">-- Chưa gán --</option>
                     {% for u in users %}
-                    <option value="{{ u.id }}" {% if device.manager_id == u.id %}selected{% endif %}>{{ u.full_name or u.username }}</option>
+                    <option value="{{ u.id }}" {% if device.manager_id==u.id %}selected{% endif %}>{{ u.full_name or
+                        u.username }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Địa chỉ IP</label>
-                <input name="ip_address" class="form-control" value="{{ info.ip_address if info else '' }}" placeholder="VD: 10.10.10.10">
+                <input name="ip_address" class="form-control" value="{{ info.ip_address if info else '' }}"
+                    placeholder="VD: 10.10.10.10">
             </div>
             <div class="col-md-6">
                 <label class="form-label">Chạy dịch vụ</label>
-                <input name="services_running" class="form-control" value="{{ info.services_running if info else '' }}" placeholder="VD: Web, DB, LDAP...">
+                <input name="services_running" class="form-control" value="{{ info.services_running if info else '' }}"
+                    placeholder="VD: Web, DB, LDAP...">
             </div>
             <div class="col-md-6">
                 <label class="form-label">Phòng ban quản lý</label>
                 <select name="department" class="form-select">
                     <option value="">-- Chọn phòng ban --</option>
                     {% for dept in departments %}
-                    <option value="{{ dept }}" {% if info and info.department == dept %}selected{% endif %}>{{ dept }}</option>
+                    <option value="{{ dept }}" {% if info and info.department==dept %}selected{% endif %}>{{ dept }}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
@@ -70,5 +75,5 @@
             </div>
         </form>
     </div>
- </div>
+</div>
 {% endblock %}

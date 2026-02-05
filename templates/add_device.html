@@ -11,11 +11,13 @@
                 <div class="col-md-6">
                     <div class="form-group mb-3">
                         <label class="form-label required">Mã thiết bị</label>
-                        <input type="text" name="device_code" class="form-control" placeholder="Để trống để tự động tạo mã">
+                        <input type="text" name="device_code" class="form-control"
+                            placeholder="Để trống để tự động tạo mã">
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label required">Tên thiết bị</label>
-                        <input type="text" name="name" class="form-control" placeholder="VD: Laptop Dell Vostro 3550" required>
+                        <input type="text" name="name" class="form-control" placeholder="VD: Laptop Dell Vostro 3550"
+                            required>
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label required">Loại thiết bị</label>
@@ -41,7 +43,7 @@
                         <label class="form-label">Số serial</label>
                         <input type="text" name="serial_number" class="form-control">
                     </div>
-                     <div class="form-group mb-3">
+                    <div class="form-group mb-3">
                         <label class="form-label">Thương hiệu</label>
                         <input type="text" name="brand" class="form-control" placeholder="VD: Dell, HP, Apple">
                     </div>
@@ -53,19 +55,21 @@
                         <label class="form-label">Bảo hành</label>
                         <input type="text" name="warranty" class="form-control" placeholder="VD: 12 tháng">
                     </div>
-                     <div class="form-group mb-3">
+                    <div class="form-group mb-3">
                         <label class="form-label">Cấu hình chi tiết</label>
-                        <textarea name="configuration" class="form-control" rows="2" placeholder="VD: CPU i5, RAM 8GB, SSD 256GB"></textarea>
+                        <textarea name="configuration" class="form-control" rows="2"
+                            placeholder="VD: CPU i5, RAM 8GB, SSD 256GB"></textarea>
                     </div>
                 </div>
                 <div class="col-md-6">
-                     <div class="form-group mb-3">
+                    <div class="form-group mb-3">
                         <label class="form-label required">Ngày mua</label>
                         <input type="date" name="purchase_date" class="form-control" required>
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label">Giá mua (VND)</label>
-                        <input type="number" step="1000" name="purchase_price" class="form-control" placeholder="Chỉ nhập số, VD: 15000000">
+                        <input type="number" step="1000" name="purchase_price" class="form-control"
+                            placeholder="Chỉ nhập số, VD: 15000000">
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label">Người mua</label>
@@ -83,14 +87,18 @@
                     <div class="form-group mb-3">
                         <label class="form-label required">Tình trạng ban đầu</label>
                         <select name="condition" class="form-control" required>
-                            <option value="Mới">Mới</option><option value="Sử dụng bình thường" selected>Sử dụng bình thường</option><option value="Cần bảo trì">Cần bảo trì</option><option value="Hỏng">Hỏng</option>
+                            <option value="Mới">Mới</option>
+                            <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
+                            <option value="Cần bảo trì">Cần bảo trì</option>
+                            <option value="Hỏng">Hỏng</option>
                         </select>
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label">Người quản lý ban đầu</label>
+                        <label class="form-label">Trưởng phòng ban đầu</label>
                         <select name="manager_id" class="form-control">
                             <option value="">-- Chọn --</option>
-                            {% for manager in managers %}<option value="{{ manager.id }}">{{ manager.full_name }}</option>{% endfor %}
+                            {% for manager in managers %}<option value="{{ manager.id }}">{{ manager.full_name }}
+                            </option>{% endfor %}
                         </select>
                     </div>
                     <div class="form-group mb-3">

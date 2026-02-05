@@ -1702,13 +1702,17 @@ def department_users(id):
         
     department = Department.query.get_or_404(id)
     available_users = User.query.filter(
-        User.status == 'Đang làm',
+        User.status.in_(['Đang làm', 'Thực tập']),
         User.department_id.is_(None)
     ).all()
     
+    # Filter users currently in the department
+    department_users = [u for u in department.users if u.status in ['Đang làm', 'Thực tập']]
+    
     return render_template('departments/users.html',
                          department=department,
-                         available_users=available_users)
+                         available_users=available_users,
+                         department_users=department_users)
 
 @app.route('/departments/<int:id>/users/add', methods=['POST'])
 def add_department_user(id):

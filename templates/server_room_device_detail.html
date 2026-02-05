@@ -13,16 +13,37 @@
       </div>
     </div>
     <div class="row g-3">
-      <div class="col-md-4"><strong>Mã thiết bị</strong><div>{{ device.device_code }}</div></div>
-      <div class="col-md-4"><strong>Tên thiết bị</strong><div>{{ device.name }}</div></div>
-      <div class="col-md-4"><strong>Loại</strong><div>{{ device.device_type }}</div></div>
-      <div class="col-md-4"><strong>Trạng thái sử dụng</strong><div>{{ info.usage_status if info else '' }}</div></div>
-      <div class="col-md-4"><strong>Người quản lý</strong><div>{{ device.manager.full_name if device.manager else '' }}</div></div>
-      <div class="col-md-4"><strong>Ngày nhập</strong><div>{{ device.import_date }}</div></div>
-      <div class="col-md-4"><strong>IP</strong><div>{{ info.ip_address if info else '' }}</div></div>
-      <div class="col-md-8"><strong>Chạy dịch vụ</strong><div>{{ info.services_running if info else '' }}</div></div>
-      <div class="col-12"><strong>Cấu hình</strong><pre style="white-space: pre-wrap;">{{ device.configuration }}</pre></div>
-      <div class="col-12"><strong>Ghi chú</strong><div>{{ device.notes }}</div></div>
+      <div class="col-md-4"><strong>Mã thiết bị</strong>
+        <div>{{ device.device_code }}</div>
+      </div>
+      <div class="col-md-4"><strong>Tên thiết bị</strong>
+        <div>{{ device.name }}</div>
+      </div>
+      <div class="col-md-4"><strong>Loại</strong>
+        <div>{{ device.device_type }}</div>
+      </div>
+      <div class="col-md-4"><strong>Trạng thái sử dụng</strong>
+        <div>{{ info.usage_status if info else '' }}</div>
+      </div>
+      <div class="col-md-4">
+        <p><strong>Trưởng phòng:</strong> {{ device.manager.full_name or device.manager.username if device.manager else
+          'Chưa gán' }}</p>
+      </div>
+      <div class="col-md-4"><strong>Ngày nhập</strong>
+        <div>{{ device.import_date }}</div>
+      </div>
+      <div class="col-md-4"><strong>IP</strong>
+        <div>{{ info.ip_address if info else '' }}</div>
+      </div>
+      <div class="col-md-8"><strong>Chạy dịch vụ</strong>
+        <div>{{ info.services_running if info else '' }}</div>
+      </div>
+      <div class="col-12"><strong>Cấu hình</strong>
+        <pre style="white-space: pre-wrap;">{{ device.configuration }}</pre>
+      </div>
+      <div class="col-12"><strong>Ghi chú</strong>
+        <div>{{ device.notes }}</div>
+      </div>
     </div>
   </div>
 </div>

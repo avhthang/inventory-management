@@ -57,7 +57,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Người quản lý</label>
+                    <label class="form-label">Trưởng phòng</label>
                     <select id="manager_filter_select" name="filter_manager_id" class="form-select">
                         <option value="">-- Tất cả --</option>
                         {% for user in users %}
@@ -128,7 +128,7 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Đổi người quản lý</label>
+                        <label class="form-label">Đổi trưởng phòng</label>
                         <select name="new_manager_id" class="form-select" id="bulk_manager_select">
                             <option value="">-- Không đổi --</option>
                             {% for user in users %}
@@ -168,7 +168,7 @@
                                     {% endfor %}
                                 </ul>
                             </th>
-                            <th>Người quản lý</th>
+                            <th>Trưởng phòng</th>
                             <th class="text-center" style="white-space: nowrap;">
                                 <strong>Trạng thái</strong>
                                 <button type="button"

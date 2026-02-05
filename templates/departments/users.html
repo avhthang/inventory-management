@@ -35,16 +35,22 @@
                                     <td>{{ user.full_name or '-' }}</td>
                                     <td>{{ user.username }}</td>
                                     <td>
-                                        {% if user.status == 'Đang làm' %}<span class="badge bg-success">{{ user.status }}</span>
-                                        {% elif user.status == 'Thử việc' %}<span class="badge bg-info">{{ user.status }}</span>
-                                        {% elif user.status == 'Đã nghỉ' %}<span class="badge bg-secondary">{{ user.status }}</span>
+                                        {% if user.status == 'Đang làm' %}<span class="badge bg-success">{{ user.status
+                                            }}</span>
+                                        {% elif user.status == 'Thử việc' %}<span class="badge bg-info">{{ user.status
+                                            }}</span>
+                                        {% elif user.status == 'Đã nghỉ' %}<span class="badge bg-secondary">{{
+                                            user.status }}</span>
                                         {% else %}<span class="badge bg-warning text-dark">{{ user.status }}</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-end">
-                                        <form method="POST" action="{{ url_for('add_department_user', id=department.id) }}" class="d-inline">
+                                        <form method="POST"
+                                            action="{{ url_for('add_department_user', id=department.id) }}"
+                                            class="d-inline">
                                             <input type="hidden" name="user_id" value="{{ user.id }}">
-                                            <button type="submit" class="btn btn-sm btn-primary" title="Thêm vào phòng ban">
+                                            <button type="submit" class="btn btn-sm btn-primary"
+                                                title="Thêm vào phòng ban">
                                                 <i class="bi bi-person-plus"></i>
                                             </button>
                                         </form>
@@ -66,7 +72,7 @@
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Danh sách người dùng trong phòng ban</strong>
-                    <span class="badge bg-secondary">{{ department.users|length }}</span>
+                    <span class="badge bg-secondary">{{ department_users|length }}</span>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -81,21 +87,27 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for user in department.users %}
+                                {% for user in department_users %}
                                 <tr>
                                     <td>{{ user.full_name }}</td>
                                     <td>{{ user.username }}</td>
                                     <td>{{ user.position or '-' }}</td>
                                     <td>
-                                        {% if user.status == 'Đang làm' %}<span class="badge bg-success">{{ user.status }}</span>
-                                        {% elif user.status == 'Thử việc' %}<span class="badge bg-info">{{ user.status }}</span>
-                                        {% elif user.status == 'Đã nghỉ' %}<span class="badge bg-secondary">{{ user.status }}</span>
+                                        {% if user.status == 'Đang làm' %}<span class="badge bg-success">{{ user.status
+                                            }}</span>
+                                        {% elif user.status == 'Thử việc' %}<span class="badge bg-info">{{ user.status
+                                            }}</span>
+                                        {% elif user.status == 'Đã nghỉ' %}<span class="badge bg-secondary">{{
+                                            user.status }}</span>
                                         {% else %}<span class="badge bg-warning text-dark">{{ user.status }}</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-end">
-                                        <form method="POST" action="{{ url_for('remove_department_user', dept_id=department.id, user_id=user.id) }}" onsubmit="return confirm('Xóa người dùng này khỏi phòng ban?')">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Gỡ khỏi phòng ban">
+                                        <form method="POST"
+                                            action="{{ url_for('remove_department_user', dept_id=department.id, user_id=user.id) }}"
+                                            onsubmit="return confirm('Xóa người dùng này khỏi phòng ban?')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                title="Gỡ khỏi phòng ban">
                                                 <i class="bi bi-person-dash"></i>
                                             </button>
                                         </form>
@@ -103,7 +115,8 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="5" class="text-muted text-center">Chưa có người dùng trong phòng ban</td>
+                                    <td colspan="5" class="text-muted text-center">Chưa có người dùng trong phòng ban
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -115,5 +128,3 @@
     </div>
 </div>
 {% endblock %}
-
-
