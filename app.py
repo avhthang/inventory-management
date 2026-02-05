@@ -694,7 +694,6 @@ class DeviceMaintenanceLog(db.Model):
     status = db.Column(db.String(100))  # Trạng thái xử lý
     last_action = db.Column(db.Text)    # Xử lý cuối
     notes = db.Column(db.Text)          # Ghi chú
-    notes = db.Column(db.Text)          # Ghi chú
     reported_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -1158,8 +1157,17 @@ def ensure_tables_once():
                     # Migration 4: ConfigProposal quantity and MaintenanceLog reported_by
                     info7 = conn.execute(text("PRAGMA table_info('config_proposal')")).fetchall()
                     cols7 = {row[1] for row in info7}
-                    if info7 and 'quantity' not in cols7:
-                        alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN quantity INTEGER DEFAULT 1")
+                    if info7:
+                        if 'quantity' not in cols7:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN quantity INTEGER DEFAULT 1")
+                        if 'vat_percent' not in cols7:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN vat_percent FLOAT DEFAULT 10.0")
+                        if 'vat_amount' not in cols7:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN vat_amount FLOAT DEFAULT 0.0")
+                        if 'subtotal' not in cols7:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN subtotal FLOAT DEFAULT 0.0")
+                        if 'total_amount' not in cols7:
+                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN total_amount FLOAT DEFAULT 0.0")
                     
                     info8 = conn.execute(text("PRAGMA table_info('device_maintenance_log')")).fetchall()
                     cols8 = {row[1] for row in info8}
@@ -5276,9 +5284,6 @@ def add_config_proposal():
                 scope=scope,
                 vat_percent=vat_percent,
                 currency=currency,
-                status=status,
-                purchase_status=purchase_status,
-                notes=notes,
                 status=status,
                 purchase_status=purchase_status,
                 notes=notes,
