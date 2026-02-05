@@ -4573,6 +4573,7 @@ def bug_reports():
     date_to = request.args.get('date_to', '').strip() or saved_filters.get('date_to', '')
     creator_filter = request.args.get('creator', '').strip() or saved_filters.get('creator', '')
     assignee_filter = request.args.get('assignee', '').strip() or saved_filters.get('assignee', '')
+    device_code_filter = request.args.get('device_code', '').strip() or saved_filters.get('device_code', '')
     
     # Người dùng thường chỉ thấy báo lỗi công khai, báo lỗi mình tạo, hoặc được gán
     # Admin và người có quyền xem tất cả thì thấy tất cả
@@ -4655,6 +4656,10 @@ def bug_reports():
                 q = q.filter(BugReport.assigned_to == assignee_id)
         except ValueError:
             pass
+            
+    # Filter by device_code
+    if device_code_filter:
+        q = q.filter(BugReport.device_code.ilike(f'%{device_code_filter}%'))
     
     reports = q.order_by(BugReport.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
@@ -4663,6 +4668,22 @@ def bug_reports():
     
     # Get list of users who are assigned reports
     assignees = db.session.query(User).join(BugReport, User.id == BugReport.assigned_to).distinct().order_by(User.full_name, User.username).all()
+
+    # Get list of distinct device codes in reports (simple parsing or just rough list)
+    # Since device_code is text and can be comma separated, getting distinct values is tricky. 
+    # For simplicity, we fetch all non-empty device_code strings and split them python-side or just show distinct raw values.
+    # A better approach given the comma separation: display distinct raw strings or improve this later.
+    # Let's try to extract unique codes if possible, but for MVP standard distinct on the column is safest if single codes.
+    # If they are comma separated "Code1, Code2", they will appear as such in the filter list.
+    # Users can search via the filter text input if we change it to text later, but for now dropdown.
+    # We will get all texts and split them in python to list unique codes.
+    all_report_codes = db.session.query(BugReport.device_code).filter(BugReport.device_code != None, BugReport.device_code != '').all()
+    unique_device_codes = set()
+    for r in all_report_codes:
+        if r.device_code:
+            for c in r.device_code.split(','):
+                unique_device_codes.add(c.strip())
+    sorted_device_codes = sorted(list(unique_device_codes))
 
     return render_template('bug_reports/list.html', 
                          reports=reports, 
@@ -4674,8 +4695,10 @@ def bug_reports():
                          date_to=date_to,
                          creator_filter=creator_filter,
                          assignee_filter=assignee_filter,
+                         device_code_filter=device_code_filter,
                          creators=creators,
                          assignees=assignees,
+                         device_codes=sorted_device_codes,
                          current_user_id=user_id, 
                          current_permissions=current_permissions,
                          can_manage_bug_reports=can_manage_bug_reports)
@@ -4690,6 +4713,7 @@ def save_bug_report_filters():
         'date_to': request.form.get('date_to', '').strip(),
         'creator': request.form.get('creator', '').strip(),
         'assignee': request.form.get('assignee', '').strip(),
+        'device_code': request.form.get('device_code', '').strip(),
         'status': request.form.get('status', '').strip(),
         'priority': request.form.get('priority', '').strip(),
         'error_type': request.form.get('error_type', '').strip(),

@@ -85,6 +85,7 @@
   <input type="hidden" name="status" value="{{ status_filter }}">
   <input type="hidden" name="priority" value="{{ priority_filter }}">
   <input type="hidden" name="error_type" value="{{ error_type_filter }}">
+  <input type="hidden" name="device_code" value="{{ device_code_filter }}">
 </form>
 <script>
   function saveBugReportFilters() {
@@ -99,6 +100,11 @@
     const errorTypeSelect = document.querySelector('select[name="error_type"]');
     if (errorTypeSelect) {
       form.querySelector('[name="error_type"]').value = errorTypeSelect.value || '';
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const deviceCodeInput = form.querySelector('[name="device_code"]');
+    if (deviceCodeInput) {
+      deviceCodeInput.value = urlParams.get('device_code') || '';
     }
     form.submit();
   }
@@ -131,11 +137,26 @@
       <tr>
         <th class="text-center" style="white-space: nowrap;">#</th>
         <th class="text-center" style="white-space: nowrap;"><strong>Tiêu đề</strong></th>
-        <th class="text-center" style="white-space: nowrap;"><strong>Mã thiết bị</strong></th>
+        <th class="text-center" style="white-space: nowrap;">
+          <strong>Mã thiết bị</strong>
+          <button type="button"
+            class="btn btn-sm {% if device_code_filter %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+            data-bs-toggle="dropdown" title="Lọc mã thiết bị">
+            <i class="bi bi-funnel"></i>
+          </button>
+          <ul class="dropdown-menu" style="max-height: 300px; overflow-y: auto;">
+            <li><a class="dropdown-item" href="javascript:filterByParam('device_code', '')">Tất cả</a></li>
+            {% for code in device_codes %}
+            <li><a class="dropdown-item" href="javascript:filterByParam('device_code', '{{ code }}')">{{ code }}</a>
+            </li>
+            {% endfor %}
+          </ul>
+        </th>
         <th class="text-center" style="white-space: nowrap;">
           <strong>Người báo lỗi</strong>
-          <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-bs-toggle="dropdown"
-            title="Lọc người báo lỗi">
+          <button type="button"
+            class="btn btn-sm {% if creator_filter %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+            data-bs-toggle="dropdown" title="Lọc người báo lỗi">
             <i class="bi bi-funnel"></i>
           </button>
           <ul class="dropdown-menu">
@@ -148,7 +169,9 @@
         </th>
         <th class="text-center" style="white-space: nowrap;">
           <strong>Người xử lý</strong>
-          <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-bs-toggle="dropdown" title="Lọc người xử lý">
+          <button type="button"
+            class="btn btn-sm {% if assignee_filter %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+            data-bs-toggle="dropdown" title="Lọc người xử lý">
             <i class="bi bi-funnel"></i>
           </button>
           <ul class="dropdown-menu">
@@ -162,7 +185,9 @@
         </th>
         <th class="text-center" style="white-space: nowrap;">
           <strong>Mức độ</strong>
-          <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-bs-toggle="dropdown" title="Lọc mức độ">
+          <button type="button"
+            class="btn btn-sm {% if priority_filter %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+            data-bs-toggle="dropdown" title="Lọc mức độ">
             <i class="bi bi-funnel"></i>
           </button>
           <ul class="dropdown-menu">
@@ -175,7 +200,9 @@
         </th>
         <th class="text-center" style="white-space: nowrap;">
           <strong>Trạng thái</strong>
-          <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-bs-toggle="dropdown" title="Lọc trạng thái">
+          <button type="button"
+            class="btn btn-sm {% if status_filter %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+            data-bs-toggle="dropdown" title="Lọc trạng thái">
             <i class="bi bi-funnel"></i>
           </button>
           <ul class="dropdown-menu">
