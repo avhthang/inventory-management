@@ -100,8 +100,8 @@
                             {% if current_permissions and 'users.edit' in current_permissions %}
                             <a href="{{ url_for('edit_user', user_id=user.id) }}"
                                 class="btn btn-sm btn-outline-warning ms-1" title="Sửa"><i class="bi bi-pencil"></i></a>
-                            <button type="button" class="btn btn-sm btn-outline-info ms-1" title="Reset mật khẩu"
-                                onclick="confirmResetPassword('{{ user.id }}', '{{ user.username }}')">
+                            <button type="button" class="btn btn-sm btn-outline-info ms-1 reset-password-btn"
+                                title="Reset mật khẩu" data-user-id="{{ user.id }}" data-username="{{ user.username }}">
                                 <i class="bi bi-key"></i>
                             </button>
                             {% endif %}
@@ -180,42 +180,75 @@
     });
 
 
+    // Reset Password Logic
     let selectedUserId = null;
     let selectedUserName = null;
-    const confirmModal = new bootstrap.Modal(document.getElementById('confirmResetModal'));
-    const successModal = new bootstrap.Modal(document.getElementById('resetSuccessModal'));
+    let confirmModal = null;
+    let successModal = null;
 
-    function confirmResetPassword(userId, userName) {
-        selectedUserId = userId;
-        selectedUserName = userName;
-        confirmModal.show();
-    }
+    // Initialize modals and event listeners after DOM is loaded
+    document.addEventListener('DOMContentLoaded', function () {
+        const confirmModalEl = document.getElementById('confirmResetModal');
+        const successModalEl = document.getElementById('resetSuccessModal');
 
-    document.getElementById('confirmResetBtn').addEventListener('click', function () {
-        confirmModal.hide();
-        if (!selectedUserId) return;
+        if (confirmModalEl && typeof bootstrap !== 'undefined') {
+            confirmModal = new bootstrap.Modal(confirmModalEl);
+        }
+        if (successModalEl && typeof bootstrap !== 'undefined') {
+            successModal = new bootstrap.Modal(successModalEl);
+        }
 
-        fetch(`/users/${selectedUserId}/reset_password`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('resetSuccessUser').textContent = selectedUserName;
-                    document.getElementById('resetSuccessPass').textContent = data.new_password;
-                    successModal.show();
+        // Event delegation for reset buttons
+        document.body.addEventListener('click', function (e) {
+            const btn = e.target.closest('.reset-password-btn');
+            if (btn) {
+                selectedUserId = btn.dataset.userId;
+                selectedUserName = btn.dataset.username;
+                if (confirmModal) {
+                    confirmModal.show();
                 } else {
-                    alert('Lỗi: ' + data.message);
+                    alert('Lỗi: Không thể khởi tạo Modal (thư viện Bootstrap chưa tải xong?)');
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Có lỗi xảy ra khi reset mật khẩu.');
+            }
+        });
+
+        // Confirm button handler
+        const confirmBtn = document.getElementById('confirmResetBtn');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', function () {
+                if (confirmModal) confirmModal.hide();
+                if (!selectedUserId) return;
+
+                fetch(`/users/${selectedUserId}/reset_password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            const userSpan = document.getElementById('resetSuccessUser');
+                            const passH3 = document.getElementById('resetSuccessPass');
+                            if (userSpan) userSpan.textContent = selectedUserName;
+                            if (passH3) passH3.textContent = data.new_password;
+                            if (successModal) successModal.show();
+                        } else {
+                            alert('Lỗi: ' + (data.message || 'Không xác định'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Có lỗi xảy ra khi reset mật khẩu: ' + error.message);
+                    });
             });
+        }
     });
 </script>
 {% endblock %}
