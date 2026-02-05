@@ -59,8 +59,8 @@
             </td>
             <td>{{ it.warranty }}</td>
             <td class="text-end">{{ it.quantity }}</td>
-            <td class="text-end">{{ '%.0f'|format(it.unit_price or 0) }}</td>
-            <td class="text-end">{{ '%.0f'|format(it.line_total or 0) }}</td>
+            <td class="text-end">{{ (it.unit_price or 0)|vnd }}</td>
+            <td class="text-end">{{ (it.line_total or 0)|vnd }}</td>
           </tr>
           {% else %}
           <tr>
