@@ -21,17 +21,19 @@
       <option value="custom" {% if date_filter=='custom' %}selected{% endif %}>Khoảng thời gian</option>
     </select>
   </div>
-  <div class="col-auto" id="date_range_group" style="display: {% if date_filter=='custom' %}block{% else %}none{% endif %};">
+  <div class="col-auto" id="date_range_group"
+    style="display: {% if date_filter=='custom' %}block{% else %}none{% endif %};">
     <input type="date" class="form-select" name="date_from" value="{{ date_from }}" placeholder="Từ ngày">
   </div>
-  <div class="col-auto" id="date_to_group" style="display: {% if date_filter=='custom' %}block{% else %}none{% endif %};">
+  <div class="col-auto" id="date_to_group"
+    style="display: {% if date_filter=='custom' %}block{% else %}none{% endif %};">
     <input type="date" class="form-select" name="date_to" value="{{ date_to }}" placeholder="Đến ngày">
   </div>
   <div class="col-auto">
     <select class="form-select" name="creator">
       <option value="">Tất cả người báo lỗi</option>
       {% for creator in creators %}
-      <option value="{{ creator.id }}" {% if creator_filter|string == creator.id|string %}selected{% endif %}>
+      <option value="{{ creator.id }}" {% if creator_filter|string==creator.id|string %}selected{% endif %}>
         {{ creator.full_name or creator.username }}
       </option>
       {% endfor %}
@@ -85,42 +87,42 @@
   <input type="hidden" name="error_type" value="{{ error_type_filter }}">
 </form>
 <script>
-function saveBugReportFilters() {
-  const form = document.getElementById('saveBugReportFiltersForm');
-  if (!form) return;
-  form.querySelector('[name="date_filter"]').value = document.querySelector('[name="date_filter"]').value || '';
-  form.querySelector('[name="date_from"]').value = document.querySelector('[name="date_from"]').value || '';
-  form.querySelector('[name="date_to"]').value = document.querySelector('[name="date_to"]').value || '';
-  form.querySelector('[name="creator"]').value = document.querySelector('[name="creator"]').value || '';
-  form.querySelector('[name="status"]').value = document.querySelector('[name="status"]').value || '';
-  form.querySelector('[name="priority"]').value = document.querySelector('[name="priority"]').value || '';
-  const errorTypeSelect = document.querySelector('select[name="error_type"]');
-  if (errorTypeSelect) {
-    form.querySelector('[name="error_type"]').value = errorTypeSelect.value || '';
+  function saveBugReportFilters() {
+    const form = document.getElementById('saveBugReportFiltersForm');
+    if (!form) return;
+    form.querySelector('[name="date_filter"]').value = document.querySelector('[name="date_filter"]').value || '';
+    form.querySelector('[name="date_from"]').value = document.querySelector('[name="date_from"]').value || '';
+    form.querySelector('[name="date_to"]').value = document.querySelector('[name="date_to"]').value || '';
+    form.querySelector('[name="creator"]').value = document.querySelector('[name="creator"]').value || '';
+    form.querySelector('[name="status"]').value = document.querySelector('[name="status"]').value || '';
+    form.querySelector('[name="priority"]').value = document.querySelector('[name="priority"]').value || '';
+    const errorTypeSelect = document.querySelector('select[name="error_type"]');
+    if (errorTypeSelect) {
+      form.querySelector('[name="error_type"]').value = errorTypeSelect.value || '';
+    }
+    form.submit();
   }
-  form.submit();
-}
 </script>
 <script>
-document.getElementById('date_filter').addEventListener('change', function() {
-  const isCustom = this.value === 'custom';
-  document.getElementById('date_range_group').style.display = isCustom ? 'block' : 'none';
-  document.getElementById('date_to_group').style.display = isCustom ? 'block' : 'none';
-});
+  document.getElementById('date_filter').addEventListener('change', function () {
+    const isCustom = this.value === 'custom';
+    document.getElementById('date_range_group').style.display = isCustom ? 'block' : 'none';
+    document.getElementById('date_to_group').style.display = isCustom ? 'block' : 'none';
+  });
 
-// Validate date range
-document.querySelector('form').addEventListener('submit', function(e) {
-  const dateFilter = document.getElementById('date_filter').value;
-  if (dateFilter === 'custom') {
-    const dateFrom = document.querySelector('input[name="date_from"]').value;
-    const dateTo = document.querySelector('input[name="date_to"]').value;
-    if (dateFrom && dateTo && new Date(dateFrom) > new Date(dateTo)) {
-      e.preventDefault();
-      alert('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc!');
-      return false;
+  // Validate date range
+  document.querySelector('form').addEventListener('submit', function (e) {
+    const dateFilter = document.getElementById('date_filter').value;
+    if (dateFilter === 'custom') {
+      const dateFrom = document.querySelector('input[name="date_from"]').value;
+      const dateTo = document.querySelector('input[name="date_to"]').value;
+      if (dateFrom && dateTo && new Date(dateFrom) > new Date(dateTo)) {
+        e.preventDefault();
+        alert('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc!');
+        return false;
+      }
     }
-  }
-});
+  });
 </script>
 
 <div class="table-responsive">
@@ -130,7 +132,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
         <th class="text-center" style="white-space: nowrap;">#</th>
         <th class="text-center" style="white-space: nowrap;"><strong>Tiêu đề</strong></th>
         <th class="text-center" style="white-space: nowrap;"><strong>Mã thiết bị</strong></th>
-        <th class="text-center" style="white-space: nowrap;"><strong>Người tạo</strong></th>
+        <th class="text-center" style="white-space: nowrap;"><strong>Người báo lỗi</strong></th>
         <th class="text-center" style="white-space: nowrap;"><strong>Người xử lý</strong></th>
         <th class="text-center" style="white-space: nowrap;">
           <strong>Mức độ</strong>
@@ -166,15 +168,15 @@ document.querySelector('form').addEventListener('submit', function(e) {
             </span>
             <span class="d-flex align-items-center gap-1 flex-shrink-0">
               {% if report.visibility == 'public' %}
-                <i class="bi bi-globe text-muted" style="opacity: 0.5; font-size: 0.85em;" title="Công khai"></i>
+              <i class="bi bi-globe text-muted" style="opacity: 0.5; font-size: 0.85em;" title="Công khai"></i>
               {% else %}
-                <i class="bi bi-person text-muted" style="opacity: 0.5; font-size: 0.85em;" title="Cá nhân"></i>
+              <i class="bi bi-person text-muted" style="opacity: 0.5; font-size: 0.85em;" title="Cá nhân"></i>
               {% endif %}
               {% if report.attachments|length > 0 %}
-                <i class="bi bi-paperclip text-muted" title="Có tệp đính kèm"></i>
+              <i class="bi bi-paperclip text-muted" title="Có tệp đính kèm"></i>
               {% endif %}
               {% if report.reopen_requested %}
-                <span class="badge bg-warning text-dark">Yêu cầu mở lại</span>
+              <span class="badge bg-warning text-dark">Yêu cầu mở lại</span>
               {% endif %}
             </span>
           </div>
@@ -182,17 +184,19 @@ document.querySelector('form').addEventListener('submit', function(e) {
         <td style="white-space: nowrap;">
           {% set codes = report.device_code_list %}
           {% if codes %}
-            <div class="text-truncate" style="max-width: 200px;" title="{{ codes|join(', ') }}">
-              {% for code in codes %}
-                <span class="me-1">{{ code }}</span>{% if not loop.last %},{% endif %}
-              {% endfor %}
-            </div>
+          <div class="text-truncate" style="max-width: 200px;" title="{{ codes|join(', ') }}">
+            {% for code in codes %}
+            <span class="me-1">{{ code }}</span>{% if not loop.last %},{% endif %}
+            {% endfor %}
+          </div>
           {% else %}
-            <span class="text-muted">—</span>
+          <span class="text-muted">—</span>
           {% endif %}
         </td>
-        <td class="text-center" style="white-space: nowrap;">{{ report.creator.full_name or report.creator.username }}</td>
-        <td class="text-center" style="white-space: nowrap;">{{ report.assignee.full_name or report.assignee.username if report.assignee else '—' }}</td>
+        <td class="text-center" style="white-space: nowrap;">{{ report.creator.full_name or report.creator.username }}
+        </td>
+        <td class="text-center" style="white-space: nowrap;">{{ report.assignee.full_name or report.assignee.username if
+          report.assignee else '—' }}</td>
         <td class="text-center" style="white-space: nowrap;">
           {{ report.priority }}
         </td>
@@ -210,23 +214,22 @@ document.querySelector('form').addEventListener('submit', function(e) {
 
 {% from '_pagination.html' import render_pagination %}
 {{ render_pagination(reports, 'bug_reports', {
-  'status': status_filter,
-  'priority': priority_filter,
-  'date_filter': date_filter,
-  'date_from': date_from,
-  'date_to': date_to,
-  'creator': creator_filter
+'status': status_filter,
+'priority': priority_filter,
+'date_filter': date_filter,
+'date_from': date_from,
+'date_to': date_to,
+'creator': creator_filter
 }) }}
 <script>
-function filterByPriority(value) {
-  const url = new URL(window.location.href);
-  if (value) {
-    url.searchParams.set('priority', value);
-  } else {
-    url.searchParams.delete('priority');
+  function filterByPriority(value) {
+    const url = new URL(window.location.href);
+    if (value) {
+      url.searchParams.set('priority', value);
+    } else {
+      url.searchParams.delete('priority');
+    }
+    window.location.href = url.toString();
   }
-  window.location.href = url.toString();
-}
 </script>
 {% endblock %}
-

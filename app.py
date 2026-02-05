@@ -4695,27 +4695,8 @@ def create_bug_report():
     else:
         devices = Device.query.filter_by(manager_id=user_id).order_by(Device.device_code).all()
     
-    # Get list of users for "báo lỗi hộ" feature
-    # Users can report on behalf of people they manage devices for, or people in their department
-    user = User.query.get(user_id)
-    reportable_users = [user]  # Always include self
-    
-    # If user is a manager, include users in their department
-    if user and user.department_id:
-        dept = Department.query.get(user.department_id)
-        if dept and dept.manager_id == user_id:
-            # User is department manager, include all users in department
-            dept_users = User.query.filter_by(department_id=dept.id).all()
-            reportable_users.extend(dept_users)
-    
-    # Remove duplicates
-    seen_ids = set()
-    unique_users = []
-    for u in reportable_users:
-        if u.id not in seen_ids:
-            seen_ids.add(u.id)
-            unique_users.append(u)
-    reportable_users = sorted(unique_users, key=lambda x: (x.full_name or x.username or ''))
+    # Get list of users for "báo lỗi hộ" feature - Allow selecting any active user
+    reportable_users = User.query.filter(~User.status.in_(['Đã nghỉ', 'Nghỉ việc', 'Resigned', 'Retired'])).order_by(User.full_name, User.username).all()
  
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
