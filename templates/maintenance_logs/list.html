@@ -42,6 +42,7 @@
         <th>Tên thiết bị</th>
         <th>Người quản lý</th>
         <th>Ngày tháng</th>
+        <th>Người báo</th>
         <th>Tình trạng</th>
         <th>Vấn đề</th>
         <th>Trạng thái xử lý</th>
@@ -57,6 +58,7 @@
         <td>{{ item.device.name }}</td>
         <td>{{ item.device.manager.full_name or item.device.manager.username if item.device.manager else '-' }}</td>
         <td>{{ item.log_date.strftime('%d-%m-%Y') }}</td>
+        <td>{{ item.reporter.full_name or item.reporter.username if item.reporter else '-' }}</td>
         <td>{{ item.condition or '' }}</td>
         <td class="text-truncate" style="max-width: 220px">{{ item.issue or '' }}</td>
         <td>{{ item.status or '' }}</td>

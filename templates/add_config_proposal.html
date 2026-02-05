@@ -76,7 +76,8 @@
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h5 class="mb-0">Chi tiết thiết bị</h5>
-        <button type="button" id="btnAddRow" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Thêm dòng</button>
+        <button type="button" id="btnAddRow" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Thêm
+          dòng</button>
       </div>
       <div class="table-responsive">
         <table class="table table-bordered align-middle" id="itemsTable">
@@ -93,12 +94,20 @@
             </tr>
           </thead>
           <tbody>
-          <!-- Dòng sẽ được sinh động qua JS, mặc định 8 dòng -->
+            <!-- Dòng sẽ được sinh động qua JS, mặc định 8 dòng -->
           </tbody>
           <tfoot>
             <tr>
               <td colspan="6" class="text-end fw-semibold">Tổng tạm tính</td>
               <td class="text-end"><span id="subtotal">0</span></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td colspan="6" class="text-end fw-semibold">Số lượng (Bộ)</td>
+              <td class="text-end">
+                <input type="number" class="form-control form-control-sm text-end" name="quantity" id="quantity"
+                  value="1" min="1" required>
+              </td>
               <td></td>
             </tr>
             <tr>
@@ -125,44 +134,49 @@
 
 {% block scripts %}
 <script>
-(function() {
-  const tbody = document.querySelector('#itemsTable tbody');
-  const rowsCountInput = document.getElementById('rows_count');
-  const subtotalEl = document.getElementById('subtotal');
-  const vatPercentEl = document.getElementById('vat_percent');
-  const vatAmountEl = document.getElementById('vat_amount');
-  const totalAmountEl = document.getElementById('total_amount');
-  const addRowBtn = document.getElementById('btnAddRow');
+  (function () {
+    const tbody = document.querySelector('#itemsTable tbody');
+    const rowsCountInput = document.getElementById('rows_count');
+    const subtotalEl = document.getElementById('subtotal');
+    const quantityEl = document.getElementById('quantity');
+    const vatPercentEl = document.getElementById('vat_percent');
+    const vatAmountEl = document.getElementById('vat_amount');
+    const totalAmountEl = document.getElementById('total_amount');
+    const addRowBtn = document.getElementById('btnAddRow');
 
-  function fmt(n){
-    const x = Number.isFinite(n) ? n : 0;
-    return Math.round(x).toLocaleString('vi-VN');
-  }
-  function parseNum(v){
-    const n = parseFloat(String(v).replace(/,/g, ''));
-    return isNaN(n) ? 0 : n;
-  }
+    function fmt(n) {
+      const x = Number.isFinite(n) ? n : 0;
+      return Math.round(x).toLocaleString('vi-VN');
+    }
+    function parseNum(v) {
+      const n = parseFloat(String(v).replace(/,/g, ''));
+      return isNaN(n) ? 0 : n;
+    }
 
-  function recalc(){
-    let subtotal = 0;
-    tbody.querySelectorAll('tr').forEach(tr => {
-      const qty = parseNum(tr.querySelector('.qty').value);
-      const unit = parseNum(tr.querySelector('.unit').value);
-      const line = Math.max(0, qty) * Math.max(0, unit);
-      tr.querySelector('.line').textContent = fmt(line);
-      subtotal += line;
-    });
-    subtotalEl.textContent = fmt(subtotal);
-    const vatPercent = parseNum(vatPercentEl.value);
-    const vatAmount = Math.round(subtotal * (vatPercent / 100));
-    vatAmountEl.textContent = fmt(vatAmount);
-    totalAmountEl.textContent = fmt(subtotal + vatAmount);
-  }
+    function recalc() {
+      let subtotal = 0;
+      tbody.querySelectorAll('tr').forEach(tr => {
+        const qty = parseNum(tr.querySelector('.qty').value);
+        const unit = parseNum(tr.querySelector('.unit').value);
+        const line = Math.max(0, qty) * Math.max(0, unit);
+        tr.querySelector('.line').textContent = fmt(line);
+        subtotal += line;
+      });
+      subtotalEl.textContent = fmt(subtotal);
 
-  function newRow(idx){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="text-center">${idx+1}</td>
+      const quantity = parseNum(quantityEl.value) || 1;
+      const grandSubtotal = subtotal * quantity;
+
+      const vatPercent = parseNum(vatPercentEl.value);
+      const vatAmount = Math.round(grandSubtotal * (vatPercent / 100));
+      vatAmountEl.textContent = fmt(vatAmount);
+      totalAmountEl.textContent = fmt(grandSubtotal + vatAmount);
+    }
+
+    function newRow(idx) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+      <td class="text-center">${idx + 1}</td>
       <td><input name="rows[${idx}][product_name]" class="form-control"/></td>
       <td><input name="rows[${idx}][product_link]" class="form-control" placeholder="https://..."/></td>
       <td><input name="rows[${idx}][warranty]" class="form-control"/></td>
@@ -171,46 +185,46 @@
       <td class="text-end"><span class="line">0</span></td>
       <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-remove">×</button></td>
     `;
-    tbody.appendChild(tr);
-  }
+      tbody.appendChild(tr);
+    }
 
-  function bind(){
-    tbody.addEventListener('input', (e) => {
-      if (e.target.matches('.qty, .unit')) recalc();
-    });
-    tbody.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-remove')){
-        e.target.closest('tr').remove();
-        // re-index
-        const trs = [...tbody.querySelectorAll('tr')];
-        trs.forEach((tr, i) => {
-          tr.querySelector('td').textContent = i+1;
-          const inputs = tr.querySelectorAll('input');
-          inputs[0].name = `rows[${i}][product_name]`;
-          inputs[1].name = `rows[${i}][warranty]`;
-          inputs[2].name = `rows[${i}][supplier_info]`;
-          inputs[3].name = `rows[${i}][quantity]`;
-          inputs[4].name = `rows[${i}][unit_price]`;
-        });
-        rowsCountInput.value = trs.length;
-        recalc();
-      }
-    });
-    addRowBtn.addEventListener('click', () => {
-      const idx = tbody.querySelectorAll('tr').length;
-      newRow(idx);
-      rowsCountInput.value = idx + 1;
-    });
-    vatPercentEl.addEventListener('input', recalc);
-  }
+    function bind() {
+      tbody.addEventListener('input', (e) => {
+        if (e.target.matches('.qty, .unit')) recalc();
+      });
+      tbody.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-remove')) {
+          e.target.closest('tr').remove();
+          // re-index
+          const trs = [...tbody.querySelectorAll('tr')];
+          trs.forEach((tr, i) => {
+            tr.querySelector('td').textContent = i + 1;
+            const inputs = tr.querySelectorAll('input');
+            inputs[0].name = `rows[${i}][product_name]`;
+            inputs[1].name = `rows[${i}][warranty]`;
+            inputs[2].name = `rows[${i}][supplier_info]`;
+            inputs[3].name = `rows[${i}][quantity]`;
+            inputs[4].name = `rows[${i}][unit_price]`;
+          });
+          rowsCountInput.value = trs.length;
+          recalc();
+        }
+      });
+      addRowBtn.addEventListener('click', () => {
+        const idx = tbody.querySelectorAll('tr').length;
+        newRow(idx);
+        rowsCountInput.value = idx + 1;
+      });
+      vatPercentEl.addEventListener('input', recalc);
+      quantityEl.addEventListener('input', recalc);
+    }
 
-  function init(){
-    for (let i=0; i<8; i++) newRow(i);
-    bind();
-    recalc();
-  }
-  init();
-})();
+    function init() {
+      for (let i = 0; i < 8; i++) newRow(i);
+      bind();
+      recalc();
+    }
+    init();
+  })();
 </script>
 {% endblock %}
-

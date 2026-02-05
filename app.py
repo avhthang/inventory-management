@@ -694,7 +694,11 @@ class DeviceMaintenanceLog(db.Model):
     status = db.Column(db.String(100))  # Trạng thái xử lý
     last_action = db.Column(db.Text)    # Xử lý cuối
     notes = db.Column(db.Text)          # Ghi chú
+    notes = db.Column(db.Text)          # Ghi chú
+    reported_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    reporter = db.relationship('User', foreign_keys=[reported_by])
 
 class DeviceMaintenanceAttachment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -820,6 +824,7 @@ class ConfigProposal(db.Model):
     proposer_name = db.Column(db.String(120))
     proposer_unit = db.Column(db.String(120))
     scope = db.Column(db.String(50))  # Dùng chung | Cá nhân
+    quantity = db.Column(db.Integer, default=1)  # Số lượng bộ thiết bị
     currency = db.Column(db.String(10), default='VND')
     status = db.Column(db.String(30), default='Mới tạo')  # Mới tạo, Lưu nháp, Đang xin ý kiến, Đã xin ý kiến, Đang mua hàng, Hủy
     purchase_status = db.Column(db.String(30), default='Lấy báo giá')  # Lấy báo giá, Chờ thanh toán, Chờ giao hàng, Chờ xuất hóa đơn, Đã hoàn thành
@@ -1149,6 +1154,17 @@ def ensure_tables_once():
                     if info3:
                         if 'config_proposal_id' not in cols3:
                             alter_stmts.append("ALTER TABLE inventory_receipt ADD COLUMN config_proposal_id INTEGER")
+                    
+                    # Migration 4: ConfigProposal quantity and MaintenanceLog reported_by
+                    info7 = conn.execute(text("PRAGMA table_info('config_proposal')")).fetchall()
+                    cols7 = {row[1] for row in info7}
+                    if info7 and 'quantity' not in cols7:
+                        alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN quantity INTEGER DEFAULT 1")
+                    
+                    info8 = conn.execute(text("PRAGMA table_info('device_maintenance_log')")).fetchall()
+                    cols8 = {row[1] for row in info8}
+                    if info8 and 'reported_by' not in cols8:
+                        alter_stmts.append("ALTER TABLE device_maintenance_log ADD COLUMN reported_by INTEGER")
                     # Users last_name_token for sorting by given name
                     info4 = conn.execute(text("PRAGMA table_info('user')")).fetchall()
                     cols4 = {row[1] for row in info4}
@@ -4388,6 +4404,7 @@ def add_maintenance_log():
         status = request.form.get('status')
         last_action = request.form.get('last_action')
         notes = request.form.get('notes')
+        reported_by = request.form.get('reported_by', type=int)
 
         try:
             log_date = datetime.strptime(log_date_str, '%Y-%m-%d').date() if log_date_str else date.today()
@@ -4398,7 +4415,8 @@ def add_maintenance_log():
                 issue=issue,
                 status=status,
                 last_action=last_action,
-                notes=notes
+                notes=notes,
+                reported_by=reported_by
             )
             db.session.add(new_log)
             db.session.commit()
@@ -4408,7 +4426,8 @@ def add_maintenance_log():
             db.session.rollback()
             flash('Có lỗi xảy ra khi thêm nhật ký.', 'danger')
     devices = Device.query.order_by(Device.device_code).all()
-    return render_template('maintenance_logs/add.html', devices=devices)
+    users = User.query.filter(User.status.notin_(['Đã nghỉ', 'Nghỉ việc'])).order_by(User.full_name).all()
+    return render_template('maintenance_logs/add.html', devices=devices, users=users)
 
 @app.route('/maintenance_logs/<int:log_id>')
 def maintenance_log_detail(log_id):
@@ -5260,7 +5279,11 @@ def add_config_proposal():
                 status=status,
                 purchase_status=purchase_status,
                 notes=notes,
-                supplier_info=supplier_info_hdr
+                status=status,
+                purchase_status=purchase_status,
+                notes=notes,
+                supplier_info=supplier_info_hdr,
+                quantity=request.form.get('quantity', type=int) or 1
             )
             db.session.add(proposal)
             db.session.flush()
@@ -5292,8 +5315,10 @@ def add_config_proposal():
                 ))
 
             proposal.subtotal = subtotal
-            proposal.vat_amount = round(subtotal * (vat_percent / 100.0), 2)
-            proposal.total_amount = round(subtotal + proposal.vat_amount, 2)
+            # Calculate total based on quantity
+            grand_subtotal = subtotal * proposal.quantity
+            proposal.vat_amount = round(grand_subtotal * (vat_percent / 100.0), 2)
+            proposal.total_amount = round(grand_subtotal + proposal.vat_amount, 2)
             db.session.commit()
             flash('Tạo đề xuất cấu hình thiết bị thành công.', 'success')
             return redirect(url_for('config_proposals'))
@@ -5337,7 +5362,8 @@ def clone_config_proposal(proposal_id):
         subtotal=p.subtotal,
         vat_percent=p.vat_percent,
         vat_amount=p.vat_amount,
-        total_amount=p.total_amount
+        total_amount=p.total_amount,
+        quantity=p.quantity
     )
     db.session.add(new_p)
     db.session.flush()
@@ -5374,7 +5400,9 @@ def edit_config_proposal(proposal_id):
             p.purchase_status = request.form.get('purchase_status') or p.purchase_status
             p.notes = request.form.get('notes')
             p.supplier_info = request.form.get('supplier_info')
-            p.vat_percent = request.form.get('vat_percent', type=float) or p.vat_percent
+            p.vat_percent = request.form.get('vat_percent', type=float)
+            if p.vat_percent is None: p.vat_percent = 10.0
+            p.quantity = request.form.get('quantity', type=int) or 1
             linked_id = request.form.get('linked_receipt_id')
             try:
                 p.linked_receipt_id = int(linked_id) if linked_id else None
@@ -5413,8 +5441,9 @@ def edit_config_proposal(proposal_id):
                 ))
 
             p.subtotal = subtotal
-            p.vat_amount = round(subtotal * (p.vat_percent / 100.0), 2)
-            p.total_amount = round(subtotal + p.vat_amount, 2)
+            grand_subtotal = subtotal * p.quantity
+            p.vat_amount = round(grand_subtotal * (p.vat_percent / 100.0), 2)
+            p.total_amount = round(grand_subtotal + p.vat_amount, 2)
             db.session.commit()
             flash('Đã cập nhật đề xuất.', 'success')
             return redirect(url_for('config_proposal_detail', proposal_id=p.id))

@@ -65,6 +65,8 @@
       });
     }
     search.addEventListener('input', applyFilter);
+    applyFilter(); // Apply filter on load in case there's a pre-selected value
+
   });
 </script>
 {% endblock %}

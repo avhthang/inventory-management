@@ -22,14 +22,15 @@
       <div class="col-md-6">
         <strong>Phiếu nhập kho:</strong>
         {% if p.linked_receipt_id %}
-          <a href="{{ url_for('inventory_receipt_detail', receipt_id=p.linked_receipt_id) }}">#{{ p.linked_receipt_id }}</a>
+        <a href="{{ url_for('inventory_receipt_detail', receipt_id=p.linked_receipt_id) }}">#{{ p.linked_receipt_id
+          }}</a>
         {% else %}
-          Chưa gán
+        Chưa gán
         {% endif %}
       </div>
     </div>
   </div>
-  </div>
+</div>
 
 <div class="card">
   <div class="card-body">
@@ -51,9 +52,9 @@
             <td class="text-center">{{ it.order_no }}</td>
             <td>
               {% if it.product_link %}
-                <a href="{{ it.product_link }}" target="_blank">{{ it.product_name }}</a>
+              <a href="{{ it.product_link }}" target="_blank">{{ it.product_name }}</a>
               {% else %}
-                {{ it.product_name }}
+              {{ it.product_name }}
               {% endif %}
             </td>
             <td>{{ it.warranty }}</td>
@@ -62,13 +63,19 @@
             <td class="text-end">{{ '%.0f'|format(it.line_total or 0) }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="6" class="text-center text-muted">Không có dòng nào.</td></tr>
+          <tr>
+            <td colspan="6" class="text-center text-muted">Không có dòng nào.</td>
+          </tr>
           {% endfor %}
         </tbody>
         <tfoot>
           <tr>
             <td colspan="5" class="text-end fw-semibold">Tổng tạm tính</td>
             <td class="text-end">{{ (p.subtotal or 0)|vnd }}</td>
+          </tr>
+          <tr>
+            <td colspan="5" class="text-end fw-semibold">Số lượng (Bộ)</td>
+            <td class="text-end">{{ p.quantity }}</td>
           </tr>
           <tr>
             <td colspan="5" class="text-end fw-semibold">VAT ({{ '%.2f'|format(p.vat_percent) }}%)</td>
@@ -84,4 +91,3 @@
   </div>
 </div>
 {% endblock %}
-

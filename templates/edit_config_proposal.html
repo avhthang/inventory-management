@@ -11,7 +11,8 @@
     </div>
     <div class="col-md-3">
       <label class="form-label">Ngày đề xuất</label>
-      <input type="date" class="form-control" name="proposal_date" value="{{ p.proposal_date.strftime('%Y-%m-%d') }}" required>
+      <input type="date" class="form-control" name="proposal_date" value="{{ p.proposal_date.strftime('%Y-%m-%d') }}"
+        required>
     </div>
     <div class="col-md-3">
       <label class="form-label">Phạm vi</label>
@@ -48,7 +49,7 @@
       <label class="form-label">Trạng thái</label>
       <select class="form-select" name="status">
         {% for st in ['Mới tạo','Lưu nháp','Đang xin ý kiến','Đã xin ý kiến','Đang mua hàng','Đã hoàn thành','Hủy'] %}
-          <option value="{{ st }}" {% if p.status==st %}selected{% endif %}>{{ st }}</option>
+        <option value="{{ st }}" {% if p.status==st %}selected{% endif %}>{{ st }}</option>
         {% endfor %}
       </select>
     </div>
@@ -56,17 +57,19 @@
       <label class="form-label">Trạng thái mua hàng</label>
       <select class="form-select" name="purchase_status">
         {% for st in ['Lấy báo giá','Chờ thanh toán','Chờ giao hàng','Chờ xuất hóa đơn','Đã hoàn thành'] %}
-          <option value="{{ st }}" {% if p.purchase_status==st %}selected{% endif %}>{{ st }}</option>
+        <option value="{{ st }}" {% if p.purchase_status==st %}selected{% endif %}>{{ st }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="col-md-3">
       <label class="form-label">VAT (%)</label>
-      <input type="number" step="0.01" class="form-control" name="vat_percent" value="{{ '%.2f'|format(p.vat_percent or 10) }}">
+      <input type="number" step="0.01" class="form-control" name="vat_percent"
+        value="{{ '%.2f'|format(p.vat_percent or 10) }}">
     </div>
     <div class="col-md-3">
       <label class="form-label">Gán phiếu nhập kho</label>
-      <input type="number" min="1" class="form-control" name="linked_receipt_id" value="{{ p.linked_receipt_id or '' }}" placeholder="Nhập ID phiếu nhập kho">
+      <input type="number" min="1" class="form-control" name="linked_receipt_id" value="{{ p.linked_receipt_id or '' }}"
+        placeholder="Nhập ID phiếu nhập kho">
     </div>
   </div>
 
@@ -74,7 +77,8 @@
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h5 class="mb-0">Chi tiết thiết bị</h5>
-        <button type="button" id="btnAddRow" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Thêm dòng</button>
+        <button type="button" id="btnAddRow" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Thêm
+          dòng</button>
       </div>
       <div class="table-responsive">
         <table class="table table-bordered align-middle" id="itemsTable">
@@ -94,13 +98,18 @@
             {% for it in items %}
             <tr>
               <td class="text-center">{{ loop.index }}</td>
-              <td><input name="rows[{{ loop.index0 }}][product_name]" class="form-control" value="{{ it.product_name }}"/></td>
-              <td><input name="rows[{{ loop.index0 }}][product_link]" class="form-control" value="{{ it.product_link or '' }}" placeholder="https://..."/></td>
-              <td><input name="rows[{{ loop.index0 }}][warranty]" class="form-control" value="{{ it.warranty }}"/></td>
-              <td><input name="rows[{{ loop.index0 }}][quantity]" type="number" min="0" class="form-control qty" value="{{ it.quantity }}"/></td>
-              <td><input name="rows[{{ loop.index0 }}][unit_price]" type="number" min="0" step="0.01" class="form-control unit" value="{{ it.unit_price }}"/></td>
+              <td><input name="rows[{{ loop.index0 }}][product_name]" class="form-control"
+                  value="{{ it.product_name }}" /></td>
+              <td><input name="rows[{{ loop.index0 }}][product_link]" class="form-control"
+                  value="{{ it.product_link or '' }}" placeholder="https://..." /></td>
+              <td><input name="rows[{{ loop.index0 }}][warranty]" class="form-control" value="{{ it.warranty }}" /></td>
+              <td><input name="rows[{{ loop.index0 }}][quantity]" type="number" min="0" class="form-control qty"
+                  value="{{ it.quantity }}" /></td>
+              <td><input name="rows[{{ loop.index0 }}][unit_price]" type="number" min="0" step="0.01"
+                  class="form-control unit" value="{{ it.unit_price }}" /></td>
               <td class="text-end"><span class="line">0</span></td>
-              <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-remove">×</button></td>
+              <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-remove">×</button>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -108,6 +117,14 @@
             <tr>
               <td colspan="6" class="text-end fw-semibold">Tổng tạm tính</td>
               <td class="text-end"><span id="subtotal">0</span></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td colspan="6" class="text-end fw-semibold">Số lượng (Bộ)</td>
+              <td class="text-end">
+                <input type="number" class="form-control form-control-sm text-end" name="quantity" id="quantity"
+                  value="{{ p.quantity or 1 }}" min="1" required>
+              </td>
               <td></td>
             </tr>
             <tr>
@@ -134,44 +151,49 @@
 
 {% block scripts %}
 <script>
-(function() {
-  const tbody = document.querySelector('#itemsTable tbody');
-  const rowsCountInput = document.getElementById('rows_count');
-  const subtotalEl = document.getElementById('subtotal');
-  const vatPercentEl = document.querySelector('input[name="vat_percent"]');
-  const vatAmountEl = document.getElementById('vat_amount');
-  const totalAmountEl = document.getElementById('total_amount');
-  const addRowBtn = document.getElementById('btnAddRow');
+  (function () {
+    const tbody = document.querySelector('#itemsTable tbody');
+    const rowsCountInput = document.getElementById('rows_count');
+    const subtotalEl = document.getElementById('subtotal');
+    const quantityEl = document.getElementById('quantity');
+    const vatPercentEl = document.querySelector('input[name="vat_percent"]');
+    const vatAmountEl = document.getElementById('vat_amount');
+    const totalAmountEl = document.getElementById('total_amount');
+    const addRowBtn = document.getElementById('btnAddRow');
 
-  function fmt(n){
-    const x = Number.isFinite(n) ? n : 0;
-    return Math.round(x).toLocaleString('vi-VN');
-  }
-  function parseNum(v){
-    const n = parseFloat(String(v).replace(/,/g, ''));
-    return isNaN(n) ? 0 : n;
-  }
+    function fmt(n) {
+      const x = Number.isFinite(n) ? n : 0;
+      return Math.round(x).toLocaleString('vi-VN');
+    }
+    function parseNum(v) {
+      const n = parseFloat(String(v).replace(/,/g, ''));
+      return isNaN(n) ? 0 : n;
+    }
 
-  function recalc(){
-    let subtotal = 0;
-    tbody.querySelectorAll('tr').forEach(tr => {
-      const qty = parseNum(tr.querySelector('.qty').value);
-      const unit = parseNum(tr.querySelector('.unit').value);
-      const line = Math.max(0, qty) * Math.max(0, unit);
-      tr.querySelector('.line').textContent = fmt(line);
-      subtotal += line;
-    });
-    subtotalEl.textContent = fmt(subtotal);
-    const vatPercent = parseNum(vatPercentEl.value);
-    const vatAmount = Math.round(subtotal * (vatPercent / 100));
-    vatAmountEl.textContent = fmt(vatAmount);
-    totalAmountEl.textContent = fmt(subtotal + vatAmount);
-  }
+    function recalc() {
+      let subtotal = 0;
+      tbody.querySelectorAll('tr').forEach(tr => {
+        const qty = parseNum(tr.querySelector('.qty').value);
+        const unit = parseNum(tr.querySelector('.unit').value);
+        const line = Math.max(0, qty) * Math.max(0, unit);
+        tr.querySelector('.line').textContent = fmt(line);
+        subtotal += line;
+      });
+      subtotalEl.textContent = fmt(subtotal);
 
-  function newRow(idx){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="text-center">${idx+1}</td>
+      const quantity = parseNum(quantityEl.value) || 1;
+      const grandSubtotal = subtotal * quantity;
+
+      const vatPercent = parseNum(vatPercentEl.value);
+      const vatAmount = Math.round(grandSubtotal * (vatPercent / 100));
+      vatAmountEl.textContent = fmt(vatAmount);
+      totalAmountEl.textContent = fmt(grandSubtotal + vatAmount);
+    }
+
+    function newRow(idx) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+      <td class="text-center">${idx + 1}</td>
       <td><input name="rows[${idx}][product_name]" class="form-control"/></td>
       <td><input name="rows[${idx}][warranty]" class="form-control"/></td>
       <td><input name="rows[${idx}][supplier_info]" class="form-control"/></td>
@@ -180,44 +202,46 @@
       <td class="text-end"><span class="line">0</span></td>
       <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-remove">×</button></td>
     `;
-    tbody.appendChild(tr);
+      tbody.appendChild(tr);
+    }
+
+    function bind() {
+      tbody.addEventListener('input', (e) => {
+        if (e.target.matches('.qty, .unit')) recalc();
+      });
+      tbody.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-remove')) {
+          e.target.closest('tr').remove();
+          const trs = [...tbody.querySelectorAll('tr')];
+          trs.forEach((tr, i) => {
+            tr.querySelector('td').textContent = i + 1;
+            const inputs = tr.querySelectorAll('input');
+            inputs[0].name = `rows[${i}][product_name]`;
+            inputs[1].name = `rows[${i}][warranty]`;
+            inputs[2].name = `rows[${i}][supplier_info]`;
+            inputs[3].name = `rows[${i}][quantity]`;
+            inputs[4].name = `rows[${i}][unit_price]`;
+          });
+          rowsCountInput.value = trs.length;
+          recalc();
+        }
+      });
+      addRowBtn.addEventListener('click', () => {
+        const idx = tbody.querySelectorAll('tr').length;
+        newRow(idx);
+        rowsCountInput.value = idx + 1;
+      });
+    });
+    vatPercentEl.addEventListener('input', recalc);
+    quantityEl.addEventListener('input', recalc);
   }
 
-  function bind(){
-    tbody.addEventListener('input', (e) => {
-      if (e.target.matches('.qty, .unit')) recalc();
-    });
-    tbody.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-remove')){
-        e.target.closest('tr').remove();
-        const trs = [...tbody.querySelectorAll('tr')];
-        trs.forEach((tr, i) => {
-          tr.querySelector('td').textContent = i+1;
-          const inputs = tr.querySelectorAll('input');
-          inputs[0].name = `rows[${i}][product_name]`;
-          inputs[1].name = `rows[${i}][warranty]`;
-          inputs[2].name = `rows[${i}][supplier_info]`;
-          inputs[3].name = `rows[${i}][quantity]`;
-          inputs[4].name = `rows[${i}][unit_price]`;
-        });
-        rowsCountInput.value = trs.length;
-        recalc();
-      }
-    });
-    addRowBtn.addEventListener('click', () => {
-      const idx = tbody.querySelectorAll('tr').length;
-      newRow(idx);
-      rowsCountInput.value = idx + 1;
-    });
-  }
-
-  function init(){
+  function init() {
     // initialize lines
     recalc();
     bind();
   }
   init();
-})();
+}) ();
 </script>
 {% endblock %}
-
