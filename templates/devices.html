@@ -4,362 +4,397 @@
 {% block title %}Danh sách Thiết bị{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="card-title mb-0">Danh sách Thiết bị</h2>
-            <div>
-                {% if current_permissions and 'devices.delete' in current_permissions %}
-                <button type="button" id="deleteSelectedBtn" class="btn btn-danger me-2" style="display: none;"
-                    onclick="showBulkDeleteConfirm()">
-                    <i class="bi bi-trash"></i> Xóa thiết bị đã chọn
-                </button>
-                {% endif %}
-                {% if current_permissions and 'devices.edit' in current_permissions %}
-                <a href="{{ url_for('add_device') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Thêm mới</a>
-                <a href="{{ url_for('add_devices_bulk') }}" class="btn btn-warning ms-2"><i
-                        class="bi bi-plus-square"></i> Thêm thiết bị</a>
-                {% if current_user.role == 'admin' %}
-                <a href="{{ url_for('import_devices') }}" class="btn btn-info ms-2"><i class="bi bi-upload"></i> Nhập
-                    Excel</a>
-                {% endif %}
-                {% endif %}
-                {% if current_user.role == 'admin' %}
-                <a href="{{ url_for('export_devices_excel') }}" class="btn btn-success ms-2"><i
-                        class="bi bi-download"></i> Xuất Excel</a>
-                {% endif %}
+<div class="row">
+    <!-- Sidebar -->
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0"><i class="bi bi-list-ul"></i> Danh mục thiết bị</h5>
+            </div>
+            <div class="list-group list-group-flush">
+                <a href="{{ url_for('device_list') }}"
+                    class="list-group-item list-group-item-action {% if not filter_category and not filter_device_type %}active{% endif %}">
+                    <strong class="d-block py-1">Tất cả thiết bị</strong>
+                </a>
+
+                {% for category, types in device_hierarchy.items() %}
+                <div class="list-group-item p-0">
+                    <a href="{{ url_for('device_list', filter_category=category) }}"
+                        class="list-group-item-action d-flex justify-content-between align-items-center p-3 {% if filter_category == category and not filter_device_type %}text-primary fw-bold bg-light{% else %}text-dark text-decoration-none{% endif %}"
+                        style="border-bottom: 1px solid rgba(0,0,0,.125);">
+                        <span>{{ category }}</span>
+                        {% if filter_category == category %}<i class="bi bi-chevron-right"></i>{% endif %}
+                    </a>
+                    <div class="bg-white">
+                        {% for type in types %}
+                        <a href="{{ url_for('device_list', filter_category=category, filter_device_type=type) }}"
+                            class="list-group-item list-group-item-action ps-4 border-0 small {% if filter_device_type == type %}active{% endif %}">
+                            <i class="bi bi-dot"></i> {{ type }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
-        <hr>
+    </div>
 
-        <p class="mb-2"><strong><i class="bi bi-funnel"></i> Bộ lọc</strong></p>
-        <form method="GET" onsubmit="document.getElementById('saveFiltersForm').submit();">
-            <div class="row g-3 align-items-end">
-                <div class="col-md-2"><label class="form-label">Mã thiết bị</label><input type="text"
-                        name="filter_device_code" class="form-control" placeholder="Tìm mã..."
-                        value="{{ filter_device_code }}"></div>
-                <div class="col-md-2"><label class="form-label">Tên thiết bị</label><input type="text"
-                        name="filter_name" class="form-control" placeholder="Tìm tên..." value="{{ filter_name }}">
-                </div>
-                <div class="col-md-2"><label class="form-label">Loại thiết bị</label><select name="filter_device_type"
-                        class="form-select">
-                        <option value="">-- Tất cả --</option>{% for type in device_types %}<option value="{{ type }}"
-                            {% if filter_device_type==type %}selected{% endif %}>{{ type }}</option>{% endfor %}
-                    </select></div>
-                <div class="col-md-3">
-                    <label class="form-label">Trạng thái</label>
-                    <select name="filter_status" class="form-select">
-                        <option value="">-- Tất cả --</option>
-                        {% for status in statuses %}
-                        <option value="{{ status }}" {% if filter_status==status %}selected{% endif %}>{{ status }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Người quản lý</label>
-                    <select id="manager_filter_select" name="filter_manager_id" class="form-select">
-                        <option value="">-- Tất cả --</option>
-                        {% for user in users %}
-                        <option value="{{ user.id }}" {% if filter_manager_id==user.id|string %}selected{% endif %}>{{
-                            user.full_name or user.username }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Phòng ban</label>
-                    <select name="filter_department" class="form-select">
-                        <option value="">-- Tất cả --</option>
-                        {% for dept in departments %}
-                        <option value="{{ dept }}" {% if filter_department==dept %}selected{% endif %}>{{ dept }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <div class="d-flex gap-1 justify-content-end align-items-center">
-                        <button type="submit" class="btn btn-primary btn-sm">Lọc</button>
-                        <a href="{{ url_for('device_list') }}" class="btn btn-secondary btn-sm">Reset</a>
-                        <button type="button" class="btn btn-outline-success btn-sm" title="Lưu mặc định"
-                            onclick="updateAndSubmitSaveStatus()">
-                            <i class="bi bi-bookmark-check"></i>
+    <!-- Main Content -->
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="card-title mb-0">
+                        {% if filter_device_type %}
+                        {{ filter_device_type }}
+                        {% elif filter_category %}
+                        {{ filter_category }}
+                        {% else %}
+                        Danh sách Thiết bị
+                        {% endif %}
+                    </h2>
+                    <div>
+                        {% if current_permissions and 'devices.delete' in current_permissions %}
+                        <button type="button" id="deleteSelectedBtn" class="btn btn-danger me-2" style="display: none;"
+                            onclick="showBulkDeleteConfirm()">
+                            <i class="bi bi-trash"></i> Xóa đã chọn
                         </button>
+                        {% endif %}
+                        {% if current_permissions and 'devices.edit' in current_permissions %}
+                        <a href="{{ url_for('add_device') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Thêm
+                            mới</a>
+                        <a href="{{ url_for('add_devices_bulk') }}" class="btn btn-warning ms-1"><i
+                                class="bi bi-plus-square"></i> Thêm nhanh</a>
+                        {% if current_user.role == 'admin' %}
+                        <a href="{{ url_for('import_devices') }}" class="btn btn-info ms-1"><i class="bi bi-upload"></i>
+                            Nhập Excel</a>
+                        {% endif %}
+                        {% endif %}
+                        {% if current_user.role == 'admin' %}
+                        <a href="{{ url_for('export_devices_excel') }}" class="btn btn-success ms-1"><i
+                                class="bi bi-download"></i> Xuất Excel</a>
+                        {% endif %}
                     </div>
                 </div>
-            </div>
-        </form>
-        <form id="saveFiltersForm" method="POST" action="{{ url_for('save_device_filters') }}" class="d-none">
-            <input type="hidden" name="filter_device_code" value="{{ filter_device_code }}">
-            <input type="hidden" name="filter_name" value="{{ filter_name }}">
-            <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
-            <input type="hidden" name="filter_status" value="{{ filter_status }}">
-            <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
-            <input type="hidden" name="filter_department" value="{{ filter_department }}">
-        </form>
+                <hr>
 
-        <!-- Hidden form for save status button to include all current filters -->
-        <form id="saveStatusForm" method="POST" action="{{ url_for('set_devices_default_status') }}" class="d-none">
-            <input type="hidden" name="filter_device_code" value="{{ filter_device_code }}">
-            <input type="hidden" name="filter_name" value="{{ filter_name }}">
-            <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
-            <input type="hidden" name="filter_status" value="{{ filter_status }}">
-            <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
-            <input type="hidden" name="filter_department" value="{{ filter_department }}">
-        </form>
-        <hr>
+                <p class="mb-2"><strong><i class="bi bi-funnel"></i> Bộ lọc bổ sung</strong></p>
+                <form method="GET" onsubmit="document.getElementById('saveFiltersForm').submit();">
+                    <input type="hidden" name="filter_category" value="{{ filter_category }}">
 
-        <form method="POST" action="{{ url_for('devices_bulk_update') }}">
-            <div class="mb-2">
-                {% if current_permissions and 'devices.edit' in current_permissions %}
-                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse"
-                    data-bs-target="#advancedBulk" aria-expanded="false" aria-controls="advancedBulk"><i
-                        class="bi bi-sliders"></i> Nâng cao</button>
-                {% endif %}
-            </div>
-            <div class="collapse" id="advancedBulk">
-                <div class="row g-2 align-items-end mb-2">
-                    <div class="col-md-3">
-                        <label class="form-label">Đổi trạng thái</label>
-                        <select name="new_status" class="form-select">
-                            <option value="">-- Không đổi --</option>
-                            {% for status in statuses %}
-                            <option value="{{ status }}">{{ status }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Đổi người quản lý</label>
-                        <select name="new_manager_id" class="form-select" id="bulk_manager_select">
-                            <option value="">-- Không đổi --</option>
-                            {% for user in users %}
-                            <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-grid">
-                        <button type="submit" class="btn btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Áp
-                            dụng</button>
-                    </div>
-                </div>
-            </div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3"><input type="text" name="filter_device_code" class="form-control"
+                                placeholder="Mã thiết bị" value="{{ filter_device_code }}"></div>
+                        <div class="col-md-3"><input type="text" name="filter_name" class="form-control"
+                                placeholder="Tên thiết bị" value="{{ filter_name }}"></div>
+                        <!-- Removed device type select as it's in sidebar -->
 
-            <div class="table-responsive">
-                <table class="table table-striped table-hover mt-2">
-                    <thead class="table-light">
-                        <tr>
-                            <th class="text-center" style="width:36px;"><input type="checkbox" id="select_all"></th>
-                            <th>STT</th>
-                            <th>Mã thiết bị</th>
-                            <th style="max-width: 280px;">Tên thiết bị</th>
-                            <th class="text-center" style="white-space: nowrap;">
-                                <strong>Loại</strong>
-                                <button type="button"
-                                    class="btn btn-sm {% if filter_device_type %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
-                                    data-bs-toggle="dropdown" title="Lọc loại thiết bị">
-                                    <i class="bi bi-funnel"></i>
-                                </button>
-                                <ul class="dropdown-menu" style="max-height: 300px; overflow-y: auto;">
-                                    <li><a class="dropdown-item"
-                                            href="javascript:filterByParam('filter_device_type', '')">Tất cả</a></li>
-                                    {% for type in device_types %}
-                                    <li><a class="dropdown-item"
-                                            href="javascript:filterByParam('filter_device_type', '{{ type }}')">{{ type
-                                            }}</a></li>
-                                    {% endfor %}
-                                </ul>
-                            </th>
-                            <th class="text-center" style="white-space: nowrap;">
-                                <strong>Người quản lý</strong>
-                                <button type="button"
-                                    class="btn btn-sm {% if filter_manager_id %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
-                                    data-bs-toggle="dropdown" title="Lọc người quản lý">
-                                    <i class="bi bi-funnel"></i>
-                                </button>
-                                <div class="dropdown-menu p-2" style="width: 250px;">
-                                    <input type="text" class="form-control form-control-sm mb-2"
-                                        id="headerManagerSearch" placeholder="Tìm người quản lý..."
-                                        onkeyup="filterHeaderManagers()">
-                                    <ul class="list-unstyled mb-0" id="headerManagerList"
-                                        style="max-height: 200px; overflow-y: auto;">
-                                        <li><a class="dropdown-item"
-                                                href="javascript:filterByParam('filter_manager_id', '')">-- Tất cả
-                                                --</a></li>
-                                        {% for user in users %}
-                                        <li><a class="dropdown-item"
-                                                href="javascript:filterByParam('filter_manager_id', '{{ user.id }}')"
-                                                data-name="{{ user.full_name or user.username }}">{{ user.full_name or
-                                                user.username }}</a></li>
-                                        {% endfor %}
-                                    </ul>
-                                </div>
-                            </th>
-                            <th class="text-center" style="white-space: nowrap;">
-                                <strong>Trạng thái</strong>
-                                <button type="button"
-                                    class="btn btn-sm {% if filter_status %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
-                                    data-bs-toggle="dropdown" title="Lọc trạng thái">
-                                    <i class="bi bi-funnel"></i>
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item"
-                                            href="javascript:filterByParam('filter_status', '')">Tất cả</a></li>
-                                    {% for status in statuses %}
-                                    <li><a class="dropdown-item"
-                                            href="javascript:filterByParam('filter_status', '{{ status }}')">{{ status
-                                            }}</a></li>
-                                    {% endfor %}
-                                </ul>
-                            </th>
-                            <th class="text-center">Cấu hình</th>
-                            <th class="text-center">Hành động</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for device in devices.items %}
-                        <tr>
-                            <td class="text-center"><input type="checkbox" name="device_ids" value="{{ device.id }}"
-                                    class="row_checkbox"></td>
-                            <td>{{ devices.first + loop.index - 1 }}</td>
-                            <td><strong>{{ device.device_code }}</strong></td>
-                            <td>
-                                <div class="text-truncate" style="max-width: 280px;">{{ device.name }}</div>
-                            </td>
-                            <td>{{ device.device_type }}</td>
-                            <td>{{ device.manager.full_name if device.manager else '' }}</td>
-                            <td>
-                                {% if device.status == 'Đã cấp phát' %}<span class="badge bg-success">{{ device.status
-                                    }}</span>
-                                {% elif device.status == 'Sẵn sàng' %}<span class="badge bg-primary">{{ device.status
-                                    }}</span>
-                                {% elif device.status == 'Bảo trì' %}<span class="badge bg-warning text-dark">{{
-                                    device.status }}</span>
-                                {% else %}<span class="badge bg-danger">{{ device.status }}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                {% if device.configuration %}
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
-                                    data-bs-target="#configModal-{{ device.id }}" title="Xem cấu hình">
-                                    <i class="bi bi-card-text"></i>
-                                </button>
-                                {% endif %}
-                            </td>
-                            <td class="text-center text-nowrap">
-                                {% if current_permissions and 'devices.view' in current_permissions %}
-                                <a href="{{ url_for('device_detail', device_id=device.id) }}"
-                                    class="btn btn-sm btn-outline-info" title="Xem chi tiết"><i
-                                        class="bi bi-eye"></i></a>
-                                {% endif %}
-                                {% if current_permissions and 'devices.edit' in current_permissions %}
-                                <a href="{{ url_for('edit_device', device_id=device.id) }}"
-                                    class="btn btn-sm btn-outline-warning ms-1" title="Sửa"><i
-                                        class="bi bi-pencil"></i></a>
-                                {% endif %}
-                                {% if current_permissions and 'devices.delete' in current_permissions %}
-                                <form method="POST" action="{{ url_for('delete_device', device_id=device.id) }}"
-                                    onsubmit="return confirm('Bạn chắc chắn muốn xóa thiết bị này?')" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i
-                                            class="bi bi-trash"></i></button>
-                                </form>
-                                {% endif %}
-                                {% if (current_user and device.manager_id == current_user.id) or (current_permissions
-                                and 'devices.edit' in current_permissions) %}
-                                <button type="button" class="btn btn-sm btn-outline-success ms-1" title="Trả thiết bị"
-                                    data-bs-toggle="modal" data-bs-target="#returnModal-{{ device.id }}">
-                                    <i class="bi bi-arrow-return-left"></i>
-                                </button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </form>
-
-        {% for device in devices.items %}
-        {% if device.configuration %}
-        <div class="modal fade" id="configModal-{{ device.id }}" tabindex="-1"
-            aria-labelledby="configModalLabel-{{ device.id }}" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="configModalLabel-{{ device.id }}">Cấu hình: {{ device.device_code }}
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <pre style="white-space: pre-wrap; word-break: break-all;">{{ device.configuration }}</pre>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-        <div class="modal fade" id="returnModal-{{ device.id }}" tabindex="-1"
-            aria-labelledby="returnModalLabel-{{ device.id }}" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="returnModalLabel-{{ device.id }}">Trả thiết bị: {{
-                            device.device_code }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <strong>Tên thiết bị:</strong> {{ device.name }}
-                            <br>
-                            <strong>Mã thiết bị:</strong> {{ device.device_code }}
-                            <br>
-                            <strong>Tình trạng hiện tại:</strong> {{ device.condition or 'Chưa cập nhật' }}
-                            <br>
-                            <a href="{{ url_for('device_detail', device_id=device.id) }}" target="_blank">Xem chi tiết
-                                cấu hình</a>
+                        <div class="col-md-3">
+                            <select name="filter_status" class="form-select">
+                                <option value="">-- Trạng thái: Tất cả --</option>
+                                {% for status in statuses %}
+                                <option value="{{ status }}" {% if filter_status==status %}selected{% endif %}>{{ status
+                                    }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
-                        {% set current_manager = device.manager %}
-                        {% set dept_manager = current_manager.department_info.manager if current_manager and
-                        current_manager.department_info and current_manager.department_info.manager else None %}
-                        <form method="POST" action="{{ url_for('return_device', device_id=device.id) }}">
-                            <div class="mb-3">
-                                <label class="form-label">Người nhận thiết bị</label>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="return_option"
-                                        id="return-manager-{{ device.id }}" value="manager" {% if dept_manager
-                                        %}checked{% else %}disabled{% endif %}>
-                                    <label class="form-check-label" for="return-manager-{{ device.id }}">
-                                        Trả phụ trách {% if dept_manager %}({{ dept_manager.full_name or
-                                        dept_manager.username }}){% else %}(Chưa cấu hình phụ trách){% endif %}
-                                    </label>
+                        <div class="col-md-3 d-flex gap-1">
+                            <button type="submit" class="btn btn-primary btn-sm flex-fill">Lọc ngay</button>
+                            <a href="{{ url_for('device_list') }}" class="btn btn-secondary btn-sm">Reset</a>
+                            <button type="button" class="btn btn-outline-success btn-sm" title="Lưu mặc định"
+                                onclick="updateAndSubmitSaveStatus()">
+                                <i class="bi bi-bookmark-check"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 align-items-end mt-1">
+                        <div class="col-md-3">
+                            <select id="manager_filter_select" name="filter_manager_id"
+                                class="form-select form-select-sm">
+                                <option value="">-- Người quản lý --</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}" {% if filter_manager_id==user.id|string %}selected{% endif
+                                    %}>{{ user.full_name or user.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select name="filter_department" class="form-select form-select-sm">
+                                <option value="">-- Phòng ban --</option>
+                                {% for dept in departments %}
+                                <option value="{{ dept }}" {% if filter_department==dept %}selected{% endif %}>{{ dept
+                                    }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </form>
+                <form id="saveFiltersForm" method="POST" action="{{ url_for('save_device_filters') }}" class="d-none">
+                    <input type="hidden" name="filter_device_code" value="{{ filter_device_code }}">
+                    <input type="hidden" name="filter_name" value="{{ filter_name }}">
+                    <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
+                    <input type="hidden" name="filter_category" value="{{ filter_category }}">
+                    <input type="hidden" name="filter_status" value="{{ filter_status }}">
+                    <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
+                    <input type="hidden" name="filter_department" value="{{ filter_department }}">
+                </form>
+
+                <!-- Hidden form for save status button to include all current filters -->
+                <form id="saveStatusForm" method="POST" action="{{ url_for('set_devices_default_status') }}"
+                    class="d-none">
+                    <input type="hidden" name="filter_device_code" value="{{ filter_device_code }}">
+                    <input type="hidden" name="filter_name" value="{{ filter_name }}">
+                    <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
+                    <input type="hidden" name="filter_category" value="{{ filter_category }}">
+                    <input type="hidden" name="filter_status" value="{{ filter_status }}">
+                    <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
+                    <input type="hidden" name="filter_department" value="{{ filter_department }}">
+                </form>
+                <hr>
+
+                <form method="POST" action="{{ url_for('devices_bulk_update') }}">
+                    <div class="mb-2">
+                        {% if current_permissions and 'devices.edit' in current_permissions %}
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#advancedBulk" aria-expanded="false" aria-controls="advancedBulk"><i
+                                class="bi bi-sliders"></i> Cập nhật hàng loạt</button>
+                        {% endif %}
+                    </div>
+                    <div class="collapse" id="advancedBulk">
+                        <div class="card card-body bg-light mb-2 p-2">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">Đổi trạng thái</label>
+                                    <select name="new_status" class="form-select form-select-sm">
+                                        <option value="">-- Không đổi --</option>
+                                        {% for status in statuses %}
+                                        <option value="{{ status }}">{{ status }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="return_option"
-                                        id="return-admin-{{ device.id }}" value="admin" {% if not dept_manager
-                                        %}checked{% endif %}>
-                                    <label class="form-check-label" for="return-admin-{{ device.id }}">
-                                        Trả quản trị viên {% if primary_admin %}({{ primary_admin.full_name or
-                                        primary_admin.username }}){% endif %}
-                                    </label>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">Đổi người quản lý</label>
+                                    <select name="new_manager_id" class="form-select form-select-sm"
+                                        id="bulk_manager_select">
+                                        <option value="">-- Không đổi --</option>
+                                        {% for user in users %}
+                                        <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4 d-grid">
+                                    <button type="submit" class="btn btn-primary btn-sm"><i
+                                            class="bi bi-check2-circle"></i> Áp dụng</button>
                                 </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Lý do hoàn trả</label>
-                                <textarea name="reason" class="form-control" rows="3" placeholder="Nhập lý do hoàn trả"
-                                    required></textarea>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover mt-2 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center" style="width:36px;"><input type="checkbox" id="select_all">
+                                    </th>
+                                    <th>STT</th>
+                                    <th>Mã thiết bị</th>
+                                    <th style="max-width: 250px;">Tên thiết bị</th>
+                                    <!-- Device Type removed from column or simplified -->
+                                    <th class="text-center">Loại</th>
+                                    <th class="text-center" style="white-space: nowrap;">
+                                        <strong>Người quản lý</strong>
+                                        <button type="button"
+                                            class="btn btn-sm {% if filter_manager_id %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+                                            data-bs-toggle="dropdown" title="Lọc nhanh">
+                                            <i class="bi bi-funnel"></i>
+                                        </button>
+                                        <div class="dropdown-menu p-2 shadow" style="width: 250px;">
+                                            <input type="text" class="form-control form-control-sm mb-2"
+                                                id="headerManagerSearch" placeholder="Tìm tên..."
+                                                onkeyup="filterHeaderManagers()">
+                                            <ul class="list-unstyled mb-0 small" id="headerManagerList"
+                                                style="max-height: 200px; overflow-y: auto;">
+                                                <li><a class="dropdown-item"
+                                                        href="javascript:filterByParam('filter_manager_id', '')">-- Tất
+                                                        cả --</a></li>
+                                                {% for user in users %}
+                                                <li><a class="dropdown-item"
+                                                        href="javascript:filterByParam('filter_manager_id', '{{ user.id }}')"
+                                                        data-name="{{ user.full_name or user.username }}">{{
+                                                        user.full_name or
+                                                        user.username }}</a></li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </th>
+                                    <th class="text-center" style="white-space: nowrap;">
+                                        <strong>Trạng thái</strong>
+                                    </th>
+                                    <th class="text-center">Cấu hình</th>
+                                    <th class="text-center">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for device in devices.items %}
+                                <tr>
+                                    <td class="text-center"><input type="checkbox" name="device_ids"
+                                            value="{{ device.id }}" class="row_checkbox"></td>
+                                    <td>{{ devices.first + loop.index - 1 }}</td>
+                                    <td><a href="{{ url_for('device_detail', device_id=device.id) }}"
+                                            class="text-decoration-none fw-bold">{{ device.device_code }}</a></td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 250px;" title="{{ device.name }}">
+                                            {{ device.name }}</div>
+                                    </td>
+                                    <td class="text-center"><span class="badge bg-light text-dark border">{{
+                                            device.device_type }}</span></td>
+                                    <td>{{ device.manager.full_name if device.manager else '' }}</td>
+                                    <td>
+                                        {% if device.status == 'Đã cấp phát' %}<span class="badge bg-success">{{
+                                            device.status
+                                            }}</span>
+                                        {% elif device.status == 'Sẵn sàng' %}<span class="badge bg-primary">{{
+                                            device.status
+                                            }}</span>
+                                        {% elif device.status == 'Bảo trì' %}<span class="badge bg-warning text-dark">{{
+                                            device.status }}</span>
+                                        {% else %}<span class="badge bg-danger">{{ device.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if device.configuration %}
+                                        <button type="button" class="btn btn-sm btn-link text-secondary"
+                                            data-bs-toggle="modal" data-bs-target="#configModal-{{ device.id }}"
+                                            title="Xem cấu hình">
+                                            <i class="bi bi-file-earmark-text"></i>
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center text-nowrap">
+                                        {% if current_permissions and 'devices.edit' in current_permissions %}
+                                        <a href="{{ url_for('edit_device', device_id=device.id) }}"
+                                            class="btn btn-sm btn-outline-warning" title="Sửa"><i
+                                                class="bi bi-pencil"></i></a>
+                                        {% endif %}
+                                        {% if current_permissions and 'devices.delete' in current_permissions %}
+                                        <form method="POST" action="{{ url_for('delete_device', device_id=device.id) }}"
+                                            onsubmit="return confirm('Bạn chắc chắn muốn xóa thiết bị này?')"
+                                            class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger ms-1"
+                                                title="Xóa"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                        {% endif %}
+                                        {% if (current_user and device.manager_id == current_user.id) or
+                                        (current_permissions
+                                        and 'devices.edit' in current_permissions) %}
+                                        <button type="button" class="btn btn-sm btn-outline-success ms-1"
+                                            title="Trả thiết bị" data-bs-toggle="modal"
+                                            data-bs-target="#returnModal-{{ device.id }}">
+                                            <i class="bi bi-arrow-return-left"></i>
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+
+                {% for device in devices.items %}
+                {% if device.configuration %}
+                <div class="modal fade" id="configModal-{{ device.id }}" tabindex="-1"
+                    aria-labelledby="configModalLabel-{{ device.id }}" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="configModalLabel-{{ device.id }}">Cấu hình: {{
+                                    device.device_code }}
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
                             </div>
-                            <div class="text-end">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                                <button type="submit" class="btn btn-primary">Đồng ý</button>
+                            <div class="modal-body">
+                                <pre
+                                    style="white-space: pre-wrap; word-break: break-all;">{{ device.configuration }}</pre>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
+                {% endif %}
+                <div class="modal fade" id="returnModal-{{ device.id }}" tabindex="-1"
+                    aria-labelledby="returnModalLabel-{{ device.id }}" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="returnModalLabel-{{ device.id }}">Trả thiết bị: {{
+                                    device.device_code }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <strong>Tên thiết bị:</strong> {{ device.name }}
+                                    <br>
+                                    <strong>Mã thiết bị:</strong> {{ device.device_code }}
+                                    <br>
+                                    <strong>Tình trạng hiện tại:</strong> {{ device.condition or 'Chưa cập nhật' }}
+                                    <br>
+                                    <a href="{{ url_for('device_detail', device_id=device.id) }}" target="_blank">Xem
+                                        chi tiết
+                                        cấu hình</a>
+                                </div>
+                                {% set current_manager = device.manager %}
+                                {% set dept_manager = current_manager.department_info.manager if current_manager and
+                                current_manager.department_info and current_manager.department_info.manager else None %}
+                                <form method="POST" action="{{ url_for('return_device', device_id=device.id) }}">
+                                    <div class="mb-3">
+                                        <label class="form-label">Người nhận thiết bị</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="return_option"
+                                                id="return-manager-{{ device.id }}" value="manager" {% if dept_manager
+                                                %}checked{% else %}disabled{% endif %}>
+                                            <label class="form-check-label" for="return-manager-{{ device.id }}">
+                                                Trả phụ trách {% if dept_manager %}({{ dept_manager.full_name or
+                                                dept_manager.username }}){% else %}(Chưa cấu hình phụ trách){% endif %}
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="return_option"
+                                                id="return-admin-{{ device.id }}" value="admin" {% if not dept_manager
+                                                %}checked{% endif %}>
+                                            <label class="form-check-label" for="return-admin-{{ device.id }}">
+                                                Trả quản trị viên {% if primary_admin %}({{ primary_admin.full_name or
+                                                primary_admin.username }}){% endif %}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Lý do hoàn trả</label>
+                                        <textarea name="reason" class="form-control" rows="3"
+                                            placeholder="Nhập lý do hoàn trả" required></textarea>
+                                    </div>
+                                    <div class="text-end">
+                                        <button type="button" class="btn btn-secondary"
+                                            data-bs-dismiss="modal">Hủy</button>
+                                        <button type="submit" class="btn btn-primary">Đồng ý</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% set filters = {'filter_device_code': filter_device_code, 'filter_name': filter_name,
+                'filter_device_type':
+                filter_device_type, 'filter_status': filter_status, 'filter_manager_id': filter_manager_id,
+                'filter_department':
+                filter_department, 'filter_category': filter_category} %}
+                {{ render_pagination(devices, 'device_list', filters) }}
             </div>
         </div>
-        {% endfor %}
-
-        {% set filters = {'filter_device_code': filter_device_code, 'filter_name': filter_name, 'filter_device_type':
-        filter_device_type, 'filter_status': filter_status, 'filter_manager_id': filter_manager_id, 'filter_department':
-        filter_department} %}
-        {{ render_pagination(devices, 'device_list', filters) }}
     </div>
 </div>
 {% endblock %}

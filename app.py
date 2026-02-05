@@ -996,6 +996,17 @@ def seed_rbac_data():
 # Seed RBAC data after models are defined
 seed_rbac_data()
 
+# --- Device Hierarchy Configuration ---
+DEVICE_HIERARCHY = {
+    'Thiết bị IT': ['Laptop', 'PC', 'Server', 'Linh phụ kiện', 'Thiết bị mạng'],
+    'Thiết bị văn phòng': ['Máy in', 'Máy chiếu', 'Máy chấm công', 'Camera', 'Điện thoại bàn', 'Thiết bị văn phòng khác'],
+    'Thiết bị dùng chung': ['Bàn', 'Ghế', 'Tủ', 'Két sắt', 'Phương tiện đi lại', 'Thiết bị dùng chung khác']
+}
+
+def _get_device_type_hierarchy():
+    """Helper to return device hierarchy and flattened types"""
+    return DEVICE_HIERARCHY
+
 def _serialize_value(value):
     if value is None:
         return None
@@ -1982,12 +1993,24 @@ def device_list():
     per_page = request.args.get('per_page', 10, type=int)
     # Load current filters from query params or session-saved defaults
     saved_filters = session.get('devices_filters', {}) or {}
+@app.route('/devices')
+def device_list():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    current_permissions = _get_current_permissions()
+    user = User.query.get(user_id)
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    # Load current filters from query params or session-saved defaults
+    saved_filters = session.get('devices_filters', {}) or {}
     filter_device_code = request.args.get('filter_device_code')
     filter_name = request.args.get('filter_name')
     filter_device_type = request.args.get('filter_device_type')
     filter_status = request.args.get('filter_status')
     filter_manager_id = request.args.get('filter_manager_id')
     filter_department = request.args.get('filter_department')
+    filter_category = request.args.get('filter_category') # New Category Filter
 
     if filter_device_code is None or filter_device_code == '':
         filter_device_code = saved_filters.get('filter_device_code', '')
@@ -2002,8 +2025,23 @@ def device_list():
         filter_manager_id = saved_filters.get('filter_manager_id', '')
     if filter_department is None or filter_department == '':
         filter_department = saved_filters.get('filter_department', '')
+    if filter_category is None or filter_category == '':
+        filter_category = saved_filters.get('filter_category', '')
     
     query = Device.query
+
+    # Apply category filter
+    if filter_category and filter_category in DEVICE_HIERARCHY:
+        category_types = DEVICE_HIERARCHY[filter_category]
+        if filter_device_type:
+             if filter_device_type in category_types:
+                 query = query.filter(Device.device_type == filter_device_type)
+             else:
+                 query = query.filter(text('1=0'))
+        else:
+            query = query.filter(Device.device_type.in_(category_types))
+    elif filter_device_type:
+         query = query.filter(Device.device_type == filter_device_type)
     
     # Apply permission-based filtering
     # Admin or users with full devices.view permission see all devices
@@ -2031,8 +2069,7 @@ def device_list():
         query = query.filter(Device.device_code.ilike(f'%{filter_device_code}%'))
     if filter_name:
         query = query.filter(Device.name.ilike(f'%{filter_name}%'))
-    if filter_device_type:
-        query = query.filter_by(device_type=filter_device_type)
+    # filter_device_type handled above
     if filter_status:
         query = query.filter_by(status=filter_status)
     manager_filter_id = None
@@ -2080,6 +2117,8 @@ def device_list():
         filter_status=filter_status,
         filter_manager_id=filter_manager_id,
         filter_department=filter_department,
+        filter_category=filter_category,
+        device_hierarchy=DEVICE_HIERARCHY,
         primary_admin=primary_admin
     )
 
