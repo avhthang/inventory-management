@@ -132,22 +132,60 @@
         <th class="text-center" style="white-space: nowrap;">#</th>
         <th class="text-center" style="white-space: nowrap;"><strong>Tiêu đề</strong></th>
         <th class="text-center" style="white-space: nowrap;"><strong>Mã thiết bị</strong></th>
-        <th class="text-center" style="white-space: nowrap;"><strong>Người báo lỗi</strong></th>
-        <th class="text-center" style="white-space: nowrap;"><strong>Người xử lý</strong></th>
+        <th class="text-center" style="white-space: nowrap;">
+          <strong>Người báo lỗi</strong>
+          <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-bs-toggle="dropdown"
+            title="Lọc người báo lỗi">
+            <i class="bi bi-funnel"></i>
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="javascript:filterByParam('creator', '')">Tất cả</a></li>
+            {% for u in creators %}
+            <li><a class="dropdown-item" href="javascript:filterByParam('creator', '{{ u.id }}')">{{ u.full_name or
+                u.username }}</a></li>
+            {% endfor %}
+          </ul>
+        </th>
+        <th class="text-center" style="white-space: nowrap;">
+          <strong>Người xử lý</strong>
+          <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-bs-toggle="dropdown" title="Lọc người xử lý">
+            <i class="bi bi-funnel"></i>
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="javascript:filterByParam('assignee', '')">Tất cả</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('assignee', 'none')">Chưa gán</a></li>
+            {% for u in assignees %}
+            <li><a class="dropdown-item" href="javascript:filterByParam('assignee', '{{ u.id }}')">{{ u.full_name or
+                u.username }}</a></li>
+            {% endfor %}
+          </ul>
+        </th>
         <th class="text-center" style="white-space: nowrap;">
           <strong>Mức độ</strong>
           <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-bs-toggle="dropdown" title="Lọc mức độ">
             <i class="bi bi-funnel"></i>
           </button>
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="?priority=">Tất cả</a></li>
-            <li><a class="dropdown-item" href="?priority=Thấp">Thấp</a></li>
-            <li><a class="dropdown-item" href="?priority=Trung bình">Trung bình</a></li>
-            <li><a class="dropdown-item" href="?priority=Cao">Cao</a></li>
-            <li><a class="dropdown-item" href="?priority=Khẩn cấp">Khẩn cấp</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('priority', '')">Tất cả</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('priority', 'Thấp')">Thấp</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('priority', 'Trung bình')">Trung bình</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('priority', 'Cao')">Cao</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('priority', 'Khẩn cấp')">Khẩn cấp</a></li>
           </ul>
         </th>
-        <th class="text-center" style="white-space: nowrap;"><strong>Trạng thái</strong></th>
+        <th class="text-center" style="white-space: nowrap;">
+          <strong>Trạng thái</strong>
+          <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-bs-toggle="dropdown" title="Lọc trạng thái">
+            <i class="bi bi-funnel"></i>
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="javascript:filterByParam('status', '')">Tất cả</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('status', 'Mới tạo')">Mới tạo</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('status', 'Đang xử lý')">Đang xử lý</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('status', 'Đã xử lý')">Đã xử lý</a></li>
+            <li><a class="dropdown-item" href="javascript:filterByParam('status', 'Đã đóng')">Đã đóng</a></li>
+          </ul>
+        </th>
         <th class="text-center" style="white-space: nowrap;"><strong>Ngày tạo</strong></th>
       </tr>
     </thead>
@@ -219,16 +257,19 @@
 'date_filter': date_filter,
 'date_from': date_from,
 'date_to': date_to,
-'creator': creator_filter
+'creator': creator_filter,
+'assignee': assignee_filter
 }) }}
 <script>
-  function filterByPriority(value) {
+  function filterByParam(param, value) {
     const url = new URL(window.location.href);
     if (value) {
-      url.searchParams.set('priority', value);
+      url.searchParams.set(param, value);
     } else {
-      url.searchParams.delete('priority');
+      url.searchParams.delete(param);
     }
+    // Reset pagination to page 1 when filtering
+    url.searchParams.set('page', 1);
     window.location.href = url.toString();
   }
 </script>

@@ -4572,6 +4572,7 @@ def bug_reports():
     date_from = request.args.get('date_from', '').strip() or saved_filters.get('date_from', '')
     date_to = request.args.get('date_to', '').strip() or saved_filters.get('date_to', '')
     creator_filter = request.args.get('creator', '').strip() or saved_filters.get('creator', '')
+    assignee_filter = request.args.get('assignee', '').strip() or saved_filters.get('assignee', '')
     
     # Người dùng thường chỉ thấy báo lỗi công khai, báo lỗi mình tạo, hoặc được gán
     # Admin và người có quyền xem tất cả thì thấy tất cả
@@ -4643,12 +4644,26 @@ def bug_reports():
             q = q.filter(BugReport.created_by == creator_id)
         except ValueError:
             pass
+
+    # Filter by assignee
+    if assignee_filter:
+        try:
+            if assignee_filter == 'none':
+                q = q.filter(BugReport.assigned_to == None)
+            else:
+                assignee_id = int(assignee_filter)
+                q = q.filter(BugReport.assigned_to == assignee_id)
+        except ValueError:
+            pass
     
     reports = q.order_by(BugReport.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
     # Get list of users who created reports (for filter dropdown)
     creators = db.session.query(User).join(BugReport, User.id == BugReport.created_by).distinct().order_by(User.full_name, User.username).all()
     
+    # Get list of users who are assigned reports
+    assignees = db.session.query(User).join(BugReport, User.id == BugReport.assigned_to).distinct().order_by(User.full_name, User.username).all()
+
     return render_template('bug_reports/list.html', 
                          reports=reports, 
                          status_filter=status_filter, 
@@ -4658,7 +4673,9 @@ def bug_reports():
                          date_from=date_from,
                          date_to=date_to,
                          creator_filter=creator_filter,
+                         assignee_filter=assignee_filter,
                          creators=creators,
+                         assignees=assignees,
                          current_user_id=user_id, 
                          current_permissions=current_permissions,
                          can_manage_bug_reports=can_manage_bug_reports)
@@ -4672,6 +4689,7 @@ def save_bug_report_filters():
         'date_from': request.form.get('date_from', '').strip(),
         'date_to': request.form.get('date_to', '').strip(),
         'creator': request.form.get('creator', '').strip(),
+        'assignee': request.form.get('assignee', '').strip(),
         'status': request.form.get('status', '').strip(),
         'priority': request.form.get('priority', '').strip(),
         'error_type': request.form.get('error_type', '').strip(),
