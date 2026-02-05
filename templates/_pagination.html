@@ -25,24 +25,23 @@
         </form>
         <nav>
             <ul class="pagination mb-0">
-                {# Helper to merge args #}
-                {% set args = request.args.copy() %}
-                {# We don't need the return value of pop, just side effect #}
+                {# Helper to merge args safely #}
+                {% set args = request.args.to_dict() %}
                 {% do args.pop('page', None) %}
                 {% do args.pop('per_page', None) %}
 
                 {# Prev #}
-                {% set x = args.update({'page': pagination.prev_num, 'per_page': pagination.per_page}) %}
                 <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for(endpoint, **args) }}">Trước</a>
+                    <a class="page-link"
+                        href="{{ url_for(endpoint, page=pagination.prev_num, per_page=pagination.per_page, **args) }}">Trước</a>
                 </li>
 
                 {# Pages #}
                 {% for num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                 {% if num %}
-                {% set x = args.update({'page': num, 'per_page': pagination.per_page}) %}
                 <li class="page-item {% if pagination.page == num %}active{% endif %}">
-                    <a class="page-link" href="{{ url_for(endpoint, **args) }}">{{ num }}</a>
+                    <a class="page-link"
+                        href="{{ url_for(endpoint, page=num, per_page=pagination.per_page, **args) }}">{{ num }}</a>
                 </li>
                 {% else %}
                 <li class="page-item disabled"><span class="page-link">...</span></li>
@@ -50,9 +49,9 @@
                 {% endfor %}
 
                 {# Next #}
-                {% set x = args.update({'page': pagination.next_num, 'per_page': pagination.per_page}) %}
                 <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for(endpoint, **args) }}">Sau</a>
+                    <a class="page-link"
+                        href="{{ url_for(endpoint, page=pagination.next_num, per_page=pagination.per_page, **args) }}">Sau</a>
                 </li>
             </ul>
         </nav>
