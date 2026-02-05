@@ -5264,13 +5264,19 @@ def config_proposals():
     q = ConfigProposal.query
     filter_name = request.args.get('name', '').strip()
     filter_unit = request.args.get('unit', '').strip()
+    filter_proposer = request.args.get('proposer', '').strip()
+    filter_status = request.args.get('status', '').strip()
     start_date = request.args.get('start_date', '').strip()
     end_date = request.args.get('end_date', '').strip()
     
     if filter_name:
         q = q.filter(ConfigProposal.name.ilike(f"%{filter_name}%"))
     if filter_unit:
-        q = q.filter(ConfigProposal.proposer_unit.ilike(f"%{filter_unit}%"))
+        q = q.filter(ConfigProposal.proposer_unit == filter_unit)
+    if filter_proposer:
+        q = q.filter(ConfigProposal.proposer_name == filter_proposer)
+    if filter_status:
+        q = q.filter(ConfigProposal.status == filter_status)
     if start_date:
         try:
             dt = datetime.strptime(start_date, '%Y-%m-%d')
@@ -5285,7 +5291,23 @@ def config_proposals():
             pass
     
     proposals_pagination = q.order_by(ConfigProposal.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    return render_template('config_proposals.html', proposals=proposals_pagination, filter_name=filter_name, filter_unit=filter_unit, start_date=start_date, end_date=end_date)
+
+    # Fetch distinct values for dropdowns
+    proposers = [r.proposer_name for r in db.session.query(ConfigProposal.proposer_name).distinct().filter(ConfigProposal.proposer_name != None).order_by(ConfigProposal.proposer_name).all()]
+    units = [r.proposer_unit for r in db.session.query(ConfigProposal.proposer_unit).distinct().filter(ConfigProposal.proposer_unit != None).order_by(ConfigProposal.proposer_unit).all()]
+    statuses = [r.status for r in db.session.query(ConfigProposal.status).distinct().filter(ConfigProposal.status != None).order_by(ConfigProposal.status).all()]
+
+    return render_template('config_proposals.html', 
+                           proposals=proposals_pagination, 
+                           filter_name=filter_name, 
+                           filter_unit=filter_unit,
+                           filter_proposer=filter_proposer,
+                           filter_status=filter_status,
+                           start_date=start_date, 
+                           end_date=end_date,
+                           proposers=proposers,
+                           units=units,
+                           statuses=statuses)
 
 @app.route('/config_proposals/add', methods=['GET', 'POST'])
 def add_config_proposal():
