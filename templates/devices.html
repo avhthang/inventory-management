@@ -57,7 +57,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Trưởng phòng</label>
+                    <label class="form-label">Người quản lý</label>
                     <select id="manager_filter_select" name="filter_manager_id" class="form-select">
                         <option value="">-- Tất cả --</option>
                         {% for user in users %}
@@ -128,7 +128,7 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Đổi trưởng phòng</label>
+                        <label class="form-label">Đổi người quản lý</label>
                         <select name="new_manager_id" class="form-select" id="bulk_manager_select">
                             <option value="">-- Không đổi --</option>
                             {% for user in users %}
@@ -168,7 +168,31 @@
                                     {% endfor %}
                                 </ul>
                             </th>
-                            <th>Trưởng phòng</th>
+                            <th class="text-center" style="white-space: nowrap;">
+                                <strong>Người quản lý</strong>
+                                <button type="button"
+                                    class="btn btn-sm {% if filter_manager_id %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+                                    data-bs-toggle="dropdown" title="Lọc người quản lý">
+                                    <i class="bi bi-funnel"></i>
+                                </button>
+                                <div class="dropdown-menu p-2" style="width: 250px;">
+                                    <input type="text" class="form-control form-control-sm mb-2"
+                                        id="headerManagerSearch" placeholder="Tìm người quản lý..."
+                                        onkeyup="filterHeaderManagers()">
+                                    <ul class="list-unstyled mb-0" id="headerManagerList"
+                                        style="max-height: 200px; overflow-y: auto;">
+                                        <li><a class="dropdown-item"
+                                                href="javascript:filterByParam('filter_manager_id', '')">-- Tất cả
+                                                --</a></li>
+                                        {% for user in users %}
+                                        <li><a class="dropdown-item"
+                                                href="javascript:filterByParam('filter_manager_id', '{{ user.id }}')"
+                                                data-name="{{ user.full_name or user.username }}">{{ user.full_name or
+                                                user.username }}</a></li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </th>
                             <th class="text-center" style="white-space: nowrap;">
                                 <strong>Trạng thái</strong>
                                 <button type="button"
@@ -477,6 +501,24 @@
 
         document.body.appendChild(form);
         form.submit();
+    }
+    function filterHeaderManagers() {
+        const input = document.getElementById('headerManagerSearch');
+        const filter = input.value.toLowerCase();
+        const list = document.getElementById('headerManagerList');
+        const items = list.getElementsByTagName('li');
+
+        for (let i = 0; i < items.length; i++) {
+            const a = items[i].getElementsByTagName("a")[0];
+            if (a) {
+                const txtValue = a.getAttribute('data-name') || a.innerText;
+                if (txtValue.toLowerCase().indexOf(filter) > -1 || filter === '') {
+                    items[i].style.display = "";
+                } else {
+                    items[i].style.display = "none";
+                }
+            }
+        }
     }
 </script>
 {% endblock %}

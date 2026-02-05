@@ -3755,16 +3755,26 @@ def set_users_default_status():
 
 @app.route('/users/<int:user_id>/reset_password', methods=['POST'])
 def reset_user_password(user_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
+    if 'user_id' not in session: 
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        return redirect(url_for('login'))
+        
     user = User.query.get_or_404(user_id)
     try:
         from security import generate_secure_password
         new_password = generate_secure_password()
         user.password = generate_password_hash(new_password)
         db.session.commit()
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'new_password': new_password})
+            
         flash(f'Đã reset mật khẩu cho {user.full_name or user.username} về: {new_password}', 'success')
-    except Exception:
+    except Exception as e:
         db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': str(e)}), 500
         flash('Không thể reset mật khẩu do cơ sở dữ liệu chỉ đọc. Kiểm tra quyền ghi file DB.', 'danger')
     return redirect(url_for('user_list'))
 
