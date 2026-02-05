@@ -72,6 +72,7 @@ except Exception:
 # Get configuration based on environment
 config_name = os.environ.get('FLASK_ENV', 'development')
 app = Flask(__name__, instance_path=instance_path)
+app.jinja_env.add_extension('jinja2.ext.do')
 app.config.from_object(config[config_name])
 
 # Override with environment variables if present and normalize postgres scheme
