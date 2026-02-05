@@ -837,6 +837,17 @@ class ConfigProposal(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     linked_receipt = db.relationship('InventoryReceipt', foreign_keys=[linked_receipt_id])
 
+class OrderTracking(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    proposal_id = db.Column(db.Integer, db.ForeignKey('config_proposal.id'), nullable=False)
+    status_content = db.Column(db.String(255), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    note = db.Column(db.Text)
+    updated_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    
+    proposal = db.relationship('ConfigProposal', backref=db.backref('order_logs', lazy=True, cascade="all,delete"))
+    updater = db.relationship('User', foreign_keys=[updated_by])
+
 class ConfigProposalItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     proposal_id = db.Column(db.Integer, db.ForeignKey('config_proposal.id'), nullable=False)
@@ -5289,7 +5300,7 @@ def add_config_proposal():
             vat_percent = request.form.get('vat_percent', type=float) or 10.0
             currency = request.form.get('currency') or 'VND'
             status = request.form.get('status') or 'Mới tạo'
-            purchase_status = request.form.get('purchase_status') or 'Lấy báo giá'
+            # purchase_status removed
             notes = request.form.get('notes')
             supplier_info_hdr = request.form.get('supplier_info')
 
@@ -5308,7 +5319,7 @@ def add_config_proposal():
                 vat_percent=vat_percent,
                 currency=currency,
                 status=status,
-                purchase_status=purchase_status,
+                # purchase_status removed
                 notes=notes,
                 supplier_info=supplier_info_hdr,
                 quantity=request.form.get('quantity', type=int) or 1
@@ -5363,7 +5374,33 @@ def config_proposal_detail(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     p = ConfigProposal.query.get_or_404(proposal_id)
     items = ConfigProposalItem.query.filter_by(proposal_id=proposal_id).order_by(ConfigProposalItem.order_no).all()
-    return render_template('config_proposal_detail.html', p=p, items=items)
+    p = ConfigProposal.query.get_or_404(proposal_id)
+    items = ConfigProposalItem.query.filter_by(proposal_id=proposal_id).order_by(ConfigProposalItem.order_no).all()
+    logs = OrderTracking.query.filter_by(proposal_id=proposal_id).order_by(OrderTracking.updated_at.desc()).all()
+    return render_template('config_proposal_detail.html', p=p, items=items, logs=logs)
+
+@app.route('/config_proposals/<int:proposal_id>/add_tracking', methods=['POST'])
+def add_proposal_order_tracking(proposal_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    p = ConfigProposal.query.get_or_404(proposal_id)
+    
+    status_content = request.form.get('status_content')
+    note = request.form.get('note')
+    
+    if not status_content:
+        flash('Vui lòng nhập trạng thái.', 'danger')
+        return redirect(url_for('config_proposal_detail', proposal_id=proposal_id))
+        
+    log = OrderTracking(
+        proposal_id=p.id,
+        status_content=status_content,
+        note=note,
+        updated_by=session['user_id']
+    )
+    db.session.add(log)
+    db.session.commit()
+    flash('Đã cập nhật theo dõi đơn hàng.', 'success')
+    return redirect(url_for('config_proposal_detail', proposal_id=proposal_id))
 
 @app.route('/config_proposals/<int:proposal_id>/delete', methods=['POST'])
 def delete_config_proposal(proposal_id):
@@ -5425,7 +5462,7 @@ def edit_config_proposal(proposal_id):
             p.scope = request.form.get('scope')
             p.currency = request.form.get('currency') or 'VND'
             p.status = request.form.get('status') or p.status
-            p.purchase_status = request.form.get('purchase_status') or p.purchase_status
+            # purchase_status removed
             p.notes = request.form.get('notes')
             p.supplier_info = request.form.get('supplier_info')
             p.vat_percent = request.form.get('vat_percent', type=float)

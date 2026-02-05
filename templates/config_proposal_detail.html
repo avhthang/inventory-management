@@ -17,7 +17,6 @@
       <div class="col-md-12"><strong>Nhà cung cấp:</strong> {{ p.supplier_info or '' }}</div>
       <div class="col-md-3"><strong>Loại tiền:</strong> {{ p.currency }}</div>
       <div class="col-md-3"><strong>Trạng thái:</strong> {{ p.status }}</div>
-      <div class="col-md-6"><strong>TT mua hàng:</strong> {{ p.purchase_status }}</div>
       <div class="col-12"><strong>Ghi chú:</strong> {{ p.notes or '' }}</div>
       <div class="col-md-6">
         <strong>Phiếu nhập kho:</strong>
@@ -88,6 +87,50 @@
         </tfoot>
       </table>
     </div>
+  </div>
+</div>
+
+<div class="card mt-3 mb-4">
+  <div class="card-header bg-light d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-truck"></i> Theo dõi đơn hàng</strong>
+  </div>
+  <div class="card-body">
+    {% if p.status in ['Đang mua hàng', 'Hoàn thành'] or logs|length > 0 %}
+    <form method="POST" action="{{ url_for('add_proposal_order_tracking', proposal_id=p.id) }}" class="mb-4">
+      <div class="row g-2">
+        <div class="col-md-4">
+          <input type="text" name="status_content" class="form-control"
+            placeholder="Trạng thái (vd: Đã đặt hàng, Đang giao...)" required>
+        </div>
+        <div class="col-md-6">
+          <input type="text" name="note" class="form-control" placeholder="Ghi chú chi tiết...">
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send"></i> Cập nhật</button>
+        </div>
+      </div>
+    </form>
+
+    <div class="list-group">
+      {% for log in logs %}
+      <div class="list-group-item list-group-item-action">
+        <div class="d-flex w-100 justify-content-between">
+          <h6 class="mb-1 text-primary">{{ log.status_content }}</h6>
+          <small class="text-muted">{{ log.updated_at|localtime }}</small>
+        </div>
+        {% if log.note %}
+        <p class="mb-1">{{ log.note }}</p>
+        {% endif %}
+        <small class="text-muted">Cập nhật bởi: {{ log.updater.full_name or log.updater.username }}</small>
+      </div>
+      {% else %}
+      <div class="text-center text-muted py-3">Chưa có thông tin theo dõi.</div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted mb-0 text-center py-3">Chức năng theo dõi đơn hàng khả dụng khi trạng thái là "Đang mua hàng".
+    </p>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

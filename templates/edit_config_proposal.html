@@ -48,16 +48,8 @@
     <div class="col-md-3">
       <label class="form-label">Trạng thái</label>
       <select class="form-select" name="status">
-        {% for st in ['Mới tạo','Lưu nháp','Đang xin ý kiến','Đã xin ý kiến','Đang mua hàng','Đã hoàn thành','Hủy'] %}
+        {% for st in ['Mới tạo','Lưu nháp','Đang xin ý kiến','Đang mua hàng','Hoàn thành','Hủy'] %}
         <option value="{{ st }}" {% if p.status==st %}selected{% endif %}>{{ st }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Trạng thái mua hàng</label>
-      <select class="form-select" name="purchase_status">
-        {% for st in ['Lấy báo giá','Chờ thanh toán','Chờ giao hàng','Chờ xuất hóa đơn','Đã hoàn thành'] %}
-        <option value="{{ st }}" {% if p.purchase_status==st %}selected{% endif %}>{{ st }}</option>
         {% endfor %}
       </select>
     </div>
@@ -231,17 +223,17 @@
         newRow(idx);
         rowsCountInput.value = idx + 1;
       });
-    });
-    vatPercentEl.addEventListener('input', recalc);
-    quantityEl.addEventListener('input', recalc);
-  }
 
-  function init() {
-    // initialize lines
-    recalc();
-    bind();
-  }
-  init();
-}) ();
+      vatPercentEl.addEventListener('input', recalc);
+      quantityEl.addEventListener('input', recalc);
+    }
+
+    function init() {
+      // initialize lines
+      recalc();
+      bind();
+    }
+    init();
+  })();
 </script>
 {% endblock %}

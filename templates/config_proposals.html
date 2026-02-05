@@ -4,11 +4,12 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h3>Đề xuất cấu hình thiết bị</h3>
   <a class="btn btn-primary" href="{{ url_for('add_config_proposal') }}"><i class="bi bi-plus-lg"></i> Tạo đề xuất</a>
-  </div>
+</div>
 
 <form class="row g-2 mb-3" method="get">
   <div class="col-md-4">
-    <input type="text" class="form-control" name="name" placeholder="Tìm theo tên đề xuất" value="{{ filter_name or '' }}">
+    <input type="text" class="form-control" name="name" placeholder="Tìm theo tên đề xuất"
+      value="{{ filter_name or '' }}">
   </div>
   <div class="col-md-3">
     <input type="text" class="form-control" name="unit" placeholder="Đơn vị" value="{{ filter_unit or '' }}">
@@ -36,7 +37,6 @@
             <th class="text-center">Người đề xuất</th>
             <th class="text-center">Đơn vị</th>
             <th class="text-center">Trạng thái</th>
-            <th class="text-center">TT mua hàng</th>
             <th class="text-center">Tổng</th>
             <th class="text-center">Thao tác</th>
           </tr>
@@ -45,28 +45,36 @@
           {% for p in proposals.items %}
           <tr>
             <td class="text-start">{{ proposals.first + loop.index - 1 }}</td>
-            <td class="text-start"><a href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}" class="text-decoration-none fw-semibold">{{ p.name }}</a></td>
+            <td class="text-start"><a href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}"
+                class="text-decoration-none fw-semibold">{{ p.name }}</a></td>
             <td class="text-start">{{ p.proposal_date.strftime('%d-%m-%Y') }}</td>
             <td class="text-start">{{ p.proposer_name or '' }}</td>
             <td class="text-start">{{ p.proposer_unit or '' }}</td>
             <td class="text-start">{{ p.status or '' }}</td>
-            <td class="text-start">{{ p.purchase_status or '' }}</td>
             <td class="text-end text-nowrap">{{ (p.total_amount or 0)|vnd }} {{ p.currency }}</td>
             <td class="text-center">
               <div class="btn-group btn-group-sm" role="group">
-                <a class="btn btn-outline-info" title="Xem" href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}"><i class="bi bi-eye"></i></a>
-                <a class="btn btn-outline-warning ms-1" title="Sửa" href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}"><i class="bi bi-pencil"></i></a>
-                <form method="post" action="{{ url_for('clone_config_proposal', proposal_id=p.id) }}" class="d-inline m-0 p-0">
-                  <button class="btn btn-outline-warning ms-1" title="Nhân bản" onclick="return confirm('Nhân bản đề xuất này?')"><i class="bi bi-files"></i></button>
+                <a class="btn btn-outline-info" title="Xem"
+                  href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}"><i class="bi bi-eye"></i></a>
+                <a class="btn btn-outline-warning ms-1" title="Sửa"
+                  href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}"><i class="bi bi-pencil"></i></a>
+                <form method="post" action="{{ url_for('clone_config_proposal', proposal_id=p.id) }}"
+                  class="d-inline m-0 p-0">
+                  <button class="btn btn-outline-warning ms-1" title="Nhân bản"
+                    onclick="return confirm('Nhân bản đề xuất này?')"><i class="bi bi-files"></i></button>
                 </form>
-                <form method="post" action="{{ url_for('delete_config_proposal', proposal_id=p.id) }}" class="d-inline m-0 p-0">
-                  <button class="btn btn-outline-danger ms-1" title="Xóa" onclick="return confirm('Xóa đề xuất này?')"><i class="bi bi-trash"></i></button>
+                <form method="post" action="{{ url_for('delete_config_proposal', proposal_id=p.id) }}"
+                  class="d-inline m-0 p-0">
+                  <button class="btn btn-outline-danger ms-1" title="Xóa"
+                    onclick="return confirm('Xóa đề xuất này?')"><i class="bi bi-trash"></i></button>
                 </form>
               </div>
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="10" class="text-center text-muted">Chưa có đề xuất nào.</td></tr>
+          <tr>
+            <td colspan="10" class="text-center text-muted">Chưa có đề xuất nào.</td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
