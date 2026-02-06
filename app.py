@@ -1982,17 +1982,7 @@ def get_subordinate_department_ids(dept_id):
         result.extend(get_subordinate_department_ids(child.id))
     return result
 
-@app.route('/devices')
-def device_list():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    user_id = session.get('user_id')
-    current_permissions = _get_current_permissions()
-    user = User.query.get(user_id)
-    
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
-    # Load current filters from query params or session-saved defaults
-    saved_filters = session.get('devices_filters', {}) or {}
+
 @app.route('/devices')
 def device_list():
     if 'user_id' not in session: return redirect(url_for('login'))
