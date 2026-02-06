@@ -2,9 +2,368 @@
 {% block title %}Chi tiết đề xuất{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Chi tiết đề xuất</h3>
-  <a class="btn btn-secondary" href="{{ url_for('config_proposals') }}">Quay lại</a>
+  <h3>Chi tiết đề xuất #{{ p.id }}</h3>
+  <div>
+    {% if p.status in ['new', 'rejected'] or current_user.role == 'admin' %}
+    <a class="btn btn-warning" href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}">
+      <i class="bi bi-pencil"></i> Sửa
+    </a>
+    {% endif %}
+    <a class="btn btn-secondary" href="{{ url_for('config_proposals') }}">Quay lại</a>
+  </div>
 </div>
+
+<!-- Workflow Progress -->
+<div class="card mb-4">
+  <div class="card-body">
+    {% set steps = [
+    ('new', 'Mới'),
+    ('team_approved', 'Duyệt BP'),
+    ('it_consulted', 'Tư vấn IT'),
+    ('finance_reviewed', 'Duyệt TC'),
+    ('approved', 'Duyệt GĐ'),
+    ('purchasing', 'Mua sắm'),
+    ('payment_done', 'Thanh toán'),
+    ('goods_received', 'Nhận hàng'),
+    ('handed_over', 'Bàn giao'),
+    ('completed', 'Hoàn tất')
+    ] %}
+    {% set current_step_idx = -1 %}
+    {% for s_code, s_label in steps %}
+    {% if p.status == s_code %}
+    {% set current_step_idx = loop.index0 %}
+    {% endif %}
+    {% endfor %}
+
+    <!-- Rejected special case -->
+    {% if p.status == 'rejected' %}
+    <div class="alert alert-danger">
+      <i class="bi bi-x-circle-fill"></i> Đề xuất đã bị từ chối.
+      <strong>Lý do:</strong> {{ p.rejection_reason }}
+    </div>
+    {% else %}
+    <div class="position-relative m-4">
+      <div class="progress" style="height: 2px;">
+        <div class="progress-bar" role="progressbar"
+          style="width: {{ (current_step_idx / (steps|length - 1)) * 100 }}%;"></div>
+      </div>
+      <div class="d-flex justify-content-between position-absolute top-0 w-100" style="transform: translateY(-50%);">
+        {% for s_code, s_label in steps %}
+        <div class="text-center" style="width: 80px;">
+          <span
+            class="badge rounded-pill {% if loop.index0 <= current_step_idx %}bg-primary{% else %}bg-secondary{% endif %}"
+            style="width: 25px; height: 25px; display: flex; align-items: center; justify-content: center;">
+            {% if loop.index0 < current_step_idx %}<i class="bi bi-check"></i>{% else %}{{ loop.index }}{% endif %}
+          </span>
+          <div class="small mt-1 {{ 'fw-bold text-primary' if loop.index0 == current_step_idx else 'text-muted' }}"
+            style="font-size: 0.75rem;">{{ s_label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Deadline Info -->
+    {% if p.current_stage_deadline and p.status != 'completed' %}
+    <div class="text-center mt-4">
+      {% set now = now_utc() %}
+      <!-- Assuming we add a context processor or pass now, let's use JS or simpler check on server side. Wait, Jinja doesn't have now(). Let's assume passed helper or ignore exact highlight for now. Actually app.py doesn't pass 'now'. Let's just show text. -->
+      <small class="text-muted">
+        <i class="bi bi-clock"></i> Hạn chót xử lý bước này: <strong>{{ p.current_stage_deadline|localtime }}</strong>
+      </small>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Workflow Actions & Details -->
+<div class="row">
+  <!-- Left Column: Info & Actions -->
+  <div class="col-md-8">
+    <div class="card mb-3">
+      <div class="card-header bg-light"><strong>Thông tin chung</strong></div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6"><strong>Tên đề xuất:</strong> {{ p.name }}</div>
+          <div class="col-md-6"><strong>Ngày tạo:</strong> {{ p.created_at|localtime }}</div>
+          <div class="col-md-6"><strong>Người đề xuất:</strong> {{ p.creator.full_name if p.creator else p.proposer_name
+            }} ({{ p.proposer_unit }})</div>
+          <div class="col-md-6"><strong>Phạm vi:</strong> {{ p.scope }}</div>
+          <div class="col-md-6"><strong>Loại tiền:</strong> {{ p.currency }}</div>
+          <div class="col-md-6"><strong>Trạng thái:</strong> <span class="badge bg-info">{{ p.status }}</span></div>
+          <div class="col-12"><strong>Nội dung/Ghi chú:</strong> {{ p.notes or 'Không có' }}</div>
+          <div class="col-12">
+            <strong>NCC / Báo giá:</strong>
+            <div class="bg-light p-2 rounded border mt-1">{{ p.supplier_info or 'Chưa có thông tin' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Items Table -->
+    <div class="card mb-3">
+      <div class="card-header bg-light"><strong>Danh sách thiết bị</strong></div>
+      <div class="card-body p-0">
+        <table class="table table-bordered align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:50px" class="text-center">#</th>
+              <th>Tên sản phẩm</th>
+              <th style="width:100px">Bảo hành</th>
+              <th class="text-end" style="width:80px">SL</th>
+              <th class="text-end" style="width:120px">Đơn giá</th>
+              <th class="text-end" style="width:140px">Thành tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in items %}
+            <tr>
+              <td class="text-center">{{ it.order_no }}</td>
+              <td>
+                {% if it.product_link %}
+                <a href="{{ it.product_link }}" target="_blank">{{ it.product_name }}</a>
+                {% else %}
+                {{ it.product_name }}
+                {% endif %}
+                {% if it.product_code %}<br><small class="text-muted">Mã: {{ it.product_code }}</small>{% endif %}
+              </td>
+              <td>{{ it.warranty }}</td>
+              <td class="text-end">{{ it.quantity }}</td>
+              <td class="text-end">{{ (it.unit_price or 0)|vnd }}</td>
+              <td class="text-end">{{ (it.line_total or 0)|vnd }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-light">
+            <tr>
+              <td colspan="5" class="text-end fw-bold">Tổng cộng ({{ p.quantity }} bộ x {{ p.vat_percent }}% VAT)</td>
+              <td class="text-end fw-bold text-success">{{ (p.total_amount or 0)|vnd }} {{ p.currency }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Action Area -->
+    {% if p.status != 'completed' and p.status != 'rejected' %}
+    <div class="card mb-3 border-primary">
+      <div class="card-header bg-primary text-white"><strong><i class="bi bi-lightning-charge"></i> Thao tác xử
+          lý</strong></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}">
+          <div class="mb-3">
+            <label class="form-label">Ghi chú xử lý / Lý do:</label>
+            <textarea name="note" class="form-control" rows="2"
+              placeholder="Nhập ghi chú hoặc lý do từ chối..."></textarea>
+          </div>
+
+          <!-- Dynamic Actions based on Status & Permissions -->
+          <div class="d-flex gap-2">
+
+            <!-- Step 1: Team Approval -->
+            {% if p.status == 'new' and ('config_proposals.approve_team' in current_permissions or current_user.role ==
+            'admin') %}
+            <!-- Basic check: Ideally check if user is manager of this specific dept, but permission check is consistent with backend basic block -->
+            <button type="submit" name="action" value="approve_team" class="btn btn-success">
+              <i class="bi bi-check-lg"></i> Duyệt (Trưởng bộ phận)
+            </button>
+            {% endif %}
+
+            <!-- Step 2: IT Consult -->
+            {% if p.status == 'team_approved' and ('config_proposals.consult_it' in current_permissions or
+            current_user.role == 'admin') %}
+            <div class="input-group mb-3 d-none">
+              <!-- Hidden helper for supplying info update? Maybe show explicit form instead. For simplicity assume they edited proposal before clicking action or pass note. -->
+            </div>
+            <button type="button" class="btn btn-info text-white" data-bs-toggle="collapse"
+              data-bs-target="#itInfoUpdate">
+              Tiến hành Tư vấn
+            </button>
+            {% endif %}
+
+            <!-- Step 3: Finance -->
+            {% if p.status == 'it_consulted' and ('config_proposals.review_finance' in current_permissions or
+            current_user.role == 'admin') %}
+            <button type="submit" name="action" value="review_finance" class="btn btn-success">
+              <i class="bi bi-cash-coin"></i> Xác nhận Ngân sách
+            </button>
+            {% endif %}
+
+            <!-- Step 4: Director -->
+            {% if p.status == 'finance_reviewed' and ('config_proposals.approve_director' in current_permissions or
+            current_user.role == 'admin') %}
+            <button type="submit" name="action" value="approve_director" class="btn btn-success">
+              <i class="bi bi-check-circle-fill"></i> Phê duyệt (Giám đốc)
+            </button>
+            {% endif %}
+
+            <!-- Step 5: Purchasing -->
+            {% if p.status == 'approved' and ('config_proposals.execute_purchase' in current_permissions or
+            current_user.role == 'admin') %}
+            <button type="submit" name="action" value="start_purchasing" class="btn btn-primary">
+              <i class="bi bi-cart"></i> Tiến hành Mua sắm
+            </button>
+            {% endif %}
+
+            <!-- Step 6: Payment -->
+            {% if p.status == 'purchasing' and ('config_proposals.execute_accounting' in current_permissions or
+            current_user.role == 'admin') %}
+            <button type="submit" name="action" value="confirm_payment" class="btn btn-warning">
+              <i class="bi bi-currency-dollar"></i> Xác nhận Thanh toán
+            </button>
+            {% endif %}
+
+            <!-- Step 7: Goods Receipt -->
+            {% if p.status == 'payment_done' and ('config_proposals.confirm_delivery' in current_permissions or
+            current_user.role == 'admin') %}
+            <button type="submit" name="action" value="confirm_goods_received" class="btn btn-primary">
+              <i class="bi bi-box-seam"></i> Đã nhận hàng @ IT
+            </button>
+            {% endif %}
+
+            <!-- Step 8: Handover -->
+            {% if p.status == 'goods_received' and ('config_proposals.confirm_delivery' in current_permissions or
+            current_user.role == 'admin') %}
+            <button type="submit" name="action" value="confirm_handover" class="btn btn-success">
+              <i class="bi bi-person-check"></i> Đã bàn giao User
+            </button>
+            {% endif %}
+
+            <!-- Step 9: Invoice -->
+            {% if p.status == 'handed_over' and ('config_proposals.execute_accounting' in current_permissions or
+            current_user.role == 'admin') %}
+            <button type="submit" name="action" value="confirm_invoice" class="btn btn-success">
+              <i class="bi bi-receipt"></i> Đã nhận hóa đơn
+            </button>
+            {% endif %}
+
+            <!-- Reject Button (Available for approvers) -->
+            <button type="submit" name="action" value="reject" class="btn btn-outline-danger ms-auto"
+              onclick="return confirm('Bạn chắc chắn muốn từ chối?')">
+              <i class="bi bi-x-circle"></i> Từ chối
+            </button>
+          </div>
+
+          <!-- Extra form for IT to update supplier info inline if needed -->
+          {% if p.status == 'team_approved' %}
+          <div class="collapse mt-3" id="itInfoUpdate">
+            <div class="card card-body">
+              <label class="form-label">Cập nhật thông tin NCC / Báo giá:</label>
+              <textarea name="supplier_info" class="form-control mb-2" rows="3">{{ p.supplier_info }}</textarea>
+              <button type="submit" name="action" value="consult_it" class="btn btn-primary">
+                <i class="bi bi-send"></i> Hoàn thành Tư vấn & Gửi
+              </button>
+            </div>
+          </div>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Right Column: History & Tracking -->
+  <div class="col-md-4">
+    <div class="card mb-3">
+      <div class="card-header bg-light"><strong>Lịch sử phê duyệt</strong></div>
+      <ul class="list-group list-group-flush">
+        <!-- Created -->
+        <li class="list-group-item">
+          <div class="d-flex w-100 justify-content-between">
+            <small>Tạo mới</small>
+            <small class="text-muted">{{ p.created_at|localtime }}</small>
+          </div>
+        </li>
+        <!-- Team Lead -->
+        {% if p.team_lead_approved_at %}
+        <li class="list-group-item list-group-item-success">
+          <div class="d-flex w-100 justify-content-between">
+            <span><i class="bi bi-check"></i> Duyệt BP</span>
+            <small>{{ p.team_lead_approved_at|localtime }}</small>
+          </div>
+        </li>
+        {% endif %}
+        <!-- IT -->
+        {% if p.it_consulted_at %}
+        <li class="list-group-item list-group-item-info">
+          <div class="d-flex w-100 justify-content-between">
+            <span><i class="bi bi-check"></i> Tư vấn IT</span>
+            <small>{{ p.it_consulted_at|localtime }}</small>
+          </div>
+          {% if p.it_consultation_note %}<small class="d-block text-muted fst-italic">{{ p.it_consultation_note
+            }}</small>{% endif %}
+        </li>
+        {% endif %}
+        <!-- Finance -->
+        {% if p.finance_reviewed_at %}
+        <li class="list-group-item list-group-item-warning">
+          <div class="d-flex w-100 justify-content-between">
+            <span><i class="bi bi-check"></i> Duyệt TC</span>
+            <small>{{ p.finance_reviewed_at|localtime }}</small>
+          </div>
+          {% if p.finance_review_note %}<small class="d-block text-muted fst-italic">{{ p.finance_review_note
+            }}</small>{% endif %}
+        </li>
+        {% endif %}
+        <!-- Director -->
+        {% if p.director_approved_at %}
+        <li class="list-group-item list-group-item-success">
+          <div class="d-flex w-100 justify-content-between">
+            <span><i class="bi bi-check-all"></i> Giám đốc duyệt</span>
+            <small>{{ p.director_approved_at|localtime }}</small>
+          </div>
+          {% if p.director_approval_note %}<small class="d-block text-muted fst-italic">{{ p.director_approval_note
+            }}</small>{% endif %}
+        </li>
+        {% endif %}
+        <!-- Post-approval steps -->
+        {% if p.purchasing_at %}
+        <li class="list-group-item"><small>Bắt đầu mua sắm: {{ p.purchasing_at|localtime }}</small></li>
+        {% endif %}
+        {% if p.payment_at %}
+        <li class="list-group-item"><small>Đã thanh toán: {{ p.payment_at|localtime }}</small></li>
+        {% endif %}
+        {% if p.goods_received_at %}
+        <li class="list-group-item"><small>IT đã nhận hàng: {{ p.goods_received_at|localtime }}</small></li>
+        {% endif %}
+        {% if p.handover_to_user_at %}
+        <li class="list-group-item"><small>Đã bàn giao User: {{ p.handover_to_user_at|localtime }}</small></li>
+        {% endif %}
+        {% if p.invoice_received_at %}
+        <li class="list-group-item list-group-item-success"><small><strong>Hoàn tất (Có HĐ):</strong> {{
+            p.invoice_received_at|localtime }}</small></li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <!-- Legacy/Order Tracking logs -->
+    <!-- Reuse existing logs var -->
+    <div class="card">
+      <div class="card-header bg-light"><strong>Ghi chú bổ sung</strong></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('add_proposal_order_tracking', proposal_id=p.id) }}" class="mb-3">
+          <div class="input-group">
+            <input type="text" name="status_content" class="form-control" placeholder="Nội dung/Ghi chú thêm..."
+              required>
+            <input type="hidden" name="note" value="">
+            <button class="btn btn-outline-secondary" type="submit">Gửi</button>
+          </div>
+        </form>
+        <div class="list-group list-group-flush">
+          {% for log in logs %}
+          <div class="list-group-item p-2">
+            <small class="text-muted">{{ log.updated_at|localtime }}</small><br>
+            <span>{{ log.status_content }}</span>
+            <div class="text-end"><small class="text-muted">- {{ log.updater.username }}</small></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
 
 <div class="card mb-3">
   <div class="card-body">

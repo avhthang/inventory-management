@@ -115,8 +115,16 @@ PERMISSIONS = [
     ('inventory.delete', 'Xóa phiếu nhập kho'),
     # Đề xuất cấu hình
     ('config_proposals.view', 'Xem đề xuất cấu hình'),
-    ('config_proposals.edit', 'Tạo/Sửa đề xuất cấu hình'),
+    ('config_proposals.create', 'Tạo đề xuất cấu hình'),
+    ('config_proposals.edit', 'Sửa đề xuất cấu hình (khi chưa duyệt)'),
     ('config_proposals.delete', 'Xóa đề xuất cấu hình'),
+    ('config_proposals.approve_team', 'Duyệt đề xuất (Trưởng bộ phận)'),
+    ('config_proposals.consult_it', 'Tư vấn kỹ thuật (IT)'),
+    ('config_proposals.review_finance', 'Kiểm tra ngân sách (Tài chính/Kế toán)'),
+    ('config_proposals.approve_director', 'Phê duyệt (Giám đốc)'),
+    ('config_proposals.execute_purchase', 'Thực hiện mua sắm (Mua hàng)'),
+    ('config_proposals.execute_accounting', 'Thực hiện thanh toán/Hóa đơn (Kế toán)'),
+    ('config_proposals.confirm_delivery', 'Xác nhận nhận hàng (Kỷ thuật/Người dùng)'),
     # Người dùng
     ('users.view', 'Xem danh sách/chi tiết người dùng'),
     ('users.edit', 'Thêm/Sửa người dùng, reset mật khẩu'),
@@ -579,6 +587,82 @@ def migrate_resource_table():
 
 migrate_resource_table()
 
+def migrate_config_proposal_workflow():
+    """Add workflow columns to config_proposal table if they don't exist"""
+    with app.app_context():
+        try:
+            from sqlalchemy import text, inspect
+            
+            # Check if table exists
+            try:
+                inspector = inspect(db.engine)
+                if 'config_proposal' not in inspector.get_table_names():
+                    return
+                columns = {col['name'] for col in inspector.get_columns('config_proposal')}
+            except Exception:
+                # If inspection fails, fallback to simple query check or exit
+                return
+
+            with db.engine.connect() as conn:
+                def _add_col(col_name, col_type):
+                    if col_name not in columns:
+                        try:
+                            # External DB (Postgres) vs SQLite
+                            stmt = f"ALTER TABLE config_proposal ADD COLUMN {col_name} {col_type}"
+                            conn.execute(text(stmt))
+                            conn.commit()
+                            print(f"✓ Added column {col_name} to config_proposal")
+                        except Exception as e:
+                            print(f"Migration note ({col_name}): {e}")
+
+                # Add new columns
+                _add_col('created_by', 'INTEGER REFERENCES user(id)')
+                _add_col('team_lead_approver_id', 'INTEGER REFERENCES user(id)')
+                _add_col('team_lead_approved_at', 'DATETIME')
+                _add_col('it_consultant_id', 'INTEGER REFERENCES user(id)')
+                _add_col('it_consulted_at', 'DATETIME')
+                _add_col('it_consultation_note', 'TEXT')
+                _add_col('finance_reviewer_id', 'INTEGER REFERENCES user(id)')
+                _add_col('finance_reviewed_at', 'DATETIME')
+                _add_col('finance_review_note', 'TEXT')
+                _add_col('director_approver_id', 'INTEGER REFERENCES user(id)')
+                _add_col('director_approved_at', 'DATETIME')
+                _add_col('director_approval_note', 'TEXT')
+                _add_col('cat_purchaser_id', 'INTEGER REFERENCES user(id)')
+                _add_col('purchasing_at', 'DATETIME')
+                _add_col('accountant_payer_id', 'INTEGER REFERENCES user(id)')
+                _add_col('payment_at', 'DATETIME')
+                _add_col('tech_receiver_id', 'INTEGER REFERENCES user(id)')
+                _add_col('goods_received_at', 'DATETIME')
+                _add_col('handover_to_user_at', 'DATETIME')
+                _add_col('accountant_invoice_id', 'INTEGER REFERENCES user(id)')
+                _add_col('invoice_received_at', 'DATETIME')
+                _add_col('rejection_reason', 'TEXT')
+                _add_col('current_stage_deadline', 'DATETIME')
+                
+                # Check status column length/type if needed, but usually can't easy alter limit in standard SQL without table recreation.
+                # Assuming 30 chars is enough or we utilize it carefully. New statuses are under 30 chars.
+                
+                # Data migration: Set created_by = 1 (Admin) or proposer if null
+                if 'created_by' not in columns: # Just added
+                     # Try to map proposer_name to user?? No, too risky. Just set admin for legacy.
+                     pass 
+                
+                # Data Migration: Map legacy statuses to new codes
+                try:
+                    conn.execute(text("UPDATE config_proposal SET status = 'new' WHERE status = 'Mới tạo'"))
+                    conn.execute(text("UPDATE config_proposal SET status = 'purchasing' WHERE status = 'Đang mua hàng'"))
+                    conn.execute(text("UPDATE config_proposal SET status = 'rejected' WHERE status = 'Hủy'"))
+                    conn.execute(text("UPDATE config_proposal SET status = 'completed' WHERE status = 'Hoàn thành'"))
+                    conn.commit()
+                except Exception as e:
+                    print(f"Data migration error: {e}")
+
+        except Exception as e:
+            print(f"Migration error (config_proposal_workflow): {e}")
+
+migrate_config_proposal_workflow()
+
 # Ensure default admin exists on startup
 with app.app_context():
     try:
@@ -826,17 +910,54 @@ class ConfigProposal(db.Model):
     scope = db.Column(db.String(50))  # Dùng chung | Cá nhân
     quantity = db.Column(db.Integer, default=1)  # Số lượng bộ thiết bị
     currency = db.Column(db.String(10), default='VND')
-    status = db.Column(db.String(30), default='Mới tạo')  # Mới tạo, Lưu nháp, Đang xin ý kiến, Đã xin ý kiến, Đang mua hàng, Hủy
-    purchase_status = db.Column(db.String(30), default='Lấy báo giá')  # Lấy báo giá, Chờ thanh toán, Chờ giao hàng, Chờ xuất hóa đơn, Đã hoàn thành
+    status = db.Column(db.String(30), default='new')  # new, team_approved, it_consulted, finance_reviewed, approved, purchasing, payment_done, goods_received, handed_over, completed, rejected
+    purchase_status = db.Column(db.String(30), default='Lấy báo giá')  # Deprecated in favor of workflow status, but kept for legacy
     notes = db.Column(db.Text)
-    supplier_info = db.Column(db.String(255))
+    supplier_info = db.Column(db.Text) # Changed to Text for detailed info
     linked_receipt_id = db.Column(db.Integer, db.ForeignKey('inventory_receipt.id'))
     subtotal = db.Column(db.Float, default=0.0)
     vat_percent = db.Column(db.Float, default=10.0)
     vat_amount = db.Column(db.Float, default=0.0)
     total_amount = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Workflow tracking logs
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    
+    team_lead_approver_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    team_lead_approved_at = db.Column(db.DateTime)
+    
+    it_consultant_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    it_consulted_at = db.Column(db.DateTime)
+    it_consultation_note = db.Column(db.Text)
+    
+    finance_reviewer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    finance_reviewed_at = db.Column(db.DateTime)
+    finance_review_note = db.Column(db.Text)
+    
+    director_approver_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    director_approved_at = db.Column(db.DateTime)
+    director_approval_note = db.Column(db.Text)
+    
+    cat_purchaser_id = db.Column(db.Integer, db.ForeignKey('user.id')) # Purchasing staff
+    purchasing_at = db.Column(db.DateTime)
+    
+    accountant_payer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    payment_at = db.Column(db.DateTime)
+    
+    tech_receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    goods_received_at = db.Column(db.DateTime)
+    
+    handover_to_user_at = db.Column(db.DateTime)
+    
+    accountant_invoice_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    invoice_received_at = db.Column(db.DateTime)
+    
+    rejection_reason = db.Column(db.Text)
+    current_stage_deadline = db.Column(db.DateTime) # SLA deadline
+
     linked_receipt = db.relationship('InventoryReceipt', foreign_keys=[linked_receipt_id])
+    creator = db.relationship('User', foreign_keys=[created_by], backref='created_proposals')
 
 class OrderTracking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1363,7 +1484,9 @@ def roles_permissions():
         'Backup': ['backup.view', 'backup.edit', 'backup.delete'],
         'Phân quyền': ['rbac.view', 'rbac.edit', 'rbac.delete', 'rbac.manage'],
         'Bảo trì': ['maintenance.view', 'maintenance.add', 'maintenance.edit', 'maintenance.delete', 'maintenance.upload', 'maintenance.download'],
-        'Báo lỗi nâng cao': ['bug_reports.manage_advanced']
+        'Bảo trì': ['maintenance.view', 'maintenance.add', 'maintenance.edit', 'maintenance.delete', 'maintenance.upload', 'maintenance.download'],
+        'Báo lỗi nâng cao': ['bug_reports.manage_advanced'],
+        'Quy trình mua sắm': ['config_proposals.create', 'config_proposals.approve_team', 'config_proposals.consult_it', 'config_proposals.review_finance', 'config_proposals.approve_director', 'config_proposals.execute_purchase', 'config_proposals.execute_accounting', 'config_proposals.confirm_delivery']
     }
     
     # Build actual groups from existing permissions
@@ -5388,7 +5511,10 @@ def add_config_proposal():
                 # purchase_status removed
                 notes=notes,
                 supplier_info=supplier_info_hdr,
-                quantity=request.form.get('quantity', type=int) or 1
+                quantity=request.form.get('quantity', type=int) or 1,
+                created_by=session['user_id'],
+                status='new',
+                current_stage_deadline=datetime.utcnow() + timedelta(days=1) # SLA for Team Lead: 24h
             )
             db.session.add(proposal)
             db.session.flush()
@@ -5434,6 +5560,162 @@ def add_config_proposal():
     # GET
     default_date = datetime.utcnow().strftime('%Y-%m-%d')
     return render_template('add_config_proposal.html', default_date=default_date)
+
+@app.route('/config_proposals/<int:proposal_id>/action', methods=['POST'])
+def proposal_action(proposal_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    p = ConfigProposal.query.get_or_404(proposal_id)
+    current_user = User.query.get(session['user_id'])
+    permissions = _get_current_permissions()
+    
+    action = request.form.get('action')
+    note = request.form.get('note')
+    
+    # helper for SLA calculation
+    def get_deadline(days):
+         # simple skip weekends logic could be added here, currently just calendar days
+         return datetime.utcnow() + timedelta(days=days)
+
+    try:
+        if action == 'approve_team':
+            # Check permission: User is manager of proposer's department OR Admin
+            is_manager = False
+            if p.creator and p.creator.department_info and p.creator.department_info.manager_id == current_user.id:
+                is_manager = True
+            
+            if not (is_manager or 'config_proposals.approve_team' in permissions or current_user.role == 'admin'):
+                flash('Bạn không có quyền duyệt cấp bộ phận.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+
+            p.status = 'team_approved'
+            p.team_lead_approver_id = current_user.id
+            p.team_lead_approved_at = datetime.utcnow()
+            p.current_stage_deadline = get_deadline(2) # SLA for IT: 48h
+            flash('Đã duyệt đề xuất (Cấp bộ phận). Chuyển sang IT tư vấn.', 'success')
+
+        elif action == 'consult_it':
+            if 'config_proposals.consult_it' not in permissions and current_user.role != 'admin':
+                flash('Bạn không có quyền tư vấn kỹ thuật.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+            
+            supplier_info = request.form.get('supplier_info')
+            if supplier_info:
+                p.supplier_info = supplier_info
+            
+            p.status = 'it_consulted'
+            p.it_consultant_id = current_user.id
+            p.it_consulted_at = datetime.utcnow()
+            p.it_consultation_note = note
+            p.current_stage_deadline = get_deadline(2) # SLA for Finance: 48h
+            flash('Đã hoàn thành tư vấn kỹ thuật. Chuyển sang Tài chính.', 'success')
+
+        elif action == 'review_finance':
+            if 'config_proposals.review_finance' not in permissions and current_user.role != 'admin':
+                flash('Bạn không có quyền kiểm tra ngân sách.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+            
+            p.status = 'finance_reviewed'
+            p.finance_reviewer_id = current_user.id
+            p.finance_reviewed_at = datetime.utcnow()
+            p.finance_review_note = note
+            p.current_stage_deadline = get_deadline(2) # SLA for Director: 48h
+            flash('Đã xác nhận ngân sách. Chuyển Giám đốc phê duyệt.', 'success')
+
+        elif action == 'approve_director':
+            if 'config_proposals.approve_director' not in permissions and current_user.role != 'admin':
+                flash('Bạn không có quyền phê duyệt.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+            
+            p.status = 'approved'
+            p.director_approver_id = current_user.id
+            p.director_approved_at = datetime.utcnow()
+            p.director_approval_note = note
+            p.current_stage_deadline = get_deadline(3) # SLA for Purchasing: 3 days
+            flash('Đã phê duyệt đề xuất. Chuyển sang bộ phận Mua hàng.', 'success')
+
+        elif action == 'start_purchasing':
+             if 'config_proposals.execute_purchase' not in permissions and current_user.role != 'admin':
+                flash('Bạn không có quyền thực hiện mua sắm.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+             
+             p.status = 'purchasing'
+             p.cat_purchaser_id = current_user.id
+             p.purchasing_at = datetime.utcnow()
+             p.current_stage_deadline = get_deadline(3) # SLA Payment
+             flash('Đang thực hiện mua sắm. Chuyển Kế toán thanh toán.', 'success')
+        
+        elif action == 'confirm_payment':
+             if 'config_proposals.execute_accounting' not in permissions and current_user.role != 'admin':
+                flash('Bạn không có quyền xác nhận thanh toán.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+             
+             p.status = 'payment_done'
+             p.accountant_payer_id = current_user.id
+             p.payment_at = datetime.utcnow()
+             p.current_stage_deadline = get_deadline(5) # SLA Delivery
+             flash('Đã xác nhận thanh toán. Chờ nhận hàng.', 'success')
+
+        elif action == 'confirm_goods_received':
+             if 'config_proposals.confirm_delivery' not in permissions and current_user.role != 'admin':
+                flash('Bạn không có quyền xác nhận nhận hàng.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+             
+             p.status = 'goods_received'
+             p.tech_receiver_id = current_user.id
+             p.goods_received_at = datetime.utcnow()
+             flash('Đã nhận hàng (nhập kho tạm). Chờ bàn giao.', 'success')
+
+        elif action == 'confirm_handover':
+             # Usually IT or User confirms handover? check permission confirm_delivery or similar?
+             # Let's assume IT confirms they handed over, or User confirms receipt. 
+             # Re-using confirm_delivery for IT side or create new? 
+             # Plan said "IT (Receive/Handover)". So IT confirms.
+             if 'config_proposals.confirm_delivery' not in permissions and current_user.role != 'admin':
+                flash('Bạn không có quyền xác nhận bàn giao.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+             
+             p.status = 'handed_over'
+             p.handover_to_user_at = datetime.utcnow()
+             p.current_stage_deadline = get_deadline(3) # SLA Invoice
+             flash('Đã bàn giao cho người dùng. Chờ hóa đơn.', 'success')
+
+        elif action == 'confirm_invoice':
+             if 'config_proposals.execute_accounting' not in permissions and current_user.role != 'admin':
+                flash('Bạn không có quyền xác nhận hóa đơn.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+             
+             p.status = 'completed'
+             p.accountant_invoice_id = current_user.id
+             p.invoice_received_at = datetime.utcnow()
+             flash('Đã nhận hóa đơn. Quy trình hoàn tất.', 'success')
+
+        elif action == 'reject':
+            # Allow reject at any stage if they have the permission for that stage?
+            # Creating a generic reject logic is complex. 
+            # Simplified: Approvers can reject.
+            can_reject = False
+            if p.status == 'new' and (is_manager or 'config_proposals.approve_team' in permissions): can_reject = True
+            elif p.status == 'team_approved' and ('config_proposals.consult_it' in permissions): can_reject = True
+            elif p.status == 'it_consulted' and ('config_proposals.review_finance' in permissions): can_reject = True
+            elif p.status == 'finance_reviewed' and ('config_proposals.approve_director' in permissions): can_reject = True
+            elif current_user.role == 'admin': can_reject = True
+            
+            if not can_reject:
+                flash('Bạn không có quyền từ chối ở bước này.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+
+            p.status = 'rejected'
+            p.rejection_reason = note
+            # Who rejected? tracked by logic context, but maybe we should store "rejected_by"? 
+            # For now simplified columns.
+            flash(f'Đã từ chối đề xuất. Lý do: {note}', 'warning')
+
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi xử lý: {str(e)}', 'danger')
+
+    return redirect(url_for('config_proposal_detail', proposal_id=p.id))
 
 @app.route('/config_proposals/<int:proposal_id>')
 def config_proposal_detail(proposal_id):
@@ -5582,6 +5864,13 @@ def edit_config_proposal(proposal_id):
             db.session.rollback()
             flash(f'Lỗi khi cập nhật: {str(e)}', 'danger')
             return redirect(url_for('edit_config_proposal', proposal_id=p.id))
+    
+    # Restrict editing if not in editable status
+    # Only allow editing if 'new' or 'rejected' OR if admin
+    if p.status not in ['new', 'rejected'] and session.get('role') != 'admin':
+         flash('Không thể chỉnh sửa đề xuất khi đã vào quy trình duyệt.', 'warning')
+         return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+
     # GET
     items = ConfigProposalItem.query.filter_by(proposal_id=p.id).order_by(ConfigProposalItem.order_no).all()
     return render_template('edit_config_proposal.html', p=p, items=items)
