@@ -5832,7 +5832,8 @@ def edit_config_proposal(proposal_id):
         can_edit = True
     
     # 2. Phase-specific Edit: IT Consultant during 'team_approved'
-    elif p.status == 'team_approved':
+    # 2. Phase-specific Edit: IT Consultant during 'team_approved' or 'it_consulted' (updates)
+    elif p.status in ['team_approved', 'it_consulted']:
         if 'config_proposals.consult_it' in current_permissions:
              can_edit = True
     
