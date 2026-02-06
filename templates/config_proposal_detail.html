@@ -4,7 +4,19 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h3>Chi tiết đề xuất #{{ p.id }}</h3>
   <div>
-    {% if p.status in ['new', 'rejected'] or current_user.role == 'admin' %}
+    <!-- Allow Edit if new/rejected OR (team_approved AND has consult_it permission) -->
+    {% set can_edit = false %}
+    {% if p.status in ['new', 'rejected'] %}
+    {% if p.created_by == current_user.id or 'config_proposals.edit' in current_permissions %}
+    {% set can_edit = true %}
+    {% endif %}
+    {% elif p.status == 'team_approved' %}
+    {% if 'config_proposals.consult_it' in current_permissions or current_user.role == 'admin' %}
+    {% set can_edit = true %}
+    {% endif %}
+    {% endif %}
+
+    {% if can_edit %}
     <a class="btn btn-warning" href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}">
       <i class="bi bi-pencil"></i> Sửa
     </a>
@@ -16,17 +28,13 @@
 <!-- Workflow Progress -->
 <div class="card mb-4">
   <div class="card-body">
+    <!-- Simplified Steps: New -> BP -> IT -> Finance -> Director -->
     {% set steps = [
     ('new', 'Mới'),
     ('team_approved', 'Duyệt BP'),
     ('it_consulted', 'Tư vấn IT'),
     ('finance_reviewed', 'Duyệt TC'),
-    ('approved', 'Duyệt GĐ'),
-    ('purchasing', 'Mua sắm'),
-    ('payment_done', 'Thanh toán'),
-    ('goods_received', 'Nhận hàng'),
-    ('handed_over', 'Bàn giao'),
-    ('completed', 'Hoàn tất')
+    ('approved', 'Duyệt GĐ')
     ] %}
     {% set current_step_idx = -1 %}
     {% for s_code, s_label in steps %}
@@ -34,6 +42,9 @@
     {% set current_step_idx = loop.index0 %}
     {% endif %}
     {% endfor %}
+
+    <!-- If status is completed, it's virtually "after" Approved (index 4) -->
+    {% if p.status == 'completed' %}{% set current_step_idx = 4 %}{% endif %}
 
     <!-- Rejected special case -->
     {% if p.status == 'rejected' %}
@@ -63,10 +74,8 @@
     </div>
 
     <!-- Deadline Info -->
-    {% if p.current_stage_deadline and p.status != 'completed' %}
+    {% if p.current_stage_deadline and p.status not in ['approved', 'completed'] %}
     <div class="text-center mt-4">
-
-      <!-- Assuming we add a context processor or pass now, let's use JS or simpler check on server side. Wait, Jinja doesn't have now(). Let's assume passed helper or ignore exact highlight for now. Actually app.py doesn't pass 'now'. Let's just show text. -->
       <small class="text-muted">
         <i class="bi bi-clock"></i> Hạn chót xử lý bước này: <strong>{{ p.current_stage_deadline|localtime }}</strong>
       </small>
@@ -80,6 +89,112 @@
 <div class="row">
   <!-- Left Column: Info & Actions -->
   <div class="col-md-8">
+
+    <!-- Post-Approval Checklist (Visible when Approved/Completed) -->
+    {% if p.status in ['approved', 'completed'] %}
+    <div class="card mb-3 border-success">
+      <div class="card-header bg-success text-white">
+        <strong><i class="bi bi-check2-square"></i> Checklist Mua sắm & Bàn giao</strong>
+      </div>
+      <div class="card-body">
+        <div class="list-group">
+          <!-- 1. Purchasing -->
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <input class="form-check-input me-1" type="checkbox" {% if p.purchasing_at %}checked disabled{% endif %}>
+              <span class="{{ 'text-decoration-line-through text-muted' if p.purchasing_at else '' }}">Mua sắm / Đặt
+                hàng</span>
+              {% if p.purchasing_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
+                p.purchasing_at|localtime }}</small>{% endif %}
+            </div>
+            {% if not p.purchasing_at and ('config_proposals.execute_purchase' in current_permissions or
+            current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+              <button type="submit" name="action" value="start_purchasing" class="btn btn-sm btn-outline-primary">Xác
+                nhận</button>
+            </form>
+            {% endif %}
+          </div>
+
+          <!-- 2. Payment -->
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <input class="form-check-input me-1" type="checkbox" {% if p.payment_at %}checked disabled{% endif %}>
+              <span class="{{ 'text-decoration-line-through text-muted' if p.payment_at else '' }}">Thanh toán</span>
+              {% if p.payment_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
+                p.payment_at|localtime }}</small>{% endif %}
+            </div>
+            {% if not p.payment_at and ('config_proposals.execute_accounting' in current_permissions or
+            current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+              <button type="submit" name="action" value="confirm_payment" class="btn btn-sm btn-outline-primary">Xác
+                nhận</button>
+            </form>
+            {% endif %}
+          </div>
+
+          <!-- 3. Goods Received -->
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <input class="form-check-input me-1" type="checkbox" {% if p.goods_received_at %}checked disabled{% endif
+                %}>
+              <span class="{{ 'text-decoration-line-through text-muted' if p.goods_received_at else '' }}">Nhận hàng
+                (IT)</span>
+              {% if p.goods_received_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
+                p.goods_received_at|localtime }}</small>{% endif %}
+            </div>
+            {% if not p.goods_received_at and ('config_proposals.confirm_delivery' in current_permissions or
+            current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+              <button type="submit" name="action" value="confirm_goods_received"
+                class="btn btn-sm btn-outline-primary">Xác nhận</button>
+            </form>
+            {% endif %}
+          </div>
+
+          <!-- 4. Handover -->
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <input class="form-check-input me-1" type="checkbox" {% if p.handover_to_user_at %}checked disabled{%
+                endif %}>
+              <span class="{{ 'text-decoration-line-through text-muted' if p.handover_to_user_at else '' }}">Bàn giao
+                User</span>
+              {% if p.handover_to_user_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
+                p.handover_to_user_at|localtime }}</small>{% endif %}
+            </div>
+            {% if not p.handover_to_user_at and ('config_proposals.confirm_delivery' in current_permissions or
+            current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+              <button type="submit" name="action" value="confirm_handover" class="btn btn-sm btn-outline-primary">Xác
+                nhận</button>
+            </form>
+            {% endif %}
+          </div>
+
+          <!-- 5. Invoice -->
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <input class="form-check-input me-1" type="checkbox" {% if p.invoice_received_at %}checked disabled{%
+                endif %}>
+              <span class="{{ 'text-decoration-line-through text-muted' if p.invoice_received_at else '' }}">Nhận hóa
+                đơn (KT)</span>
+              {% if p.invoice_received_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
+                p.invoice_received_at|localtime }}</small>{% endif %}
+            </div>
+            {% if not p.invoice_received_at and ('config_proposals.execute_accounting' in current_permissions or
+            current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+              <button type="submit" name="action" value="confirm_invoice" class="btn btn-sm btn-outline-success">Xác
+                nhận & Hoàn tất</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+
     <div class="card mb-3">
       <div class="card-header bg-light"><strong>Thông tin chung</strong></div>
       <div class="card-body">
@@ -144,8 +259,8 @@
       </div>
     </div>
 
-    <!-- Action Area -->
-    {% if p.status != 'completed' and p.status != 'rejected' %}
+    <!-- Action Area for Approval Workflow (Steps 1-4) -->
+    {% if p.status in ['new', 'team_approved', 'it_consulted', 'finance_reviewed'] %}
     <div class="card mb-3 border-primary">
       <div class="card-header bg-primary text-white"><strong><i class="bi bi-lightning-charge"></i> Thao tác xử
           lý</strong></div>
@@ -172,12 +287,10 @@
             <!-- Step 2: IT Consult -->
             {% if p.status == 'team_approved' and ('config_proposals.consult_it' in current_permissions or
             current_user.role == 'admin') %}
-            <div class="input-group mb-3 d-none">
-              <!-- Hidden helper for supplying info update? Maybe show explicit form instead. For simplicity assume they edited proposal before clicking action or pass note. -->
-            </div>
+            <!-- Note: IT edits directly via 'Sửa' button now. This action finishes consultation. -->
             <button type="button" class="btn btn-info text-white" data-bs-toggle="collapse"
               data-bs-target="#itInfoUpdate">
-              Tiến hành Tư vấn
+              Cập nhật Tư vấn & Hoàn tất
             </button>
             {% endif %}
 
@@ -185,7 +298,7 @@
             {% if p.status == 'it_consulted' and ('config_proposals.review_finance' in current_permissions or
             current_user.role == 'admin') %}
             <button type="submit" name="action" value="review_finance" class="btn btn-success">
-              <i class="bi bi-cash-coin"></i> Xác nhận Ngân sách
+              <i class="bi bi-check-circle"></i> Xác nhận Ngân sách (TC)
             </button>
             {% endif %}
 
@@ -194,46 +307,6 @@
             current_user.role == 'admin') %}
             <button type="submit" name="action" value="approve_director" class="btn btn-success">
               <i class="bi bi-check-circle-fill"></i> Phê duyệt (Giám đốc)
-            </button>
-            {% endif %}
-
-            <!-- Step 5: Purchasing -->
-            {% if p.status == 'approved' and ('config_proposals.execute_purchase' in current_permissions or
-            current_user.role == 'admin') %}
-            <button type="submit" name="action" value="start_purchasing" class="btn btn-primary">
-              <i class="bi bi-cart"></i> Tiến hành Mua sắm
-            </button>
-            {% endif %}
-
-            <!-- Step 6: Payment -->
-            {% if p.status == 'purchasing' and ('config_proposals.execute_accounting' in current_permissions or
-            current_user.role == 'admin') %}
-            <button type="submit" name="action" value="confirm_payment" class="btn btn-warning">
-              <i class="bi bi-currency-dollar"></i> Xác nhận Thanh toán
-            </button>
-            {% endif %}
-
-            <!-- Step 7: Goods Receipt -->
-            {% if p.status == 'payment_done' and ('config_proposals.confirm_delivery' in current_permissions or
-            current_user.role == 'admin') %}
-            <button type="submit" name="action" value="confirm_goods_received" class="btn btn-primary">
-              <i class="bi bi-box-seam"></i> Đã nhận hàng @ IT
-            </button>
-            {% endif %}
-
-            <!-- Step 8: Handover -->
-            {% if p.status == 'goods_received' and ('config_proposals.confirm_delivery' in current_permissions or
-            current_user.role == 'admin') %}
-            <button type="submit" name="action" value="confirm_handover" class="btn btn-success">
-              <i class="bi bi-person-check"></i> Đã bàn giao User
-            </button>
-            {% endif %}
-
-            <!-- Step 9: Invoice -->
-            {% if p.status == 'handed_over' and ('config_proposals.execute_accounting' in current_permissions or
-            current_user.role == 'admin') %}
-            <button type="submit" name="action" value="confirm_invoice" class="btn btn-success">
-              <i class="bi bi-receipt"></i> Đã nhận hóa đơn
             </button>
             {% endif %}
 
@@ -248,7 +321,11 @@
           {% if p.status == 'team_approved' %}
           <div class="collapse mt-3" id="itInfoUpdate">
             <div class="card card-body">
-              <label class="form-label">Cập nhật thông tin NCC / Báo giá:</label>
+              <p class="small text-muted mb-2">
+                <i class="bi bi-info-circle"></i> Nếu cần sửa cấu hình/giá, hãy dùng nút <strong>"Sửa"</strong> ở góc
+                trên trước khi hoàn tất.
+              </p>
+              <label class="form-label">Cập nhật thông tin NCC / Ghi chú kỹ thuật:</label>
               <textarea name="supplier_info" class="form-control mb-2" rows="3">{{ p.supplier_info }}</textarea>
               <button type="submit" name="action" value="consult_it" class="btn btn-primary">
                 <i class="bi bi-send"></i> Hoàn thành Tư vấn & Gửi
@@ -316,23 +393,6 @@
           {% if p.director_approval_note %}<small class="d-block text-muted fst-italic">{{ p.director_approval_note
             }}</small>{% endif %}
         </li>
-        {% endif %}
-        <!-- Post-approval steps -->
-        {% if p.purchasing_at %}
-        <li class="list-group-item"><small>Bắt đầu mua sắm: {{ p.purchasing_at|localtime }}</small></li>
-        {% endif %}
-        {% if p.payment_at %}
-        <li class="list-group-item"><small>Đã thanh toán: {{ p.payment_at|localtime }}</small></li>
-        {% endif %}
-        {% if p.goods_received_at %}
-        <li class="list-group-item"><small>IT đã nhận hàng: {{ p.goods_received_at|localtime }}</small></li>
-        {% endif %}
-        {% if p.handover_to_user_at %}
-        <li class="list-group-item"><small>Đã bàn giao User: {{ p.handover_to_user_at|localtime }}</small></li>
-        {% endif %}
-        {% if p.invoice_received_at %}
-        <li class="list-group-item list-group-item-success"><small><strong>Hoàn tất (Có HĐ):</strong> {{
-            p.invoice_received_at|localtime }}</small></li>
         {% endif %}
       </ul>
     </div>
