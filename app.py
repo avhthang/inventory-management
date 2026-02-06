@@ -5658,10 +5658,14 @@ def proposal_action(proposal_id):
                 flash('Bạn không có quyền thực hiện mua sắm.', 'danger')
                 return redirect(url_for('config_proposal_detail', proposal_id=p.id))
              
-             # Don't change status, just update info
              p.cat_purchaser_id = current_user.id
              p.purchasing_at = datetime.utcnow()
-             flash('Đã xác nhận đang mua sắm.', 'success')
+             
+             if p.purchasing_at and p.payment_at and p.goods_received_at and p.handover_to_user_at and p.invoice_received_at:
+                 p.status = 'completed'
+                 flash('Đã xác nhận đang mua sắm. Quy trình hoàn tất!', 'success')
+             else:
+                 flash('Đã xác nhận đang mua sắm.', 'success')
         
         elif action == 'confirm_payment':
              if 'config_proposals.execute_accounting' not in permissions and current_user.role != 'admin':
@@ -5670,7 +5674,12 @@ def proposal_action(proposal_id):
              
              p.accountant_payer_id = current_user.id
              p.payment_at = datetime.utcnow()
-             flash('Đã xác nhận thanh toán.', 'success')
+             
+             if p.purchasing_at and p.payment_at and p.goods_received_at and p.handover_to_user_at and p.invoice_received_at:
+                 p.status = 'completed'
+                 flash('Đã xác nhận thanh toán. Quy trình hoàn tất!', 'success')
+             else:
+                 flash('Đã xác nhận thanh toán.', 'success')
 
         elif action == 'confirm_goods_received':
              if 'config_proposals.confirm_delivery' not in permissions and current_user.role != 'admin':
@@ -5679,7 +5688,12 @@ def proposal_action(proposal_id):
              
              p.tech_receiver_id = current_user.id
              p.goods_received_at = datetime.utcnow()
-             flash('Đã xác nhận nhận hàng @ IT.', 'success')
+             
+             if p.purchasing_at and p.payment_at and p.goods_received_at and p.handover_to_user_at and p.invoice_received_at:
+                 p.status = 'completed'
+                 flash('Đã xác nhận nhận hàng @ IT. Quy trình hoàn tất!', 'success')
+             else:
+                 flash('Đã xác nhận nhận hàng @ IT.', 'success')
 
         elif action == 'confirm_handover':
              if 'config_proposals.confirm_delivery' not in permissions and current_user.role != 'admin':
@@ -5687,7 +5701,12 @@ def proposal_action(proposal_id):
                 return redirect(url_for('config_proposal_detail', proposal_id=p.id))
              
              p.handover_to_user_at = datetime.utcnow()
-             flash('Đã xác nhận bàn giao User.', 'success')
+             
+             if p.purchasing_at and p.payment_at and p.goods_received_at and p.handover_to_user_at and p.invoice_received_at:
+                 p.status = 'completed'
+                 flash('Đã xác nhận bàn giao User. Quy trình hoàn tất!', 'success')
+             else:
+                 flash('Đã xác nhận bàn giao User.', 'success')
 
         elif action == 'confirm_invoice':
              if 'config_proposals.execute_accounting' not in permissions and current_user.role != 'admin':
@@ -5697,15 +5716,7 @@ def proposal_action(proposal_id):
              p.accountant_invoice_id = current_user.id
              p.invoice_received_at = datetime.utcnow()
              
-             # Optional: If all done, mark as 'completed'?
-             # User said "approved" is final, checklist is for tracking.
-             # But 'completed' status is useful for filtering.
-             # Let's check if all flag are present?
-             # For now, keep as 'approved', but maybe upgrade to 'completed' if invoice is received (last step typically).
-             # Let's strictly follow plan: Status 'approved' is the main state.
-             # But migration had 'completed'. Let's optionally set 'completed' if all done.
-             is_done = p.purchasing_at and p.payment_at and p.goods_received_at and p.invoice_received_at
-             if is_done:
+             if p.purchasing_at and p.payment_at and p.goods_received_at and p.handover_to_user_at and p.invoice_received_at:
                  p.status = 'completed'
                  flash('Đã nhận hóa đơn. Quy trình hoàn tất!', 'success')
              else:
