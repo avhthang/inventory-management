@@ -5792,6 +5792,7 @@ def delete_config_proposal(proposal_id):
 @app.route('/config_proposals/<int:proposal_id>/clone', methods=['POST'])
 def clone_config_proposal(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    p = ConfigProposal.query.get_or_404(proposal_id)
     new_p = ConfigProposal(
         name=f"{p.name} (bản sao)",
         proposal_date=p.proposal_date,
