@@ -5728,7 +5728,7 @@ def config_proposal_detail(proposal_id):
     p = ConfigProposal.query.get_or_404(proposal_id)
     items = ConfigProposalItem.query.filter_by(proposal_id=proposal_id).order_by(ConfigProposalItem.order_no).all()
     logs = OrderTracking.query.filter_by(proposal_id=proposal_id).order_by(OrderTracking.updated_at.desc()).all()
-    return render_template('config_proposal_detail.html', p=p, items=items, logs=logs)
+    return render_template('config_proposal_detail.html', p=p, items=items, logs=logs, current_permissions=_get_current_permissions())
 
 @app.route('/config_proposals/<int:proposal_id>/add_tracking', methods=['POST'])
 def add_proposal_order_tracking(proposal_id):
@@ -5766,7 +5766,6 @@ def delete_config_proposal(proposal_id):
 @app.route('/config_proposals/<int:proposal_id>/clone', methods=['POST'])
 def clone_config_proposal(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
-    p = ConfigProposal.query.get_or_404(proposal_id)
     new_p = ConfigProposal(
         name=f"{p.name} (bản sao)",
         proposal_date=p.proposal_date,
@@ -5774,12 +5773,14 @@ def clone_config_proposal(proposal_id):
         proposer_unit=p.proposer_unit,
         scope=p.scope,
         currency=p.currency,
-        status='Mới tạo',
+        status='new', # Reset to new
         subtotal=p.subtotal,
         vat_percent=p.vat_percent,
         vat_amount=p.vat_amount,
         total_amount=p.total_amount,
-        quantity=p.quantity
+        quantity=p.quantity,
+        supplier_info=p.supplier_info, # Copy supplier info
+        created_by=session['user_id'] # Set creator to current user
     )
     db.session.add(new_p)
     db.session.flush()
@@ -5788,8 +5789,9 @@ def clone_config_proposal(proposal_id):
             proposal_id=new_p.id,
             order_no=it.order_no,
             product_name=it.product_name,
+            product_link=it.product_link,
+            product_code=it.product_code,
             warranty=it.warranty,
-            supplier_info=it.supplier_info,
             quantity=it.quantity,
             unit_price=it.unit_price,
             line_total=it.line_total

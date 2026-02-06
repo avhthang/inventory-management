@@ -76,9 +76,28 @@
     <!-- Deadline Info -->
     {% if p.current_stage_deadline and p.status not in ['approved', 'completed'] %}
     <div class="text-center mt-4">
-      <small class="text-muted">
-        <i class="bi bi-clock"></i> Hạn chót xử lý bước này: <strong>{{ p.current_stage_deadline|localtime }}</strong>
-      </small>
+      <!-- Deadline Info -->
+      {% if p.current_stage_deadline and p.status not in ['approved', 'completed'] %}
+      <div class="text-center mt-4">
+        {% set handler = 'Chưa xác định' %}
+        {% if p.status == 'new' %}
+        {% set handler = 'Trưởng bộ phận (' + (p.creator.department_info.name if p.creator and p.creator.department_info
+        else 'N/A') + ')' %}
+        {% elif p.status == 'team_approved' %}
+        {% set handler = 'Bộ phận IT' %}
+        {% elif p.status == 'it_consulted' %}
+        {% set handler = 'Bộ phận Tài chính' %}
+        {% elif p.status == 'finance_reviewed' %}
+        {% set handler = 'Giám đốc' %}
+        {% endif %}
+
+        <small class="text-muted">
+          <i class="bi bi-clock"></i> Thời hạn xử lý: <strong>{{ p.current_stage_deadline|localtime }}</strong>
+          <br>
+          <i class="bi bi-person-badge"></i> Người xử lý: <strong>{{ handler }}</strong>
+        </small>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
     {% endif %}
