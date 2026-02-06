@@ -5964,11 +5964,8 @@ def edit_config_proposal(proposal_id):
             flash(f'Lỗi khi cập nhật: {str(e)}', 'danger')
             return redirect(url_for('edit_config_proposal', proposal_id=p.id))
     
-    # Restrict editing if not in editable status
-    # Only allow editing if 'new' or 'rejected' OR if admin
-    if p.status not in ['new', 'rejected'] and session.get('role') != 'admin':
-         flash('Không thể chỉnh sửa đề xuất khi đã vào quy trình duyệt.', 'warning')
-         return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+    # Redundant check removed. Permissions are handled at the start of the function.
+    # if p.status not in ['new', 'rejected'] and session.get('role') != 'admin': ...
 
     # GET
     items = ConfigProposalItem.query.filter_by(proposal_id=p.id).order_by(ConfigProposalItem.order_no).all()
