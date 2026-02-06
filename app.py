@@ -5468,6 +5468,10 @@ def config_proposals():
                            proposals=proposals_pagination, 
                            filter_name=filter_name, 
                            filter_unit=filter_unit,
+                           filter_proposer=filter_proposer, filter_status=filter_status,
+                           start_date=start_date, end_date=end_date,
+                           units=units, proposers=proposers, statuses=statuses,
+                           current_permissions=_get_current_permissions())
                            filter_proposer=filter_proposer,
                            filter_status=filter_status,
                            start_date=start_date, 
@@ -5854,8 +5858,14 @@ def edit_config_proposal(proposal_id):
             # purchase_status removed
             p.notes = request.form.get('notes')
             p.supplier_info = request.form.get('supplier_info')
-            p.vat_percent = request.form.get('vat_percent', type=float)
-            if p.vat_percent is None: p.vat_percent = 10.0
+            
+            # VAT Logic: Only update if provided, otherwise keep existing
+            new_vat = request.form.get('vat_percent', type=float)
+            if new_vat is not None:
+                p.vat_percent = new_vat
+            elif p.vat_percent is None:
+                 p.vat_percent = 10.0 # Default if both new and old are None
+                 
             p.quantity = request.form.get('quantity', type=int) or 1
             linked_id = request.form.get('linked_receipt_id')
             try:

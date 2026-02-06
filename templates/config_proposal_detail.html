@@ -55,51 +55,114 @@
     {% else %}
     <div class="position-relative m-4">
       <div class="progress" style="height: 2px;">
-        <div class="progress-bar" role="progressbar"
+        <div class="progress-bar bg-success" role="progressbar"
           style="width: {{ (current_step_idx / (steps|length - 1)) * 100 }}%;"></div>
       </div>
       <div class="d-flex justify-content-between position-absolute top-0 w-100" style="transform: translateY(-50%);">
         {% for s_code, s_label in steps %}
-        <div class="text-center" style="width: 80px;">
+        {% set step_handler = '---' %}
+        {% set step_info = '' %}
+
+        {# Determine Handler and Info based on step #}
+        {% if s_code == 'new' %}
+        {% set step_handler = p.proposer_name or 'Người tạo' %}
+        {% set step_info = 'Ngày tạo: ' + p.created_at.strftime('%d/%m/%Y %H:%M') %}
+        {% elif s_code == 'team_approved' %}
+        {% set step_handler = p.creator.department_info.name if p.creator and p.creator.department_info else 'Trưởng bộ
+        phận' %}
+        {% if p.team_lead_approved_at %}
+        {% set step_handler = p.team_lead_approver.full_name if p.team_lead_approver else step_handler %}
+        {% set step_info = 'Đã duyệt: ' + p.team_lead_approved_at.strftime('%d/%m/%Y %H:%M') %}
+        {% else %}
+        {% set step_info = 'Đang chờ duyệt' if p.status == 'new' else '---' %}
+        {% endif %}
+        {% elif s_code == 'it_consulted' %}
+        {% set step_handler = 'Bộ phận IT' %}
+        {% if p.it_consulted_at %}
+        {% set step_handler = p.it_consultant.full_name if p.it_consultant else step_handler %}
+        {% set step_info = 'Đã tư vấn: ' + p.it_consulted_at.strftime('%d/%m/%Y %H:%M') %}
+        {% endif %}
+        {% elif s_code == 'finance_reviewed' %}
+        {% set step_handler = 'Bộ phận Tài chính' %}
+        {% if p.finance_reviewed_at %}
+        {% set step_handler = p.finance_reviewer.full_name if p.finance_reviewer else step_handler %}
+        {% set step_info = 'Đã duyệt: ' + p.finance_reviewed_at.strftime('%d/%m/%Y %H:%M') %}
+        {% endif %}
+        {% elif s_code == 'approved' %}
+        {% set step_handler = 'Giám đốc' %}
+        {% if p.director_approved_at %}
+        {% set step_handler = p.director_approver.full_name if p.director_approver else step_handler %}
+        {% set step_info = 'Đã phê duyệt: ' + p.director_approved_at.strftime('%d/%m/%Y %H:%M') %}
+        {% endif %}
+        {% endif %}
+
+        {# If this is the CURRENT active step, use the Deadline info #}
+        {% if loop.index0 == current_step_idx and p.status not in ['approved', 'completed', 'rejected'] and
+        p.current_stage_deadline %}
+        {% set step_info = 'Hạn chót: ' + (p.current_stage_deadline|localtime) %}
+        {% endif %}
+
+        <div class="text-center" style="width: 80px; cursor: pointer;" onclick="showStepInfo(this)"
+          data-label="{{ s_label }}" data-handler="{{ step_handler }}" data-info="{{ step_info }}">
           <span
-            class="badge rounded-pill {% if loop.index0 <= current_step_idx %}bg-primary{% else %}bg-secondary{% endif %}"
-            style="width: 25px; height: 25px; display: flex; align-items: center; justify-content: center;">
+            class="badge rounded-pill {% if loop.index0 <= current_step_idx %}bg-success{% else %}bg-secondary{% endif %}"
+            style="width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
             {% if loop.index0 < current_step_idx %}<i class="bi bi-check"></i>{% else %}{{ loop.index }}{% endif %}
           </span>
-          <div class="small mt-1 {{ 'fw-bold text-primary' if loop.index0 == current_step_idx else 'text-muted' }}"
+          <div class="small mt-1 {{ 'fw-bold text-success' if loop.index0 <= current_step_idx else 'text-muted' }}"
             style="font-size: 0.75rem;">{{ s_label }}</div>
         </div>
         {% endfor %}
       </div>
     </div>
 
+    <!-- Info Display Area (Dynamic) -->
+    <div id="step-info-display" class="text-center mt-4">
+      <!-- Default to current active step info if available -->
+      {% if p.current_stage_deadline and p.status not in ['approved', 'completed'] %}
+      <small class="text-muted">
+        <i class="bi bi-clock"></i> Thời hạn xử lý: <strong>{{ p.current_stage_deadline|localtime }}</strong>
+      </small>
+      {% endif %}
+    </div>
+
+    <script>
+      function showStepInfo(element) {
+        var label = element.getAttribute('data-label');
+        var handler = element.getAttribute('data-handler');
+        var info = element.getAttribute('data-info');
+
+        var html = '<small class="text-muted">' +
+          '<i class="bi bi-info-circle"></i> Bước: <strong>' + label + '</strong><br>' +
+          '<i class="bi bi-person-badge"></i> Người xử lý: <strong>' + handler + '</strong><br>' +
+          '<i class="bi bi-clock"></i> Thông tin: <strong>' + info + '</strong>' +
+          '</small>';
+
+        document.getElementById('step-info-display').innerHTML = html;
+      }
+    </script>
+
     <!-- Deadline Info -->
     {% if p.current_stage_deadline and p.status not in ['approved', 'completed'] %}
     <div class="text-center mt-4">
-      <!-- Deadline Info -->
-      {% if p.current_stage_deadline and p.status not in ['approved', 'completed'] %}
-      <div class="text-center mt-4">
-        {% set handler = 'Chưa xác định' %}
-        {% if p.status == 'new' %}
-        {% set handler = 'Trưởng bộ phận (' + (p.creator.department_info.name if p.creator and p.creator.department_info
-        else 'N/A') + ')' %}
-        {% elif p.status == 'team_approved' %}
-        {% set handler = 'Bộ phận IT' %}
-        {% elif p.status == 'it_consulted' %}
-        {% set handler = 'Bộ phận Tài chính' %}
-        {% elif p.status == 'finance_reviewed' %}
-        {% set handler = 'Giám đốc' %}
-        {% endif %}
-
-        <small class="text-muted">
-          <i class="bi bi-clock"></i> Thời hạn xử lý: <strong>{{ p.current_stage_deadline|localtime }}</strong>
-          <br>
-          <i class="bi bi-person-badge"></i> Người xử lý: <strong>{{ handler }}</strong>
-        </small>
-      </div>
+      {% set handler = 'Chưa xác định' %}
+      {% if p.status == 'new' %}
+      {% set handler = 'Trưởng bộ phận (' + (p.creator.department_info.name if p.creator and p.creator.department_info
+      else 'N/A') + ')' %}
+      {% elif p.status == 'team_approved' %}
+      {% set handler = 'Bộ phận IT' %}
+      {% elif p.status == 'it_consulted' %}
+      {% set handler = 'Bộ phận Tài chính' %}
+      {% elif p.status == 'finance_reviewed' %}
+      {% set handler = 'Giám đốc' %}
       {% endif %}
+
+      <small class="text-muted">
+        <i class="bi bi-clock"></i> Thời hạn xử lý: <strong>{{ p.current_stage_deadline|localtime }}</strong>
+        <br>
+        <i class="bi bi-person-badge"></i> Người xử lý: <strong>{{ handler }}</strong>
+      </small>
     </div>
-    {% endif %}
     {% endif %}
   </div>
 </div>

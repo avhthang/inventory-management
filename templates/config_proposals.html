@@ -106,7 +106,9 @@
                 <a class="btn btn-outline-info" title="Xem"
                   href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}"><i class="bi bi-eye"></i></a>
 
-                {% if p.status in ['new', 'rejected'] %}
+                {% set perms = current_permissions or [] %}
+                {% if p.status in ['new', 'rejected'] or (p.status == 'team_approved' and ('config_proposals.consult_it'
+                in perms or session['role'] == 'Admin')) %}
                 <a class="btn btn-outline-warning ms-1" title="Sửa"
                   href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}"><i class="bi bi-pencil"></i></a>
                 {% endif %}
