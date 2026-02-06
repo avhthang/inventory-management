@@ -43,7 +43,10 @@
       <label class="form-label">Yêu cầu chung</label>
       <textarea class="form-control" rows="2" name="general_requirements">{{ p.general_requirements or '' }}</textarea>
     </div>
-    <!-- Supplier info removed -->
+    <div class="col-12">
+      <label class="form-label">NCC / Báo giá</label>
+      <input type="text" class="form-control" name="supplier_info" value="{{ p.supplier_info or '' }}">
+    </div>
     <div class="col-12">
       <label class="form-label">Ghi chú chung</label>
       <textarea class="form-control" rows="2" name="notes">{{ p.notes or '' }}</textarea>

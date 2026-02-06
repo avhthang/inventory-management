@@ -5901,7 +5901,7 @@ def edit_config_proposal(proposal_id):
 
             # purchase_status removed
             p.notes = request.form.get('notes')
-            # supplier_info removed
+            p.supplier_info = request.form.get('supplier_info') # Restored as per user request
             p.general_requirements = request.form.get('general_requirements')
             req_date = request.form.get('required_date')
             if req_date:
