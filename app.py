@@ -5889,15 +5889,8 @@ def edit_config_proposal(proposal_id):
             p.proposer_unit = request.form.get('proposer_unit')
             p.scope = request.form.get('scope')
             p.currency = request.form.get('currency') or 'VND'
-            # Status update via edit is risky, keep it as is or allow only specific transitions? 
-            # The form might send 'status'. Let's ensure we don't accidentally revert status.
-            new_status = request.form.get('status')
-            if new_status and new_status in ['new', 'rejected', 'team_approved']: # Only allow safe statuses?
-                 # If IT edits, status should remain 'team_approved' until they click 'Finish Consult' in detail view.
-                 # So we ignore status change here for IT phase?
-                 pass 
-            elif new_status: 
-                 p.status = new_status
+            # Status update via edit removed to prevent workflow disruption.
+            # p.status should only change via action buttons.
 
             # purchase_status removed
             p.notes = request.form.get('notes')
