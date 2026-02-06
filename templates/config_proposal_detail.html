@@ -4,16 +4,14 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h3>Chi tiết đề xuất #{{ p.id }}</h3>
   <div>
-    <!-- Allow Edit if new/rejected OR (team_approved AND has consult_it permission) -->
+    <!-- Allow Edit if Creator/Admin (anytime) OR IT (team_approved) OR New/Rejected (edit perm) -->
     {% set can_edit = false %}
-    {% if p.status in ['new', 'rejected'] %}
-    {% if p.created_by == current_user.id or 'config_proposals.edit' in current_permissions %}
+    {% if current_user.role == 'Admin' or (p.created_by and p.created_by == current_user.id) %}
     {% set can_edit = true %}
-    {% endif %}
-    {% elif p.status == 'team_approved' %}
-    {% if 'config_proposals.consult_it' in current_permissions or current_user.role == 'admin' %}
+    {% elif p.status == 'team_approved' and 'config_proposals.consult_it' in current_permissions %}
     {% set can_edit = true %}
-    {% endif %}
+    {% elif p.status in ['new', 'rejected'] and 'config_proposals.edit' in current_permissions %}
+    {% set can_edit = true %}
     {% endif %}
 
     {% if can_edit %}

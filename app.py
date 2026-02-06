@@ -5821,17 +5821,24 @@ def edit_config_proposal(proposal_id):
     
     # Check edit permission logic
     can_edit = False
-    if p.status in ['new', 'rejected']:
-        # If created_by is legacy (None), allow editing if user has 'edit' permission or is admin
-        # Or if created_by matches
-        if (p.created_by is None or p.created_by == session['user_id']) or 'config_proposals.edit' in current_permissions:
-            can_edit = True
+    
+    # 1. Unconditional Edit: Super Admin (Admin) or Creator
+    # User request: "người tạo và người quản lý super admin có thể sửa ... bất kỳ lúc nào"
+    # Assuming 'Admin' role is the "super admin" equivalent here.
+    if session.get('role') == 'Admin' or (p.created_by and p.created_by == session['user_id']):
+        can_edit = True
+    
+    # 2. Phase-specific Edit: IT Consultant during 'team_approved'
     elif p.status == 'team_approved':
-        # Allow IT to edit during consultation
-        if 'config_proposals.consult_it' in current_permissions or session.get('role') == 'Admin':
+        if 'config_proposals.consult_it' in current_permissions:
              can_edit = True
+    
+    # 3. Phase-specific Edit (legacy/fallback): New/Rejected for others?
+    # Usually covered by Creator check, but maybe someone else with 'edit' perm needs access?
+    elif p.status in ['new', 'rejected'] and 'config_proposals.edit' in current_permissions:
+        can_edit = True
              
-    if not can_edit and session.get('role') != 'Admin': # Admin always fallback
+    if not can_edit:
         flash('Bạn không có quyền sửa đề xuất này ở trạng thái hiện tại.', 'danger')
         return redirect(url_for('config_proposal_detail', proposal_id=p.id))
 

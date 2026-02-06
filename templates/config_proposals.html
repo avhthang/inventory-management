@@ -107,8 +107,12 @@
                   href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}"><i class="bi bi-eye"></i></a>
 
                 {% set perms = current_permissions or [] %}
-                {% if p.status in ['new', 'rejected'] or (p.status == 'team_approved' and ('config_proposals.consult_it'
-                in perms or session['role'] == 'Admin')) %}
+                {% set is_creator = p.created_by and p.created_by == session['user_id'] %}
+                {% set can_edit = (session['role'] == 'Admin' or is_creator) or (p.status == 'team_approved' and
+                'config_proposals.consult_it' in perms) or (p.status in ['new', 'rejected'] and 'config_proposals.edit'
+                in perms) %}
+
+                {% if can_edit %}
                 <a class="btn btn-outline-warning ms-1" title="Sửa"
                   href="{{ url_for('edit_config_proposal', proposal_id=p.id) }}"><i class="bi bi-pencil"></i></a>
                 {% endif %}
