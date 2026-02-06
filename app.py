@@ -5507,7 +5507,7 @@ def add_config_proposal():
                 scope=scope,
                 vat_percent=vat_percent,
                 currency=currency,
-                status=status,
+                # status=status argument removed to favor default 'new' below or use explicit 'new'
                 # purchase_status removed
                 notes=notes,
                 supplier_info=supplier_info_hdr,
