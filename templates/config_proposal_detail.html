@@ -102,24 +102,30 @@
 
         <div class="text-center" style="width: 80px; cursor: pointer;" onclick="showStepInfo(this)"
           data-label="{{ s_label }}" data-handler="{{ step_handler }}" data-info="{{ step_info }}">
-          <span
-            class="badge rounded-pill {% if loop.index0 <= current_step_idx %}bg-success{% else %}bg-secondary{% endif %}"
+
+          {# Badge Logic: Past=Success, Current=Primary(Active), Future=Secondary #}
+          {% set badge_class = 'bg-secondary' %}
+          {% set text_class = 'text-muted' %}
+
+          {% if loop.index0 < current_step_idx %} {% set badge_class='bg-success' %} {% set text_class='text-success' %}
+            {% elif loop.index0==current_step_idx %} {% set badge_class='bg-primary shadow-lg' %} {% set
+            text_class='text-primary fw-bold' %} {% endif %} {# Use slightly larger size for active step #} <span
+            class="badge rounded-pill {{ badge_class }}"
             style="width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
             {% if loop.index0 < current_step_idx %}<i class="bi bi-check"></i>{% else %}{{ loop.index }}{% endif %}
-          </span>
-          <div class="small mt-1 {{ 'fw-bold text-success' if loop.index0 <= current_step_idx else 'text-muted' }}"
-            style="font-size: 0.75rem;">{{ s_label }}</div>
+              </span>
+              <div class="small mt-1 {{ text_class }}" style="font-size: 0.75rem;">{{ s_label }}</div>
         </div>
         {% endfor %}
       </div>
     </div>
 
     <!-- Info Display Area (Dynamic) -->
-    <div id="step-info-display" class="text-center mt-4">
-      <!-- Default to current active step info if available -->
+    <div id="step-info-display" class="text-center mt-4 mb-2" style="min-height: 24px;">
       {% if p.current_stage_deadline and p.status not in ['approved', 'completed'] %}
-      <small class="text-muted">
-        <i class="bi bi-clock"></i> Thời hạn xử lý: <strong>{{ p.current_stage_deadline|localtime }}</strong>
+      <!-- ONLY Deadline by default -->
+      <small class="text-danger fw-bold">
+        <i class="bi bi-clock-history"></i> Thời hạn xử lý: {{ p.current_stage_deadline|localtime }}
       </small>
       {% endif %}
     </div>
@@ -140,28 +146,6 @@
       }
     </script>
 
-    <!-- Deadline Info -->
-    {% if p.current_stage_deadline and p.status not in ['approved', 'completed'] %}
-    <div class="text-center mt-4">
-      {% set handler = 'Chưa xác định' %}
-      {% if p.status == 'new' %}
-      {% set handler = 'Trưởng bộ phận (' + (p.creator.department_info.name if p.creator and p.creator.department_info
-      else 'N/A') + ')' %}
-      {% elif p.status == 'team_approved' %}
-      {% set handler = 'Bộ phận IT' %}
-      {% elif p.status == 'it_consulted' %}
-      {% set handler = 'Bộ phận Tài chính' %}
-      {% elif p.status == 'finance_reviewed' %}
-      {% set handler = 'Giám đốc' %}
-      {% endif %}
-
-      <small class="text-muted">
-        <i class="bi bi-clock"></i> Thời hạn xử lý: <strong>{{ p.current_stage_deadline|localtime }}</strong>
-        <br>
-        <i class="bi bi-person-badge"></i> Người xử lý: <strong>{{ handler }}</strong>
-      </small>
-    </div>
-    {% endif %}
   </div>
 </div>
 
@@ -447,9 +431,10 @@
         <!-- Created -->
         <li class="list-group-item">
           <div class="d-flex w-100 justify-content-between">
-            <small>Tạo mới</small>
+            <div><small>Tạo mới</small></div>
             <small class="text-muted">{{ p.created_at|localtime }}</small>
           </div>
+          <small class="d-block text-muted fst-italic">Bởi: {{ p.creator.full_name or p.creator.username }}</small>
         </li>
         <!-- Team Lead -->
         {% if p.team_lead_approved_at %}
@@ -458,6 +443,9 @@
             <span><i class="bi bi-check"></i> Duyệt BP</span>
             <small>{{ p.team_lead_approved_at|localtime }}</small>
           </div>
+          {% if p.team_lead_approver %}
+          <small class="d-block text-muted">Người duyệt: {{ p.team_lead_approver.full_name }}</small>
+          {% endif %}
         </li>
         {% endif %}
         <!-- IT -->
@@ -467,7 +455,10 @@
             <span><i class="bi bi-check"></i> Tư vấn IT</span>
             <small>{{ p.it_consulted_at|localtime }}</small>
           </div>
-          {% if p.it_consultation_note %}<small class="d-block text-muted fst-italic">{{ p.it_consultation_note
+          {% if p.it_consultant %}
+          <small class="d-block text-muted">Người tư vấn: {{ p.it_consultant.full_name }}</small>
+          {% endif %}
+          {% if p.it_consultation_note %}<small class="d-block text-muted fst-italic">Ghi chú: {{ p.it_consultation_note
             }}</small>{% endif %}
         </li>
         {% endif %}
@@ -478,7 +469,10 @@
             <span><i class="bi bi-check"></i> Duyệt TC</span>
             <small>{{ p.finance_reviewed_at|localtime }}</small>
           </div>
-          {% if p.finance_review_note %}<small class="d-block text-muted fst-italic">{{ p.finance_review_note
+          {% if p.finance_reviewer %}
+          <small class="d-block text-muted">Người duyệt: {{ p.finance_reviewer.full_name }}</small>
+          {% endif %}
+          {% if p.finance_review_note %}<small class="d-block text-muted fst-italic">Ghi chú: {{ p.finance_review_note
             }}</small>{% endif %}
         </li>
         {% endif %}
@@ -489,7 +483,11 @@
             <span><i class="bi bi-check-all"></i> Giám đốc duyệt</span>
             <small>{{ p.director_approved_at|localtime }}</small>
           </div>
-          {% if p.director_approval_note %}<small class="d-block text-muted fst-italic">{{ p.director_approval_note
+          {% if p.director_approver %}
+          <small class="d-block text-muted">Người duyệt: {{ p.director_approver.full_name }}</small>
+          {% endif %}
+          {% if p.director_approval_note %}<small class="d-block text-muted fst-italic">Ghi chú: {{
+            p.director_approval_note
             }}</small>{% endif %}
         </li>
         {% endif %}
