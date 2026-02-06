@@ -5472,13 +5472,7 @@ def config_proposals():
                            start_date=start_date, end_date=end_date,
                            units=units, proposers=proposers, statuses=statuses,
                            current_permissions=_get_current_permissions())
-                           filter_proposer=filter_proposer,
-                           filter_status=filter_status,
-                           start_date=start_date, 
-                           end_date=end_date,
-                           proposers=proposers,
-                           units=units,
-                           statuses=statuses)
+
 
 @app.route('/config_proposals/add', methods=['GET', 'POST'])
 def add_config_proposal():
