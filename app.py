@@ -5564,9 +5564,12 @@ def add_config_proposal():
     # GET
     default_date = datetime.utcnow().strftime('%Y-%m-%d')
     current_user = User.query.get(session['user_id'])
-    # Fetch users in same department for Proposer selection
+    # Fetch users for Proposer selection
+    # If Admin, show ALL users. Else, show only Department users.
     dept_users = []
-    if current_user.department_id:
+    if current_user.role == 'Admin':
+        dept_users = User.query.all()
+    elif current_user.department_id:
         dept_users = User.query.filter_by(department_id=current_user.department_id).all()
     else:
         dept_users = [current_user] # Fallback
@@ -5847,15 +5850,22 @@ def edit_config_proposal(proposal_id):
     # Let's list Creator's department users if possible, or Current User's. 
     # Current User is likely Creator or IT. If IT, they might want to see Creator's dept.
     # Safe bet: Users in Proposer's Unit if matched to a Dept, otherwise Current User's Dept.
+    # Fetch users for proposer selection
+    # If Admin, show ALL users. 
+    # Else: Usually Creator's Dept, or Current User's Dept if new.
     dept_users = []
-    target_dept_id = current_user.department_id
-    if p.creator and p.creator.department_id:
-        target_dept_id = p.creator.department_id
     
-    if target_dept_id:
-        dept_users = User.query.filter_by(department_id=target_dept_id).all()
+    if current_user.role == 'Admin':
+        dept_users = User.query.all()
     else:
-        dept_users = [current_user]
+        target_dept_id = current_user.department_id
+        if p.creator and p.creator.department_id:
+            target_dept_id = p.creator.department_id
+        
+        if target_dept_id:
+            dept_users = User.query.filter_by(department_id=target_dept_id).all()
+        else:
+            dept_users = [current_user]
 
     if request.method == 'POST':
         try:
