@@ -65,7 +65,7 @@
     <!-- Deadline Info -->
     {% if p.current_stage_deadline and p.status != 'completed' %}
     <div class="text-center mt-4">
-      {% set now = now_utc() %}
+
       <!-- Assuming we add a context processor or pass now, let's use JS or simpler check on server side. Wait, Jinja doesn't have now(). Let's assume passed helper or ignore exact highlight for now. Actually app.py doesn't pass 'now'. Let's just show text. -->
       <small class="text-muted">
         <i class="bi bi-clock"></i> Hạn chót xử lý bước này: <strong>{{ p.current_stage_deadline|localtime }}</strong>
