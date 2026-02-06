@@ -167,6 +167,25 @@
   </div>
 </div>
 
+<!-- General Requirements & Info -->
+<div class="card mb-3">
+  <div class="card-header"><strong>Thông tin chung</strong></div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6">
+        <p><strong>Người đề xuất:</strong> {{ p.proposer_name }}</p>
+        <p><strong>Đơn vị:</strong> {{ p.proposer_unit }}</p>
+        <p><strong>Phạm vi:</strong> {{ p.scope }}</p>
+      </div>
+      <div class="col-md-6">
+        <p><strong>Thời hạn cần:</strong> {{ p.required_date.strftime('%d/%m/%Y') if p.required_date else '---' }}</p>
+        <p><strong>Yêu cầu chung:</strong> {{ p.general_requirements or '---' }}</p>
+        <p><strong>Ghi chú:</strong> {{ p.notes or '---' }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Workflow Actions & Details -->
 <div class="row">
   <!-- Left Column: Info & Actions -->
@@ -504,5 +523,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
+</div>
 </div>
 {% endblock %}

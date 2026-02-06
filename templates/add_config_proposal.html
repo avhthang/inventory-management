@@ -22,16 +22,26 @@
     </div>
     <div class="col-md-6">
       <label class="form-label">Người đề xuất</label>
-      <input type="text" class="form-control" name="proposer_name">
+      <select class="form-select select2" name="proposer_name" id="proposer_select">
+        {% for u in users %}
+        <option value="{{ u.full_name }}" data-unit="{{ u.department_info.name if u.department_info else '' }}" {% if
+          u.id==current_user.id %}selected{% endif %}>{{ u.full_name }} ({{ u.username }})</option>
+        {% endfor %}
+      </select>
     </div>
     <div class="col-md-6">
       <label class="form-label">Đơn vị đề xuất</label>
-      <input type="text" class="form-control" name="proposer_unit">
+      <input type="text" class="form-control" name="proposer_unit" readonly>
     </div>
     <div class="col-md-6">
-      <label class="form-label">Thông tin nhà cung cấp</label>
-      <input type="text" class="form-control" name="supplier_info">
+      <label class="form-label">Thời hạn cần thiết bị</label>
+      <input type="date" class="form-control" name="required_date">
     </div>
+    <div class="col-12">
+      <label class="form-label">Yêu cầu chung</label>
+      <textarea class="form-control" rows="2" name="general_requirements"></textarea>
+    </div>
+    <!-- Supplier Info removed -->
     <div class="col-12">
       <label class="form-label">Ghi chú chung</label>
       <textarea class="form-control" rows="2" name="notes"></textarea>
@@ -214,6 +224,19 @@
       recalc();
     }
     init();
+
+    // Select2 Logic
+    $(document).ready(function () {
+      $('#proposer_select').select2({ theme: 'bootstrap-5' });
+
+      function updateUnit() {
+        var unit = $('#proposer_select').find(':selected').data('unit');
+        $('input[name="proposer_unit"]').val(unit || '');
+      }
+
+      $('#proposer_select').on('change', updateUnit);
+      updateUnit(); // Init
+    });
   })();
 </script>
 {% endblock %}

@@ -23,16 +23,27 @@
     </div>
     <div class="col-md-6">
       <label class="form-label">Người đề xuất</label>
-      <input type="text" class="form-control" name="proposer_name" value="{{ p.proposer_name }}">
+      <select class="form-select select2" name="proposer_name" id="proposer_select">
+        {% for u in users %}
+        <option value="{{ u.full_name }}" data-unit="{{ u.department_info.name if u.department_info else '' }}" {% if
+          u.full_name==p.proposer_name %}selected{% endif %}>{{ u.full_name }} ({{ u.username }})</option>
+        {% endfor %}
+      </select>
     </div>
     <div class="col-md-6">
       <label class="form-label">Đơn vị đề xuất</label>
-      <input type="text" class="form-control" name="proposer_unit" value="{{ p.proposer_unit }}">
+      <input type="text" class="form-control" name="proposer_unit" value="{{ p.proposer_unit }}" readonly>
     </div>
     <div class="col-md-6">
-      <label class="form-label">Thông tin nhà cung cấp</label>
-      <input type="text" class="form-control" name="supplier_info" value="{{ p.supplier_info or '' }}">
+      <label class="form-label">Thời hạn cần thiết bị</label>
+      <input type="date" class="form-control" name="required_date"
+        value="{{ p.required_date.strftime('%Y-%m-%d') if p.required_date else '' }}">
     </div>
+    <div class="col-12">
+      <label class="form-label">Yêu cầu chung</label>
+      <textarea class="form-control" rows="2" name="general_requirements">{{ p.general_requirements or '' }}</textarea>
+    </div>
+    <!-- Supplier info removed -->
     <div class="col-12">
       <label class="form-label">Ghi chú chung</label>
       <textarea class="form-control" rows="2" name="notes">{{ p.notes or '' }}</textarea>
@@ -137,7 +148,7 @@
 
   <input type="hidden" name="rows_count" id="rows_count" value="{{ items|length }}">
   <button type="submit" class="btn btn-primary">Lưu</button>
-  <a href="{{ url_for('config_proposals') }}" class="btn btn-secondary">Hủy</a>
+  <a href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}" class="btn btn-secondary">Hủy</a>
 </form>
 {% endblock %}
 
@@ -234,6 +245,23 @@
       bind();
     }
     init();
+
+    // Select2 Logic
+    $(document).ready(function () {
+      $('#proposer_select').select2({ theme: 'bootstrap-5' });
+
+      function updateUnit() {
+        var unit = $('#proposer_select').find(':selected').data('unit');
+        $('input[name="proposer_unit"]').val(unit || '');
+      }
+
+      $('#proposer_select').on('change', updateUnit);
+      // Don't auto-update on init if existing value is present? 
+      // Actually, if editing, we might want to keep `p.proposer_unit` unless user changes proposer.
+      // But the input is readonly now. So it should match the user.
+      // Let's force update to ensure consistency.
+      // updateUnit(); 
+    });
   })();
 </script>
 {% endblock %}

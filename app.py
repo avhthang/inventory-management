@@ -639,6 +639,8 @@ def migrate_config_proposal_workflow():
                 _add_col('invoice_received_at', 'DATETIME')
                 _add_col('rejection_reason', 'TEXT')
                 _add_col('current_stage_deadline', 'DATETIME')
+                _add_col('general_requirements', 'TEXT')
+                _add_col('required_date', 'DATE')
                 
                 # Check status column length/type if needed, but usually can't easy alter limit in standard SQL without table recreation.
                 # Assuming 30 chars is enough or we utilize it carefully. New statuses are under 30 chars.
@@ -955,6 +957,8 @@ class ConfigProposal(db.Model):
     
     rejection_reason = db.Column(db.Text)
     current_stage_deadline = db.Column(db.DateTime) # SLA deadline
+    general_requirements = db.Column(db.Text) # Yêu cầu chung
+    required_date = db.Column(db.Date) # Thời hạn cần thiết bị
 
     linked_receipt = db.relationship('InventoryReceipt', foreign_keys=[linked_receipt_id])
     creator = db.relationship('User', foreign_keys=[created_by], backref='created_proposals')
@@ -5508,11 +5512,13 @@ def add_config_proposal():
                 # status=status argument removed to favor default 'new' below or use explicit 'new'
                 # purchase_status removed
                 notes=notes,
-                supplier_info=supplier_info_hdr,
+                # supplier_info removed
                 quantity=request.form.get('quantity', type=int) or 1,
                 created_by=session['user_id'],
                 status='new',
-                current_stage_deadline=datetime.utcnow() + timedelta(days=1) # SLA for Team Lead: 24h
+                current_stage_deadline=datetime.utcnow() + timedelta(days=1), # SLA for Team Lead
+                general_requirements=request.form.get('general_requirements'),
+                required_date=datetime.strptime(request.form.get('required_date'), '%Y-%m-%d').date() if request.form.get('required_date') else None
             )
             db.session.add(proposal)
             db.session.flush()
@@ -5557,7 +5563,15 @@ def add_config_proposal():
             return redirect(url_for('add_config_proposal'))
     # GET
     default_date = datetime.utcnow().strftime('%Y-%m-%d')
-    return render_template('add_config_proposal.html', default_date=default_date)
+    current_user = User.query.get(session['user_id'])
+    # Fetch users in same department for Proposer selection
+    dept_users = []
+    if current_user.department_id:
+        dept_users = User.query.filter_by(department_id=current_user.department_id).all()
+    else:
+        dept_users = [current_user] # Fallback
+        
+    return render_template('add_config_proposal.html', default_date=default_date, users=dept_users, current_user=current_user)
 
 @app.route('/config_proposals/<int:proposal_id>/action', methods=['POST'])
 def proposal_action(proposal_id):
@@ -5803,11 +5817,14 @@ def edit_config_proposal(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     p = ConfigProposal.query.get_or_404(proposal_id)
     current_permissions = _get_current_permissions()
+    current_user = User.query.get(session['user_id']) # Ensure we have user obj
     
     # Check edit permission logic
     can_edit = False
     if p.status in ['new', 'rejected']:
-        if p.created_by == session['user_id'] or 'config_proposals.edit' in current_permissions:
+        # If created_by is legacy (None), allow editing if user has 'edit' permission or is admin
+        # Or if created_by matches
+        if (p.created_by is None or p.created_by == session['user_id']) or 'config_proposals.edit' in current_permissions:
             can_edit = True
     elif p.status == 'team_approved':
         # Allow IT to edit during consultation
@@ -5817,6 +5834,21 @@ def edit_config_proposal(proposal_id):
     if not can_edit and session.get('role') != 'Admin': # Admin always fallback
         flash('Bạn không có quyền sửa đề xuất này ở trạng thái hiện tại.', 'danger')
         return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+
+    # Fetch users for proposer selection (same dept as creator or current user?)
+    # Usually editing allows changing proposer within same dept? Or just list current user's dept?
+    # Let's list Creator's department users if possible, or Current User's. 
+    # Current User is likely Creator or IT. If IT, they might want to see Creator's dept.
+    # Safe bet: Users in Proposer's Unit if matched to a Dept, otherwise Current User's Dept.
+    dept_users = []
+    target_dept_id = current_user.department_id
+    if p.creator and p.creator.department_id:
+        target_dept_id = p.creator.department_id
+    
+    if target_dept_id:
+        dept_users = User.query.filter_by(department_id=target_dept_id).all()
+    else:
+        dept_users = [current_user]
 
     if request.method == 'POST':
         try:
@@ -5851,7 +5883,11 @@ def edit_config_proposal(proposal_id):
 
             # purchase_status removed
             p.notes = request.form.get('notes')
-            p.supplier_info = request.form.get('supplier_info')
+            # supplier_info removed
+            p.general_requirements = request.form.get('general_requirements')
+            req_date = request.form.get('required_date')
+            if req_date:
+                p.required_date = datetime.strptime(req_date, '%Y-%m-%d').date()
             
             # VAT Logic: Only update if provided, otherwise keep existing
             new_vat = request.form.get('vat_percent', type=float)
@@ -5918,7 +5954,7 @@ def edit_config_proposal(proposal_id):
 
     # GET
     items = ConfigProposalItem.query.filter_by(proposal_id=p.id).order_by(ConfigProposalItem.order_no).all()
-    return render_template('edit_config_proposal.html', p=p, items=items)
+    return render_template('edit_config_proposal.html', p=p, items=items, users=dept_users)
 
 # --- CLI Commands ---
 @app.cli.command("init-db")
