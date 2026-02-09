@@ -3,38 +3,37 @@
 {% block content %}
 <div class="card">
   <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h3 class="mb-0">Phân quyền</h3>
-      <div>
-        <a href="{{ url_for('roles_list') }}" class="btn btn-outline-primary">
-          <i class="bi bi-list"></i> Danh sách Quyền
-        </a>
-        <small class="text-muted ms-2">Chỉ Admin hoặc người có quyền "rbac.manage"</small>
-      </div>
-    </div>
-
     <form method="POST" id="rbac-form">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">Phân quyền</h3>
+        <div class="d-flex gap-2 align-items-center">
+          <div class="input-group input-group-sm" style="max-width: 300px;">
+            <input type="text" class="form-control" name="new_role_name" placeholder="Tên vai trò mới">
+            <button type="submit" name="action" value="add_role" class="btn btn-primary">
+              <i class="bi bi-plus-circle"></i> Thêm vai trò mới
+            </button>
+          </div>
+          <a href="{{ url_for('roles_list') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-list"></i> Danh sách Quyền
+          </a>
+        </div>
+      </div>
       <div class="row g-3">
         <div class="col-md-3">
           <label class="form-label">Vai trò</label>
           <select name="role_id" id="role-select" class="form-select" required>
             {% if roles %}
-              {% for r in roles %}
-              <option value="{{ r.id }}">{{ r.name }}</option>
-              {% endfor %}
+            {% for r in roles %}
+            <option value="{{ r.id }}">{{ r.name }}</option>
+            {% endfor %}
             {% else %}
-              <option value="" disabled>Chưa có vai trò</option>
+            <option value="" disabled>Chưa có vai trò</option>
             {% endif %}
           </select>
-          <div class="mt-3">
-            <div class="input-group mb-2">
-              <input type="text" class="form-control" name="new_role_name" placeholder="Tên vai trò mới">
-              <button type="submit" name="action" value="add_role" class="btn btn-outline-primary">
-                <i class="bi bi-plus-circle"></i> Thêm vai trò
-              </button>
-            </div>
-            <button type="submit" name="action" value="delete_role" class="btn btn-outline-danger btn-sm w-100" onclick="return confirm('Xóa vai trò hiện chọn?')">
-              <i class="bi bi-trash"></i> Xóa vai trò
+          <div class="mt-2">
+            <button type="submit" name="action" value="delete_role" class="btn btn-outline-danger btn-sm w-100"
+              onclick="return confirm('Xóa vai trò hiện chọn? Hành động này không thể hoàn tác!')">
+              <i class="bi bi-trash"></i> Xóa vai trò này
             </button>
           </div>
         </div>
@@ -42,26 +41,27 @@
           <label class="form-label">Quyền</label>
           <div class="border rounded p-3" style="max-height: 600px; overflow: auto;">
             {% if permission_groups %}
-              {% for group_name, group_perms in permission_groups.items() %}
-              <div class="mb-4">
-                <h6 class="border-bottom pb-2 mb-2">{{ group_name }}</h6>
-                <div class="row g-2">
-                  {% for perm in group_perms %}
-                  <div class="col-md-6">
-                    <div class="form-check">
-                      <input class="form-check-input perm-checkbox" type="checkbox" value="{{ perm.code }}" name="perm_codes" id="perm-{{ perm.id }}">
-                      <label class="form-check-label" for="perm-{{ perm.id }}">
-                        {{ perm.name }}
-                        <small class="text-muted">({{ perm.code }})</small>
-                      </label>
-                    </div>
+            {% for group_name, group_perms in permission_groups.items() %}
+            <div class="mb-4">
+              <h6 class="border-bottom pb-2 mb-2">{{ group_name }}</h6>
+              <div class="row g-2">
+                {% for perm in group_perms %}
+                <div class="col-md-6">
+                  <div class="form-check">
+                    <input class="form-check-input perm-checkbox" type="checkbox" value="{{ perm.code }}"
+                      name="perm_codes" id="perm-{{ perm.id }}">
+                    <label class="form-check-label" for="perm-{{ perm.id }}">
+                      {{ perm.name }}
+                      <small class="text-muted">({{ perm.code }})</small>
+                    </label>
                   </div>
-                  {% endfor %}
                 </div>
+                {% endfor %}
               </div>
-              {% endfor %}
+            </div>
+            {% endfor %}
             {% else %}
-              <div class="text-muted">Chưa có quyền nào. Hãy thêm quyền mới.</div>
+            <div class="text-muted">Chưa có quyền nào. Hãy thêm quyền mới.</div>
             {% endif %}
           </div>
           <div class="mt-3">
@@ -75,10 +75,11 @@
 {% endblock %}
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  const roleSelect = document.getElementById('role-select');
-  const roleToPerms = {{ role_to_perms|tojson }};
-  
+  document.addEventListener('DOMContentLoaded', function () {
+    const roleSelect = document.getElementById('role-select');
+    const roleToPerms = {{ role_to_perms| tojson
+  }};
+
   function sync() {
     const roleId = roleSelect.value;
     const current = new Set(roleToPerms[roleId] || []);
@@ -86,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
       cb.checked = current.has(cb.value);
     });
   }
-  
+
   roleSelect.addEventListener('change', sync);
   sync();
 });
