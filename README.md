@@ -214,6 +214,10 @@ sudo systemctl enable inventory
 
 ### Các lệnh quản lý hữu ích:
 
+> [!NOTE]
+> **Lưu ý về truy cập qua IP:**
+> Nếu bạn truy cập bằng địa chỉ IP (ví dụ: `http://192.168.1.100`) và bị chuyển hướng sang HTTPS (gây lỗi bảo mật hoặc không kết nối được), hãy kiểm tra file cấu hình Nginx. Phiên bản mới nhất đã cho phép truy cập HTTP qua cổng 80 mà không bắt buộc chuyển hướng. Hãy đảm bảo bạn đã cập nhật code (`git pull`) và khởi động lại dịch vụ.
+
 -   **Kiểm tra trạng thái ứng dụng:** `sudo systemctl status inventory`
     
 -   **Xem log (nhật ký) lỗi của ứng dụng:** `sudo journalctl -u inventory -f`
