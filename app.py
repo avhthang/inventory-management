@@ -2062,6 +2062,112 @@ def delete_department(id):
             'message': 'Có lỗi xảy ra khi xóa phòng ban'
         })
 
+@app.route('/departments/export_excel')
+def export_departments_excel():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    departments = Department.query.order_by(Department.id).all()
+    data = []
+    for dept in departments:
+        manager_name = dept.manager.full_name if dept.manager else ''
+        parent_name = dept.parent.name if dept.parent else ''
+        data.append({
+            'ID': dept.id,
+            'Tên phòng ban': dept.name,
+            'Mô tả': dept.description,
+            'Phòng ban cha': parent_name,
+            'Quản lý': manager_name
+        })
+    
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Departments')
+    output.seek(0)
+    
+    return send_file(output, 
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+                     as_attachment=True, 
+                     download_name=f'departments_list_{datetime.now(VIETNAM_TZ).strftime("%Y%m%d")}.xlsx')
+
+@app.route('/departments/import', methods=['GET', 'POST'])
+def import_departments():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if not file or not (file.filename.endswith('.xls') or file.filename.endswith('.xlsx')):
+            flash('Vui lòng chọn một file Excel hợp lệ (.xls, .xlsx).', 'danger')
+            return redirect(url_for('import_departments'))
+            
+        try:
+            df = pd.read_excel(file, engine='openpyxl')
+            
+            errors = []
+            added_count = 0
+            
+            for index, row in df.iterrows():
+                # Safe header access
+                name = str(row.get('Tên phòng ban', '')).strip()
+                description = str(row.get('Mô tả', '')).strip() if pd.notna(row.get('Mô tả')) else ''
+                manager_username = str(row.get('Tên đăng nhập quản lý', '')).strip() if pd.notna(row.get('Tên đăng nhập quản lý')) else ''
+                parent_name = str(row.get('Phòng ban cha', '')).strip() if pd.notna(row.get('Phòng ban cha')) else ''
+                
+                if not name or name.lower() == 'nan':
+                    continue
+                
+                if Department.query.filter_by(name=name).first():
+                    errors.append(f'Dòng {index + 2}: Phòng ban "{name}" đã tồn tại.')
+                    continue
+                
+                manager_id = None
+                if manager_username:
+                    manager = User.query.filter_by(username=manager_username).first()
+                    if manager:
+                        manager_id = manager.id
+                    else:
+                        errors.append(f'Dòng {index + 2}: User quản lý "{manager_username}" không tồn tại.')
+                
+                parent_id = None
+                if parent_name:
+                    parent = Department.query.filter_by(name=parent_name).first()
+                    if parent:
+                        parent_id = parent.id
+                
+                # Max order logic
+                max_order = db.session.query(func.max(Department.order_index)).filter_by(parent_id=parent_id).scalar() or 0
+                
+                new_dept = Department(
+                    name=name,
+                    description=description,
+                    manager_id=manager_id,
+                    parent_id=parent_id,
+                    order_index=max_order + 1
+                )
+                db.session.add(new_dept)
+                added_count += 1
+                
+            if errors:
+                for error in errors[:10]:
+                    flash(error, 'danger')
+                if len(errors) > 10:
+                    flash(f'... và {len(errors) - 10} lỗi khác.', 'danger')
+                if added_count == 0:
+                    db.session.rollback()
+                    return redirect(url_for('import_departments'))
+                    
+            db.session.commit()
+            if added_count > 0:
+                flash(f'Đã nhập thành công {added_count} phòng ban.', 'success')
+            return redirect(url_for('list_departments'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi xử lý file: {str(e)}', 'danger')
+            return redirect(url_for('import_departments'))
+            
+    return render_template('departments/import.html')
+
 @app.route('/departments/reorder', methods=['POST'])
 def reorder_departments():
     if 'user_id' not in session:

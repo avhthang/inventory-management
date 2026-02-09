@@ -4,13 +4,21 @@
 {% block content %}
 <div class="container-fluid">
     <h1 class="h3 mb-4">Quản lý phòng ban</h1>
-    
+
     <div class="row mb-3">
         <div class="col">
             {% if current_permissions and 'departments.edit' in current_permissions %}
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
-                <i class="bi bi-plus"></i> Thêm phòng ban
-            </button>
+            <div>
+                <a href="{{ url_for('add_department') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-lg"></i> Thêm phòng ban
+                </a>
+                <a href="{{ url_for('import_departments') }}" class="btn btn-info ms-2">
+                    <i class="bi bi-upload"></i> Nhập Excel
+                </a>
+                <a href="{{ url_for('export_departments_excel') }}" class="btn btn-success ms-2">
+                    <i class="bi bi-download"></i> Xuất Excel
+                </a>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -19,9 +27,9 @@
         <div class="card-body">
             <div id="departmentTree">
                 {% for dept in departments %}
-                    {% if not dept.parent %}
-                        {{ render_department(dept, 0) }}
-                    {% endif %}
+                {% if not dept.parent %}
+                {{ render_department(dept, 0) }}
+                {% endif %}
                 {% endfor %}
             </div>
         </div>
@@ -51,7 +59,8 @@
                         <select name="parent_id" class="form-select">
                             <option value="">-- Không có --</option>
                             {% for dept in all_departments %}
-                                <option value="{{ dept.id }}">{{ '-- ' * dept.get_hierarchy_level() }}{{ dept.name }}</option>
+                            <option value="{{ dept.id }}">{{ '-- ' * dept.get_hierarchy_level() }}{{ dept.name }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
@@ -60,7 +69,7 @@
                         <select name="manager_id" class="form-select">
                             <option value="">-- Chọn trưởng phòng --</option>
                             {% for user in users %}
-                                <option value="{{ user.id }}">{{ user.full_name }}</option>
+                            <option value="{{ user.id }}">{{ user.full_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -97,7 +106,8 @@
                         <select name="parent_id" class="form-select">
                             <option value="">-- Không có --</option>
                             {% for dept in all_departments %}
-                                <option value="{{ dept.id }}">{{ '-- ' * dept.get_hierarchy_level() }}{{ dept.name }}</option>
+                            <option value="{{ dept.id }}">{{ '-- ' * dept.get_hierarchy_level() }}{{ dept.name }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
@@ -106,7 +116,7 @@
                         <select name="manager_id" class="form-select">
                             <option value="">-- Chọn trưởng phòng --</option>
                             {% for user in users %}
-                                <option value="{{ user.id }}">{{ user.full_name }}</option>
+                            <option value="{{ user.id }}">{{ user.full_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -127,104 +137,104 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Toggle caret icon up/down based on collapse state
-    document.querySelectorAll('.toggle-children').forEach(btn => {
-        const icon = btn.querySelector('i.bi');
-        const targetId = btn.getAttribute('data-bs-target');
-        const target = document.querySelector(targetId);
-        if (!icon || !target) return;
-        const setIcon = () => {
-            const expanded = target.classList.contains('show');
-            const open = icon.getAttribute('data-icon-open') || 'bi-caret-up-fill';
-            const closed = icon.getAttribute('data-icon-closed') || 'bi-caret-down-fill';
-            icon.className = `bi ${expanded ? open : closed}`;
-        };
-        setIcon();
-        target.addEventListener('shown.bs.collapse', setIcon);
-        target.addEventListener('hidden.bs.collapse', setIcon);
-    });
-    // Initialize Sortable for each department's children
-    document.querySelectorAll('.children').forEach(el => {
-        new Sortable(el, {
-            group: 'departments',
-            handle: '.handle',
-            animation: 150,
-            onEnd: function(evt) {
-                const deptId = evt.item.dataset.id;
-                const newParentId = evt.to.dataset.parent;
-                const newIndex = evt.newIndex;
-                
-                fetch('/departments/reorder', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        dept_id: deptId,
-                        parent_id: newParentId,
-                        new_index: newIndex
-                    })
-                }).then(response => {
-                    if (!response.ok) {
-                        throw new Error('Reorder failed');
-                    }
-                    return response.json();
-                }).then(data => {
-                    if (data.success) {
-                        location.reload();
-                    }
-                }).catch(error => {
-                    console.error('Error:', error);
-                    alert('Có lỗi xảy ra khi sắp xếp phòng ban');
-                });
-            }
+    document.addEventListener('DOMContentLoaded', function () {
+        // Toggle caret icon up/down based on collapse state
+        document.querySelectorAll('.toggle-children').forEach(btn => {
+            const icon = btn.querySelector('i.bi');
+            const targetId = btn.getAttribute('data-bs-target');
+            const target = document.querySelector(targetId);
+            if (!icon || !target) return;
+            const setIcon = () => {
+                const expanded = target.classList.contains('show');
+                const open = icon.getAttribute('data-icon-open') || 'bi-caret-up-fill';
+                const closed = icon.getAttribute('data-icon-closed') || 'bi-caret-down-fill';
+                icon.className = `bi ${expanded ? open : closed}`;
+            };
+            setIcon();
+            target.addEventListener('shown.bs.collapse', setIcon);
+            target.addEventListener('hidden.bs.collapse', setIcon);
         });
-    });
+        // Initialize Sortable for each department's children
+        document.querySelectorAll('.children').forEach(el => {
+            new Sortable(el, {
+                group: 'departments',
+                handle: '.handle',
+                animation: 150,
+                onEnd: function (evt) {
+                    const deptId = evt.item.dataset.id;
+                    const newParentId = evt.to.dataset.parent;
+                    const newIndex = evt.newIndex;
 
-    // Edit department button handler
-    document.querySelectorAll('.edit-dept').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const form = document.getElementById('editDepartmentForm');
-            const modal = document.getElementById('editDepartmentModal');
-            
-            // Update form action URL
-            form.action = `/departments/${this.dataset.id}/edit`;
-            
-            // Set form values
-            form.querySelector('[name="name"]').value = this.dataset.name;
-            form.querySelector('[name="description"]').value = this.dataset.description;
-            form.querySelector('[name="parent_id"]').value = this.dataset.parentId;
-            form.querySelector('[name="manager_id"]').value = this.dataset.managerId;
-            
-            // Show modal
-            new bootstrap.Modal(modal).show();
+                    fetch('/departments/reorder', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            dept_id: deptId,
+                            parent_id: newParentId,
+                            new_index: newIndex
+                        })
+                    }).then(response => {
+                        if (!response.ok) {
+                            throw new Error('Reorder failed');
+                        }
+                        return response.json();
+                    }).then(data => {
+                        if (data.success) {
+                            location.reload();
+                        }
+                    }).catch(error => {
+                        console.error('Error:', error);
+                        alert('Có lỗi xảy ra khi sắp xếp phòng ban');
+                    });
+                }
+            });
         });
-    });
 
-    // Delete department button handler
-    document.querySelectorAll('.delete-dept').forEach(btn => {
-        btn.addEventListener('click', function() {
-            if (confirm('Bạn có chắc chắn muốn xóa phòng ban này?')) {
-                const deptId = this.dataset.id;
-                fetch(`/departments/${deptId}/delete`, {
-                    method: 'POST'
-                }).then(response => {
-                    if (!response.ok) {
-                        throw new Error('Delete failed');
-                    }
-                    return response.json();
-                }).then(data => {
-                    if (data.success) {
-                        location.reload();
-                    }
-                }).catch(error => {
-                    console.error('Error:', error);
-                    alert('Có lỗi xảy ra khi xóa phòng ban');
-                });
-            }
+        // Edit department button handler
+        document.querySelectorAll('.edit-dept').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const form = document.getElementById('editDepartmentForm');
+                const modal = document.getElementById('editDepartmentModal');
+
+                // Update form action URL
+                form.action = `/departments/${this.dataset.id}/edit`;
+
+                // Set form values
+                form.querySelector('[name="name"]').value = this.dataset.name;
+                form.querySelector('[name="description"]').value = this.dataset.description;
+                form.querySelector('[name="parent_id"]').value = this.dataset.parentId;
+                form.querySelector('[name="manager_id"]').value = this.dataset.managerId;
+
+                // Show modal
+                new bootstrap.Modal(modal).show();
+            });
+        });
+
+        // Delete department button handler
+        document.querySelectorAll('.delete-dept').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (confirm('Bạn có chắc chắn muốn xóa phòng ban này?')) {
+                    const deptId = this.dataset.id;
+                    fetch(`/departments/${deptId}/delete`, {
+                        method: 'POST'
+                    }).then(response => {
+                        if (!response.ok) {
+                            throw new Error('Delete failed');
+                        }
+                        return response.json();
+                    }).then(data => {
+                        if (data.success) {
+                            location.reload();
+                        }
+                    }).catch(error => {
+                        console.error('Error:', error);
+                        alert('Có lỗi xảy ra khi xóa phòng ban');
+                    });
+                }
+            });
         });
     });
-});
 </script>
 {% endblock %}

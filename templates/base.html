@@ -109,6 +109,11 @@
                             <li><a class="dropdown-item {% if active_endpoint in ['roles_permissions', 'roles_list', 'role_detail'] %}active{% endif %}"
                                     href="{{ url_for('roles_list') }}">Phân quyền</a></li>
                             {% endif %}
+                            {% if current_permissions and ('resources.view' in current_permissions or 'resources.manage'
+                            in current_permissions) %}
+                            <li><a class="dropdown-item {% if active_endpoint in ['device_type_list', 'add_device_type', 'edit_device_type'] %}active{% endif %}"
+                                    href="{{ url_for('device_type_list') }}">Loại thiết bị</a></li>
+                            {% endif %}
                         </ul>
                     </li>
                     {% endif %}
