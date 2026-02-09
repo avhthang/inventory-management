@@ -28,6 +28,33 @@
                 </div>
                 <div class="col-md-6">
                     <div class="mb-3">
+                        <label class="form-label fw-bold">Phân quyền hệ thống</label>
+                        <div class="d-flex flex-column gap-2">
+                            <label class="card p-2 cursor-pointer border-hover-primary">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="role" id="role_user" value="user"
+                                        {% if user.role !='admin' %}checked{% endif %}>
+                                    <label class="form-check-label" for="role_user">
+                                        <strong>Người dùng</strong>
+                                        <div class="text-muted small">Chỉ xem thiết bị được giao và thông tin cá nhân.
+                                        </div>
+                                    </label>
+                                </div>
+                            </label>
+                            <label class="card p-2 cursor-pointer border-hover-primary">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="role" id="role_admin"
+                                        value="admin" {% if user.role=='admin' %}checked{% endif %}>
+                                    <label class="form-check-label" for="role_admin">
+                                        <strong>Quản trị viên</strong>
+                                        <div class="text-muted small">Toàn quyền quản lý hệ thống, thiết bị và người
+                                            dùng.</div>
+                                    </label>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Phòng ban</label>
                         <select name="department_id" class="form-select">
                             <option value="">-- Chọn phòng ban --</option>
@@ -46,25 +73,7 @@
                 </div>
             </div>
 
-            <hr>
-            <h5 class="mt-4">Quyền truy cập</h5>
-            <div class="mb-3">
-                <label class="form-label">Phân quyền</label>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="role" id="role_user" value="user" {% if user.role
-                        !='admin' %}checked{% endif %}>
-                    <label class="form-check-label" for="role_user">
-                        Người dùng (Chỉ xem thiết bị được giao)
-                    </label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="role" id="role_admin" value="admin" {% if
-                        user.role=='admin' %}checked{% endif %}>
-                    <label class="form-check-label" for="role_admin">
-                        Quản trị viên (Toàn quyền hệ thống)
-                    </label>
-                </div>
-            </div>
+
 
             <hr>
             <h5 class="mt-4">Thông tin nhân sự</h5>
