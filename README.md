@@ -1,235 +1,161 @@
+# Hướng dẫn Triển khai: Ứng dụng Quản lý Thiết bị (Docker) 🚀
 
-# Hướng dẫn Triển khai: Ứng dụng Quản lý Thiết bị trên Ubuntu 24.04 🚀
+Tài liệu này hướng dẫn triển khai ứng dụng Inventory Management trên một server đơn (Ubuntu 20.04/22.04/24.04) sử dụng **Docker** và **Docker Compose**.
 
-Tài liệu này hướng dẫn triển khai ứng dụng Flask lên server production, đảm bảo ứng dụng chạy liên tục 24/7, tự động khởi động và được bảo mật cơ bản.
+Đây là phương pháp triển khai được khuyến nghị để đảm bảo môi trường đồng nhất và tránh lỗi thiếu thư viện/cấu hình.
 
-### Công nghệ sử dụng:
-* **Ubuntu 24.04**: Hệ điều hành cho server.
-* **Nginx**: Reverse Proxy, xử lý truy cập từ người dùng.
-* **Gunicorn**: WSGI Server, "động cơ" chạy ứng dụng Flask.
-* **Systemd**: Trình quản lý dịch vụ, giúp ứng dụng chạy nền và tự khởi động lại.
-* **Git**: Dùng để tải và cập nhật mã nguồn.
+---
 
+## 1. Chuẩn bị Server
 
-## 1. Cấu hình Server Ubuntu
+Đăng nhập vào server Ubuntu của bạn với quyền `root` hoặc user có quyền `sudo`.
 
-Bây giờ, chúng ta sẽ làm việc trên server.
-
-#### 1.1. Cập nhật và Cài đặt Gói cần thiết
-
-Bash
-
-```
+### 1.1. Cập nhật hệ thống
+```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install python3-pip python3-venv nginx git -y
-
 ```
 
-#### 1.2. Cấu hình Tường lửa (Firewall)
+### 1.2. Cài đặt Docker và Docker Compose Plugin
+Chạy các lệnh sau để cài đặt Docker Engine mới nhất:
 
-Bash
+```bash
+# Gỡ cài đặt các phiên bản cũ (nếu có)
+sudo apt-remove docker docker-engine docker.io containerd runc
 
-```
-sudo ufw allow 'OpenSSH'
-sudo ufw allow 'Nginx Full'
-sudo ufw enable
+# Cài đặt các gói cần thiết
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg lsb-release
 
-```
+# Thêm GPG key chính thức của Docker
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
-_(Nhấn `y` và Enter để xác nhận.)_
+# Thiết lập repository
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-----------
-
-## 2. Tải Code và Cài đặt Môi trường Ứng dụng
-
-#### 2.1. Tải Code từ GitHub
-
-Bash
-
-```
-# Tạo thư mục và cấp quyền (thay your_username bằng tên người dùng của bạn)
-sudo mkdir -p /var/www/inventory-management
-sudo chown -R $USER:$USER /var/www/inventory-management
-
-# Di chuyển vào thư mục và tải code
-cd /var/www/inventory-management
-# Thay bằng URL repository của bạn
-git clone https://github.com/avhthang/inventory-management.git .
-
+# Cài đặt Docker Engine
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 ```
 
-#### 2.2. Cài đặt Môi trường Ảo
-
-Bash
-
+**Kiểm tra cài đặt:**
+```bash
+sudo docker run hello-world
+docker compose version
 ```
-# Tạo môi trường ảo
-python3 -m venv venv
+*(Lưu ý: Docker Compose v2 sử dụng lệnh `docker compose`, không phải `docker-compose`)*.
 
-# Kích hoạt môi trường ảo
-source venv/bin/activate
+---
 
-# Cài đặt các thư viện Python
-pip install -r requirements.txt
+## 2. Tải Mã Nguồn và Cấu Hình
 
-```
+### 2.1. Tải code từ GitHub
+```bash
+# Di chuyển đến thư mục web (hoặc thư mục home)
+cd /var/www/
+# Nếu thư mục chưa tồn tại: sudo mkdir -p /var/www && sudo chown $USER:$USER /var/www
 
-----------
-
-## 3. Khởi tạo Database và Tạo Tài khoản Admin
-
-Bước này giúp tránh các lỗi `no such table` hay không đăng nhập được lần đầu.
-
-1.  **Khởi tạo Cơ sở dữ liệu:** (Trong khi `venv` vẫn đang được kích hoạt)
-    
-    Bash
-    
-    ```
-    flask init-db
-    
-    ```
-    
-    _Kết quả mong đợi:_ `Đã khởi tạo cơ sở dữ liệu.`
-    
-2.  **Tạo Tài khoản Admin:**
-    
-    Bash
-    
-    ```
-    flask create-admin
-    
-    ```
-    
-    _Kết quả mong đợi:_ `Đã tạo tài khoản admin thành công (Pass: admin123).`
-    
-3.  **Cấp quyền ghi cho file Database:**
-    
-    Bash
-    
-    ```
-    # Thay 'your_username' bằng tên người dùng của bạn
-    sudo chown your_username:www-data instance/inventory.db
-    sudo chmod 664 instance/inventory.db
-    
-    ```
-    
-
-----------
-
-## 4. Cấu hình Chạy Tự động với Nginx và Systemd
-
-#### 4.1. Cấu hình Nginx
-
-Bash
-
-```
-sudo nano /etc/nginx/sites-available/inventory
-
+# Clone source code
+git clone https://github.com/avhthang/inventory-management.git inventory
+cd inventory
 ```
 
-Dán nội dung sau vào, thay `your_server_ip` bằng địa chỉ IP của server:
+### 2.2. Cấu hình biến môi trường
+Tạo file `.env` từ file mẫu:
 
-Nginx
-
-```
-server {
-    listen 80;
-    server_name your_server_ip;
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    location /static {
-        alias /var/www/inventory-management/static;
-    }
-}
-
+```bash
+cp .env.example .env
+nano .env
 ```
 
-**Kích hoạt cấu hình Nginx:**
+**Cập nhật các thông tin quan trọng trong `.env`:**
+- `SECRET_KEY`: Thay đổi thành một chuỗi ngẫu nhiên bảo mật.
+- `ADMIN_PASSWORD`: Mật khẩu cho tài khoản admin mặc định.
+- `DATABASE_URL`: Để mặc định nếu dùng Postgres trong Docker (đã cấu hình sẵn trong `docker-compose.yml`).
 
-Bash
+---
 
-```
-sudo ln -s /etc/nginx/sites-available/inventory /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
+## 3. Khởi chạy Ứng dụng
 
-```
+Sử dụng Docker Compose để build và chạy toàn bộ hệ thống (App, Database, Nginx, Redis).
 
-#### 5.2. Cấu hình Systemd
-
-Bash
-
-```
-sudo nano /etc/systemd/system/inventory.service
-
+```bash
+# Build và chạy ngầm (detached mode)
+docker compose up -d --build
 ```
 
-Dán nội dung sau vào, thay `your_username` bằng tên người dùng của bạn:
-
-Ini, TOML
-
+**Kiểm tra các container đang chạy:**
+```bash
+docker compose ps
 ```
-[Unit]
-Description=Gunicorn instance to serve the inventory app
-After=network.target
+Bạn sẽ thấy các service: `app`, `db`, `nginx`, `redis` đều ở trạng thái `Up`.
 
-[Service]
-User=your_username
-Group=www-data
-WorkingDirectory=/var/www/inventory-management
-ExecStart=/var/www/inventory-management/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 app:app
-Restart=always
+---
 
-[Install]
-WantedBy=multi-user.target
+## 4. Khởi tạo Dữ liệu
 
-```
+Sau khi container đã chạy, bạn cần khởi tạo cơ sở dữ liệu và tài khoản admin.
 
-**Khởi động và kích hoạt dịch vụ:**
+```bash
+# Chạy lệnh init-db bên trong container app
+docker compose exec app flask init-db
 
-Bash
-
-```
-sudo systemctl start inventory
-sudo systemctl enable inventory
-
+# Tạo tài khoản admin (check log để lấy password hoặc dùng password trong .env)
+docker compose exec app flask create-admin
 ```
 
-----------
-
-## 5. Hoàn tất và Quản lý Ứng dụng
-
-**Chúc mừng!** Ứng dụng đã được triển khai hoàn chỉnh.
-
--   **Truy cập:** `http://your_server_ip`
-    
--   **Đăng nhập lần đầu:** `admin` / `admin123`
-    
-
-### Các lệnh quản lý hữu ích:
+✅ **Hoàn tất!**
+Truy cập ứng dụng tại: `http://<IP-Server-Của-Bạn>`
 
 > [!NOTE]
 > **Lưu ý về truy cập qua IP:**
-> Nếu bạn truy cập bằng địa chỉ IP (ví dụ: `http://192.168.1.100`) và bị chuyển hướng sang HTTPS (gây lỗi bảo mật hoặc không kết nối được), hãy kiểm tra file cấu hình Nginx. Phiên bản mới nhất đã cho phép truy cập HTTP qua cổng 80 mà không bắt buộc chuyển hướng. Hãy đảm bảo bạn đã cập nhật code (`git pull`) và khởi động lại dịch vụ.
+> Nếu bạn truy cập bằng địa chỉ IP (ví dụ: `http://192.168.1.100`) và bị chuyển hướng sang HTTPS (gây lỗi kết nối), hãy kiểm tra file cấu hình Nginx. Phiên bản mới nhất đã cho phép truy cập HTTP mặc định qua cổng 80. Hãy đảm bảo bạn đã pull code mới nhất.
 
--   **Kiểm tra trạng thái ứng dụng:** `sudo systemctl status inventory`
-    
--   **Xem log (nhật ký) lỗi của ứng dụng:** `sudo journalctl -u inventory -f`
-    
--   **Khởi động lại ứng dụng (sau khi cập nhật code):** `sudo systemctl restart inventory`
-    
--   **Quy trình cập nhật code:**
-    
-    Bash
-    
-    ```
-    cd /var/www/inventory-management
-    git pull
-    sudo systemctl restart inventory
-    ```
+---
+
+## 5. Các lệnh Quản lý Thường dùng
+
+### **Xem log (Nhật ký lỗi)**
+```bash
+# Xem log toàn bộ hệ thống
+docker compose logs -f
+
+# Xem log riêng service app
+docker compose logs -f app
+```
+
+### **Khởi động lại Server**
+```bash
+docker compose restart
+```
+
+### **Cập nhật Ứng dụng (Code mới)**
+Khi có code mới trên GitHub:
+
+```bash
+# 1. Kéo code mới về
+git pull origin main
+
+# 2. Build và khởi động lại container (chỉ services thay đổi mới được build lại)
+docker compose up -d --build
+```
+
+### **Sao lưu Dữ liệu (Backup)**
+Dữ liệu database được lưu trong volume Docker `src_postgres_data`.
+Để backup thủ công:
+```bash
+docker compose exec app python3 backup_restore.py backup
+```
+File backup sẽ nằm trong thư mục `backups/` trên server.
+
+---
+
+## 6. Cấu hình HTTPS (SSL)
+
+Hiện tại `docker-compose.yml` hỗ trợ mount chứng chỉ SSL từ thư mục `./ssl`.
+1. Copy chứng chỉ (`cert.pem`, `key.pem`) vào thư mục `ssl/`.
+2. Truy cập qua `https://<Domain-Của-Bạn>`.
+
+*(Để tự động hóa SSL với Let's Encrypt, vui lòng tham khảo file `setup_ssl.sh` hoặc cấu hình thêm Certbot).*
