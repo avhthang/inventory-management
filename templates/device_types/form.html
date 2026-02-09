@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Sửa' if device_type else 'Thêm' }} Loại thiết bị{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title mb-0">{{ 'Sửa' if device_type else 'Thêm' }} Loại thiết bị</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <label class="form-label required">Tên loại thiết bị</label>
+                        <input type="text" name="name" class="form-control"
+                            value="{{ device_type.name if device_type else '' }}"
+                            placeholder="VD: Laptop, Màn hình, Máy in..." required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label required">Nhóm thiết bị</label>
+                        <select name="category" class="form-select" required>
+                            <option value="">-- Chọn nhóm --</option>
+                            {% set categories = ['Thiết bị IT', 'Thiết bị văn phòng', 'Thiết bị dùng chung', 'Khác'] %}
+                            {% for cat in categories %}
+                            <option value="{{ cat }}" {% if device_type and device_type.category==cat %}selected{% endif
+                                %}>{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Mô tả</label>
+                        <textarea name="description" class="form-control"
+                            rows="3">{{ device_type.description if device_type else '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group mt-3">
+                <a href="{{ url_for('device_type_list') }}" class="btn btn-secondary">Hủy bỏ</a>
+                <button type="submit" class="btn btn-primary">Lưu lại</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

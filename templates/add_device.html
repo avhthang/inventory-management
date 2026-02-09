@@ -23,20 +23,20 @@
                         <label class="form-label required">Loại thiết bị</label>
                         <select name="device_type" class="form-control" required>
                             <option value="">-- Chọn loại --</option>
+                            {% if grouped_device_types %}
+                            {% for category, types in grouped_device_types.items() %}
+                            <optgroup label="{{ category }}">
+                                {% for type in types %}
+                                <option value="{{ type.name }}">{{ type.name }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                            {% else %}
+                            <!-- Fallback if no types in DB -->
                             <option value="Laptop">Laptop</option>
                             <option value="Case máy tính">Case máy tính</option>
                             <option value="Màn hình">Màn hình</option>
-                            <option value="Bàn phím">Bàn phím</option>
-                            <option value="Chuột">Chuột</option>
-                            <option value="Ổ cứng">Ổ cứng</option>
-                            <option value="Ram">Ram</option>
-                            <option value="Card màn hình">Card màn hình</option>
-                            <option value="Máy in">Máy in</option>
-                            <option value="Thiết bị mạng">Thiết bị mạng</option>
-                            <option value="Server">Server</option>
-                            <option value="Ổ điện">Ổ điện</option>
-                            <option value="Thiết bị điện khác">Thiết bị điện khác</option>
-                            <option value="Thiết bị khác">Thiết bị khác</option>
+                            {% endif %}
                         </select>
                     </div>
                     <div class="form-group mb-3">

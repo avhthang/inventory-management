@@ -22,32 +22,22 @@
                         <label class="form-label required">Loại thiết bị</label>
                         <select name="device_type" class="form-control" required>
                             <option value="">-- Chọn --</option>
+                            {% if grouped_device_types %}
+                            {% for category, types in grouped_device_types.items() %}
+                            <optgroup label="{{ category }}">
+                                {% for type in types %}
+                                <option value="{{ type.name }}" {% if device.device_type==type.name %}selected{% endif
+                                    %}>{{ type.name }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                            {% else %}
+                            <!-- Fallback if no types in DB -->
                             <option value="Laptop" {% if device.device_type=='Laptop' %}selected{% endif %}>Laptop
                             </option>
                             <option value="Case máy tính" {% if device.device_type=='Case máy tính' %}selected{% endif
                                 %}>Case máy tính</option>
-                            <option value="Màn hình" {% if device.device_type=='Màn hình' %}selected{% endif %}>Màn hình
-                            </option>
-                            <option value="Bàn phím" {% if device.device_type=='Bàn phím' %}selected{% endif %}>Bàn phím
-                            </option>
-                            <option value="Chuột" {% if device.device_type=='Chuột' %}selected{% endif %}>Chuột</option>
-                            <option value="Ổ cứng" {% if device.device_type=='Ổ cứng' %}selected{% endif %}>Ổ cứng
-                            </option>
-                            <option value="Ram" {% if device.device_type=='Ram' %}selected{% endif %}>Ram</option>
-                            <option value="Card màn hình" {% if device.device_type=='Card màn hình' %}selected{% endif
-                                %}>Card màn hình</option>
-                            <option value="Máy in" {% if device.device_type=='Máy in' %}selected{% endif %}>Máy in
-                            </option>
-                            <option value="Thiết bị mạng" {% if device.device_type=='Thiết bị mạng' %}selected{% endif
-                                %}>Thiết bị mạng</option>
-                            <option value="Server" {% if device.device_type=='Server' %}selected{% endif %}>Server
-                            </option>
-                            <option value="Ổ điện" {% if device.device_type=='Ổ điện' %}selected{% endif %}>Ổ điện
-                            </option>
-                            <option value="Thiết bị điện khác" {% if device.device_type=='Thiết bị điện khác'
-                                %}selected{% endif %}>Thiết bị điện khác</option>
-                            <option value="Thiết bị khác" {% if device.device_type=='Thiết bị khác' %}selected{% endif
-                                %}>Thiết bị khác</option>
+                            {% endif %}
                         </select>
                     </div>
                     <div class="form-group mb-3">

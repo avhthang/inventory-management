@@ -587,6 +587,66 @@ def migrate_resource_table():
 
 migrate_resource_table()
 
+def migrate_device_type_table():
+    """Create device_type table and seed initial data if needed."""
+    with app.app_context():
+        try:
+            from sqlalchemy import text, inspect
+            
+            # Check if table exists
+            try:
+                inspector = inspect(db.engine)
+                if 'device_type' in inspector.get_table_names():
+                    return
+            except Exception:
+                pass
+
+            # Create table
+            with db.engine.connect() as conn:
+                conn.execute(text('''
+                    CREATE TABLE IF NOT EXISTS device_type (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(100) NOT NULL UNIQUE,
+                        category VARCHAR(100) NOT NULL,
+                        description TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                '''))
+                conn.commit()
+                print("✓ Created device_type table")
+                
+                # Seed initial data if empty
+                count = conn.execute(text("SELECT COUNT(*) FROM device_type")).scalar()
+                if count == 0:
+                    initial_types = [
+                        ('Laptop', 'Thiết bị IT'),
+                        ('Case máy tính', 'Thiết bị IT'),
+                        ('Màn hình', 'Thiết bị IT'),
+                        ('Bàn phím', 'Thiết bị IT'),
+                        ('Chuột', 'Thiết bị IT'),
+                        ('Ổ cứng', 'Thiết bị IT'),
+                        ('Ram', 'Thiết bị IT'),
+                        ('Card màn hình', 'Thiết bị IT'),
+                        ('Máy in', 'Thiết bị văn phòng'),
+                        ('Thiết bị mạng', 'Thiết bị IT'),
+                        ('Server', 'Thiết bị IT'),
+                        ('Ổ điện', 'Thiết bị dùng chung'),
+                        ('Thiết bị điện khác', 'Thiết bị dùng chung'),
+                        ('Thiết bị khác', 'Khác')
+                    ]
+                    for name, cat in initial_types:
+                        try:
+                            conn.execute(text(f"INSERT INTO device_type (name, category) VALUES ('{name}', '{cat}')"))
+                        except Exception: 
+                            pass # suppress if unique constraint hit (unlikely here)
+                    conn.commit()
+                    print("✓ Seeded initial device types")
+
+        except Exception as e:
+            print(f"Migration error (device_type): {e}")
+
+migrate_device_type_table()
+
 def migrate_config_proposal_workflow():
     """Add workflow columns to config_proposal table if they don't exist"""
     with app.app_context():
@@ -798,6 +858,15 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.Text)
+    role_permissions = db.relationship('RolePermission', backref='role', cascade='all, delete-orphan')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class DeviceType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    category = db.Column(db.String(100), nullable=False) # 'Thiết bị IT', 'Thiết bị văn phòng', etc.
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Permission(db.Model):
@@ -1423,16 +1492,7 @@ def roles_permissions():
             db.session.commit()
             flash('Cập nhật quyền của vai trò thành công.', 'success')
             return redirect(url_for('roles_permissions'))
-        elif action == 'add_role':
-            name = (request.form.get('new_role_name') or '').strip()
-            if not name:
-                flash('Tên vai trò không được để trống.', 'danger')
-            elif Role.query.filter_by(name=name).first():
-                flash('Vai trò đã tồn tại.', 'warning')
-            else:
-                db.session.add(Role(name=name, description=''))
-                db.session.commit()
-                flash('Đã thêm vai trò mới.', 'success')
+            flash('Cập nhật quyền của vai trò thành công.', 'success')
             return redirect(url_for('roles_permissions'))
         elif action == 'delete_role':
             role_id = request.form.get('role_id', type=int)
@@ -1524,6 +1584,36 @@ def roles_list():
     
     roles = Role.query.order_by(Role.created_at.desc()).all()
     return render_template('roles/list.html', roles=roles)
+
+@app.route('/roles/add', methods=['GET', 'POST'])
+def add_role():
+    """Thêm vai trò mới"""
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    if (user.role != 'admin') and ('rbac.manage' not in _get_current_permissions()):
+        flash('Bạn không có quyền truy cập trang phân quyền.', 'danger')
+        return redirect(url_for('home'))
+    
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        description = request.form.get('description', '').strip()
+        
+        if not name:
+            flash('Tên vai trò không được để trống.', 'danger')
+        elif Role.query.filter_by(name=name).first():
+            flash('Tên vai trò đã tồn tại. Vui lòng chọn tên khác.', 'warning')
+        else:
+            try:
+                new_role = Role(name=name, description=description)
+                db.session.add(new_role)
+                db.session.commit()
+                flash('Đã thêm vai trò mới thành công.', 'success')
+                return redirect(url_for('roles_list'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Lỗi khi thêm vai trò: {str(e)}', 'danger')
+                
+    return render_template('roles/add.html')
 
 @app.route('/roles/<int:role_id>', methods=['GET', 'POST'])
 def role_detail(role_id):
@@ -2399,7 +2489,16 @@ def add_device():
         return redirect(url_for('device_list'))
         
     managers = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    return render_template('add_device.html', managers=managers)
+    
+    # Fetch device types for dropdown
+    types = DeviceType.query.order_by(DeviceType.category, DeviceType.name).all()
+    grouped_device_types = {}
+    for t in types:
+        if t.category not in grouped_device_types:
+            grouped_device_types[t.category] = []
+        grouped_device_types[t.category].append(t)
+        
+    return render_template('add_device.html', managers=managers, grouped_device_types=grouped_device_types)
     
 @app.route('/edit_device/<int:device_id>', methods=['GET', 'POST'])
 def edit_device(device_id):
@@ -2484,7 +2583,16 @@ def edit_device(device_id):
         
     managers = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng']
-    return render_template('edit_device.html', device=device, managers=managers, statuses=statuses)
+    
+    # Fetch device types for dropdown
+    types = DeviceType.query.order_by(DeviceType.category, DeviceType.name).all()
+    grouped_device_types = {}
+    for t in types:
+        if t.category not in grouped_device_types:
+            grouped_device_types[t.category] = []
+        grouped_device_types[t.category].append(t)
+        
+    return render_template('edit_device.html', device=device, managers=managers, statuses=statuses, grouped_device_types=grouped_device_types)
 
 @app.route('/delete_device/<int:device_id>', methods=['POST'])
 def delete_device(device_id):
@@ -6716,6 +6824,112 @@ def delete_resource(id):
     db.session.commit()
     flash('Đã xóa tài nguyên.', 'success')
     return redirect(url_for('resources'))
+
+
+# --- Device Type Management Routes ---
+@app.route('/device_types')
+def device_type_list():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    # Only admin or resource managers should access (using devices.view or similar)
+    if (session.get('role') != 'admin') and ('devices.view' not in _get_current_permissions()) and ('devices.edit' not in _get_current_permissions()):
+        flash('Bạn không có quyền truy cập.', 'danger')
+        return redirect(url_for('home'))
+        
+    types = DeviceType.query.order_by(DeviceType.category, DeviceType.name).all()
+    
+    # Group by category
+    grouped_types = {}
+    for t in types:
+        if t.category not in grouped_types:
+            grouped_types[t.category] = []
+        grouped_types[t.category].append(t)
+        
+    return render_template('device_types/list.html', grouped_types=grouped_types)
+
+@app.route('/device_types/add', methods=['GET', 'POST'])
+def add_device_type():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if (session.get('role') != 'admin') and ('devices.edit' not in _get_current_permissions()):
+        flash('Bạn không có quyền thêm loại thiết bị.', 'danger')
+        return redirect(url_for('device_type_list'))
+        
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        category = request.form.get('category', '').strip()
+        description = request.form.get('description', '').strip()
+        
+        if not name or not category:
+            flash('Tên và nhóm thiết bị là bắt buộc.', 'danger')
+        elif DeviceType.query.filter_by(name=name).first():
+            flash('Loại thiết bị đã tồn tại.', 'warning')
+        else:
+            try:
+                dt = DeviceType(name=name, category=category, description=description)
+                db.session.add(dt)
+                db.session.commit()
+                flash('Đã thêm loại thiết bị mới.', 'success')
+                return redirect(url_for('device_type_list'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Lỗi: {str(e)}', 'danger')
+                
+    return render_template('device_types/form.html', device_type=None)
+
+@app.route('/device_types/<int:id>/edit', methods=['GET', 'POST'])
+def edit_device_type(id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if (session.get('role') != 'admin') and ('devices.edit' not in _get_current_permissions()):
+        flash('Bạn không có quyền sửa loại thiết bị.', 'danger')
+        return redirect(url_for('device_type_list'))
+        
+    dt = DeviceType.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        category = request.form.get('category', '').strip()
+        description = request.form.get('description', '').strip()
+        
+        if not name or not category:
+            flash('Tên và nhóm thiết bị là bắt buộc.', 'danger')
+        elif name != dt.name and DeviceType.query.filter_by(name=name).first():
+            flash('Tên loại thiết bị đã tồn tại.', 'warning')
+        else:
+            try:
+                dt.name = name
+                dt.category = category
+                dt.description = description
+                db.session.commit()
+                flash('Đã cập nhật loại thiết bị.', 'success')
+                return redirect(url_for('device_type_list'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Lỗi: {str(e)}', 'danger')
+                
+    return render_template('device_types/form.html', device_type=dt)
+
+@app.route('/device_types/<int:id>/delete', methods=['POST'])
+def delete_device_type(id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if (session.get('role') != 'admin') and ('devices.delete' not in _get_current_permissions()):
+        flash('Bạn không có quyền xóa loại thiết bị.', 'danger')
+        return redirect(url_for('device_type_list'))
+        
+    dt = DeviceType.query.get_or_404(id)
+    
+    # Check if used
+    if Device.query.filter_by(device_type=dt.name).first():
+        flash(f'Không thể xóa loại "{dt.name}" vì đang có thiết bị sử dụng loại này.', 'warning')
+        return redirect(url_for('device_type_list'))
+        
+    try:
+        db.session.delete(dt)
+        db.session.commit()
+        flash('Đã xóa loại thiết bị.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi: {str(e)}', 'danger')
+        
+    return redirect(url_for('device_type_list'))
 
 if __name__ == '__main__':
     app.run(debug=True)

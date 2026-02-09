@@ -5,9 +5,14 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h3 class="mb-0">Danh sách Quyền</h3>
-      <a href="{{ url_for('roles_permissions') }}" class="btn btn-outline-primary">
-        <i class="bi bi-shield-check"></i> Phân quyền
-      </a>
+      <div>
+        <a href="{{ url_for('add_role') }}" class="btn btn-primary me-2">
+          <i class="bi bi-plus-circle"></i> Thêm vai trò mới
+        </a>
+        <a href="{{ url_for('roles_permissions') }}" class="btn btn-outline-secondary">
+          <i class="bi bi-shield-check"></i> Phân quyền
+        </a>
+      </div>
     </div>
 
     <div class="table-responsive">
@@ -32,11 +37,13 @@
               <a href="{{ url_for('role_detail', role_id=role.id) }}" class="btn btn-sm btn-outline-info" title="Xem">
                 <i class="bi bi-eye"></i>
               </a>
-              <a href="{{ url_for('role_detail', role_id=role.id, tab='permissions') }}" class="btn btn-sm btn-outline-warning ms-1" title="Sửa">
+              <a href="{{ url_for('role_detail', role_id=role.id, tab='permissions') }}"
+                class="btn btn-sm btn-outline-warning ms-1" title="Sửa">
                 <i class="bi bi-pencil"></i>
               </a>
               {% if role.name != 'Admin' %}
-              <form method="POST" action="{{ url_for('roles_permissions') }}" class="d-inline ms-1" onsubmit="return confirm('Xóa quyền này?')">
+              <form method="POST" action="{{ url_for('roles_permissions') }}" class="d-inline ms-1"
+                onsubmit="return confirm('Xóa quyền này?')">
                 <input type="hidden" name="action" value="delete_role">
                 <input type="hidden" name="role_id" value="{{ role.id }}">
                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa">
@@ -57,4 +64,3 @@
   </div>
 </div>
 {% endblock %}
-
