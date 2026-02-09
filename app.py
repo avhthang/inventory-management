@@ -591,57 +591,36 @@ def migrate_device_type_table():
     """Create device_type table and seed initial data if needed."""
     with app.app_context():
         try:
-            from sqlalchemy import text, inspect
-            
-            # Check if table exists
-            try:
-                inspector = inspect(db.engine)
-                if 'device_type' in inspector.get_table_names():
-                    return
-            except Exception:
-                pass
-
-            # Create table
-            with db.engine.connect() as conn:
-                conn.execute(text('''
-                    CREATE TABLE IF NOT EXISTS device_type (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name VARCHAR(100) NOT NULL UNIQUE,
-                        category VARCHAR(100) NOT NULL,
-                        description TEXT,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )
-                '''))
-                conn.commit()
+            # Use SQLAlchemy to create table if not exists (compatible with all DBs)
+            if not inspect(db.engine).has_table("device_type"):
+                DeviceType.__table__.create(db.engine)
                 print("✓ Created device_type table")
                 
-                # Seed initial data if empty
-                count = conn.execute(text("SELECT COUNT(*) FROM device_type")).scalar()
-                if count == 0:
-                    initial_types = [
-                        ('Laptop', 'Thiết bị IT'),
-                        ('Case máy tính', 'Thiết bị IT'),
-                        ('Màn hình', 'Thiết bị IT'),
-                        ('Bàn phím', 'Thiết bị IT'),
-                        ('Chuột', 'Thiết bị IT'),
-                        ('Ổ cứng', 'Thiết bị IT'),
-                        ('Ram', 'Thiết bị IT'),
-                        ('Card màn hình', 'Thiết bị IT'),
-                        ('Máy in', 'Thiết bị văn phòng'),
-                        ('Thiết bị mạng', 'Thiết bị IT'),
-                        ('Server', 'Thiết bị IT'),
-                        ('Ổ điện', 'Thiết bị dùng chung'),
-                        ('Thiết bị điện khác', 'Thiết bị dùng chung'),
-                        ('Thiết bị khác', 'Khác')
-                    ]
-                    for name, cat in initial_types:
-                        try:
-                            conn.execute(text(f"INSERT INTO device_type (name, category) VALUES ('{name}', '{cat}')"))
-                        except Exception: 
-                            pass # suppress if unique constraint hit (unlikely here)
-                    conn.commit()
-                    print("✓ Seeded initial device types")
-
+                # Seed initial data
+                initial_types = [
+                    ('Laptop', 'Thiết bị IT'),
+                    ('Case máy tính', 'Thiết bị IT'),
+                    ('Màn hình', 'Thiết bị IT'),
+                    ('Bàn phím', 'Thiết bị IT'),
+                    ('Chuột', 'Thiết bị IT'),
+                    ('Ổ cứng', 'Thiết bị IT'),
+                    ('Ram', 'Thiết bị IT'),
+                    ('Card màn hình', 'Thiết bị IT'),
+                    ('Máy in', 'Thiết bị văn phòng'),
+                    ('Thiết bị mạng', 'Thiết bị IT'),
+                    ('Server', 'Thiết bị IT'),
+                    ('Ổ điện', 'Thiết bị dùng chung'),
+                    ('Thiết bị điện khác', 'Thiết bị dùng chung'),
+                    ('Thiết bị khác', 'Khác')
+                ]
+                
+                for name, cat in initial_types:
+                    if not DeviceType.query.filter_by(name=name).first():
+                        db.session.add(DeviceType(name=name, category=cat))
+                
+                db.session.commit()
+                print("✓ Seeded initial device types")
+                
         except Exception as e:
             print(f"Migration error (device_type): {e}")
 
@@ -875,6 +854,7 @@ class Permission(db.Model):
 class RolePermission(db.Model):
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), primary_key=True)
     permission_id = db.Column(db.Integer, db.ForeignKey('permission.id'), primary_key=True)
+    # Corrected relationship definition to check for backref conflicts
     role = db.relationship('Role', backref=db.backref('role_permissions', cascade='all, delete-orphan'))
     permission = db.relationship('Permission')
 
