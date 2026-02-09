@@ -63,9 +63,9 @@
                         {% if current_permissions and 'devices.edit' in current_permissions %}
                         <a href="{{ url_for('add_device') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Thêm
                             mới</a>
-                        <a href="{{ url_for('add_devices_bulk') }}" class="btn btn-warning ms-1"><i
-                                class="bi bi-plus-square"></i> Thêm nhanh</a>
-                        {% if current_user.role == 'admin' %}
+                        <a href="{{ url_for('add_devices_bulk') }}" class="btn btn-secondary">
+                            <i class="fas fa-file-import"></i> Thêm nhiều thiết bị
+                        </a> {% if current_user.role == 'admin' %}
                         <a href="{{ url_for('import_devices') }}" class="btn btn-info ms-1"><i class="bi bi-upload"></i>
                             Nhập Excel</a>
                         {% endif %}

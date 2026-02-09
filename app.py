@@ -607,19 +607,26 @@ def migrate_device_type_table():
                     ('Ram', 'Thiết bị IT'),
                     ('Card màn hình', 'Thiết bị IT'),
                     ('Máy in', 'Thiết bị văn phòng'),
+                    ('Máy chiếu', 'Thiết bị văn phòng'),
+                    ('Máy scan', 'Thiết bị văn phòng'),
                     ('Thiết bị mạng', 'Thiết bị IT'),
                     ('Server', 'Thiết bị IT'),
                     ('Ổ điện', 'Thiết bị dùng chung'),
+                    ('Dây mạng', 'Thiết bị IT'),
+                    ('Cáp kết nối', 'Thiết bị IT'),
                     ('Thiết bị điện khác', 'Thiết bị dùng chung'),
                     ('Thiết bị khác', 'Khác')
                 ]
                 
                 for name, cat in initial_types:
                     if not DeviceType.query.filter_by(name=name).first():
-                        db.session.add(DeviceType(name=name, category=cat))
+                        try:
+                            db.session.add(DeviceType(name=name, category=cat))
+                            db.session.commit()
+                        except Exception:
+                            db.session.rollback()
                 
-                db.session.commit()
-                print("✓ Seeded initial device types")
+                print("✓ Verified device types seeding")
                 
         except Exception as e:
             print(f"Migration error (device_type): {e}")
