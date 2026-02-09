@@ -67,14 +67,19 @@
             <hr>
             <h5 class="mt-4">Quyền truy cập</h5>
             <div class="mb-3">
-                <label class="form-label">Quyền truy cập của người dùng</label>
-                <select name="user_roles" id="user_roles" class="form-select" multiple>
-                    {% for role in all_roles %}
-                    <option value="{{ role.id }}" {% if role.name=='User' %}selected{% endif %}>
-                        {{ role.name }} - {{ role.description or '' }}
-                    </option>
-                    {% endfor %}
-                </select>
+                <label class="form-label">Phân quyền</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="role" id="role_user" value="user" checked>
+                    <label class="form-check-label" for="role_user">
+                        Người dùng (Chỉ xem thiết bị được giao)
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="role" id="role_admin" value="admin">
+                    <label class="form-check-label" for="role_admin">
+                        Quản trị viên (Toàn quyền hệ thống)
+                    </label>
+                </div>
             </div>
 
             <div class="form-group mt-3">
@@ -84,16 +89,4 @@
         </form>
     </div>
 </div>
-{% block scripts %}
-{{ super() }}
-<script>
-    $(document).ready(function () {
-        $('#user_roles').select2({
-            width: '100%',
-            placeholder: 'Chọn quyền cho người dùng...',
-            allowClear: true
-        });
-    });
-</script>
-{% endblock %}
 {% endblock %}

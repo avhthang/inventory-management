@@ -3979,23 +3979,22 @@ def add_user():
         db.session.add(new_user)
         db.session.flush()  # Để lấy ID của user mới
         
-        # Xử lý quyền (roles) từ form
-        selected_role_ids = request.form.getlist('user_roles')
-        try:
-            selected_role_ids = [int(rid) for rid in selected_role_ids]
-        except ValueError:
-            selected_role_ids = []
+        # Đảm bảo role chỉ là 'admin' hoặc 'user'
+        role = request.form.get('role', 'user')
+        if role not in ['admin', 'user']:
+            role = 'user'
+        new_user.role = role
         
-        # Thêm các quyền được chọn
-        for role_id in selected_role_ids:
-            db.session.add(UserRole(user_id=new_user.id, role_id=role_id))
+        # Xóa hết các quyền UserRole cũ (nếu có - dù mới tạo thì chưa có nhưng để chắc chắn)
+        # Hệ thống mới chỉ dùng user.role check
         
         db.session.commit()
         flash('Thêm người dùng mới thành công!', 'success')
         return redirect(url_for('user_list'))
     departments = Department.query.all()
-    all_roles = Role.query.order_by(Role.name).all()
-    return render_template('add_user.html', departments=departments, all_roles=all_roles)
+    # all_roles không cần thiết nữa cho giao diện mới
+    return render_template('add_user.html', departments=departments)
+
 
 def create_return_handover_for_user(user_id, current_user_id):
     """Tạo phiếu trả thiết bị về kho khi nhân viên nghỉ việc"""
@@ -4085,25 +4084,16 @@ def edit_user(user_id):
         if new_password:
             user.password = generate_password_hash(new_password)
         
-        # Xử lý quyền (roles)
-        selected_role_ids = request.form.getlist('user_roles')
-        try:
-            selected_role_ids = [int(rid) for rid in selected_role_ids]
-        except ValueError:
-            selected_role_ids = []
+        # Xử lý phân quyền mới: chỉ dựa vào cột role
+        role = request.form.get('role')
+        if role not in ['admin', 'user']:
+             role = 'user'
+        user.role = role
         
-        # Xóa các quyền cũ không được chọn
-        if selected_role_ids:
-            UserRole.query.filter_by(user_id=user_id).filter(~UserRole.role_id.in_(selected_role_ids)).delete()
-        else:
-            # Nếu không chọn quyền nào, xóa tất cả
-            UserRole.query.filter_by(user_id=user_id).delete()
+        # Xóa TẤT CẢ các quyền UserRole cũ để tránh xung đột quyền lẻ
+        UserRole.query.filter_by(user_id=user_id).delete()
         
-        # Thêm các quyền mới
-        existing_role_ids = {ur.role_id for ur in UserRole.query.filter_by(user_id=user_id).all()}
-        for role_id in selected_role_ids:
-            if role_id not in existing_role_ids:
-                db.session.add(UserRole(user_id=user_id, role_id=role_id))
+        # Xử lý nghỉ việc - tự động tạo phiếu trả thiết bị
         
         # Xử lý nghỉ việc - tự động tạo phiếu trả thiết bị
         if new_status == 'Nghỉ việc' and old_status != 'Nghỉ việc':
@@ -4140,16 +4130,9 @@ def edit_user(user_id):
         return redirect(url_for('user_list'))
     departments = Department.query.all()
     
-    # Lấy danh sách quyền của user
-    user_roles = UserRole.query.filter_by(user_id=user_id).all()
-    user_role_ids = [ur.role_id for ur in user_roles]
-    
-    # Lấy tất cả quyền để hiển thị
-    all_roles = Role.query.order_by(Role.name).all()
-    
     # Preserve next/back url
     next_url = request.referrer if request.referrer and ('/edit_user/' not in request.referrer) else url_for('user_list')
-    return render_template('edit_user.html', user=user, departments=departments, all_roles=all_roles, user_role_ids=user_role_ids, next_url=next_url)
+    return render_template('edit_user.html', user=user, departments=departments, next_url=next_url)
 
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 def delete_user(user_id):

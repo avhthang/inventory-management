@@ -68,7 +68,7 @@ HD_trien_khai.md
 deploy.sh
 setup_postgres.py
 migrate_to_postgres.py
-backup_restore.py
+
 
 # Test files
 test_*.py
