@@ -858,7 +858,6 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.Text)
-    role_permissions = db.relationship('RolePermission', backref='role', cascade='all, delete-orphan')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class DeviceType(db.Model):
@@ -866,7 +865,6 @@ class DeviceType(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     category = db.Column(db.String(100), nullable=False) # 'Thiết bị IT', 'Thiết bị văn phòng', etc.
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Permission(db.Model):
