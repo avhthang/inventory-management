@@ -6223,7 +6223,8 @@ def backup_export():
         backup_filename = f'backup_inventory_{timestamp}.zip'
         
         # Tạo file tạm với delete=False để giữ file cho đến khi gửi xong
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip', dir=backup_path)
+        # Use system temp directory (default) instead of backup_path to avoid permission issues
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
         temp_backup_file = temp_file.name
         temp_file.close()
         
