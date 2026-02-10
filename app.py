@@ -6287,7 +6287,6 @@ def backup_import():
         return redirect(url_for('backup_page'))
     
     try:
-    try:
         # Lưu file tạm
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
         temp_path = temp_file.name
