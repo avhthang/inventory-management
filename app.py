@@ -18,6 +18,7 @@ import threading
 import time
 import pytz
 from config import config, get_database_info, is_external_database
+from backup_restore import DatabaseBackup
 
 # --- Cấu hình ứng dụng ---
 instance_path = os.path.join(os.getcwd(), 'instance')
@@ -6218,47 +6219,29 @@ def backup_export():
         return redirect(url_for('home'))
     temp_backup_file = None
     try:
-        # Tạo file backup
-        timestamp = datetime.now(VIETNAM_TZ).strftime('%Y%m%d_%H%M%S')
-        backup_filename = f'backup_inventory_{timestamp}.zip'
-        
-        # Tạo file tạm với delete=False để giữ file cho đến khi gửi xong
-        # Use system temp directory (default) instead of backup_path to avoid permission issues
+        # Create a temporary file for the zip
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
         temp_backup_file = temp_file.name
         temp_file.close()
+
+        # Use shared backup logic
+        backup = DatabaseBackup()
+        backup.create_backup(temp_backup_file)
         
-        files_added = 0
-        
-        with zipfile.ZipFile(temp_backup_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Backup database
-            db_path = os.path.join(instance_path, 'inventory.db')
-            if os.path.exists(db_path):
-                zipf.write(db_path, 'inventory.db')
-                files_added += 1
-            else:
-                # Create a placeholder file if database doesn't exist
-                placeholder_content = "# Database file not found - system may not be initialized yet\n"
-                zipf.writestr('database_placeholder.txt', placeholder_content)
-                files_added += 1
-            
-            # Backup upload folder if exists
-            upload_path = os.path.join(os.getcwd(), 'upload')
-            if os.path.exists(upload_path):
-                for root, dirs, files in os.walk(upload_path):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, os.getcwd())
-                        zipf.write(file_path, arcname)
-                        files_added += 1
-        
-        # Check if backup has content
-        if files_added == 0:
-            os.unlink(temp_backup_file)  # Xóa file tạm
-            flash('Không có dữ liệu để backup. Hệ thống có thể chưa được khởi tạo.', 'warning')
+        # Check if backup file was created and has content
+        if not os.path.exists(temp_backup_file) or os.path.getsize(temp_backup_file) == 0:
+            if os.path.exists(temp_backup_file):
+                os.unlink(temp_backup_file)
+            flash('Không thể tạo file backup.', 'danger')
             return redirect(url_for('backup_page'))
-        
-        # Gửi file và xóa sau khi gửi xong
+
+        backup_filename = os.path.basename(temp_backup_file)
+        # Rename to user-friendly name if needed, but DatabaseBackup might have named it based on time
+        # Actually DatabaseBackup doesn't change filename if provided.
+        # Let's give it a nice name for download
+        timestamp = datetime.now(VIETNAM_TZ).strftime('%Y%m%d_%H%M%S')
+        download_filename = f'backup_inventory_{timestamp}.zip'
+
         def remove_file(response, path=temp_backup_file):
             try:
                 if path and os.path.exists(path):
@@ -6270,7 +6253,7 @@ def backup_export():
         return remove_file(send_file(
             temp_backup_file,
             as_attachment=True,
-            download_name=backup_filename,
+            download_name=download_filename,
             mimetype='application/zip'
         ))
     except Exception as e:
@@ -6304,35 +6287,27 @@ def backup_import():
         return redirect(url_for('backup_page'))
     
     try:
+    try:
         # Lưu file tạm
-        temp_dir = tempfile.mkdtemp()
-        temp_path = os.path.join(temp_dir, file.filename)
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_path = temp_file.name
+        temp_file.close()
+        
         file.save(temp_path)
         
-        # Giải nén và restore
-        with zipfile.ZipFile(temp_path, 'r') as zipf:
-            # Restore database
-            if 'inventory.db' in zipf.namelist():
-                db_path = os.path.join(instance_path, 'inventory.db')
-                # Backup database hiện tại
-                if os.path.exists(db_path):
-                    backup_db_path = f"{db_path}.backup_{datetime.now(VIETNAM_TZ).strftime('%Y%m%d_%H%M%S')}"
-                    os.rename(db_path, backup_db_path)
-                
-                # Extract new database
-                zipf.extract('inventory.db', instance_path)
-            
-            # Restore upload folder
-            upload_path = os.path.join(os.getcwd(), 'upload')
-            for name in zipf.namelist():
-                if name.startswith('upload/'):
-                    zipf.extract(name, os.getcwd())
+        # Use shared backup logic for restore
+        backup = DatabaseBackup()
+        success = backup.restore_backup(temp_path)
         
         # Cleanup
-        os.remove(temp_path)
-        os.rmdir(temp_dir)
-        
-        flash('Import backup thành công!', 'success')
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            
+        if success:
+            flash('Import backup thành công!', 'success')
+        else:
+            flash('Lỗi khi import backup. Vui lòng kiểm tra log.', 'danger')
+            
         return redirect(url_for('backup_page'))
         
     except Exception as e:
@@ -6349,39 +6324,18 @@ def create_automatic_backup():
         backup_filename = f'auto_backup_{timestamp}.zip'
         backup_filepath = os.path.join(backup_path, backup_filename)
         
-        files_added = 0
+        # Use shared backup logic
+        backup = DatabaseBackup()
         
-        with zipfile.ZipFile(backup_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Backup database
-            db_path = os.path.join(instance_path, 'inventory.db')
-            if os.path.exists(db_path):
-                zipf.write(db_path, 'inventory.db')
-                files_added += 1
-                print(f"Added database to backup: {db_path}")
-            else:
-                print(f"Database file not found: {db_path}")
-            
-            # Backup upload folder if exists
-            upload_path = os.path.join(os.getcwd(), 'upload')
-            if os.path.exists(upload_path):
-                for root, dirs, files in os.walk(upload_path):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, os.getcwd())
-                        zipf.write(file_path, arcname)
-                        files_added += 1
-                print(f"Added {files_added - 1} files from upload folder")
-            else:
-                print(f"Upload folder not found: {upload_path}")
+        # Create backup in the backups directory
+        backup_filename = f'auto_backup_{timestamp}.zip'
+        backup_filepath = os.path.join(backup_path, backup_filename)
         
-        # Check if backup file was created and has content
-        if os.path.exists(backup_filepath):
-            file_size = os.path.getsize(backup_filepath)
-            print(f"Automatic backup created: {backup_filename} ({file_size} bytes, {files_added} files)")
-            if file_size == 0:
-                print("WARNING: Backup file is empty!")
-                os.remove(backup_filepath)  # Remove empty backup
-                return None
+        final_path = backup.create_backup(backup_filepath)
+        
+        if final_path and os.path.exists(final_path):
+            file_size = os.path.getsize(final_path)
+            print(f"Automatic backup created: {backup_filename} ({file_size} bytes)")
             return backup_filename
         else:
             print("ERROR: Backup file was not created")
@@ -6541,24 +6495,14 @@ def backup_restore_from_file(filename):
             flash('File backup không tồn tại.', 'danger')
             return redirect(url_for('backup_list'))
         
-        # Backup current database
-        db_path = os.path.join(instance_path, 'inventory.db')
-        if os.path.exists(db_path):
-            backup_db_path = f"{db_path}.backup_{datetime.now(VIETNAM_TZ).strftime('%Y%m%d_%H%M%S')}"
-            os.rename(db_path, backup_db_path)
+        # Use shared backup logic
+        backup = DatabaseBackup()
+        success = backup.restore_backup(backup_filepath)
         
-        # Restore from backup
-        with zipfile.ZipFile(backup_filepath, 'r') as zipf:
-            if 'inventory.db' in zipf.namelist():
-                zipf.extract('inventory.db', instance_path)
-            
-            # Restore upload folder
-            upload_path = os.path.join(os.getcwd(), 'upload')
-            for name in zipf.namelist():
-                if name.startswith('upload/'):
-                    zipf.extract(name, os.getcwd())
-        
-        flash(f'Khôi phục backup từ {filename} thành công!', 'success')
+        if success:
+            flash(f'Khôi phục backup từ {filename} thành công!', 'success')
+        else:
+            flash(f'Lỗi khi khôi phục backup: Xem log để biết chi tiết', 'danger')
         return redirect(url_for('backup_list'))
         
     except Exception as e:
