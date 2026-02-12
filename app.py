@@ -2298,8 +2298,9 @@ def device_list():
     query = Device.query
 
     # Apply category filter
-    if filter_category and filter_category in DEVICE_HIERARCHY:
-        category_types = DEVICE_HIERARCHY[filter_category]
+    device_hierarchy = _get_device_type_hierarchy()
+    if filter_category and filter_category in device_hierarchy:
+        category_types = device_hierarchy[filter_category]
         if filter_device_type:
              if filter_device_type in category_types:
                  query = query.filter(Device.device_type == filter_device_type)
@@ -2385,7 +2386,7 @@ def device_list():
         filter_manager_id=filter_manager_id,
         filter_department=filter_department,
         filter_category=filter_category,
-        device_hierarchy=DEVICE_HIERARCHY,
+        device_hierarchy=device_hierarchy,
         primary_admin=primary_admin
     )
 
