@@ -12,7 +12,7 @@ import hashlib
 # Add the current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from app import app, db, User, Department, DeviceGroup
+from app import app, db, User, Department
 from config import get_database_info, is_external_database
 from security import generate_secure_password
 
@@ -65,19 +65,6 @@ def init_database():
         else:
             print("✓ Admin user already exists")
         
-        # Create server room device group
-        server_group = DeviceGroup.query.filter_by(name='Phòng server').first()
-        if not server_group:
-            server_group = DeviceGroup(
-                name='Phòng server',
-                description='Nhóm thiết bị phòng server',
-                created_by=admin.id
-            )
-            db.session.add(server_group)
-            db.session.commit()
-            print("✓ Created server room device group")
-        else:
-            print("✓ Server room device group already exists")
         
         # Seed RBAC data
         from app import seed_rbac_data

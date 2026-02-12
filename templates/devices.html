@@ -18,20 +18,34 @@
                 </a>
 
                 {% for category, types in device_hierarchy.items() %}
-                <div class="list-group-item p-0">
-                    <a href="{{ url_for('device_list', filter_category=category) }}"
-                        class="list-group-item-action d-flex justify-content-between align-items-center p-3 {% if filter_category == category and not filter_device_type %}text-primary fw-bold bg-light{% else %}text-dark text-decoration-none{% endif %}"
+                {% set is_active_category = (filter_category == category) %}
+                {% set contains_active_type = (filter_device_type in types) %}
+                {% set is_expanded = is_active_category or contains_active_type or (not filter_category and not
+                filter_device_type and category == 'Thiết bị IT') %}
+
+                <div class="list-group-item p-0 border-0">
+                    <div class="d-flex justify-content-between align-items-center list-group-item-action {% if is_active_category %}bg-light{% endif %}"
                         style="border-bottom: 1px solid rgba(0,0,0,.125);">
-                        <span>{{ category }}</span>
-                        {% if filter_category == category %}<i class="bi bi-chevron-right"></i>{% endif %}
-                    </a>
-                    <div class="bg-white">
-                        {% for type in types %}
-                        <a href="{{ url_for('device_list', filter_category=category, filter_device_type=type) }}"
-                            class="list-group-item list-group-item-action ps-4 border-0 small {% if filter_device_type == type %}active{% endif %}">
-                            <i class="bi bi-dot"></i> {{ type }}
+                        <a href="{{ url_for('device_list', filter_category=category) }}"
+                            class="text-decoration-none {% if is_active_category %}text-primary fw-bold{% else %}text-dark{% endif %} d-block p-3 flex-grow-1">
+                            {{ category }}
                         </a>
-                        {% endfor %}
+                        <button class="btn btn-link text-dark p-3 text-decoration-none" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}"
+                            aria-expanded="{{ 'true' if is_expanded else 'false' }}">
+                            <i class="bi bi-chevron-down"></i>
+                        </button>
+                    </div>
+
+                    <div id="collapse-{{ loop.index }}" class="collapse {% if is_expanded %}show{% endif %} bg-white">
+                        <div class="list-group list-group-flush border-bottom">
+                            {% for type in types %}
+                            <a href="{{ url_for('device_list', filter_category=category, filter_device_type=type) }}"
+                                class="list-group-item list-group-item-action ps-4 border-0 small {% if filter_device_type == type %}active{% endif %}">
+                                <i class="bi bi-dot"></i> {{ type }}
+                            </a>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
