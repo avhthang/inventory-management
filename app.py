@@ -1931,10 +1931,13 @@ def remove_department_user(dept_id, user_id):
     
     return jsonify({'success': True})
 
-@app.route('/departments/add', methods=['POST'])
+@app.route('/departments/add', methods=['GET', 'POST'])
 def add_department():
     if 'user_id' not in session:
         return redirect(url_for('login'))
+    
+    if request.method == 'GET':
+        return redirect(url_for('list_departments'))
     
     name = request.form.get('name')
     description = request.form.get('description')
