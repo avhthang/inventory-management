@@ -28,6 +28,11 @@ os.makedirs(instance_path, exist_ok=True)
 backup_path = os.path.join(os.getcwd(), 'backups')
 os.makedirs(backup_path, exist_ok=True)
 
+# Attachment directories
+os.makedirs(os.path.join(instance_path, 'bug_report_attachments'), exist_ok=True)
+os.makedirs(os.path.join(instance_path, 'maintenance_attachments'), exist_ok=True)
+
+
 # Timezone configuration (GMT+7)
 VIETNAM_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
 
