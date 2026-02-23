@@ -9,7 +9,8 @@
         <div class="col">
             {% if current_permissions and 'departments.edit' in current_permissions %}
             <div>
-                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                    data-bs-target="#addDepartmentModal">
                     <i class="bi bi-plus-lg"></i> Thêm phòng ban
                 </button>
                 <a href="{{ url_for('import_departments') }}" class="btn btn-info ms-2">
@@ -23,14 +24,28 @@
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-body">
-            <div id="departmentTree">
-                {% for dept in departments %}
-                {% if not dept.parent %}
-                {{ render_department(dept, 0) }}
-                {% endif %}
-                {% endfor %}
+    <div class="row">
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-body">
+                    <div id="departmentTree">
+                        {% for dept in departments %}
+                        {% if not dept.parent %}
+                        {{ render_department(dept, 0) }}
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div id="departmentUserColumn">
+                <div class="card h-100">
+                    <div class="card-body text-center py-5 text-muted">
+                        <i class="bi bi-info-circle display-4 mb-3 d-block"></i>
+                        <h5>Chọn một phòng ban để xem danh sách nhân viên</h5>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -227,6 +242,8 @@
                     }).then(data => {
                         if (data.success) {
                             location.reload();
+                        } else {
+                            alert(data.message || 'Có lỗi xảy ra khi xóa phòng ban');
                         }
                     }).catch(error => {
                         console.error('Error:', error);
@@ -234,6 +251,68 @@
                     });
                 }
             });
+        });
+
+        // --- NEW: Load department users AJAX ---
+        const userColumn = document.getElementById('departmentUserColumn');
+
+        function loadDepartmentUsers(deptId) {
+            userColumn.innerHTML = '<div class="card h-100"><div class="card-body text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Đang tải danh sách nhân viên...</p></div></div>';
+
+            fetch(`/departments/${deptId}/users/partial`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to load users');
+                    return response.text();
+                })
+                .then(html => {
+                    userColumn.innerHTML = html;
+                    // Re-highlight active department
+                    document.querySelectorAll('.department-item .border-bottom').forEach(el => el.classList.remove('bg-light'));
+                    const item = document.querySelector(`.department-item[data-id="${deptId}"] > .border-bottom`);
+                    if (item) item.classList.add('bg-light');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    userColumn.innerHTML = '<div class="alert alert-danger">Lỗi khi tải danh sách nhân viên.</div>';
+                });
+        }
+
+        // Click handler for department list
+        document.addEventListener('click', function (e) {
+            const clickable = e.target.closest('.dept-clickable');
+            if (clickable) {
+                const deptId = clickable.dataset.id;
+                loadDepartmentUsers(deptId);
+            }
+
+            // AJAX Remove user handler
+            const removeBtn = e.target.closest('.remove-user-btn');
+            if (removeBtn) {
+                const deptId = removeBtn.dataset.deptId;
+                const userId = removeBtn.dataset.userId;
+                const userName = removeBtn.dataset.userName;
+
+                if (confirm(`Bạn có chắc chắn muốn xóa ${userName} khỏi phòng ban?`)) {
+                    fetch(`/departments/${deptId}/users/${userId}/remove`, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                loadDepartmentUsers(deptId);
+                            } else {
+                                alert(data.message || 'Có lỗi xảy ra.');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Lỗi kết nối server.');
+                        });
+                }
+            }
         });
     });
 </script>

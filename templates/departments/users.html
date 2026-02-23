@@ -105,7 +105,7 @@
                                     <td class="text-end">
                                         <form method="POST"
                                             action="{{ url_for('remove_department_user', dept_id=department.id, user_id=user.id) }}"
-                                            onsubmit="return confirm('Xóa người dùng này khỏi phòng ban?')">
+                                            class="remove-user-form" data-user-name="{{ user.full_name }}">
                                             <button type="submit" class="btn btn-sm btn-outline-danger"
                                                 title="Gỡ khỏi phòng ban">
                                                 <i class="bi bi-person-dash"></i>
@@ -127,4 +127,37 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.remove-user-form').forEach(form => {
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const userName = this.dataset.userName;
+                if (confirm(`Bạn có chắc chắn muốn xóa ${userName} khỏi phòng ban?`)) {
+                    fetch(this.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                alert(data.message || 'Có lỗi xảy ra.');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Lỗi kết nối server.');
+                        });
+                }
+            });
+        });
+    });
+</script>
 {% endblock %}

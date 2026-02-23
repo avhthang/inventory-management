@@ -2,33 +2,30 @@
 <div class="department-item" data-id="{{ dept.id }}">
     <div class="d-flex align-items-center py-2 border-bottom">
         <div style="width: {{ level * 24 }}px"></div>
-        <button type="button" class="btn btn-sm btn-outline-secondary me-2 toggle-children" data-bs-toggle="collapse" data-bs-target="#children-{{ dept.id }}" aria-expanded="true" aria-controls="children-{{ dept.id }}">
+        <button type="button" class="btn btn-sm btn-outline-secondary me-2 toggle-children" data-bs-toggle="collapse"
+            data-bs-target="#children-{{ dept.id }}" aria-expanded="true" aria-controls="children-{{ dept.id }}">
             {% if dept.children %}
-                <i class="bi" data-icon-closed="bi-caret-down-fill" data-icon-open="bi-caret-up-fill"></i>
+            <i class="bi" data-icon-closed="bi-caret-down-fill" data-icon-open="bi-caret-up-fill"></i>
             {% else %}
-                <i class="bi bi-dot"></i>
+            <i class="bi bi-dot"></i>
             {% endif %}
         </button>
         <i class="bi bi-grip-vertical me-2 handle" title="Kéo để sắp xếp"></i>
-        <div class="flex-grow-1">
+        <div class="flex-grow-1 dept-clickable" style="cursor: pointer" data-id="{{ dept.id }}">
             <strong>{{ dept.name }}</strong>
             {% if dept.manager %}
-                <small class="text-muted ms-2">({{ dept.manager.full_name }})</small>
+            <small class="text-muted ms-2">({{ dept.manager.full_name }})</small>
             {% endif %}
         </div>
         <div class="btn-group">
-            <a href="{{ url_for('department_users', id=dept.id) }}" 
-               class="btn btn-sm btn-outline-info" 
-               title="Quản lý người dùng">
+            <a href="{{ url_for('department_users', id=dept.id) }}" class="btn btn-sm btn-outline-info"
+                title="Quản lý người dùng">
                 <i class="bi bi-people"></i>
             </a>
             {% if current_permissions and 'departments.edit' in current_permissions %}
-            <button type="button" class="btn btn-sm btn-outline-primary edit-dept" 
-                    data-id="{{ dept.id }}"
-                    data-name="{{ dept.name }}"
-                    data-description="{{ dept.description or '' }}"
-                    data-parent-id="{{ dept.parent_id or '' }}"
-                    data-manager-id="{{ dept.manager_id or '' }}">
+            <button type="button" class="btn btn-sm btn-outline-primary edit-dept" data-id="{{ dept.id }}"
+                data-name="{{ dept.name }}" data-description="{{ dept.description or '' }}"
+                data-parent-id="{{ dept.parent_id or '' }}" data-manager-id="{{ dept.manager_id or '' }}">
                 <i class="bi bi-pencil"></i>
             </button>
             {% endif %}
@@ -40,11 +37,11 @@
         </div>
     </div>
     {% if dept.children %}
-        <div id="children-{{ dept.id }}" class="children collapse show" data-parent="{{ dept.id }}">
-            {% for child in dept.children %}
-                {{ render_department(child, level + 1) }}
-            {% endfor %}
-        </div>
+    <div id="children-{{ dept.id }}" class="children collapse show" data-parent="{{ dept.id }}">
+        {% for child in dept.children %}
+        {{ render_department(child, level + 1) }}
+        {% endfor %}
+    </div>
     {% endif %}
 </div>
 {% endmacro %}

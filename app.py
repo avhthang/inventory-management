@@ -1918,18 +1918,41 @@ def add_department_user(id):
 @app.route('/departments/<int:dept_id>/users/<int:user_id>/remove', methods=['POST'])
 def remove_department_user(dept_id, user_id):
     if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Unauthorized'})
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Unauthorized'})
+        return redirect(url_for('login'))
         
     user = User.query.get_or_404(user_id)
     department = Department.query.get_or_404(dept_id)
     
     if user.department_id != department.id:
-        return jsonify({'success': False, 'message': 'User not in this department'})
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'User not in this department'})
+        flash('Người dùng không thuộc phòng ban này.', 'warning')
+        return redirect(url_for('department_users', id=dept_id))
         
     user.department_id = None
     db.session.commit()
     
-    return jsonify({'success': True})
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True})
+    
+    flash(f'Đã xóa {user.username} khỏi phòng ban.', 'success')
+    return redirect(url_for('department_users', id=dept_id))
+
+@app.route('/departments/<int:id>/users/partial')
+def department_users_partial(id):
+    if 'user_id' not in session:
+        return "Unauthorized", 401
+        
+    department = Department.query.get_or_404(id)
+    department_users = [u for u in department.users if u.status in ['Đang làm', 'Thực tập']]
+    current_permissions = _get_current_permissions()
+    
+    return render_template('departments/_user_list_partial.html',
+                         department=department,
+                         department_users=department_users,
+                         current_permissions=current_permissions)
 
 @app.route('/departments/add', methods=['GET', 'POST'])
 def add_department():
