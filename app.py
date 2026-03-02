@@ -1839,13 +1839,37 @@ def department_users(id):
         User.department_id.is_(None)
     ).all()
     
-    # Filter users currently in the department
-    department_users = [u for u in department.users if u.status in ['Đang làm', 'Thực tập']]
+    # Sort and Paginate department users
+    page = request.args.get('page', 1, type=int)
+    
+    # Custom ordering: 
+    # 1. Manager (admin or manager role vs user role) 
+    # 2. Position containing 'thực tập' (put them last)
+    from sqlalchemy import case, String, cast
+    
+    # Define sort order: 
+    # - role='admin' or 'manager' -> order 1
+    # - position like '%thực tập%' -> order 3
+    # - else -> order 2
+    order_case = case(
+        (User.role.in_(['admin', 'manager']), 1),
+        (db.func.lower(User.position).like('%thực tập%'), 3),
+        else_=2
+    )
+
+    pagination = User.query.filter(
+        User.department_id == department.id,
+        User.status.in_(['Đang làm', 'Thực tập'])
+    ).order_by(
+        order_case,
+        User.full_name
+    ).paginate(page=page, per_page=20, error_out=False)
     
     return render_template('departments/users.html',
                          department=department,
                          available_users=available_users,
-                         department_users=department_users)
+                         department_users=pagination.items,
+                         pagination=pagination)
 
 @app.route('/departments/<int:id>/users/add', methods=['POST'])
 def add_department_user(id):
@@ -1897,12 +1921,29 @@ def department_users_partial(id):
         return "Unauthorized", 401
         
     department = Department.query.get_or_404(id)
-    department_users = [u for u in department.users if u.status in ['Đang làm', 'Thực tập']]
     current_permissions = _get_current_permissions()
+    
+    page = request.args.get('page', 1, type=int)
+    
+    from sqlalchemy import case
+    order_case = case(
+        (User.role.in_(['admin', 'manager']), 1),
+        (db.func.lower(User.position).like('%thực tập%'), 3),
+        else_=2
+    )
+
+    pagination = User.query.filter(
+        User.department_id == department.id,
+        User.status.in_(['Đang làm', 'Thực tập'])
+    ).order_by(
+        order_case,
+        User.full_name
+    ).paginate(page=page, per_page=20, error_out=False)
     
     return render_template('departments/_user_list_partial.html',
                          department=department,
-                         department_users=department_users,
+                         department_users=pagination.items,
+                         pagination=pagination,
                          current_permissions=current_permissions)
 
 @app.route('/departments/add', methods=['GET', 'POST'])

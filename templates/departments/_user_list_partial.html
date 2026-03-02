@@ -41,10 +41,34 @@
                 </tbody>
             </table>
         </div>
+        {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-3">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link ajax-page" href="#" data-page="{{ pagination.prev_num }}"
+                        data-dept-id="{{ department.id }}">Trước</a>
+                </li>
+                {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if p %}
+                <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                    <a class="page-link ajax-page" href="#" data-page="{{ p }}" data-dept-id="{{ department.id }}">{{ p
+                        }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link ajax-page" href="#" data-page="{{ pagination.next_num }}"
+                        data-dept-id="{{ department.id }}">Sau</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
     </div>
     <div class="card-footer bg-white border-top-0">
         <a href="{{ url_for('department_users', id=department.id) }}" class="btn btn-sm btn-outline-info w-100">
-            <i class="bi bi-people"></i> Quản lý nhân sự chi tiết
+            <i class="bi bi-people"></i> Chi tiết
         </a>
     </div>
 </div>

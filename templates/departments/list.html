@@ -256,10 +256,10 @@
         // --- NEW: Load department users AJAX ---
         const userColumn = document.getElementById('departmentUserColumn');
 
-        function loadDepartmentUsers(deptId) {
+        function loadDepartmentUsers(deptId, page = 1) {
             userColumn.innerHTML = '<div class="card h-100"><div class="card-body text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Đang tải danh sách nhân viên...</p></div></div>';
 
-            fetch(`/departments/${deptId}/users/partial`)
+            fetch(`/departments/${deptId}/users/partial?page=${page}`)
                 .then(response => {
                     if (!response.ok) throw new Error('Failed to load users');
                     return response.text();
@@ -277,12 +277,22 @@
                 });
         }
 
-        // Click handler for department list
+        // Click handler for department list and pagination
         document.addEventListener('click', function (e) {
             const clickable = e.target.closest('.dept-clickable');
             if (clickable) {
                 const deptId = clickable.dataset.id;
                 loadDepartmentUsers(deptId);
+            }
+
+            const pageLink = e.target.closest('.ajax-page');
+            if (pageLink) {
+                e.preventDefault();
+                const deptId = pageLink.dataset.deptId;
+                const page = pageLink.dataset.page;
+                if (deptId && page) {
+                    loadDepartmentUsers(deptId, page);
+                }
             }
 
             // AJAX Remove user handler
