@@ -105,14 +105,7 @@
                         <td><strong>Ngày cấp phát:</strong></td>
                         <td>{{ device.assign_date.strftime('%d-%m-%Y') if device.assign_date else 'N/A' }}</td>
                     </tr>
-                    <tr>
-                        <td><strong>Người nhập kho:</strong></td>
-                        <td>{{ device.importer or 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Ngày nhập kho:</strong></td>
-                        <td>{{ device.import_date.strftime('%d-%m-%Y') }}</td>
-                    </tr>
+
                 </table>
             </div>
         </div>

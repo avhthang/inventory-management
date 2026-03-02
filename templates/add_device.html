@@ -96,59 +96,50 @@
 
                             <div class="row">
                                 <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label class="form-label">Người mua</label>
-                                        <input type="text" name="buyer" class="form-control">
+                                    <div class="col-md-12">
+                                        <div class="form-group mb-3">
+                                            <label class="form-label">Người mua</label>
+                                            <input type="text" name="buyer" class="form-control">
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label class="form-label">Người nhập kho</label>
-                                        <input type="text" name="importer" class="form-control">
-                                    </div>
+
+                                <div class="form-group mb-3">
+                                    <label class="form-label required">Tình trạng ban đầu</label>
+                                    <select name="condition" class="form-control" required>
+                                        <option value="Mới">Mới</option>
+                                        <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
+                                        <option value="Cần bảo trì">Cần bảo trì</option>
+                                        <option value="Hỏng">Hỏng</option>
+                                    </select>
                                 </div>
-                            </div>
 
-                            <div class="form-group mb-3">
-                                <label class="form-label required">Ngày nhập kho</label>
-                                <input type="date" name="import_date" class="form-control" required>
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label class="form-label required">Tình trạng ban đầu</label>
-                                <select name="condition" class="form-control" required>
-                                    <option value="Mới">Mới</option>
-                                    <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
-                                    <option value="Cần bảo trì">Cần bảo trì</option>
-                                    <option value="Hỏng">Hỏng</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label class="form-label">Người quản lý ban đầu</label>
-                                <select name="manager_id" class="form-control">
-                                    <option value="">-- Chọn --</option>
-                                    {% for manager in managers %}<option value="{{ manager.id }}">{{ manager.full_name
-                                        }}
-                                    </option>{% endfor %}
-                                </select>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label">Ngày cấp phát ban đầu</label>
-                                <input type="date" name="assign_date" class="form-control">
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label">Ghi chú</label>
-                                <textarea name="notes" class="form-control" rows="2"></textarea>
+                                <div class="form-group mb-3">
+                                    <label class="form-label">Người quản lý ban đầu</label>
+                                    <select name="manager_id" class="form-control">
+                                        <option value="">-- Chọn --</option>
+                                        {% for manager in managers %}<option value="{{ manager.id }}">{{
+                                            manager.full_name
+                                            }}
+                                        </option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label class="form-label">Ngày cấp phát ban đầu</label>
+                                    <input type="date" name="assign_date" class="form-control">
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label class="form-label">Ghi chú</label>
+                                    <textarea name="notes" class="form-control" rows="2"></textarea>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="form-group mt-3">
-                <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Hủy bỏ</a>
-                <button type="submit" class="btn btn-primary">Thêm thiết bị</button>
-            </div>
+                <div class="form-group mt-3">
+                    <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Hủy bỏ</a>
+                    <button type="submit" class="btn btn-primary">Thêm thiết bị</button>
+                </div>
         </form>
     </div>
 </div>

@@ -62,11 +62,6 @@
                             class="nav-link {% if active_endpoint in ['bug_reports', 'create_bug_report', 'bug_report_detail', 'edit_bug_report'] %}active{% endif %}"
                             href="{{ url_for('bug_reports') }}">Báo lỗi</a></li>
                     {% endif %}
-                    {% if current_permissions and 'inventory.view' in current_permissions %}
-                    <li class="nav-item"><a
-                            class="nav-link {% if active_endpoint in ['inventory_receipts'] %}active{% endif %}"
-                            href="{{ url_for('inventory_receipts') }}">Phiếu nhập kho</a></li>
-                    {% endif %}
                     {% if current_permissions and 'config_proposals.view' in current_permissions %}
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint == 'config_proposals' %}active{% endif %}"

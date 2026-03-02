@@ -83,16 +83,6 @@
                         <input type="text" name="buyer" class="form-control" value="{{ device.buyer or '' }}">
                     </div>
                     <div class="form-group mb-3">
-                        <label class="form-label">Người nhập kho</label>
-                        <input type="text" name="importer" class="form-control" value="{{ device.importer or '' }}">
-                    </div>
-                    <div class="form-group mb-3">
-                        <label class="form-label required">Ngày nhập kho</label>
-                        <input type="date" name="import_date" class="form-control"
-                            value="{{ device.import_date.strftime('%Y-%m-%d') if device.import_date else '' }}"
-                            required>
-                    </div>
-                    <div class="form-group mb-3">
                         <label class="form-label required">Tình trạng</label>
                         <select name="condition" class="form-control" required>
                             <option value="Mới" {% if device.condition=='Mới' %}selected{% endif %}>Mới</option>

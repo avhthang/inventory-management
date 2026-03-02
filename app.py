@@ -107,10 +107,6 @@ PERMISSIONS = [
     ('handovers.view', 'Xem lịch sử/Tạo phiếu bàn giao'),
     ('handovers.edit', 'Sửa phiếu bàn giao'),
     ('handovers.delete', 'Xóa phiếu bàn giao'),
-    # Phiếu nhập kho
-    ('inventory.view', 'Xem danh sách phiếu nhập kho'),
-    ('inventory.edit', 'Tạo/Sửa phiếu nhập kho'),
-    ('inventory.delete', 'Xóa phiếu nhập kho'),
     # Đề xuất cấu hình
     ('config_proposals.view', 'Xem đề xuất cấu hình'),
     ('config_proposals.create', 'Tạo đề xuất cấu hình'),
@@ -901,27 +897,6 @@ class Resource(db.Model):
     
     device = db.relationship('Device', backref=db.backref('resources', lazy='dynamic'))
 
-# --- Inventory Receipt Models ---
-class InventoryReceipt(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(50), unique=True, nullable=False)
-    date = db.Column(db.Date, nullable=False)
-    supplier = db.Column(db.String(150))
-    importer = db.Column(db.String(120))
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
-    notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    config_proposal_id = db.Column(db.Integer, db.ForeignKey('config_proposal.id'))
-
-class InventoryReceiptItem(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    receipt_id = db.Column(db.Integer, db.ForeignKey('inventory_receipt.id'), nullable=False)
-    device_id = db.Column(db.Integer, db.ForeignKey('device.id'), nullable=False)
-    quantity = db.Column(db.Integer, default=1)
-    device_condition = db.Column(db.String(100))
-    device_note = db.Column(db.Text)
-    receipt = db.relationship('InventoryReceipt', backref=db.backref('items', cascade='all, delete-orphan'))
-    device = db.relationship('Device')
 
 # --- Configuration Proposal Models ---
 class ConfigProposal(db.Model):
@@ -937,7 +912,6 @@ class ConfigProposal(db.Model):
     purchase_status = db.Column(db.String(30), default='Lấy báo giá')  # Deprecated in favor of workflow status, but kept for legacy
     notes = db.Column(db.Text)
     supplier_info = db.Column(db.Text) # Changed to Text for detailed info
-    linked_receipt_id = db.Column(db.Integer, db.ForeignKey('inventory_receipt.id'))
     subtotal = db.Column(db.Float, default=0.0)
     vat_percent = db.Column(db.Float, default=10.0)
     vat_amount = db.Column(db.Float, default=0.0)
@@ -981,7 +955,6 @@ class ConfigProposal(db.Model):
     general_requirements = db.Column(db.Text) # Yêu cầu chung
     required_date = db.Column(db.Date) # Thời hạn cần thiết bị
 
-    linked_receipt = db.relationship('InventoryReceipt', foreign_keys=[linked_receipt_id])
     creator = db.relationship('User', foreign_keys=[created_by], backref='created_proposals')
 
 class OrderTracking(db.Model):
@@ -1247,16 +1220,7 @@ def ensure_tables_once():
 
                     # Migration 2: add missing columns for inventory and proposals
                     if get_version() < 2:
-                        info = conn.execute(text("PRAGMA table_info('inventory_receipt_item')")).fetchall()
-                        cols = {row[1] for row in info}
-                        if info:
-                            if 'quantity' not in cols:
-                                conn.execute(text("ALTER TABLE inventory_receipt_item ADD COLUMN quantity INTEGER DEFAULT 1"))
-                            if 'device_condition' not in cols:
-                                conn.execute(text("ALTER TABLE inventory_receipt_item ADD COLUMN device_condition VARCHAR(100)"))
-                            if 'device_note' not in cols:
-                                conn.execute(text("ALTER TABLE inventory_receipt_item ADD COLUMN device_note TEXT"))
-
+                        # Removed inventory_receipt_item migrations
                         info2 = conn.execute(text("PRAGMA table_info('config_proposal')")).fetchall()
                         cols2 = {row[1] for row in info2}
                         if info2:
@@ -1268,15 +1232,11 @@ def ensure_tables_once():
                                 conn.execute(text("ALTER TABLE config_proposal ADD COLUMN purchase_status VARCHAR(30) DEFAULT 'Lấy báo giá'"))
                             if 'notes' not in cols2:
                                 conn.execute(text("ALTER TABLE config_proposal ADD COLUMN notes TEXT"))
-                            if 'linked_receipt_id' not in cols2:
-                                conn.execute(text("ALTER TABLE config_proposal ADD COLUMN linked_receipt_id INTEGER"))
+                            # Removed linked_receipt_id migration
                             if 'supplier_info' not in cols2:
                                 conn.execute(text("ALTER TABLE config_proposal ADD COLUMN supplier_info VARCHAR(255)"))
 
-                        info3 = conn.execute(text("PRAGMA table_info('inventory_receipt')")).fetchall()
-                        cols3 = {row[1] for row in info3}
-                        if info3 and 'config_proposal_id' not in cols3:
-                            conn.execute(text("ALTER TABLE inventory_receipt ADD COLUMN config_proposal_id INTEGER"))
+                        # Removed inventory_receipt config_proposal_id migration
 
                         info4 = conn.execute(text("PRAGMA table_info('user')")).fetchall()
                         cols4 = {row[1] for row in info4}
@@ -1302,19 +1262,11 @@ def ensure_tables_once():
             try:
                 from sqlalchemy import text
                 with db.engine.connect() as conn:
-                    # InventoryReceiptItem columns
-                    info = conn.execute(text("PRAGMA table_info('inventory_receipt_item')")).fetchall()
-                    cols = {row[1] for row in info}
-                    alter_stmts = []
-                    if 'quantity' not in cols:
-                        alter_stmts.append("ALTER TABLE inventory_receipt_item ADD COLUMN quantity INTEGER DEFAULT 1")
-                    if 'device_condition' not in cols:
-                        alter_stmts.append("ALTER TABLE inventory_receipt_item ADD COLUMN device_condition VARCHAR(100)")
-                    if 'device_note' not in cols:
-                        alter_stmts.append("ALTER TABLE inventory_receipt_item ADD COLUMN device_note TEXT")
+                    # Removed InventoryReceiptItem columns
                     # ConfigProposal new columns
                     info2 = conn.execute(text("PRAGMA table_info('config_proposal')")).fetchall()
                     cols2 = {row[1] for row in info2}
+                    alter_stmts = []
                     if info2:  # table exists
                         if 'currency' not in cols2:
                             alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN currency VARCHAR(10) DEFAULT 'VND'")
@@ -1324,16 +1276,10 @@ def ensure_tables_once():
                             alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN purchase_status VARCHAR(30) DEFAULT 'Lấy báo giá'")
                         if 'notes' not in cols2:
                             alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN notes TEXT")
-                        if 'linked_receipt_id' not in cols2:
-                            alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN linked_receipt_id INTEGER")
+                        # Removed linked_receipt_id migration
                         if 'supplier_info' not in cols2:
                             alter_stmts.append("ALTER TABLE config_proposal ADD COLUMN supplier_info VARCHAR(255)")
-                    # InventoryReceipt new link column
-                    info3 = conn.execute(text("PRAGMA table_info('inventory_receipt')")).fetchall()
-                    cols3 = {row[1] for row in info3}
-                    if info3:
-                        if 'config_proposal_id' not in cols3:
-                            alter_stmts.append("ALTER TABLE inventory_receipt ADD COLUMN config_proposal_id INTEGER")
+                    # Removed InventoryReceipt new link column
                     
                     # Migration 4: ConfigProposal quantity and MaintenanceLog reported_by
                     info7 = conn.execute(text("PRAGMA table_info('config_proposal')")).fetchall()
@@ -1694,7 +1640,7 @@ def role_detail(role_id):
     
     # Lấy danh sách tất cả người dùng để thêm vào quyền (loại trừ người đã nghỉ việc)
     all_users = User.query.filter(
-        ~User.status.in_(['Đã nghỉ', 'Nghỉ việc'])
+        ~User.status.in_(['Đang làm', 'Nghỉ việc'])
     ).order_by(User.full_name, User.username).all()
     
     return render_template('roles/detail.html', role=role, permissions=permissions, 
@@ -2568,8 +2514,6 @@ def add_device():
             purchase_date=datetime.strptime(request.form['purchase_date'], '%Y-%m-%d').date(),
             purchase_price=request.form.get('purchase_price', type=float, default=None),
             buyer=request.form.get('buyer'),
-            importer=request.form.get('importer'),
-            import_date=datetime.strptime(request.form['import_date'], '%Y-%m-%d').date(),
             condition=request.form['condition'],
             manager_id=request.form.get('manager_id') if request.form.get('manager_id') else None,
             assign_date=datetime.strptime(request.form['assign_date'], '%Y-%m-%d').date() if request.form.get('assign_date') else None,
@@ -2610,8 +2554,6 @@ def edit_device(device_id):
             'purchase_date': device.purchase_date,
             'purchase_price': device.purchase_price,
             'buyer': device.buyer,
-            'importer': device.importer,
-            'import_date': device.import_date,
             'condition': device.condition,
             'status': device.status,
             'manager_id': device.manager_id,
@@ -2638,8 +2580,6 @@ def edit_device(device_id):
         device.purchase_date = datetime.strptime(request.form['purchase_date'], '%Y-%m-%d').date()
         device.purchase_price = request.form.get('purchase_price', type=float, default=None)
         device.buyer = request.form.get('buyer')
-        device.importer = request.form.get('importer')
-        device.import_date = datetime.strptime(request.form['import_date'], '%Y-%m-%d').date()
         device.condition = request.form['condition']
         device.status = request.form['status']
         manager_id_str = request.form.get('manager_id')
@@ -2661,8 +2601,6 @@ def edit_device(device_id):
             'purchase_date': device.purchase_date,
             'purchase_price': device.purchase_price,
             'buyer': device.buyer,
-            'importer': device.importer,
-            'import_date': device.import_date,
             'condition': device.condition,
             'status': device.status,
             'manager_id': device.manager_id,
@@ -2699,12 +2637,7 @@ def delete_device(device_id):
             db.session.delete(link)
     except Exception:
         pass
-    # Xóa các item trong phiếu nhập kho tham chiếu tới thiết bị (nếu có)
-    try:
-        for it in InventoryReceiptItem.query.filter_by(device_id=device.id).all():
-            db.session.delete(it)
-    except Exception:
-        pass
+    # Removed InventoryReceiptItem deletion
     db.session.delete(device)
     db.session.commit()
     flash('Xóa thiết bị thành công!', 'success')
@@ -2715,7 +2648,7 @@ def bulk_delete_devices():
     if 'user_id' not in session: return redirect(url_for('login'))
     device_ids = request.form.getlist('device_ids')
     if not device_ids:
-        flash('Vui lòng chọn ít nhất một thiết bị để xóa.', 'warning')
+        flash('Vui lòng chọn ít nhất một thiết bị.', 'warning')
         return redirect(url_for('device_list'))
 
     deleted_count = 0
@@ -2736,12 +2669,7 @@ def bulk_delete_devices():
                 db.session.delete(link)
         except Exception:
             pass
-        # Xóa các item trong phiếu nhập kho tham chiếu tới thiết bị (nếu có)
-        try:
-            for it in InventoryReceiptItem.query.filter_by(device_id=device.id).all():
-                db.session.delete(it)
-        except Exception:
-            pass
+        # Removed InventoryReceiptItem deletion
 
         db.session.delete(device)
         deleted_count += 1
@@ -2925,232 +2853,6 @@ def device_group_detail(group_id):
     users_not_in_group = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all() if not user_ids_in_group else User.query.filter(~User.id.in_(user_ids_in_group)).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     return render_template('device_group_detail.html', group=group, devices_in_group=devices_in_group, devices_not_in_group=devices_not_in_group, users_in_group=users_in_group, users_not_in_group=users_not_in_group)
 
-# --- Inventory Receipt Routes ---
-@app.route('/inventory_receipts')
-def inventory_receipts():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    
-    # Get filter parameters
-    sort_by = request.args.get('sort', 'date_desc')
-    filter_code = request.args.get('filter_code', '').strip()
-    filter_supplier = request.args.get('filter_supplier', '').strip()
-    filter_importer = request.args.get('filter_importer', '').strip()
-    filter_notes = request.args.get('filter_notes', '').strip()
-    date_from = request.args.get('date_from', '').strip()
-    date_to = request.args.get('date_to', '').strip()
-    
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
-    
-    # Build query with filters
-    query = InventoryReceipt.query
-    
-    if filter_code:
-        query = query.filter(InventoryReceipt.code.ilike(f'%{filter_code}%'))
-    if filter_supplier:
-        query = query.filter(InventoryReceipt.supplier.ilike(f'%{filter_supplier}%'))
-    if filter_importer:
-        query = query.filter(InventoryReceipt.importer.ilike(f'%{filter_importer}%'))
-    if filter_notes:
-        query = query.filter(InventoryReceipt.notes.ilike(f'%{filter_notes}%'))
-    
-    if date_from:
-        try:
-            from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-            query = query.filter(InventoryReceipt.date >= from_date)
-        except ValueError:
-            pass
-            
-    if date_to:
-        try:
-            to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-            query = query.filter(InventoryReceipt.date <= to_date)
-        except ValueError:
-            pass
-    
-    # Apply sorting
-    if sort_by == 'date_asc':
-        query = query.order_by(InventoryReceipt.date.asc())
-    elif sort_by == 'date_desc':
-        query = query.order_by(InventoryReceipt.date.desc())
-    elif sort_by == 'code_asc':
-        query = query.order_by(InventoryReceipt.code.asc())
-    elif sort_by == 'code_desc':
-        query = query.order_by(InventoryReceipt.code.desc())
-    else:
-        query = query.order_by(InventoryReceipt.id.desc())
-    
-    receipts = query.paginate(page=page, per_page=per_page, error_out=False)
-    
-    # Get list of suppliers for filter dropdown
-    suppliers = [s[0] for s in db.session.query(InventoryReceipt.supplier).distinct().filter(InventoryReceipt.supplier.isnot(None)).order_by(InventoryReceipt.supplier).all()]
-    
-    return render_template('inventory_receipts.html', 
-                         receipts=receipts, 
-                         sort_by=sort_by,
-                         filter_code=filter_code,
-                         filter_supplier=filter_supplier,
-                         filter_importer=filter_importer,
-                         filter_notes=filter_notes,
-                         date_from=date_from,
-                         date_to=date_to,
-                         suppliers=suppliers)
-
-@app.route('/inventory_receipts/<int:receipt_id>')
-def inventory_receipt_detail(receipt_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    receipt = InventoryReceipt.query.get_or_404(receipt_id)
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
-    
-    items_query = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id)
-    items_pagination = items_query.paginate(page=page, per_page=per_page, error_out=False)
-    
-    return render_template('inventory_receipt_detail.html', receipt=receipt, items_pagination=items_pagination)
-
-@app.route('/inventory_receipts/<int:receipt_id>/export_mof')
-def inventory_receipt_export_mof(receipt_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    if receipt_id == 0:
-        # Tạo phiếu nhập kho mới (mẫu trống)
-        return render_template('inventory_receipt_mof.html', receipt=None, items=[])
-    receipt = InventoryReceipt.query.get_or_404(receipt_id)
-    items = InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all()
-    # Render mẫu in theo chuẩn Bộ Tài chính (bản HTML in ấn)
-    return render_template('inventory_receipt_mof.html', receipt=receipt, items=items)
-
-@app.route('/save_btc_receipt', methods=['POST'])
-def save_btc_receipt():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    
-    try:
-        # Tạo phiếu nhập kho mới
-        code = request.form.get('code')
-        date_str = request.form.get('date')
-        supplier = request.form.get('supplier')
-        importer = request.form.get('importer')
-        
-        if not code or not date_str:
-            flash('Vui lòng nhập đầy đủ số phiếu và ngày.', 'danger')
-            return redirect(url_for('inventory_receipt_export_mof', receipt_id=0))
-        
-        # Kiểm tra mã phiếu trùng
-        if InventoryReceipt.query.filter_by(code=code).first():
-            flash('Mã phiếu đã tồn tại.', 'danger')
-            return redirect(url_for('inventory_receipt_export_mof', receipt_id=0))
-        
-        receipt = InventoryReceipt(
-            code=code,
-            date=datetime.strptime(date_str, '%Y-%m-%d').date(),
-            supplier=supplier or None,
-            importer=importer or None,
-            created_by=session.get('user_id')
-        )
-        db.session.add(receipt)
-        db.session.flush()  # Để lấy ID
-        
-        # Thêm các item
-        device_codes = request.form.getlist('device_code[]')
-        device_names = request.form.getlist('device_name[]')
-        device_types = request.form.getlist('device_type[]')
-        quantities = request.form.getlist('quantity[]')
-        conditions = request.form.getlist('condition[]')
-        notes = request.form.getlist('note[]')
-        
-        for i, device_code in enumerate(device_codes):
-            if device_code and device_names[i]:
-                # Tạo thiết bị mới
-                device = Device(
-                    device_code=device_code,
-                    name=device_names[i],
-                    device_type=device_types[i] or 'Thiết bị khác',
-                    serial_number='',
-                    purchase_date=receipt.date,
-                    import_date=receipt.date,
-                    condition=conditions[i] or 'Mới',
-                    status='Sẵn sàng',
-                    created_at=datetime.utcnow()
-                )
-                db.session.add(device)
-                db.session.flush()
-                
-                # Tạo item
-                item = InventoryReceiptItem(
-                    receipt_id=receipt.id,
-                    device_id=device.id,
-                    quantity=int(quantities[i]) if quantities[i] else 1,
-                    device_condition=conditions[i] or 'Mới',
-                    device_note=notes[i] or None
-                )
-                db.session.add(item)
-        
-        db.session.commit()
-        flash('Lưu phiếu nhập kho thành công!', 'success')
-        return redirect(url_for('inventory_receipt_detail', receipt_id=receipt.id))
-        
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Lỗi khi lưu phiếu: {str(e)}', 'danger')
-        return redirect(url_for('inventory_receipt_export_mof', receipt_id=0))
-
-@app.route('/inventory_receipts/<int:receipt_id>/edit', methods=['GET', 'POST'])
-def inventory_receipt_edit(receipt_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    receipt = InventoryReceipt.query.get_or_404(receipt_id)
-    if request.method == 'POST':
-        old = {
-            'code': receipt.code,
-            'date': receipt.date,
-            'supplier': receipt.supplier,
-            'importer': receipt.importer,
-            'notes': receipt.notes,
-            'config_proposal_id': getattr(receipt, 'config_proposal_id', None)
-        }
-        receipt.code = request.form.get('code') or receipt.code
-        date_str = request.form.get('date')
-        if date_str:
-            try:
-                receipt.date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            except ValueError:
-                flash('Ngày nhập không hợp lệ (YYYY-MM-DD).', 'danger')
-                return redirect(url_for('inventory_receipt_edit', receipt_id=receipt_id))
-        receipt.supplier = request.form.get('supplier') or None
-        receipt.importer = request.form.get('importer') or None
-        receipt.notes = request.form.get('notes') or None
-        # Optional link to proposal
-        try:
-            from sqlalchemy import text
-            cfg_id_str = request.form.get('config_proposal_id')
-            receipt.config_proposal_id = int(cfg_id_str) if cfg_id_str else None
-        except Exception:
-            pass
-        db.session.commit()
-        new = {
-            'code': receipt.code,
-            'date': receipt.date,
-            'supplier': receipt.supplier,
-            'importer': receipt.importer,
-            'notes': receipt.notes,
-            'config_proposal_id': getattr(receipt, 'config_proposal_id', None)
-        }
-        _log_audit('inventory_receipt', receipt.id, old, new)
-        flash('Cập nhật phiếu nhập kho thành công.', 'success')
-        return redirect(url_for('inventory_receipt_detail', receipt_id=receipt.id))
-    return render_template('inventory_receipt_edit.html', receipt=receipt)
-
-@app.route('/inventory_receipts/<int:receipt_id>/delete', methods=['POST'])
-def inventory_receipt_delete(receipt_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    receipt = InventoryReceipt.query.get_or_404(receipt_id)
-    # Xóa kèm items
-    for it in InventoryReceiptItem.query.filter_by(receipt_id=receipt.id).all():
-        db.session.delete(it)
-    db.session.delete(receipt)
-    db.session.commit()
-    flash('Đã xóa phiếu nhập kho.', 'success')
-    return redirect(url_for('inventory_receipts'))
-    return render_template('device_group_detail.html', group=group, devices_in_group=devices_in_group, devices_not_in_group=devices_not_in_group, users_in_group=users_in_group, users_not_in_group=users_not_in_group)
-
 
 @app.route('/add_devices_bulk', methods=['GET', 'POST'])
 def add_devices_bulk():
@@ -3158,11 +2860,9 @@ def add_devices_bulk():
     if request.method == 'POST':
         # Trường chung
         shared_purchase_date = request.form.get('shared_purchase_date')
-        shared_import_date = request.form.get('shared_import_date')
         shared_condition = request.form.get('shared_condition')  # deprecated: now per-device, kept for backward compat
         shared_status = request.form.get('shared_status', 'Sẵn sàng')
         shared_buyer = request.form.get('shared_buyer')
-        shared_importer = request.form.get('shared_importer')
         shared_brand = request.form.get('shared_brand')  # deprecated: now per-device, used as fallback
         shared_supplier = request.form.get('shared_supplier')
         shared_warranty = request.form.get('shared_warranty_fallback')
@@ -3186,7 +2886,7 @@ def add_devices_bulk():
         device_conditions = request.form.getlist('device_condition[]')
 
         # Validation cơ bản
-        if not shared_purchase_date or not shared_import_date:
+        if not shared_purchase_date:
             flash('Vui lòng nhập đầy đủ các trường chung bắt buộc.', 'danger')
             return redirect(url_for('add_devices_bulk'))
         if not names or not any(n.strip() for n in names):
@@ -3194,21 +2894,8 @@ def add_devices_bulk():
             return redirect(url_for('add_devices_bulk'))
 
         try:
-            # Tạo phiếu nhập kho
-            today_str = datetime.utcnow().strftime('%Y%m%d')
-            last_receipt = InventoryReceipt.query.order_by(InventoryReceipt.id.desc()).first()
-            next_seq = (last_receipt.id + 1) if last_receipt else 1
-            receipt_code = f"PNK{today_str}-{next_seq:04d}"
-            receipt = InventoryReceipt(
-                code=receipt_code,
-                date=datetime.strptime(shared_import_date, '%Y-%m-%d').date(),
-                supplier=shared_supplier or None,
-                importer=shared_importer or None,
-                created_by=session.get('user_id'),
-                notes=shared_notes or None
-            )
-            db.session.add(receipt)
-            db.session.flush()
+            # Removed InventoryReceipt creation
+            # Removed InventoryReceiptItem creation
 
             created_count = 0
 
@@ -3283,8 +2970,6 @@ def add_devices_bulk():
                         purchase_date=datetime.strptime(shared_purchase_date, '%Y-%m-%d').date(),
                         purchase_price=(float(purchase_prices[idx]) if idx < len(purchase_prices) and purchase_prices[idx] else None),
                         buyer=(shared_buyer or None),
-                        importer=(shared_importer or None),
-                        import_date=datetime.strptime(shared_import_date, '%Y-%m-%d').date(),
                         condition=((device_conditions[idx] if idx < len(device_conditions) and device_conditions[idx] else None) or 'Sử dụng bình thường'),
                         status=shared_status,
                         manager_id=(int(shared_manager_id) if shared_manager_id else None),
@@ -3294,13 +2979,7 @@ def add_devices_bulk():
                     db.session.add(new_device)
                     db.session.flush()
 
-                    db.session.add(InventoryReceiptItem(
-                        receipt_id=receipt.id,
-                        device_id=new_device.id,
-                        quantity=1,
-                        device_condition=new_device.condition,
-                        device_note=new_device.notes
-                    ))
+                    # Removed InventoryReceiptItem addition
 
                     # Gán nhóm mặc định nếu có
                     for gid in shared_group_ids:
@@ -3317,8 +2996,8 @@ def add_devices_bulk():
                 return redirect(url_for('add_devices_bulk'))
 
             db.session.commit()
-            flash(f'Thêm thành công {created_count} thiết bị! Đã tạo phiếu nhập kho {receipt.code}.', 'success')
-            return redirect(url_for('inventory_receipts'))
+            flash(f'Thêm thành công {created_count} thiết bị!', 'success')
+            return redirect(url_for('device_list')) # Changed redirect to device_list
         except Exception as e:
             db.session.rollback()
             flash(f'Đã xảy ra lỗi khi thêm thiết bị hàng loạt: {str(e)}', 'danger')
@@ -4036,8 +3715,8 @@ def import_devices():
             df = pd.read_excel(file, engine='openpyxl')
             expected_columns = [
                 'Mã thiết bị', 'Tên thiết bị', 'Loại thiết bị', 'Số serial', 'Ngày mua', 'Giá mua', 'Người mua',
-                'Ngày nhập', 'Tình trạng', 'Trạng thái', 'Người quản lý', 'Ngày cấp phát',
-                'Cấu hình', 'Ghi chú', 'Người nhập', 'Thương hiệu', 'Nhà cung cấp', 'Bảo hành'
+                'Tình trạng', 'Trạng thái', 'Người quản lý', 'Ngày cấp phát',
+                'Cấu hình', 'Ghi chú', 'Thương hiệu', 'Nhà cung cấp', 'Bảo hành'
             ]
             if not all(col in df.columns for col in expected_columns):
                 flash('File Excel thiếu một hoặc nhiều cột bắt buộc. Vui lòng kiểm tra lại tiêu đề các cột.', 'danger')
@@ -4075,7 +3754,6 @@ def import_devices():
                 
                 try:
                     purchase_date = pd.to_datetime(row['Ngày mua']).date() if pd.notna(row['Ngày mua']) else None
-                    import_date = pd.to_datetime(row['Ngày nhập']).date() if pd.notna(row['Ngày nhập']) else None
                     assign_date = pd.to_datetime(row['Ngày cấp phát']).date() if pd.notna(row['Ngày cấp phát']) else None
                 except ValueError:
                     errors.append(f'Dòng {index+2}: Định dạng ngày không hợp lệ.'); continue
@@ -4106,7 +3784,6 @@ def import_devices():
                     device_type=_s(row['Loại thiết bị']),
                     serial_number=_s(row.get('Số serial')),
                     purchase_date=purchase_date,
-                    import_date=import_date,
                     condition=_s(row['Tình trạng']),
                     status=_s(row['Trạng thái']),
                     manager_id=manager_id,
@@ -4114,7 +3791,6 @@ def import_devices():
                     configuration=_s(row.get('Cấu hình')),
                     notes=_s(row.get('Ghi chú')),
                     buyer=_s(row.get('Người mua')),
-                    importer=_s(row.get('Người nhập')),
                     brand=_s(row.get('Thương hiệu')),
                     supplier=_s(row.get('Nhà cung cấp')),
                     warranty=_s(row.get('Bảo hành')),
@@ -5531,21 +5207,32 @@ def proposal_action(proposal_id):
                  p.status = 'completed'
                  flash('Đã xác nhận bàn giao User. Quy trình hoàn tất!', 'success')
              else:
-                 flash('Đã xác nhận bàn giao User.', 'success')
+                flash('Đã xác nhận bàn giao User.', 'success')
 
         elif action == 'confirm_invoice':
-             if 'config_proposals.execute_accounting' not in permissions and current_user.role != 'admin':
+            if 'config_proposals.execute_accounting' not in permissions and current_user.role != 'admin':
                 flash('Bạn không có quyền xác nhận hóa đơn.', 'danger')
                 return redirect(url_for('config_proposal_detail', proposal_id=p.id))
-             
-             p.accountant_invoice_id = current_user.id
-             p.invoice_received_at = datetime.utcnow()
-             
-             if p.purchasing_at and p.payment_at and p.goods_received_at and p.handover_to_user_at and p.invoice_received_at:
-                 p.status = 'completed'
-                 flash('Đã nhận hóa đơn. Quy trình hoàn tất!', 'success')
-             else:
-                 flash('Đã nhận hóa đơn.', 'success')
+            
+            # Check if handover is done and invoice not yet received
+            if p.handover_to_user_at and not p.invoice_received_at:
+                p.accountant_invoice_id = current_user.id
+                p.invoice_received_at = datetime.utcnow()
+                # Assuming _log_audit is defined elsewhere for logging changes
+                # _log_audit('config_proposal', p.id, {'invoice_received_at': None}, {'invoice_received_at': str(p.invoice_received_at)})
+                db.session.commit() # Commit here to ensure invoice_received_at is saved before checking for completion
+                flash('Đã xác nhận nhận hóa đơn.', 'success')
+                
+                # Auto-complete when all checklist items are done
+                # Note: The original code checked p.purchasing_at and p.payment_at.
+                # The new instruction uses p.payment_requested_at. I'll use p.payment_at for consistency with existing code.
+                if p.purchasing_at and p.payment_at and p.goods_received_at and p.handover_to_user_at and p.invoice_received_at:
+                    old_status = p.status
+                    p.status = 'completed'
+                    # _log_audit('config_proposal', p.id, {'status': old_status}, {'status': 'completed'})
+                    flash('Checklist hoàn tất. Đề xuất đã được chuyển sang trạng thái Hoàn thành.', 'success')
+            else:
+                flash('Không thể xác nhận hóa đơn. Đảm bảo đã bàn giao cho người dùng và hóa đơn chưa được nhận.', 'danger')
 
         elif action == 'reject':
             # Simplified reject logic
