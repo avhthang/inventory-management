@@ -1,7 +1,7 @@
 <div class="card h-100">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Nhân viên: {{ department.name }}</h5>
-        <span class="badge bg-primary">{{ department_users|length }}</span>
+        <span class="badge bg-primary">{{ total_users if total_users is defined else department_users|length }}</span>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
