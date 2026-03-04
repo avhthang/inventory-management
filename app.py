@@ -4810,6 +4810,37 @@ def update_bug_report(report_id):
     
     return redirect(url_for('bug_report_detail', report_id=report_id))
 
+@app.route('/bug_reports/comments/<int:comment_id>/edit', methods=['POST'])
+def edit_bug_report_comment(comment_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    comment = BugReportComment.query.get_or_404(comment_id)
+    if comment.created_by != session.get('user_id') and session.get('role') != 'admin':
+        flash('Bạn không có quyền sửa bình luận này.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=comment.bug_report_id))
+    
+    new_text = request.form.get('comment')
+    if new_text and new_text.strip():
+        comment.comment = new_text.strip()
+        from datetime import datetime
+        comment.edited_at = datetime.utcnow()
+        db.session.commit()
+        flash('Đã sửa bình luận.', 'success')
+    return redirect(url_for('bug_report_detail', report_id=comment.bug_report_id))
+
+@app.route('/bug_reports/comments/<int:comment_id>/delete', methods=['POST'])
+def delete_bug_report_comment(comment_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    comment = BugReportComment.query.get_or_404(comment_id)
+    if comment.created_by != session.get('user_id') and session.get('role') != 'admin':
+        flash('Bạn không có quyền xóa bình luận này.', 'danger')
+        return redirect(url_for('bug_report_detail', report_id=comment.bug_report_id))
+    
+    b_id = comment.bug_report_id
+    db.session.delete(comment)
+    db.session.commit()
+    flash('Đã xóa bình luận.', 'success')
+    return redirect(url_for('bug_report_detail', report_id=b_id))
+
 @app.route('/bug_reports/<int:report_id>/comment', methods=['POST'])
 def add_bug_report_comment(report_id):
     """Thêm comment vào báo lỗi"""
