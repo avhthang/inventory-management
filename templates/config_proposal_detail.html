@@ -44,136 +44,122 @@
 
 <!-- Workflow Progress -->
 <div class="card mb-4">
-  <div class="card-header d-flex justify-content-between align-items-center bg-white cursor-pointer" data-bs-toggle="collapse" data-bs-target="#workflowCollapse">
+  <div class="card-header d-flex justify-content-between align-items-center bg-white cursor-pointer"
+    data-bs-toggle="collapse" data-bs-target="#workflowCollapse">
     <strong><i class="bi bi-diagram-3"></i> Các bước duyệt</strong>
     <button class="btn btn-sm btn-link text-decoration-none shadow-none p-0" type="button">
       Xem thêm <i class="bi bi-chevron-down"></i>
     </button>
   </div>
   <div class="collapse" id="workflowCollapse">
-  <div class="card-body">
-    <!-- Simplified Steps: New -> BP -> IT -> Finance -> Director -->
-    {% set steps = [
-    ('new', 'Mới'),
-    ('team_approved', 'Duyệt BP'),
-    ('it_consulted', 'Tư vấn IT'),
-    ('finance_reviewed', 'Duyệt TC'),
-    ('approved', 'Duyệt GĐ')
-    ] %}
-    {% set current_step_idx = -1 %}
-    {% for s_code, s_label in steps %}
-    {% if p.status == s_code %}
-    {% set current_step_idx = loop.index0 %}
-    {% endif %}
-    {% endfor %}
-
-    <!-- If status is completed, it's virtually "after" Approved (index 4) -->
-    {% if p.status == 'completed' %}{% set current_step_idx = 4 %}{% endif %}
-
-    <!-- Rejected special case -->
-    {% if p.status == 'rejected' %}
-    <div class="alert alert-danger">
-      <i class="bi bi-x-circle-fill"></i> Đề xuất đã bị từ chối.
-      <strong>Lý do:</strong> {{ p.rejection_reason }}
-    </div>
-    {% else %}
-    <div class="position-relative m-4">
-      <div class="progress" style="height: 2px;">
-        <div class="progress-bar bg-success" role="progressbar"
-          style="width: {{ (current_step_idx / (steps|length - 1)) * 100 }}%;"></div>
-      </div>
-      <div class="d-flex justify-content-between position-absolute top-0 w-100" style="transform: translateY(-50%);">
-        {% for s_code, s_label in steps %}
-        {% set step_handler = '---' %}
-        {% set step_info = '' %}
-
-        {# Determine Handler and Info based on step #}
-        {% if s_code == 'new' %}
-        {% set step_handler = p.proposer_name or 'Người tạo' %}
-        {% set step_info = 'Ngày tạo: ' + p.created_at.strftime('%d/%m/%Y %H:%M') %}
-        {% elif s_code == 'team_approved' %}
-        {% set step_handler = p.creator.department_info.name if p.creator and p.creator.department_info else 'Trưởng bộ
-        phận' %}
-        {% if p.team_lead_approved_at %}
-        {% set step_handler = p.team_lead_approver.full_name if p.team_lead_approver else step_handler %}
-        {% set step_info = 'Đã duyệt: ' + p.team_lead_approved_at.strftime('%d/%m/%Y %H:%M') %}
-        {% else %}
-        {% set step_info = 'Đang chờ duyệt' if p.status == 'new' else '---' %}
-        {% endif %}
-        {% elif s_code == 'it_consulted' %}
-        {% set step_handler = 'Bộ phận IT' %}
-        {% if p.it_consulted_at %}
-        {% set step_handler = p.it_consultant.full_name if p.it_consultant else step_handler %}
-        {% set step_info = 'Đã tư vấn: ' + p.it_consulted_at.strftime('%d/%m/%Y %H:%M') %}
-        {% endif %}
-        {% elif s_code == 'finance_reviewed' %}
-        {% set step_handler = 'Bộ phận Tài chính' %}
-        {% if p.finance_reviewed_at %}
-        {% set step_handler = p.finance_reviewer.full_name if p.finance_reviewer else step_handler %}
-        {% set step_info = 'Đã duyệt: ' + p.finance_reviewed_at.strftime('%d/%m/%Y %H:%M') %}
-        {% endif %}
-        {% elif s_code == 'approved' %}
-        {% set step_handler = 'Giám đốc' %}
-        {% if p.director_approved_at %}
-        {% set step_handler = p.director_approver.full_name if p.director_approver else step_handler %}
-        {% set step_info = 'Đã phê duyệt: ' + p.director_approved_at.strftime('%d/%m/%Y %H:%M') %}
-        {% endif %}
-        {% endif %}
-
-        {# If this is the CURRENT active step, use the Deadline info #}
-        {% if loop.index0 == current_step_idx and p.status not in ['approved', 'completed', 'rejected'] and
-        p.current_stage_deadline %}
-        {% set step_info = 'Hạn chót: ' + (p.current_stage_deadline|localtime) %}
-        {% endif %}
-
-        <div class="text-center" style="width: 80px; cursor: pointer;" onclick="showStepInfo(this)"
-          data-label="{{ s_label }}" data-handler="{{ step_handler }}" data-info="{{ step_info }}">
-
-          {# Badge Logic: Past=Success, Current=Primary(Active), Future=Secondary #}
-          {% set badge_class = 'bg-secondary' %}
-          {% set text_class = 'text-muted' %}
-
-          {% if loop.index0 < current_step_idx %} {% set badge_class='bg-success' %} {% set text_class='text-success' %}
-            {% elif loop.index0==current_step_idx %} {% set badge_class='bg-primary shadow-lg' %} {% set
-            text_class='text-primary fw-bold' %} {% endif %} {# Use slightly larger size for active step #} <span
-            class="badge rounded-pill {{ badge_class }}"
-            style="width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
-            {% if loop.index0 < current_step_idx %}<i class="bi bi-check"></i>{% else %}{{ loop.index }}{% endif %}
-              </span>
-              <div class="small mt-1 {{ text_class }}" style="font-size: 0.75rem;">{{ s_label }}</div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-
-    <!-- Info Display Area (Dynamic) -->
-    <div id="step-info-display" class="text-center mt-4 mb-2" style="min-height: 24px;">
-      {% if p.current_stage_deadline and p.status not in ['approved', 'completed'] %}
-      <!-- ONLY Deadline by default -->
-      <small class="text-danger fw-bold">
-        <i class="bi bi-clock-history"></i> Thời hạn xử lý: {{ p.current_stage_deadline|localtime }}
-      </small>
+    <div class="card-body">
+      <!-- Simplified Steps: New -> BP -> IT -> Finance -> Director -->
+      {% set steps = [
+      ('new', 'Mới tạo'),
+      ('team_approved', 'Phê duyệt Trưởng BP'),
+      ('it_consulted', 'Tư vấn IT'),
+      ('finance_reviewed', 'Phê duyệt TC'),
+      ('approved', 'Giám đốc phê duyệt')
+      ] %}
+      {% set current_step_idx = -1 %}
+      {% for s_code, s_label in steps %}
+      {% if p.status == s_code %}
+      {% set current_step_idx = loop.index0 %}
       {% endif %}
+      {% endfor %}
+
+      <!-- If status is completed, it's virtually "after" Approved (index 4) -->
+      {% if p.status == 'completed' %}{% set current_step_idx = 4 %}{% endif %}
+
+      <!-- Rejected special case -->
+      {% if p.status == 'rejected' %}
+      <div class="alert alert-danger">
+        <i class="bi bi-x-circle-fill"></i> Đề xuất đã bị từ chối.
+        <strong>Lý do:</strong> {{ p.rejection_reason }}
+      </div>
+      {% else %}
+      <div class="position-relative m-4">
+        <div class="progress" style="height: 2px;">
+          <div class="progress-bar bg-success" role="progressbar"
+            style="width: {{ (current_step_idx / (steps|length - 1)) * 100 }}%;"></div>
+        </div>
+        <div class="d-flex justify-content-between position-absolute top-0 w-100" style="transform: translateY(-50%);">
+          {% for s_code, s_label in steps %}
+          {% set step_handler = '---' %}
+          {% set step_info = '' %}
+
+          {# Determine Handler and Info based on step #}
+          {% if s_code == 'new' %}
+          {% set step_handler = p.proposer_name or 'Người tạo' %}
+          {% set step_info = 'Ngày tạo: ' + p.created_at.strftime('%d/%m/%Y %H:%M') %}
+          {% elif s_code == 'team_approved' %}
+          {% set step_handler = p.creator.department_info.name if p.creator and p.creator.department_info else 'Trưởng
+          bộ
+          phận' %}
+          {% if p.team_lead_approved_at %}
+          {% set step_handler = p.team_lead_approver.full_name if p.team_lead_approver else step_handler %}
+          {% set step_info = 'Đã duyệt: ' + p.team_lead_approved_at.strftime('%d/%m/%Y %H:%M') %}
+          {% else %}
+          {% set step_info = 'Đang chờ duyệt' if p.status == 'new' else '---' %}
+          {% endif %}
+          {% elif s_code == 'it_consulted' %}
+          {% set step_handler = 'Bộ phận IT' %}
+          {% if p.it_consulted_at %}
+          {% set step_handler = p.it_consultant.full_name if p.it_consultant else step_handler %}
+          {% set step_info = 'Đã tư vấn: ' + p.it_consulted_at.strftime('%d/%m/%Y %H:%M') %}
+          {% endif %}
+          {% elif s_code == 'finance_reviewed' %}
+          {% set step_handler = 'Bộ phận Tài chính' %}
+          {% if p.finance_reviewed_at %}
+          {% set step_handler = p.finance_reviewer.full_name if p.finance_reviewer else step_handler %}
+          {% set step_info = 'Đã duyệt: ' + p.finance_reviewed_at.strftime('%d/%m/%Y %H:%M') %}
+          {% endif %}
+          {% elif s_code == 'approved' %}
+          {% set step_handler = 'Giám đốc' %}
+          {% if p.director_approved_at %}
+          {% set step_handler = p.director_approver.full_name if p.director_approver else step_handler %}
+          {% set step_info = 'Đã phê duyệt: ' + p.director_approved_at.strftime('%d/%m/%Y %H:%M') %}
+          {% endif %}
+          {% endif %}
+
+          {# If this is the CURRENT active step, use the Deadline info #}
+          {% if loop.index0 == current_step_idx and p.status not in ['approved', 'completed', 'rejected'] and
+          p.current_stage_deadline %}
+          {% set step_info = 'Hạn chót: ' + (p.current_stage_deadline|localtime) %}
+          {% endif %}
+
+
+          <div class="text-center" style="width: 18%; position: relative;">
+            {# Badge Logic: Past=Success, Current=Success, Future=Secondary #}
+            {% set badge_class = 'bg-secondary' %}
+            {% set text_class = 'text-muted' %}
+
+            {% if loop.index0 <= current_step_idx %} {% set badge_class='bg-success text-white' %} {% set
+              text_class='text-success fw-bold' %} {% endif %} <span
+              class="badge rounded-pill {{ badge_class }} shadow-sm"
+              style="width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 1rem; position: relative; z-index: 2;">
+              {% if loop.index0 < current_step_idx %}<i class="bi bi-check"></i>{% else %}{{ loop.index }}{% endif %}
+                </span>
+                <div class="mt-2 text-center" style="line-height: 1.2;">
+                  <div class="small {{ text_class }}" style="font-size: 0.8rem;">{{ s_label }}</div>
+                  {% if step_handler and step_handler != '---' %}
+                  <div class="text-muted" style="font-size: 0.7rem; margin-top: 4px;"><i class="bi bi-person"></i> {{
+                    step_handler }}</div>
+                  {% endif %}
+                  {% if step_info and step_info != '---' %}
+                  <div class="text-muted" style="font-size: 0.7rem;"><i class="bi bi-clock"></i> {{ step_info }}</div>
+                  {% endif %}
+                </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+
+
     </div>
-
-    <script>
-      function showStepInfo(element) {
-        var label = element.getAttribute('data-label');
-        var handler = element.getAttribute('data-handler');
-        var info = element.getAttribute('data-info');
-
-        var html = '<small class="text-muted">' +
-          '<i class="bi bi-info-circle"></i> Bước: <strong>' + label + '</strong><br>' +
-          '<i class="bi bi-person-badge"></i> Người xử lý: <strong>' + handler + '</strong><br>' +
-          '<i class="bi bi-clock"></i> Thông tin: <strong>' + info + '</strong>' +
-          '</small>';
-
-        document.getElementById('step-info-display').innerHTML = html;
-      }
-    </script>
-
   </div>
-</div>  </div>
+</div>
 
 <!-- Workflow Actions & Details -->
 <div class="row">
@@ -185,15 +171,17 @@
     <div class="card mb-3 border-success">
       <div class="card-header bg-success text-white">
         <strong><i class="bi bi-check2-square"></i> Checklist Mua sắm & Bàn giao</strong>
-      
-              <div class="mt-2">
-                {% for attach in p.attachments %}
-                  {% if attach.step == 'handover' %}
-                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
-                  {% endif %}
-                {% endfor %}
-              </div>
-            </div>
+
+        <div class="mt-2">
+          {% for attach in p.attachments %}
+          {% if attach.step == 'handover' %}
+          <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}"
+              target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
       <div class="card-body">
         <div class="list-group">
           <!-- 1. Purchasing -->
@@ -204,19 +192,32 @@
                 hàng</span>
               {% if p.purchasing_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.purchasing_at|localtime }}</small>{% endif %}
-            
+
               <div class="mt-2">
                 {% for attach in p.attachments %}
-                  {% if attach.step == 'purchasing' %}
-                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
-                  {% endif %}
+                {% if attach.step == 'purchasing' %}
+                <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}"
+                    target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name
+                    }}</a></div>
+                {% endif %}
                 {% endfor %}
               </div>
             </div>
+            
+            {% if p.purchasing_at and ('config_proposals.execute_purchase' in current_permissions or current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+              <div class="input-group input-group-sm mb-2" style="max-width:300px;">
+                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_purchasing" class="btn btn-outline-secondary">Tải thêm</button>
+              </div>
+            </form>
+            {% endif %}
             {% if not p.purchasing_at and ('config_proposals.execute_purchase' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
-              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline"
+              enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="start_purchasing" class="btn btn-sm btn-outline-primary">Xác
                 nhận</button>
             </form>
@@ -230,19 +231,32 @@
               <span class="{{ 'text-decoration-line-through text-muted' if p.payment_at else '' }}">Thanh toán</span>
               {% if p.payment_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.payment_at|localtime }}</small>{% endif %}
-            
+
               <div class="mt-2">
                 {% for attach in p.attachments %}
-                  {% if attach.step == 'payment' %}
-                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
-                  {% endif %}
+                {% if attach.step == 'payment' %}
+                <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}"
+                    target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name
+                    }}</a></div>
+                {% endif %}
                 {% endfor %}
               </div>
             </div>
+            
+            {% if p.payment_at and ('config_proposals.execute_accounting' in current_permissions or current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+              <div class="input-group input-group-sm mb-2" style="max-width:300px;">
+                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_payment" class="btn btn-outline-secondary">Tải thêm</button>
+              </div>
+            </form>
+            {% endif %}
             {% if not p.payment_at and ('config_proposals.execute_accounting' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
-              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline"
+              enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="confirm_payment" class="btn btn-sm btn-outline-primary">Xác
                 nhận</button>
             </form>
@@ -258,19 +272,32 @@
                 (IT)</span>
               {% if p.goods_received_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.goods_received_at|localtime }}</small>{% endif %}
-            
+
               <div class="mt-2">
                 {% for attach in p.attachments %}
-                  {% if attach.step == 'receiving' %}
-                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
-                  {% endif %}
+                {% if attach.step == 'receiving' %}
+                <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}"
+                    target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name
+                    }}</a></div>
+                {% endif %}
                 {% endfor %}
               </div>
             </div>
+            
+            {% if p.goods_received_at and ('config_proposals.confirm_delivery' in current_permissions or current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+              <div class="input-group input-group-sm mb-2" style="max-width:300px;">
+                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_receiving" class="btn btn-outline-secondary">Tải thêm</button>
+              </div>
+            </form>
+            {% endif %}
             {% if not p.goods_received_at and ('config_proposals.confirm_delivery' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
-              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline"
+              enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="confirm_goods_received"
                 class="btn btn-sm btn-outline-primary">Xác nhận</button>
             </form>
@@ -287,10 +314,21 @@
               {% if p.handover_to_user_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.handover_to_user_at|localtime }}</small>{% endif %}
             </div>
+            
+            {% if p.handover_to_user_at and ('config_proposals.confirm_delivery' in current_permissions or current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+              <div class="input-group input-group-sm mb-2" style="max-width:300px;">
+                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_handover" class="btn btn-outline-secondary">Tải thêm</button>
+              </div>
+            </form>
+            {% endif %}
             {% if not p.handover_to_user_at and ('config_proposals.confirm_delivery' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
-              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline"
+              enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="confirm_handover" class="btn btn-sm btn-outline-primary">Xác
                 nhận</button>
             </form>
@@ -306,19 +344,32 @@
                 đơn (KT)</span>
               {% if p.invoice_received_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.invoice_received_at|localtime }}</small>{% endif %}
-            
+
               <div class="mt-2">
                 {% for attach in p.attachments %}
-                  {% if attach.step == 'invoice' %}
-                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
-                  {% endif %}
+                {% if attach.step == 'invoice' %}
+                <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}"
+                    target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name
+                    }}</a></div>
+                {% endif %}
                 {% endfor %}
               </div>
             </div>
+            
+            {% if p.invoice_received_at and ('config_proposals.execute_accounting' in current_permissions or current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+              <div class="input-group input-group-sm mb-2" style="max-width:300px;">
+                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_invoice" class="btn btn-outline-secondary">Tải thêm</button>
+              </div>
+            </form>
+            {% endif %}
             {% if not p.invoice_received_at and ('config_proposals.execute_accounting' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
-              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline"
+              enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="confirm_invoice" class="btn btn-sm btn-outline-success">Xác
                 nhận & Hoàn tất</button>
             </form>
@@ -562,9 +613,55 @@
         <div class="list-group list-group-flush">
           {% for log in logs %}
           <div class="list-group-item p-2">
-            <small class="text-muted">{{ log.updated_at|localtime }}</small><br>
-            <span>{{ log.status_content }}</span>
-            <div class="text-end"><small class="text-muted">- {{ log.updater.username }}</small></div>
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <small class="text-muted">{{ log.updated_at|localtime }}</small><br>
+                <span>{{ log.status_content }}</span>
+                {% if log.note %}
+                <br><span>{{ log.note }}</span>
+                {% endif %}
+                {% if log.edited_at %}
+                <small class="text-muted fst-italic ms-1" style="font-size:0.7em;">(Đã chỉnh sửa)</small>
+                {% endif %}
+              </div>
+              {% if (session.user_id == log.updated_by) or (session.role == 'admin') %}
+              <div class="ms-2 d-flex">
+                <button class="btn btn-sm btn-link text-secondary p-0 me-2" data-bs-toggle="modal"
+                  data-bs-target="#editNoteModal{{ log.id }}"><i class="bi bi-pencil-square"></i></button>
+                <form method="POST" action="{{ url_for('delete_proposal_order_tracking', tracking_id=log.id) }}"
+                  onsubmit="return confirm('Bạn có chắc muốn xóa ghi chú này?');">
+                  <button type="submit" class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-trash"></i></button>
+                </form>
+              </div>
+
+              <!-- Edit Note Modal -->
+              <div class="modal fade" id="editNoteModal{{ log.id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                  <form method="POST" action="{{ url_for('edit_proposal_order_tracking', tracking_id=log.id) }}">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title">Sửa ghi chú bổ sung</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                        <div class="mb-3">
+                          <label class="form-label">Nội dung</label>
+                          <!-- Notes in previous setup were stored in status_content but sometimes note field was empty, let's just make it edit `note`. Actually the action uses `note` form field. Assuming the user's intent is to edit the main content, but `status_content` or `note`? Let's check `patch_app_routes.py`. It updates `log.note`. Let's actually update both or just `note`. Ah! The form above posts to `status_content`. The log creates `status_content` but `note` is optional. Let's make the edit form update `note` and render both. -->
+                          <textarea name="note" class="form-control" rows="3"
+                            required>{{ log.note or log.status_content }}</textarea>
+                        </div>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+            <div class="text-end mt-1"><small class="text-muted">- {{ log.updater.username }}</small></div>
           </div>
           {% endfor %}
         </div>

@@ -977,6 +977,7 @@ class OrderTracking(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     note = db.Column(db.Text)
     updated_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    edited_at = db.Column(db.DateTime)
     
     proposal = db.relationship('ConfigProposal', backref=db.backref('order_logs', lazy=True, cascade="all,delete"))
     updater = db.relationship('User', foreign_keys=[updated_by])
@@ -1065,6 +1066,7 @@ class BugReportComment(db.Model):
     comment = db.Column(db.Text, nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    edited_at = db.Column(db.DateTime)
     bug_report = db.relationship('BugReport', backref=db.backref('comments', cascade='all, delete-orphan', order_by='BugReportComment.created_at'))
     creator = db.relationship('User', foreign_keys=[created_by])
 
@@ -5362,6 +5364,39 @@ def config_proposal_detail(proposal_id):
     items = ConfigProposalItem.query.filter_by(proposal_id=proposal_id).order_by(ConfigProposalItem.order_no).all()
     logs = OrderTracking.query.filter_by(proposal_id=proposal_id).order_by(OrderTracking.updated_at.desc()).all()
     return render_template('config_proposal_detail.html', p=p, items=items, logs=logs, current_permissions=_get_current_permissions())
+
+@app.route('/config_proposals/<int:proposal_id>/add_tracking', methods=['POST'])
+
+@app.route('/config_proposals/tracking/<int:tracking_id>/edit', methods=['POST'])
+def edit_proposal_order_tracking(tracking_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    log = OrderTracking.query.get_or_404(tracking_id)
+    if log.updated_by != session['user_id'] and session.get('role') != 'admin':
+        flash('Bạn không có quyền sửa ghi chú này.', 'danger')
+        return redirect(url_for('config_proposal_detail', proposal_id=log.proposal_id))
+    
+    note = request.form.get('note')
+    if note is not None:
+        log.note = note
+        from datetime import datetime
+        log.edited_at = datetime.utcnow()
+        db.session.commit()
+        flash('Đã sửa ghi chú bổ sung.', 'success')
+    return redirect(url_for('config_proposal_detail', proposal_id=log.proposal_id))
+
+@app.route('/config_proposals/tracking/<int:tracking_id>/delete', methods=['POST'])
+def delete_proposal_order_tracking(tracking_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    log = OrderTracking.query.get_or_404(tracking_id)
+    if log.updated_by != session['user_id'] and session.get('role') != 'admin':
+        flash('Bạn không có quyền xóa ghi chú này.', 'danger')
+        return redirect(url_for('config_proposal_detail', proposal_id=log.proposal_id))
+    
+    p_id = log.proposal_id
+    db.session.delete(log)
+    db.session.commit()
+    flash('Đã xóa ghi chú bổ sung.', 'success')
+    return redirect(url_for('config_proposal_detail', proposal_id=p_id))
 
 @app.route('/config_proposals/<int:proposal_id>/add_tracking', methods=['POST'])
 def add_proposal_order_tracking(proposal_id):
