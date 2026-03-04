@@ -185,7 +185,15 @@
     <div class="card mb-3 border-success">
       <div class="card-header bg-success text-white">
         <strong><i class="bi bi-check2-square"></i> Checklist Mua sắm & Bàn giao</strong>
-      </div>
+      
+              <div class="mt-2">
+                {% for attach in p.attachments %}
+                  {% if attach.step == 'handover' %}
+                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
       <div class="card-body">
         <div class="list-group">
           <!-- 1. Purchasing -->
@@ -196,10 +204,19 @@
                 hàng</span>
               {% if p.purchasing_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.purchasing_at|localtime }}</small>{% endif %}
+            
+              <div class="mt-2">
+                {% for attach in p.attachments %}
+                  {% if attach.step == 'purchasing' %}
+                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
+                  {% endif %}
+                {% endfor %}
+              </div>
             </div>
             {% if not p.purchasing_at and ('config_proposals.execute_purchase' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="start_purchasing" class="btn btn-sm btn-outline-primary">Xác
                 nhận</button>
             </form>
@@ -213,10 +230,19 @@
               <span class="{{ 'text-decoration-line-through text-muted' if p.payment_at else '' }}">Thanh toán</span>
               {% if p.payment_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.payment_at|localtime }}</small>{% endif %}
+            
+              <div class="mt-2">
+                {% for attach in p.attachments %}
+                  {% if attach.step == 'payment' %}
+                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
+                  {% endif %}
+                {% endfor %}
+              </div>
             </div>
             {% if not p.payment_at and ('config_proposals.execute_accounting' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="confirm_payment" class="btn btn-sm btn-outline-primary">Xác
                 nhận</button>
             </form>
@@ -232,10 +258,19 @@
                 (IT)</span>
               {% if p.goods_received_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.goods_received_at|localtime }}</small>{% endif %}
+            
+              <div class="mt-2">
+                {% for attach in p.attachments %}
+                  {% if attach.step == 'receiving' %}
+                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
+                  {% endif %}
+                {% endfor %}
+              </div>
             </div>
             {% if not p.goods_received_at and ('config_proposals.confirm_delivery' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="confirm_goods_received"
                 class="btn btn-sm btn-outline-primary">Xác nhận</button>
             </form>
@@ -254,7 +289,8 @@
             </div>
             {% if not p.handover_to_user_at and ('config_proposals.confirm_delivery' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="confirm_handover" class="btn btn-sm btn-outline-primary">Xác
                 nhận</button>
             </form>
@@ -270,10 +306,19 @@
                 đơn (KT)</span>
               {% if p.invoice_received_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.invoice_received_at|localtime }}</small>{% endif %}
+            
+              <div class="mt-2">
+                {% for attach in p.attachments %}
+                  {% if attach.step == 'invoice' %}
+                    <div class="small"><a href="{{ url_for('download_proposal_attachment', attachment_id=attach.id) }}" target="_blank" class="text-decoration-none"><i class="bi bi-paperclip"></i> {{ attach.file_name }}</a></div>
+                  {% endif %}
+                {% endfor %}
+              </div>
             </div>
             {% if not p.invoice_received_at and ('config_proposals.execute_accounting' in current_permissions or
             current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline">
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline" enctype="multipart/form-data">
+              <div class="mb-2"><input type="file" name="attachments" multiple class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"></div>
               <button type="submit" name="action" value="confirm_invoice" class="btn btn-sm btn-outline-success">Xác
                 nhận & Hoàn tất</button>
             </form>

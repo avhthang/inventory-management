@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
 from sqlalchemy import or_, func, event, text, inspect
 from sqlalchemy.exc import OperationalError
+from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
 import pandas as pd
@@ -31,6 +32,7 @@ os.makedirs(backup_path, exist_ok=True)
 # Attachment directories
 os.makedirs(os.path.join(instance_path, 'bug_report_attachments'), exist_ok=True)
 os.makedirs(os.path.join(instance_path, 'maintenance_attachments'), exist_ok=True)
+os.makedirs(os.path.join(instance_path, 'proposal_attachments'), exist_ok=True)
 
 
 # Timezone configuration (GMT+7)
@@ -956,6 +958,17 @@ class ConfigProposal(db.Model):
     required_date = db.Column(db.Date) # Thời hạn cần thiết bị
 
     creator = db.relationship('User', foreign_keys=[created_by], backref='created_proposals')
+    attachments = db.relationship('ConfigProposalAttachment', backref='proposal', cascade='all, delete-orphan')
+
+class ConfigProposalAttachment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    proposal_id = db.Column(db.Integer, db.ForeignKey('config_proposal.id'), nullable=False)
+    step = db.Column(db.String(50), nullable=False) # purchasing, receiving, handover, invoice, payment
+    file_name = db.Column(db.String(255), nullable=False) # Original name
+    file_path = db.Column(db.String(500), nullable=False) # Stored server path/name
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    uploader = db.relationship('User', foreign_keys=[uploaded_by])
 
 class OrderTracking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -5118,15 +5131,51 @@ def add_config_proposal():
         
     return render_template('add_config_proposal.html', default_date=default_date, users=dept_users, current_user=current_user)
 
+
+@app.route('/config_proposals/attachments/<int:attachment_id>')
+def download_proposal_attachment(attachment_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    attachment = ConfigProposalAttachment.query.get_or_404(attachment_id)
+    return send_from_directory(
+        os.path.join(instance_path, 'proposal_attachments'),
+        attachment.file_path,
+        as_attachment=True,
+        download_name=attachment.file_name
+    )
+
 @app.route('/config_proposals/<int:proposal_id>/action', methods=['POST'])
+
 def proposal_action(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     p = ConfigProposal.query.get_or_404(proposal_id)
     current_user = User.query.get(session['user_id'])
     permissions = _get_current_permissions()
     
+
     action = request.form.get('action')
     note = request.form.get('note')
+
+    # helper for processing file attachments
+    def handle_attachments(step_name):
+        import uuid
+        files = request.files.getlist('attachments')
+        if not files:
+            return
+        
+        for file in files:
+            if file and file.filename:
+                unique_filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+                save_path = os.path.join(instance_path, 'proposal_attachments', unique_filename)
+                file.save(save_path)
+                attachment = ConfigProposalAttachment(
+                    proposal_id=p.id,
+                    step=step_name,
+                    file_name=file.filename,
+                    file_path=unique_filename,
+                    uploaded_by=current_user.id
+                )
+                db.session.add(attachment)
+
     
     # helper for SLA calculation
     def get_deadline(days):
@@ -5200,6 +5249,7 @@ def proposal_action(proposal_id):
                 flash('Bạn không có quyền thực hiện mua sắm.', 'danger')
                 return redirect(url_for('config_proposal_detail', proposal_id=p.id))
              
+             handle_attachments('purchasing')
              p.cat_purchaser_id = current_user.id
              p.purchasing_at = datetime.utcnow()
              
@@ -5214,6 +5264,7 @@ def proposal_action(proposal_id):
                 flash('Bạn không có quyền xác nhận thanh toán.', 'danger')
                 return redirect(url_for('config_proposal_detail', proposal_id=p.id))
              
+             handle_attachments('payment')
              p.accountant_payer_id = current_user.id
              p.payment_at = datetime.utcnow()
              
@@ -5228,6 +5279,7 @@ def proposal_action(proposal_id):
                 flash('Bạn không có quyền xác nhận nhận hàng.', 'danger')
                 return redirect(url_for('config_proposal_detail', proposal_id=p.id))
              
+             handle_attachments('receiving')
              p.tech_receiver_id = current_user.id
              p.goods_received_at = datetime.utcnow()
              
@@ -5242,6 +5294,7 @@ def proposal_action(proposal_id):
                 flash('Bạn không có quyền xác nhận bàn giao.', 'danger')
                 return redirect(url_for('config_proposal_detail', proposal_id=p.id))
              
+             handle_attachments('handover')
              p.handover_to_user_at = datetime.utcnow()
              
              if p.purchasing_at and p.payment_at and p.goods_received_at and p.handover_to_user_at and p.invoice_received_at:
@@ -5257,6 +5310,7 @@ def proposal_action(proposal_id):
             
             # Check if handover is done and invoice not yet received
             if p.handover_to_user_at and not p.invoice_received_at:
+                handle_attachments('invoice')
                 p.accountant_invoice_id = current_user.id
                 p.invoice_received_at = datetime.utcnow()
                 # Assuming _log_audit is defined elsewhere for logging changes
