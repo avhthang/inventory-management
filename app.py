@@ -4604,7 +4604,7 @@ def bug_report_detail(report_id):
     employees = []
     if can_view_all_reports:
         employees = User.query.order_by(User.full_name, User.username).all()
-    elif user.department_id and ('bug_reports.assign' in current_permissions):
+    elif user and user.department_id and ('bug_reports.assign' in current_permissions):
         dept = Department.query.get(user.department_id)
         if dept:
             dept_ids = get_subordinate_department_ids(dept.id)

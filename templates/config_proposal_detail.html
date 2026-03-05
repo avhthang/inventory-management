@@ -6,7 +6,8 @@
   <div>
     <!-- Allow Edit if Creator/Admin (anytime) OR IT (team_approved) OR New/Rejected (edit perm) -->
     {% set can_edit = false %}
-    {% if current_user.role == 'Admin' or (p.created_by and p.created_by == current_user.id) %}
+    {% if current_user and current_user.role == 'Admin' or (p.created_by and p.created_by == (current_user.id if
+    current_user else None)) %}
     {% set can_edit = true %}
     {% elif p.status == 'team_approved' and 'config_proposals.consult_it' in current_permissions %}
     {% set can_edit = true %}
@@ -34,7 +35,7 @@
         <p><strong>Phạm vi:</strong> {{ p.scope }}</p>
       </div>
       <div class="col-md-6">
-        <p><strong>Thời hạn cần:</strong> {{ p.required_date.strftime('%d/%m/%Y') if p.required_date else '---' }}</p>
+        <p><strong>Thời hạn cần:</strong> {{ p.required_date|localtime('%d/%m/%Y') if p.required_date else '---' }}</p>
         <p><strong>Yêu cầu chung:</strong> {{ p.general_requirements or '---' }}</p>
         <p><strong>Ghi chú:</strong> {{ p.notes or '---' }}</p>
       </div>
@@ -91,14 +92,13 @@
           {# Determine Handler and Info based on step #}
           {% if s_code == 'new' %}
           {% set step_handler = p.proposer_name or 'Người tạo' %}
-          {% set step_info = 'Ngày tạo: ' + p.created_at.strftime('%d/%m/%Y %H:%M') %}
+          {% set step_info = 'Ngày tạo: ' ~ (p.created_at|localtime('%d/%m/%Y %H:%M') if p.created_at else '---') %}
           {% elif s_code == 'team_approved' %}
           {% set step_handler = p.creator.department_info.name if p.creator and p.creator.department_info else 'Trưởng
-          bộ
-          phận' %}
+          bộ phận' %}
           {% if p.team_lead_approved_at %}
           {% set step_handler = p.team_lead_approver.full_name if p.team_lead_approver else step_handler %}
-          {% set step_info = 'Đã duyệt: ' + p.team_lead_approved_at.strftime('%d/%m/%Y %H:%M') %}
+          {% set step_info = 'Đã duyệt: ' ~ (p.team_lead_approved_at|localtime('%d/%m/%Y %H:%M')) %}
           {% else %}
           {% set step_info = 'Đang chờ duyệt' if p.status == 'new' else '---' %}
           {% endif %}
@@ -106,26 +106,26 @@
           {% set step_handler = 'Bộ phận IT' %}
           {% if p.it_consulted_at %}
           {% set step_handler = p.it_consultant.full_name if p.it_consultant else step_handler %}
-          {% set step_info = 'Đã tư vấn: ' + p.it_consulted_at.strftime('%d/%m/%Y %H:%M') %}
+          {% set step_info = 'Đã tư vấn: ' ~ (p.it_consulted_at|localtime('%d/%m/%Y %H:%M')) %}
           {% endif %}
           {% elif s_code == 'finance_reviewed' %}
           {% set step_handler = 'Bộ phận Tài chính' %}
           {% if p.finance_reviewed_at %}
           {% set step_handler = p.finance_reviewer.full_name if p.finance_reviewer else step_handler %}
-          {% set step_info = 'Đã duyệt: ' + p.finance_reviewed_at.strftime('%d/%m/%Y %H:%M') %}
+          {% set step_info = 'Đã duyệt: ' ~ (p.finance_reviewed_at|localtime('%d/%m/%Y %H:%M')) %}
           {% endif %}
           {% elif s_code == 'approved' %}
           {% set step_handler = 'Giám đốc' %}
           {% if p.director_approved_at %}
           {% set step_handler = p.director_approver.full_name if p.director_approver else step_handler %}
-          {% set step_info = 'Đã phê duyệt: ' + p.director_approved_at.strftime('%d/%m/%Y %H:%M') %}
+          {% set step_info = 'Đã phê duyệt: ' ~ (p.director_approved_at|localtime('%d/%m/%Y %H:%M')) %}
           {% endif %}
           {% endif %}
 
           {# If this is the CURRENT active step, use the Deadline info #}
           {% if loop.index0 == current_step_idx and p.status not in ['approved', 'completed', 'rejected'] and
           p.current_stage_deadline %}
-          {% set step_info = 'Hạn chót: ' + (p.current_stage_deadline|localtime) %}
+          {% set step_info = 'Hạn chót: ' ~ (p.current_stage_deadline|localtime) %}
           {% endif %}
 
 
@@ -203,12 +203,16 @@
                 {% endfor %}
               </div>
             </div>
-            
-            {% if p.purchasing_at and ('config_proposals.execute_purchase' in current_permissions or current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+
+            {% if p.purchasing_at and ('config_proposals.execute_purchase' in current_permissions or current_user.role
+            == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2"
+              enctype="multipart/form-data">
               <div class="input-group input-group-sm mb-2" style="max-width:300px;">
-                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
-                <button type="submit" name="action" value="upload_files_purchasing" class="btn btn-outline-secondary">Tải thêm</button>
+                <input type="file" name="attachments" multiple class="form-control"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_purchasing"
+                  class="btn btn-outline-secondary">Tải thêm</button>
               </div>
             </form>
             {% endif %}
@@ -242,12 +246,16 @@
                 {% endfor %}
               </div>
             </div>
-            
-            {% if p.payment_at and ('config_proposals.execute_accounting' in current_permissions or current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+
+            {% if p.payment_at and ('config_proposals.execute_accounting' in current_permissions or current_user.role ==
+            'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2"
+              enctype="multipart/form-data">
               <div class="input-group input-group-sm mb-2" style="max-width:300px;">
-                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
-                <button type="submit" name="action" value="upload_files_payment" class="btn btn-outline-secondary">Tải thêm</button>
+                <input type="file" name="attachments" multiple class="form-control"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_payment" class="btn btn-outline-secondary">Tải
+                  thêm</button>
               </div>
             </form>
             {% endif %}
@@ -283,12 +291,16 @@
                 {% endfor %}
               </div>
             </div>
-            
-            {% if p.goods_received_at and ('config_proposals.confirm_delivery' in current_permissions or current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+
+            {% if p.goods_received_at and ('config_proposals.confirm_delivery' in current_permissions or
+            current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2"
+              enctype="multipart/form-data">
               <div class="input-group input-group-sm mb-2" style="max-width:300px;">
-                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
-                <button type="submit" name="action" value="upload_files_receiving" class="btn btn-outline-secondary">Tải thêm</button>
+                <input type="file" name="attachments" multiple class="form-control"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_receiving" class="btn btn-outline-secondary">Tải
+                  thêm</button>
               </div>
             </form>
             {% endif %}
@@ -314,12 +326,16 @@
               {% if p.handover_to_user_at %}<small class="text-success ms-2"><i class="bi bi-check"></i> {{
                 p.handover_to_user_at|localtime }}</small>{% endif %}
             </div>
-            
-            {% if p.handover_to_user_at and ('config_proposals.confirm_delivery' in current_permissions or current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+
+            {% if p.handover_to_user_at and ('config_proposals.confirm_delivery' in current_permissions or
+            current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2"
+              enctype="multipart/form-data">
               <div class="input-group input-group-sm mb-2" style="max-width:300px;">
-                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
-                <button type="submit" name="action" value="upload_files_handover" class="btn btn-outline-secondary">Tải thêm</button>
+                <input type="file" name="attachments" multiple class="form-control"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_handover" class="btn btn-outline-secondary">Tải
+                  thêm</button>
               </div>
             </form>
             {% endif %}
@@ -355,12 +371,16 @@
                 {% endfor %}
               </div>
             </div>
-            
-            {% if p.invoice_received_at and ('config_proposals.execute_accounting' in current_permissions or current_user.role == 'admin') %}
-            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2" enctype="multipart/form-data">
+
+            {% if p.invoice_received_at and ('config_proposals.execute_accounting' in current_permissions or
+            current_user.role == 'admin') %}
+            <form method="POST" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline mt-2"
+              enctype="multipart/form-data">
               <div class="input-group input-group-sm mb-2" style="max-width:300px;">
-                <input type="file" name="attachments" multiple class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
-                <button type="submit" name="action" value="upload_files_invoice" class="btn btn-outline-secondary">Tải thêm</button>
+                <input type="file" name="attachments" multiple class="form-control"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required>
+                <button type="submit" name="action" value="upload_files_invoice" class="btn btn-outline-secondary">Tải
+                  thêm</button>
               </div>
             </form>
             {% endif %}

@@ -102,12 +102,14 @@
 
         <div class="row text-muted small">
           <div class="col-md-6">
-            <strong>Người tạo:</strong> {{ bug_report.creator.full_name or bug_report.creator.username }}<br>
+            <strong>Người tạo:</strong> {{ bug_report.creator.full_name or bug_report.creator.username if
+            bug_report.creator else 'Người dùng đã bị xóa' }}<br>
             <strong>Ngày tạo:</strong> {{ bug_report.created_at|localtime }}
           </div>
           <div class="col-md-6">
             {% if bug_report.assignee %}
-            <strong>Người xử lý:</strong> {{ bug_report.assignee.full_name or bug_report.assignee.username }}<br>
+            <strong>Người xử lý:</strong> {{ bug_report.assignee.full_name or bug_report.assignee.username if
+            bug_report.assignee else '—' }}<br>
             {% endif %}
             <strong>Cập nhật lần cuối:</strong> {{ bug_report.updated_at|localtime if bug_report.updated_at else '—' }}
           </div>
