@@ -385,12 +385,12 @@ def migrate_bug_report_table():
                 with db.engine.connect() as conn:
                     conn.execute(text('ALTER TABLE bug_report ADD COLUMN device_code VARCHAR(50)'))
                     conn.commit()
-                    print("✓ Added device_code column to bug_report table")
+                    print("[OK] Added device_code column to bug_report table")
             except Exception as e:
                 error_msg = str(e).lower()
                 # Check if error is because column already exists
                 if any(keyword in error_msg for keyword in ['already exists', 'duplicate column', 'column "device_code" of relation "bug_report" already exists']):
-                    print("✓ device_code column already exists")
+                    print("[OK] device_code column already exists")
                 else:
                     # Other error - might be table doesn't exist or other issue
                     print(f"Migration note: {e}")
@@ -418,11 +418,11 @@ def migrate_role_created_at():
                 else:
                     conn.execute(text("ALTER TABLE role ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
                 conn.commit()
-                print("✓ Added created_at column to role table")
+                print("[OK] Added created_at column to role table")
         except Exception as e:
             msg = str(e).lower()
             if 'already exists' in msg or 'duplicate column' in msg:
-                print("✓ created_at column already exists on role table")
+                print("[OK] created_at column already exists on role table")
             else:
                 print(f"Migration note (role created_at): {e}")
 
@@ -551,7 +551,7 @@ def migrate_resource_table():
                             )
                         '''))
                         conn.commit()
-                    print("✓ Created resource table")
+                    print("[OK] Created resource table")
                     return # Created with all columns, done.
             except Exception as e:
                 print(f"Migration error (resource create): {e}")
@@ -574,7 +574,7 @@ def migrate_resource_table():
                         conn.execute(text("UPDATE resource SET notes = NULL")) # Clear notes to be "new column"
                     
                     conn.commit()
-                    print("✓ Updated resource table schema (v2)")
+                    print("[OK] Updated resource table schema (v2)")
             except Exception as e:
                 print(f"Migration error (resource alter): {e}")
 
@@ -590,7 +590,7 @@ def migrate_device_type_table():
             # Use SQLAlchemy to create table if not exists (compatible with all DBs)
             if not inspect(db.engine).has_table("device_type"):
                 DeviceType.__table__.create(db.engine)
-                print("✓ Created device_type table")
+                print("[OK] Created device_type table")
                 
                 # Seed initial data
                 initial_types = [
@@ -622,7 +622,7 @@ def migrate_device_type_table():
                         except Exception:
                             db.session.rollback()
                 
-                print("✓ Verified device types seeding")
+                print("[OK] Verified device types seeding")
                 
         except Exception as e:
             print(f"Migration error (device_type): {e}")
@@ -653,7 +653,7 @@ def migrate_config_proposal_workflow():
                             stmt = f"ALTER TABLE config_proposal ADD COLUMN {col_name} {col_type}"
                             conn.execute(text(stmt))
                             conn.commit()
-                            print(f"✓ Added column {col_name} to config_proposal")
+                            print(f"[OK] Added column {col_name} to config_proposal")
                         except Exception as e:
                             print(f"Migration note ({col_name}): {e}")
 
@@ -706,6 +706,60 @@ def migrate_config_proposal_workflow():
             print(f"Migration error (config_proposal_workflow): {e}")
 
 migrate_config_proposal_workflow()
+
+def migrate_missing_columns_v3():
+    """Add new columns to existing tables if they don't exist"""
+    with app.app_context():
+        try:
+            from sqlalchemy import text, inspect
+            
+            inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
+
+            with db.engine.connect() as conn:
+                def _add_col_if_missing(table_name, col_name, col_type):
+                    if table_name in tables:
+                        cols = {col['name'] for col in inspector.get_columns(table_name)}
+                        if col_name not in cols:
+                            try:
+                                stmt = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
+                                conn.execute(text(stmt))
+                                conn.commit()
+                                print(f"[OK] Added column {col_name} to {table_name}")
+                            except Exception as e:
+                                print(f"Migration note ({table_name}.{col_name}): {e}")
+
+                # order_tracking
+                _add_col_if_missing('order_tracking', 'edited_at', 'TIMESTAMP')
+                _add_col_if_missing('order_tracking', 'updated_by', 'INTEGER')
+                
+                # bug_report_comment
+                _add_col_if_missing('bug_report_comment', 'edited_at', 'TIMESTAMP')
+
+                # device
+                _add_col_if_missing('device', 'purchase_price', 'FLOAT')
+                _add_col_if_missing('device', 'brand', 'VARCHAR(100)')
+                _add_col_if_missing('device', 'supplier', 'VARCHAR(150)')
+                _add_col_if_missing('device', 'warranty', 'VARCHAR(50)')
+
+                # bug_report
+                _add_col_if_missing('bug_report', 'merged_into', 'INTEGER')
+                _add_col_if_missing('bug_report', 'visibility', "VARCHAR(20) DEFAULT 'private'")
+                _add_col_if_missing('bug_report', 'rating', 'INTEGER')
+                _add_col_if_missing('bug_report', 'reopen_requested', 'BOOLEAN DEFAULT FALSE')
+
+                # config_proposal_item
+                _add_col_if_missing('config_proposal_item', 'product_link', 'VARCHAR(255)')
+                _add_col_if_missing('config_proposal_item', 'warranty', 'VARCHAR(120)')
+                _add_col_if_missing('config_proposal_item', 'product_code', 'VARCHAR(100)')
+                
+                # user
+                _add_col_if_missing('user', 'last_name_token', 'VARCHAR(120)')
+
+        except Exception as e:
+            print(f"Migration error (missing columns v3): {e}")
+
+migrate_missing_columns_v3()
 
 # Ensure default admin exists on startup
 with app.app_context():
