@@ -281,7 +281,7 @@
         document.addEventListener('click', function (e) {
             const clickable = e.target.closest('.dept-clickable');
             if (clickable) {
-                {% if current_permissions and 'departments.edit' in current_permissions %}
+                {% if current_permissions and ('departments.edit' in current_permissions or 'departments.view' in current_permissions) %}
                 const deptId = clickable.dataset.id;
                 loadDepartmentUsers(deptId);
                 {% else %}

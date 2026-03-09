@@ -11,7 +11,9 @@
         </a>
     </div>
 
+    {% set can_edit = current_permissions and 'departments.edit' in current_permissions %}
     <div class="row">
+        {% if can_edit %}
         <div class="col-md-6">
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -39,7 +41,7 @@
                                             }}</span>
                                         {% elif user.status == 'Thử việc' %}<span class="badge bg-info">{{ user.status
                                             }}</span>
-                                        {% elif user.status == 'Đã nghỉ' %}<span class="badge bg-secondary">{{
+                                        {% elif user.status == 'Nghỉ không lương' %}<span class="badge bg-secondary">{{
                                             user.status }}</span>
                                         {% else %}<span class="badge bg-warning text-dark">{{ user.status }}</span>
                                         {% endif %}
@@ -68,7 +70,9 @@
             </div>
         </div>
 
-        <div class="col-md-6">
+        {% endif %}
+
+        <div class="{% if can_edit %}col-md-6{% else %}col-md-12{% endif %}">
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Danh sách người dùng trong phòng ban</strong>
@@ -83,7 +87,7 @@
                                     <th>Tài khoản</th>
                                     <th>Chức vụ</th>
                                     <th>Trạng thái</th>
-                                    <th class="text-end">Thao tác</th>
+                                    {% if can_edit %}<th class="text-end">Thao tác</th>{% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -97,11 +101,12 @@
                                             }}</span>
                                         {% elif user.status == 'Thử việc' %}<span class="badge bg-info">{{ user.status
                                             }}</span>
-                                        {% elif user.status == 'Đã nghỉ' %}<span class="badge bg-secondary">{{
+                                        {% elif user.status == 'Nghỉ không lương' %}<span class="badge bg-secondary">{{
                                             user.status }}</span>
                                         {% else %}<span class="badge bg-warning text-dark">{{ user.status }}</span>
                                         {% endif %}
                                     </td>
+                                    {% if can_edit %}
                                     <td class="text-end">
                                         <form method="POST"
                                             action="{{ url_for('remove_department_user', dept_id=department.id, user_id=user.id) }}"
@@ -112,6 +117,7 @@
                                             </button>
                                         </form>
                                     </td>
+                                    {% endif %}
                                 </tr>
                                 {% else %}
                                 <tr>

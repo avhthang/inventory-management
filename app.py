@@ -1709,7 +1709,7 @@ def role_detail(role_id):
     
     # Lấy danh sách tất cả người dùng để thêm vào quyền (loại trừ người đã nghỉ việc)
     all_users = User.query.filter(
-        ~User.status.in_(['Đã nghỉ', 'Nghỉ việc'])
+        ~User.status.in_(['Nghỉ không lương', 'Nghỉ việc'])
     ).order_by(User.full_name, User.username).all()
     
     return render_template('roles/detail.html', role=role, permissions=permissions, 
@@ -1825,7 +1825,7 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password):
             # Kiểm tra trạng thái người dùng
-            if user.status in ['Đã nghỉ', 'Nghỉ việc']:
+            if user.status in ['Nghỉ không lương', 'Nghỉ việc']:
                 flash('Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.', 'danger')
                 return render_template('login.html')
             session['user_id'] = user.id
@@ -1904,8 +1904,8 @@ def department_users(id):
         
     current_permissions = _get_current_permissions()
     user = _get_current_user()
-    if not (user and user.role == 'admin') and 'departments.edit' not in current_permissions:
-        flash('Bạn không có quyền quản lý người dùng phòng ban.', 'danger')
+    if not (user and user.role == 'admin') and 'departments.view' not in current_permissions and 'departments.edit' not in current_permissions:
+        flash('Bạn không có quyền xem người dùng phòng ban.', 'danger')
         return redirect(url_for('list_departments'))
         
     department = Department.query.get_or_404(id)
@@ -1928,8 +1928,10 @@ def department_users(id):
     # - else -> order 2
     order_case = case(
         (User.role.in_(['admin', 'manager']), 1),
-        (db.func.lower(User.position).like('%thực tập%'), 3),
-        else_=2
+        (User.status == 'Đang làm', 2),
+        (User.status == 'Thử việc', 3),
+        (db.func.lower(User.position).like('%thực tập%'), 4),
+        else_=5
     )
 
     pagination = User.query.filter(
@@ -1944,7 +1946,8 @@ def department_users(id):
                          department=department,
                          available_users=available_users,
                          department_users=pagination.items,
-                         pagination=pagination)
+                         pagination=pagination,
+                         current_permissions=current_permissions)
 
 @app.route('/departments/<int:id>/users/add', methods=['POST'])
 def add_department_user(id):
@@ -2011,8 +2014,8 @@ def department_users_partial(id):
         
     current_permissions = _get_current_permissions()
     user = _get_current_user()
-    if not (user and user.role == 'admin') and 'departments.edit' not in current_permissions:
-        return "<div class='alert alert-danger'>Bạn không có quyền quản lý người dùng phòng ban.</div>"
+    if not (user and user.role == 'admin') and 'departments.view' not in current_permissions and 'departments.edit' not in current_permissions:
+        return "<div class='alert alert-danger'>Bạn không có quyền xem người dùng phòng ban.</div>"
         
     department = Department.query.get_or_404(id)
     current_permissions = _get_current_permissions()
@@ -2022,8 +2025,10 @@ def department_users_partial(id):
     from sqlalchemy import case
     order_case = case(
         (User.role.in_(['admin', 'manager']), 1),
-        (db.func.lower(User.position).like('%thực tập%'), 3),
-        else_=2
+        (User.status == 'Đang làm', 2),
+        (User.status == 'Thử việc', 3),
+        (db.func.lower(User.position).like('%thực tập%'), 4),
+        else_=5
     )
 
     pagination = User.query.filter(
@@ -3384,7 +3389,7 @@ def user_list():
     
     departments = [d.name for d in Department.query.order_by(Department.name).all()]
     positions = [p[0] for p in db.session.query(User.position).filter(User.position.isnot(None)).distinct().order_by(User.position)]
-    statuses = ['Đang làm', 'Thử việc', 'Đã nghỉ', 'Nghỉ việc', 'Khác']
+    statuses = ['Đang làm', 'Thử việc', 'Nghỉ không lương', 'Nghỉ việc', 'Khác']
     current_permissions = _get_current_permissions()
 
     return render_template('users.html', 
@@ -4102,7 +4107,7 @@ def add_maintenance_log():
             db.session.rollback()
             flash('Có lỗi xảy ra khi thêm nhật ký.', 'danger')
     devices = Device.query.order_by(Device.device_code).all()
-    users = User.query.filter(User.status.notin_(['Đã nghỉ', 'Nghỉ việc'])).order_by(User.full_name).all()
+    users = User.query.filter(User.status.notin_(['Nghỉ không lương', 'Nghỉ việc'])).order_by(User.full_name).all()
     return render_template('maintenance_logs/add.html', devices=devices, users=users)
 
 @app.route('/maintenance_logs/<int:log_id>')
@@ -4406,7 +4411,7 @@ def create_bug_report():
         devices = Device.query.filter_by(manager_id=user_id).order_by(Device.device_code).all()
     
     # Get list of users for "báo lỗi hộ" feature - Allow selecting any active user
-    reportable_users = User.query.filter(~User.status.in_(['Đã nghỉ', 'Nghỉ việc', 'Resigned', 'Retired'])).order_by(User.full_name, User.username).all()
+    reportable_users = User.query.filter(~User.status.in_(['Nghỉ không lương', 'Nghỉ việc', 'Resigned', 'Retired'])).order_by(User.full_name, User.username).all()
  
     if request.method == 'POST':
         title = request.form.get('title', '').strip()

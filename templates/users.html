@@ -90,7 +90,7 @@
                         <td>
                             {% if user.status == 'Đang làm' %}<span class="badge bg-success">{{ user.status }}</span>
                             {% elif user.status == 'Thử việc' %}<span class="badge bg-info">{{ user.status }}</span>
-                            {% elif user.status == 'Đã nghỉ' %}<span class="badge bg-secondary">{{ user.status }}</span>
+                            {% elif user.status == 'Nghỉ không lương' %}<span class="badge bg-secondary">{{ user.status }}</span>
                             {% else %}<span class="badge bg-warning text-dark">{{ user.status }}</span>
                             {% endif %}
                         </td>

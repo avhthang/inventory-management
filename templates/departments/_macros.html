@@ -18,7 +18,7 @@
             {% endif %}
         </div>
         <div class="btn-group">
-            {% if current_permissions and 'departments.edit' in current_permissions %}
+            {% if current_permissions and ('departments.edit' in current_permissions or 'departments.view' in current_permissions) %}
             <a href="{{ url_for('department_users', id=dept.id) }}" class="btn btn-sm btn-outline-info"
                 title="Quản lý người dùng">
                 <i class="bi bi-people"></i>
