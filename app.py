@@ -2799,6 +2799,11 @@ def bulk_delete_devices():
 @app.route('/device/<int:device_id>')
 def device_detail(device_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    device = Device.query.get_or_404(device_id)
+    handovers = DeviceHandover.query.filter_by(device_id=device.id).order_by(DeviceHandover.handover_date.desc()).all()
+    current_permissions = _get_current_permissions()
+    return render_template('device_detail.html', device=device, handovers=handovers, current_permissions=current_permissions)
+
 # --- Device Groups Routes ---
 @app.route('/device_groups', methods=['GET', 'POST'])
 def device_groups():
