@@ -1924,8 +1924,10 @@ def department_users(id):
     
     # Define sort order: 
     # - role='admin' or 'manager' -> order 1
-    # - position like '%thực tập%' -> order 3
-    # - else -> order 2
+    # - status='Đang làm' -> order 2
+    # - status='Thử việc' -> order 3
+    # - position like '%thực tập%' -> order 4
+    # - else -> order 5
     order_case = case(
         (User.role.in_(['admin', 'manager']), 1),
         (User.status == 'Đang làm', 2),
@@ -1936,7 +1938,7 @@ def department_users(id):
 
     pagination = User.query.filter(
         User.department_id == department.id,
-        User.status.in_(['Đang làm', 'Thực tập'])
+        User.status.in_(['Đang làm', 'Thực tập', 'Thử việc'])
     ).order_by(
         order_case,
         User.full_name
@@ -2033,7 +2035,7 @@ def department_users_partial(id):
 
     pagination = User.query.filter(
         User.department_id == department.id,
-        User.status.in_(['Đang làm', 'Thực tập'])
+        User.status.in_(['Đang làm', 'Thực tập', 'Thử việc'])
     ).order_by(
         order_case,
         User.full_name

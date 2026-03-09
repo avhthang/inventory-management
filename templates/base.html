@@ -54,9 +54,11 @@
                             class="nav-link {% if active_endpoint in ['handover_list', 'handover_report'] %}active{% endif %}"
                             href="{{ url_for('handover_list') }}">Bàn giao thiết bị</a></li>
                     {% endif %}
+                    {% if current_permissions and 'maintenance_logs.view' in current_permissions %}
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint in ['maintenance_logs', 'add_maintenance_log', 'maintenance_log_detail', 'edit_maintenance_log'] %}active{% endif %}"
                             href="{{ url_for('maintenance_logs') }}">Sửa chữa</a></li>
+                    {% endif %}
                     {% if current_permissions and 'bug_reports.view' in current_permissions %}
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint in ['bug_reports', 'create_bug_report', 'bug_report_detail', 'edit_bug_report'] %}active{% endif %}"
