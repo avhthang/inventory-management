@@ -1902,6 +1902,12 @@ def department_users(id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
         
+    current_permissions = _get_current_permissions()
+    user = _get_current_user()
+    if not (user and user.role == 'admin') and 'departments.edit' not in current_permissions:
+        flash('Bạn không có quyền quản lý người dùng phòng ban.', 'danger')
+        return redirect(url_for('list_departments'))
+        
     department = Department.query.get_or_404(id)
     available_users = User.query.filter(
         User.status.in_(['Đang làm', 'Thực tập']),
@@ -1945,6 +1951,12 @@ def add_department_user(id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
         
+    current_permissions = _get_current_permissions()
+    user = _get_current_user()
+    if not (user and user.role == 'admin') and 'departments.edit' not in current_permissions:
+        flash('Bạn không có quyền.', 'danger')
+        return redirect(url_for('list_departments'))
+        
     department = Department.query.get_or_404(id)
     user_id = request.form.get('user_id')
     
@@ -1965,6 +1977,14 @@ def remove_department_user(dept_id, user_id):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'message': 'Unauthorized'})
         return redirect(url_for('login'))
+        
+    current_permissions = _get_current_permissions()
+    user = _get_current_user()
+    if not (user and user.role == 'admin') and 'departments.edit' not in current_permissions:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Bạn không có quyền quản lý người dùng phòng ban.'})
+        flash('Bạn không có quyền.', 'danger')
+        return redirect(url_for('list_departments'))
         
     user = User.query.get_or_404(user_id)
     department = Department.query.get_or_404(dept_id)
@@ -1988,6 +2008,11 @@ def remove_department_user(dept_id, user_id):
 def department_users_partial(id):
     if 'user_id' not in session:
         return "Unauthorized", 401
+        
+    current_permissions = _get_current_permissions()
+    user = _get_current_user()
+    if not (user and user.role == 'admin') and 'departments.edit' not in current_permissions:
+        return "<div class='alert alert-danger'>Bạn không có quyền quản lý người dùng phòng ban.</div>"
         
     department = Department.query.get_or_404(id)
     current_permissions = _get_current_permissions()

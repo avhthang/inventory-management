@@ -281,8 +281,12 @@
         document.addEventListener('click', function (e) {
             const clickable = e.target.closest('.dept-clickable');
             if (clickable) {
+                {% if current_permissions and 'departments.edit' in current_permissions %}
                 const deptId = clickable.dataset.id;
                 loadDepartmentUsers(deptId);
+                {% else %}
+                alert("Bạn không có quyền xem hoặc chỉnh sửa nhân sự phòng ban.");
+                {% endif %}
             }
 
             const pageLink = e.target.closest('.ajax-page');
