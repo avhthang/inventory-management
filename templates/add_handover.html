@@ -55,18 +55,6 @@
             <hr>
 
             <h5>Danh sách thiết bị bàn giao</h5>
-            <div class="row mb-2">
-                <div class="col-md-6">
-                    <label class="form-label">Chọn nhóm thiết bị (tùy chọn)</label>
-                    <select name="group_ids" class="form-select" id="group-select">
-                        <option value="">-- Chọn nhóm thiết bị --</option>
-                        {% for g in groups %}
-                        <option value="{{ g.id }}">{{ g.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="form-text">Chọn nhóm thiết bị để tự động thêm tất cả thiết bị thuộc nhóm vào danh sách.</div>
-                </div>
-            </div>
             <div id="device-list-container">
                 </div>
             <button type="button" id="add-device-btn" class="btn btn-outline-success mt-2"><i class="bi bi-plus-lg"></i> Thêm thiết bị</button>
@@ -189,32 +177,6 @@ $(document).ready(function() {
         } else {
             nameInput.val('');
             serialInput.val('');
-        }
-    });
-
-    // Handle group selection
-    $('#group-select').on('change', function() {
-        const groupId = $(this).val();
-        if (groupId) {
-            // Clear existing device rows
-            container.empty();
-            
-            // Fetch devices from selected group
-            fetch(`/api/group_devices/${groupId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.devices && data.devices.length > 0) {
-                        data.devices.forEach(device => {
-                            addDeviceRow(device.id);
-                        });
-                    } else {
-                        addDeviceRow();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching group devices:', error);
-                    addDeviceRow();
-                });
         }
     });
 

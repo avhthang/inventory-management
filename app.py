@@ -2741,12 +2741,6 @@ def delete_device(device_id):
     if device.handovers:
         flash('Không thể xóa thiết bị đã có lịch sử bàn giao.', 'danger')
         return redirect(url_for('device_list'))
-    # Gỡ liên kết nhóm thiết bị (nếu có)
-    try:
-        for link in DeviceGroupDevice.query.filter_by(device_id=device.id).all():
-            db.session.delete(link)
-    except Exception:
-        pass
     # Removed InventoryReceiptItem deletion
     db.session.delete(device)
     db.session.commit()
@@ -2773,12 +2767,6 @@ def bulk_delete_devices():
             skipped_count += 1
             continue
 
-        # Gỡ liên kết nhóm thiết bị (nếu có)
-        try:
-            for link in DeviceGroupDevice.query.filter_by(device_id=device.id).all():
-                db.session.delete(link)
-        except Exception:
-            pass
         # Removed InventoryReceiptItem deletion
 
         db.session.delete(device)
@@ -2804,169 +2792,6 @@ def device_detail(device_id):
     current_permissions = _get_current_permissions()
     return render_template('device_detail.html', device=device, handovers=handovers, current_permissions=current_permissions)
 
-# --- Device Groups Routes ---
-@app.route('/device_groups', methods=['GET', 'POST'])
-def device_groups():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    if request.method == 'POST':
-        name = request.form.get('name')
-        description = request.form.get('description')
-        notes = request.form.get('notes')
-        device_ids = request.form.getlist('device_ids')
-        
-        if not name:
-            flash('Tên nhóm là bắt buộc.', 'danger')
-            return redirect(url_for('device_groups'))
-        
-        # Tạo nhóm mới
-        group = DeviceGroup(
-            name=name, 
-            description=description, 
-            notes=notes,
-            created_by=session.get('user_id')
-        )
-        db.session.add(group)
-        db.session.flush()  # Để lấy ID
-        
-        # Thêm thiết bị vào nhóm (đảm bảo 1 thiết bị chỉ ở 1 nhóm)
-        for device_id in device_ids:
-            if device_id:
-                # Xóa thiết bị khỏi nhóm cũ nếu có
-                old_link = DeviceGroupDevice.query.filter_by(device_id=device_id).first()
-                if old_link:
-                    db.session.delete(old_link)
-                
-                # Thêm vào nhóm mới
-                new_link = DeviceGroupDevice(group_id=group.id, device_id=device_id)
-                db.session.add(new_link)
-        
-        db.session.commit()
-        flash('Tạo nhóm thiết bị thành công!', 'success')
-        return redirect(url_for('device_groups'))
-
-    # Filters
-    filter_name = request.args.get('name', '').strip()
-    filter_user_id = request.args.get('user_id', '').strip()
-    filter_device_code = request.args.get('device_code', '').strip()
-    filter_device_name = request.args.get('device_name', '').strip()
-    filter_device_type = request.args.get('device_type', '').strip()
-    filter_device_status = request.args.get('device_status', '').strip()
-    filter_manager_id = request.args.get('manager_id', '').strip()
-    filter_ip = request.args.get('ip', '').strip()
-    filter_start_date = request.args.get('start_date', '').strip()
-    filter_end_date = request.args.get('end_date', '').strip()
-    filter_created_by = request.args.get('created_by', '').strip()
-
-    q = DeviceGroup.query
-    if filter_name:
-        q = q.filter(DeviceGroup.name.ilike(f"%{filter_name}%"))
-    if filter_created_by:
-        try:
-            q = q.filter(DeviceGroup.created_by == int(filter_created_by))
-        except ValueError:
-            pass
-    if filter_start_date:
-        try:
-            dt = datetime.strptime(filter_start_date, '%Y-%m-%d')
-            q = q.filter(DeviceGroup.created_at >= dt)
-        except ValueError:
-            pass
-    if filter_end_date:
-        try:
-            dt2 = datetime.strptime(filter_end_date, '%Y-%m-%d') + timedelta(days=1)
-            q = q.filter(DeviceGroup.created_at < dt2)
-        except ValueError:
-            pass
-    if filter_user_id:
-        try:
-            uid = int(filter_user_id)
-            q = q.join(UserDeviceGroup, UserDeviceGroup.group_id == DeviceGroup.id).filter(UserDeviceGroup.user_id == uid)
-        except ValueError:
-            pass
-    if filter_device_code:
-        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
-             .join(Device, Device.id == DeviceGroupDevice.device_id) \
-             .filter(Device.device_code.ilike(f"%{filter_device_code}%"))
-    if filter_device_name:
-        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
-             .join(Device, Device.id == DeviceGroupDevice.device_id) \
-             .filter(Device.name.ilike(f"%{filter_device_name}%"))
-    if filter_device_type:
-        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
-             .join(Device, Device.id == DeviceGroupDevice.device_id) \
-             .filter(Device.device_type == filter_device_type)
-    if filter_device_status:
-        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
-             .join(Device, Device.id == DeviceGroupDevice.device_id) \
-             .filter(Device.status == filter_device_status)
-    if filter_manager_id:
-        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
-             .join(Device, Device.id == DeviceGroupDevice.device_id) \
-             .filter(Device.manager_id == filter_manager_id)
-    if filter_ip:
-        q = q.join(DeviceGroupDevice, DeviceGroupDevice.group_id == DeviceGroup.id) \
-             .join(Device, Device.id == DeviceGroupDevice.device_id) \
-             .filter(Device.configuration.ilike(f"%{filter_ip}%"))
-
-    groups = q.order_by(DeviceGroup.id.desc()).all()
-    group_summaries = []
-    for g in groups:
-        device_count = DeviceGroupDevice.query.filter_by(group_id=g.id).count()
-        user_count = UserDeviceGroup.query.filter_by(group_id=g.id).count()
-        group_summaries.append({'group': g, 'device_count': device_count, 'user_count': user_count})
-
-    users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    creators = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    # Chỉ hiển thị thiết bị chưa thuộc bất kỳ nhóm nào để chọn
-    assigned_device_ids = [l.device_id for l in DeviceGroupDevice.query.all()]
-    if assigned_device_ids:
-        devices = Device.query.filter(~Device.id.in_(assigned_device_ids)).order_by(Device.device_code).all()
-    else:
-        devices = Device.query.order_by(Device.device_code).all()
-    device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
-    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
-    managers = User.query.filter(User.id.in_([d.manager_id for d in Device.query.filter(Device.manager_id.isnot(None)).all()])).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    return render_template(
-        'device_groups.html',
-        group_summaries=group_summaries,
-        users=users,
-        creators=creators,
-        device_types=device_types,
-        statuses=statuses,
-        managers=managers,
-        filter_name=filter_name,
-        filter_user_id=filter_user_id,
-        filter_device_code=filter_device_code,
-        filter_device_name=filter_device_name,
-        filter_device_type=filter_device_type,
-        filter_device_status=filter_device_status,
-        filter_manager_id=filter_manager_id,
-        filter_ip=filter_ip,
-        filter_start_date=filter_start_date,
-        filter_end_date=filter_end_date,
-        filter_created_by=filter_created_by
-    )
-
-@app.route('/device_groups/<int:group_id>', methods=['GET', 'POST'])
-def device_group_detail(group_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    group = DeviceGroup.query.get_or_404(group_id)
-    # Thiết bị trong nhóm
-    device_links = DeviceGroupDevice.query.filter_by(group_id=group_id).all()
-    device_ids_in_group = [l.device_id for l in device_links] if device_links else []
-    devices_in_group = Device.query.filter(Device.id.in_(device_ids_in_group)).order_by(Device.device_code).all() if device_ids_in_group else []
-    # Thiết bị chưa thuộc bất kỳ nhóm nào (để đảm bảo 1 thiết bị chỉ ở 1 nhóm)
-    all_assigned_ids = [l.device_id for l in DeviceGroupDevice.query.all()]
-    if all_assigned_ids:
-        devices_not_in_group = Device.query.filter(~Device.id.in_(all_assigned_ids)).order_by(Device.device_code).all()
-    else:
-        devices_not_in_group = Device.query.order_by(Device.device_code).all()
-    # Người dùng trong nhóm
-    user_links = UserDeviceGroup.query.filter_by(group_id=group_id).all()
-    user_ids_in_group = [l.user_id for l in user_links] if user_links else []
-    users_in_group = User.query.filter(User.id.in_(user_ids_in_group)).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all() if user_ids_in_group else []
-    users_not_in_group = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all() if not user_ids_in_group else User.query.filter(~User.id.in_(user_ids_in_group)).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    return render_template('device_group_detail.html', group=group, devices_in_group=devices_in_group, devices_not_in_group=devices_not_in_group, users_in_group=users_in_group, users_not_in_group=users_not_in_group)
 
 
 @app.route('/add_devices_bulk', methods=['GET', 'POST'])
@@ -2982,7 +2807,6 @@ def add_devices_bulk():
         shared_supplier = request.form.get('shared_supplier')
         shared_warranty = request.form.get('shared_warranty_fallback')
         shared_notes = request.form.get('shared_notes')
-        shared_group_ids = request.form.getlist('shared_group_ids')
         shared_manager_id = request.form.get('shared_manager_id')
         shared_assign_date = request.form.get('shared_assign_date')
 
@@ -3096,12 +2920,7 @@ def add_devices_bulk():
 
                     # Removed InventoryReceiptItem addition
 
-                    # Gán nhóm mặc định nếu có
-                    for gid in shared_group_ids:
-                        if not gid: continue
-                        exists = DeviceGroupDevice.query.filter_by(group_id=int(gid), device_id=new_device.id).first()
-                        if not exists:
-                            db.session.add(DeviceGroupDevice(group_id=int(gid), device_id=new_device.id))
+                    # Removed InventoryReceiptItem addition
 
                     created_count += 1
 
@@ -3119,8 +2938,7 @@ def add_devices_bulk():
             return redirect(url_for('add_devices_bulk'))
 
     managers = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    groups = DeviceGroup.query.order_by(DeviceGroup.name).all()
-    return render_template('add_devices_bulk.html', managers=managers, groups=groups)
+    return render_template('add_devices_bulk.html', managers=managers)
 
 # --- Handover Routes ---
 @app.route('/handover_report', methods=['GET'])
@@ -3204,16 +3022,7 @@ def add_handover():
     if request.method == 'POST':
         # Lấy danh sách ID thiết bị từ form và nhóm
         raw_device_ids = request.form.getlist('device_ids')
-        group_ids = request.form.getlist('group_ids')
         device_ids_set = set([d for d in raw_device_ids if d])
-        if group_ids:
-            try:
-                group_int_ids = [int(g) for g in group_ids if g]
-                rows = db.session.query(DeviceGroupDevice.device_id).filter(DeviceGroupDevice.group_id.in_(group_int_ids)).all()
-                for (did,) in rows:
-                    device_ids_set.add(str(did))
-            except Exception:
-                pass
         device_ids = list(device_ids_set)
         receiver_id = request.form.get('receiver_id')
         handover_date_str = request.form.get('handover_date')
@@ -3268,12 +3077,10 @@ def add_handover():
     # Chỉ hiển thị các thiết bị sẵn sàng để chọn
     devices = Device.query.filter_by(status='Sẵn sàng').order_by(Device.device_code).all()
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    groups = DeviceGroup.query.order_by(DeviceGroup.name).all()
     
     return render_template('add_handover.html', 
                            devices=devices, 
                            users=users,
-                           groups=groups,
                            now=datetime.now(VIETNAM_TZ),
                            preselected_device_id=preselected_device_id)
 
