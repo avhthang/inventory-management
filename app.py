@@ -2885,8 +2885,34 @@ def add_devices_bulk():
                         qty = max(1, int(quantities[idx]))
                     except ValueError:
                         qty = 1
+                base_device_code = device_codes[idx].strip() if idx < len(device_codes) and device_codes[idx] else ''
+                custom_pref = ""
+                custom_seq = None
+                custom_width = 0
+                has_number_suffix = False
+                if base_device_code:
+                    import re
+                    match = re.search(r'^(.*?)(\d+)$', base_device_code)
+                    if match:
+                        custom_pref = match.group(1)
+                        custom_seq = int(match.group(2))
+                        custom_width = len(match.group(2))
+                        has_number_suffix = True
+                    else:
+                        custom_pref = base_device_code
+
                 for k in range(qty):
-                    device_code = device_codes[idx].strip() if idx < len(device_codes) and device_codes[idx] and k == 0 else ''
+                    if base_device_code:
+                        if k == 0:
+                            device_code = base_device_code
+                        else:
+                            if has_number_suffix:
+                                device_code = f"{custom_pref}{custom_seq + k:0{custom_width}d}"
+                            else:
+                                device_code = f"{custom_pref}_{k}"
+                    else:
+                        device_code = ''
+
                     if not device_code:
                         pref, width = _type_to_prefix(dtype)
                         seq = next_seq_by_prefix.get(pref, 1)
