@@ -1709,7 +1709,7 @@ def role_detail(role_id):
     
     # Lấy danh sách tất cả người dùng để thêm vào quyền (loại trừ người đã nghỉ việc)
     all_users = User.query.filter(
-        ~User.status.in_(['Đang làm', 'Nghỉ việc'])
+        ~User.status.in_(['Đã nghỉ', 'Nghỉ việc'])
     ).order_by(User.full_name, User.username).all()
     
     return render_template('roles/detail.html', role=role, permissions=permissions, 
@@ -2286,6 +2286,12 @@ def register():
             flash('Email đã được sử dụng.', 'danger'); return render_template('register.html')
         new_user = User(username=username, password=generate_password_hash(password), full_name=full_name, email=email, role='user', status='Đang làm')
         db.session.add(new_user); db.session.commit()
+        
+        default_role = Role.query.filter_by(name='Người dùng').first()
+        if default_role:
+            db.session.add(UserRole(user_id=new_user.id, role_id=default_role.id))
+            db.session.commit()
+            
         session['user_id'] = new_user.id; session.permanent = True
         flash('Đăng ký tài khoản thành công! Bạn đã được đăng nhập.', 'success')
         return redirect(url_for('home'))
@@ -3456,10 +3462,13 @@ def add_user():
             role = 'user'
         new_user.role = role
         
-        # Xóa hết các quyền UserRole cũ (nếu có - dù mới tạo thì chưa có nhưng để chắc chắn)
-        # Hệ thống mới chỉ dùng user.role check
-        
         db.session.commit()
+        
+        if role == 'user':
+            default_role = Role.query.filter_by(name='Người dùng').first()
+            if default_role:
+                db.session.add(UserRole(user_id=new_user.id, role_id=default_role.id))
+                db.session.commit()
         flash('Thêm người dùng mới thành công!', 'success')
         return redirect(url_for('user_list'))
     departments = Department.query.all()
