@@ -1941,7 +1941,9 @@ def department_users(id):
         User.status.in_(['Đang làm', 'Thực tập', 'Thử việc'])
     ).order_by(
         order_case,
-        User.full_name
+        db.func.lower(User.last_name_token),
+        db.func.lower(User.full_name),
+        db.func.lower(User.username)
     ).paginate(page=page, per_page=20, error_out=False)
     
     return render_template('departments/users.html',
@@ -2038,7 +2040,9 @@ def department_users_partial(id):
         User.status.in_(['Đang làm', 'Thực tập', 'Thử việc'])
     ).order_by(
         order_case,
-        User.full_name
+        db.func.lower(User.last_name_token),
+        db.func.lower(User.full_name),
+        db.func.lower(User.username)
     ).paginate(page=page, per_page=20, error_out=False)
     
     return render_template('departments/_user_list_partial.html',
@@ -2594,8 +2598,13 @@ def return_device(device_id):
     if return_option == 'manager':
         manager_user = device.manager
         dept = manager_user.department_info if manager_user else None
-        if dept and dept.manager:
-            receiver_user = dept.manager
+        
+        # Traverse up the hierarchy to find a department manager
+        while dept:
+            if dept.manager:
+                receiver_user = dept.manager
+                break
+            dept = dept.parent
     elif return_option == 'admin':
         if current_user and current_user.role == 'admin':
             receiver_user = current_user
@@ -5313,7 +5322,48 @@ def proposal_action(proposal_id):
 
             p.status = 'rejected'
             p.rejection_reason = note
+            
+            log = OrderTracking(
+                proposal_id=p.id,
+                status_content="Từ chối đề xuất",
+                note=f"Lý do: {note}",
+                updated_by=current_user.id
+            )
+            db.session.add(log)
+            
             flash(f'Đã từ chối đề xuất. Lý do: {note}', 'warning')
+
+        elif action == 'resubmit':
+            if p.status != 'rejected':
+                flash('Chỉ có thể gửi lại đề xuất khi đã bị từ chối.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+            if current_user.id != p.created_by and current_user.role != 'admin':
+                flash('Chỉ người tạo mới có thể gửi lại đề xuất này.', 'danger')
+                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
+            
+            p.status = 'new'
+            p.rejection_reason = None
+            p.team_lead_approved_at = None
+            p.team_lead_approver_id = None
+            p.it_consulted_at = None
+            p.it_consultant_id = None
+            p.it_consultation_note = None
+            p.finance_reviewed_at = None
+            p.finance_reviewer_id = None
+            p.finance_review_note = None
+            p.director_approved_at = None
+            p.director_approver_id = None
+            p.director_approval_note = None
+            p.current_stage_deadline = None
+            
+            log = OrderTracking(
+                proposal_id=p.id,
+                status_content="Gửi duyệt lại",
+                note=note or "Đề xuất đã được cập nhật và gửi duyệt lại.",
+                updated_by=current_user.id
+            )
+            db.session.add(log)
+            flash('Đã gửi duyệt lại thành công.', 'success')
 
         db.session.commit()
     except Exception as e:
@@ -5331,8 +5381,6 @@ def config_proposal_detail(proposal_id):
     items = ConfigProposalItem.query.filter_by(proposal_id=proposal_id).order_by(ConfigProposalItem.order_no).all()
     logs = OrderTracking.query.filter_by(proposal_id=proposal_id).order_by(OrderTracking.updated_at.desc()).all()
     return render_template('config_proposal_detail.html', p=p, items=items, logs=logs, current_permissions=_get_current_permissions())
-
-@app.route('/config_proposals/<int:proposal_id>/add_tracking', methods=['POST'])
 
 @app.route('/config_proposals/tracking/<int:tracking_id>/edit', methods=['POST'])
 def edit_proposal_order_tracking(tracking_id):
