@@ -54,7 +54,7 @@ def seed_test_users():
             if not user:
                 user = User(
                     username=u_data['username'],
-                    password_hash=generate_password_hash('123456'),
+                    password=generate_password_hash('123456'),
                     full_name=u_data['full_name'],
                     email=f"{u_data['username']}@example.com",
                     role='User' # Default role string column (legacy) - we depend on UserRole table now?

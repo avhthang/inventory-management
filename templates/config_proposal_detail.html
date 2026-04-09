@@ -5,14 +5,19 @@
   <h3>Chi tiết đề xuất #{{ p.id }}</h3>
   <div>
     <!-- Allow Edit if Creator/Admin (anytime) OR IT (team_approved) OR New/Rejected (edit perm) -->
-    {% set can_edit = false %}
-    {% if current_user and current_user.role == 'Admin' or (p.created_by and p.created_by == (current_user.id if
-    current_user else None)) %}
-    {% set can_edit = true %}
-    {% elif p.status == 'team_approved' and 'config_proposals.consult_it' in current_permissions %}
-    {% set can_edit = true %}
-    {% elif p.status in ['new', 'rejected'] and 'config_proposals.edit' in current_permissions %}
-    {% set can_edit = true %}
+    {% set can_edit = False %}
+    {% if current_user and (current_user.role|lower == 'admin' or p.created_by == current_user.id) %}
+    {% set can_edit = True %}
+    {% endif %}
+    
+    {# Also allow IT to edit if status is team_approved or it_consulted #}
+    {% if p.status in ['team_approved', 'it_consulted'] and 'config_proposals.consult_it' in current_permissions %}
+    {% set can_edit = True %}
+    {% endif %}
+    
+    {# Allow users with config_proposals.edit permission if status is new or rejected #}
+    {% if p.status in ['new', 'rejected'] and 'config_proposals.edit' in current_permissions %}
+    {% set can_edit = True %}
     {% endif %}
 
     {% if can_edit %}
@@ -59,8 +64,7 @@
       ('new', 'Mới tạo'),
       ('team_approved', 'Phê duyệt Trưởng BP'),
       ('it_consulted', 'Tư vấn IT'),
-      ('finance_reviewed', 'Phê duyệt TC'),
-      ('approved', 'Giám đốc phê duyệt')
+      ('approved', 'Lãnh đạo phê duyệt')
       ] %}
       {% set ns = namespace(current_step_idx=-1) %}
       {% for s_code, s_label in steps %}
@@ -69,8 +73,8 @@
       {% endif %}
       {% endfor %}
 
-      <!-- If status is completed, it's virtually "after" Approved (index 4) -->
-      {% if p.status == 'completed' %}{% set ns.current_step_idx = 4 %}{% endif %}
+      <!-- If status is completed, it's virtually "after" Approved (index 3) -->
+      {% if p.status == 'completed' %}{% set ns.current_step_idx = 3 %}{% endif %}
 
       <!-- Rejected special case -->
       {% if p.status == 'rejected' %}
@@ -116,14 +120,9 @@
           {% set step_handler = p.it_consultant.full_name if p.it_consultant else step_handler %}
           {% set step_info = 'Đã tư vấn: ' ~ (p.it_consulted_at|localtime('%d/%m/%Y %H:%M')) %}
           {% endif %}
-          {% elif s_code == 'finance_reviewed' %}
-          {% set step_handler = 'Bộ phận Tài chính' %}
-          {% if p.finance_reviewed_at %}
-          {% set step_handler = p.finance_reviewer.full_name if p.finance_reviewer else step_handler %}
-          {% set step_info = 'Đã duyệt: ' ~ (p.finance_reviewed_at|localtime('%d/%m/%Y %H:%M')) %}
-          {% endif %}
+
           {% elif s_code == 'approved' %}
-          {% set step_handler = 'Giám đốc' %}
+          {% set step_handler = 'Lãnh đạo' %}
           {% if p.director_approved_at %}
           {% set step_handler = p.director_approver.full_name if p.director_approver else step_handler %}
           {% set step_info = 'Đã phê duyệt: ' ~ (p.director_approved_at|localtime('%d/%m/%Y %H:%M')) %}
@@ -419,12 +418,18 @@
             }} ({{ p.proposer_unit }})</div>
           <div class="col-md-6"><strong>Phạm vi:</strong> {{ p.scope }}</div>
           <div class="col-md-6"><strong>Loại tiền:</strong> {{ p.currency }}</div>
+          <div class="col-md-6"><strong>Tiến độ / Ưu tiên:</strong> 
+            {% if p.priority == 'Khẩn cấp' %}<span class="badge bg-danger">Khẩn cấp</span>
+            {% elif p.priority == 'Cao' %}<span class="badge bg-warning text-dark">Cao</span>
+            {% elif p.priority == 'Thấp' %}<span class="badge bg-secondary">Thấp</span>
+            {% else %}<span class="badge bg-success">Trung bình</span>{% endif %}
+          </div>
           <div class="col-md-6"><strong>Trạng thái:</strong> 
             {% if p.status == 'new' %}<span class="badge bg-secondary">Mới tạo</span>
             {% elif p.status == 'team_approved' %}<span class="badge bg-info">Đã duyệt (BP)</span>
             {% elif p.status == 'it_consulted' %}<span class="badge bg-primary">Đã tư vấn (IT)</span>
-            {% elif p.status == 'finance_reviewed' %}<span class="badge bg-warning text-dark">Đã duyệt (TC)</span>
-            {% elif p.status == 'approved' %}<span class="badge bg-success">Đã duyệt (GĐ)</span>
+
+            {% elif p.status == 'approved' %}<span class="badge bg-success">Đã duyệt (Lãnh đạo)</span>
             {% elif p.status == 'purchasing' %}<span class="badge bg-primary">Đang mua sắm</span>
             {% elif p.status == 'payment_done' %}<span class="badge bg-info">Đã thanh toán</span>
             {% elif p.status == 'goods_received' %}<span class="badge bg-info">Đã nhận hàng (IT)</span>
@@ -435,7 +440,7 @@
           </div>
           <div class="col-12"><strong>Nội dung/Ghi chú:</strong> {{ p.notes or 'Không có' }}</div>
           <div class="col-12">
-            <strong>NCC / Báo giá:</strong>
+            <strong>Thông tin nhà cung cấp:</strong>
             <div class="bg-light p-2 rounded border mt-1">{{ p.supplier_info or 'Chưa có thông tin' }}</div>
           </div>
         </div>
@@ -487,7 +492,7 @@
     </div>
 
     <!-- Action Area for Approval Workflow (Steps 1-4) -->
-    {% if p.status in ['new', 'team_approved', 'it_consulted', 'finance_reviewed', 'rejected'] %}
+    {% if p.status in ['new', 'team_approved', 'it_consulted', 'rejected'] %}
     <div class="card mb-3 border-primary">
       <div class="card-header bg-primary text-white"><strong><i class="bi bi-lightning-charge"></i> Thao tác xử
           lý</strong></div>
@@ -514,26 +519,26 @@
             <!-- Step 2: IT Consult -->
             {% if p.status == 'team_approved' and ('config_proposals.consult_it' in current_permissions or
             current_user.role == 'admin') %}
-            <!-- Note: IT edits directly via 'Sửa' button now. This action finishes consultation. -->
-            <button type="button" class="btn btn-info text-white" data-bs-toggle="collapse"
-              data-bs-target="#itInfoUpdate">
-              Cập nhật Tư vấn & Hoàn tất
-            </button>
+            <div class="d-flex align-items-center">
+              <button type="submit" name="action" value="consult_it" class="btn btn-info text-white me-3">
+                <i class="bi bi-send"></i> Hoàn thành Tư vấn & Gửi
+              </button>
+              <div class="form-check mb-0 mt-0">
+                <input class="form-check-input" type="checkbox" name="is_from_stock" id="isFromStock">
+                <label class="form-check-label fw-bold text-success mt-1" for="isFromStock">
+                  <i class="bi bi-box-seam"></i> Cấp từ kho có sẵn
+                </label>
+              </div>
+            </div>
             {% endif %}
 
-            <!-- Step 3: Finance -->
-            {% if p.status == 'it_consulted' and ('config_proposals.review_finance' in current_permissions or
-            current_user.role == 'admin') %}
-            <button type="submit" name="action" value="review_finance" class="btn btn-success">
-              <i class="bi bi-check-circle"></i> Xác nhận Ngân sách (TC)
-            </button>
-            {% endif %}
 
-            <!-- Step 4: Director -->
-            {% if p.status == 'finance_reviewed' and ('config_proposals.approve_director' in current_permissions or
+
+            <!-- Step 3: Director -->
+            {% if p.status == 'it_consulted' and ('config_proposals.approve_director' in current_permissions or
             current_user.role == 'admin') %}
             <button type="submit" name="action" value="approve_director" class="btn btn-success">
-              <i class="bi bi-check-circle-fill"></i> Phê duyệt (Giám đốc)
+              <i class="bi bi-check-circle-fill"></i> Phê duyệt (Lãnh đạo)
             </button>
             {% endif %}
 
@@ -548,7 +553,11 @@
             {% endif %}
 
             <!-- Reject Button (Available for approvers) -->
-            {% if p.status != 'rejected' %}
+            {% set can_reject = false %}
+            {% if p.status == 'new' and ('config_proposals.approve_team' in current_permissions or current_user.role == 'admin') %}{% set can_reject = true %}{% endif %}
+            {% if p.status == 'it_consulted' and ('config_proposals.approve_director' in current_permissions or current_user.role == 'admin') %}{% set can_reject = true %}{% endif %}
+            
+            {% if can_reject %}
             <button type="submit" name="action" value="reject" class="btn btn-outline-danger ms-auto"
               onclick="return confirm('Bạn chắc chắn muốn từ chối?')">
               <i class="bi bi-x-circle"></i> Từ chối
@@ -556,22 +565,7 @@
             {% endif %}
           </div>
 
-          <!-- Extra form for IT to update supplier info inline if needed -->
-          {% if p.status == 'team_approved' %}
-          <div class="collapse mt-3" id="itInfoUpdate">
-            <div class="card card-body">
-              <p class="small text-muted mb-2">
-                <i class="bi bi-info-circle"></i> Nếu cần sửa cấu hình/giá, hãy dùng nút <strong>"Sửa"</strong> ở góc
-                trên trước khi hoàn tất.
-              </p>
-              <label class="form-label">Cập nhật thông tin NCC / Ghi chú kỹ thuật:</label>
-              <textarea name="supplier_info" class="form-control mb-2" rows="3">{{ p.supplier_info }}</textarea>
-              <button type="submit" name="action" value="consult_it" class="btn btn-primary">
-                <i class="bi bi-send"></i> Hoàn thành Tư vấn & Gửi
-              </button>
-            </div>
-          </div>
-          {% endif %}
+
         </form>
       </div>
     </div>
@@ -618,25 +612,12 @@
             }}</small>{% endif %}
         </li>
         {% endif %}
-        <!-- Finance -->
-        {% if p.finance_reviewed_at %}
-        <li class="list-group-item list-group-item-warning">
-          <div class="d-flex w-100 justify-content-between">
-            <span><i class="bi bi-check"></i> Duyệt TC</span>
-            <small>{{ p.finance_reviewed_at|localtime }}</small>
-          </div>
-          {% if p.finance_reviewer %}
-          <small class="d-block text-muted">Người duyệt: {{ p.finance_reviewer.full_name }}</small>
-          {% endif %}
-          {% if p.finance_review_note %}<small class="d-block text-muted fst-italic">Ghi chú: {{ p.finance_review_note
-            }}</small>{% endif %}
-        </li>
-        {% endif %}
+
         <!-- Director -->
         {% if p.director_approved_at %}
         <li class="list-group-item list-group-item-success">
           <div class="d-flex w-100 justify-content-between">
-            <span><i class="bi bi-check-all"></i> Giám đốc duyệt</span>
+            <span><i class="bi bi-check-circle-fill"></i> Lãnh đạo duyệt</span>
             <small>{{ p.director_approved_at|localtime }}</small>
           </div>
           {% if p.director_approver %}

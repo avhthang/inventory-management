@@ -60,6 +60,9 @@
               </ul>
             </th>
             <th class="text-center" style="white-space: nowrap;">
+              <strong>Ưu tiên</strong>
+            </th>
+            <th class="text-center" style="white-space: nowrap;">
               <strong>Trạng thái</strong>
               <button type="button"
                 class="btn btn-sm {% if filter_status %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
@@ -86,12 +89,18 @@
             <td class="text-start">{{ p.proposal_date.strftime('%d-%m-%Y') }}</td>
             <td class="text-start">{{ p.proposer_name or '' }}</td>
             <td class="text-start">{{ p.proposer_unit or '' }}</td>
-            <td class="text-start">
+            <td class="text-center">
+              {% if p.priority == 'Khẩn cấp' %}<span class="badge bg-danger">Khẩn cấp</span>
+              {% elif p.priority == 'Cao' %}<span class="badge bg-warning text-dark">Cao</span>
+              {% elif p.priority == 'Thấp' %}<span class="badge bg-secondary">Thấp</span>
+              {% else %}<span class="badge bg-success">Trung bình</span>{% endif %}
+            </td>
+            <td class="text-center">
               {% if p.status == 'new' %}<span class="badge bg-secondary">Mới tạo</span>
               {% elif p.status == 'team_approved' %}<span class="badge bg-info">Đã duyệt (BP)</span>
               {% elif p.status == 'it_consulted' %}<span class="badge bg-primary">Đã tư vấn (IT)</span>
-              {% elif p.status == 'finance_reviewed' %}<span class="badge bg-warning text-dark">Đã duyệt (TC)</span>
-              {% elif p.status == 'approved' %}<span class="badge bg-success">Đã duyệt (GĐ)</span>
+
+              {% elif p.status == 'approved' %}<span class="badge bg-success">Đã duyệt (Lãnh đạo)</span>
               {% elif p.status == 'purchasing' %}<span class="badge bg-primary">Đang mua sắm</span>
               {% elif p.status == 'payment_done' %}<span class="badge bg-info">Đã thanh toán</span>
               {% elif p.status == 'goods_received' %}<span class="badge bg-info">Đã nhận hàng (IT)</span>
@@ -107,10 +116,16 @@
                   href="{{ url_for('config_proposal_detail', proposal_id=p.id) }}"><i class="bi bi-eye"></i></a>
 
                 {% set perms = current_permissions or [] %}
-                {% set is_creator = p.created_by and p.created_by == session['user_id'] %}
-                {% set can_edit = (session['role'] == 'Admin' or is_creator) or (p.status == 'team_approved' and
-                'config_proposals.consult_it' in perms) or (p.status in ['new', 'rejected'] and 'config_proposals.edit'
-                in perms) %}
+                {% set is_creator = p.created_by and current_user and p.created_by == current_user.id %}
+                {% set is_admin = current_user and current_user.role|lower == 'admin' %}
+                {% set can_edit = is_admin or is_creator or (p.status in ['team_approved', 'it_consulted'] and 'config_proposals.consult_it' in perms) or (p.status in ['new', 'rejected'] and 'config_proposals.edit' in perms) %}
+
+                {% if p.status == 'it_consulted' and ('config_proposals.approve_director' in perms or session['role'] == 'admin') %}
+                <form method="post" action="{{ url_for('proposal_action', proposal_id=p.id) }}" class="d-inline m-0 p-0">
+                  <input type="hidden" name="action" value="approve_director">
+                  <button type="submit" class="btn btn-outline-success ms-1" title="Duyệt nhanh" onclick="return confirm('Duyệt nhanh đề xuất?')"><i class="bi bi-check2-circle"></i></button>
+                </form>
+                {% endif %}
 
                 {% if can_edit %}
                 <a class="btn btn-outline-warning ms-1" title="Sửa"

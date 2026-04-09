@@ -33,9 +33,18 @@
       <label class="form-label">Đơn vị đề xuất</label>
       <input type="text" class="form-control" name="proposer_unit" readonly>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-3">
       <label class="form-label">Thời hạn cần thiết bị</label>
       <input type="date" class="form-control" name="required_date">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Mức độ ưu tiên</label>
+      <select class="form-select" name="priority">
+        <option value="Thấp">Thấp</option>
+        <option value="Trung bình" selected>Trung bình</option>
+        <option value="Cao">Cao</option>
+        <option value="Khẩn cấp">Khẩn cấp</option>
+      </select>
     </div>
     <div class="col-12">
       <label class="form-label">Yêu cầu chung</label>
@@ -58,17 +67,7 @@
       <label class="form-label">VAT (%)</label>
       <input type="number" class="form-control" name="vat_percent" id="vat_percent" step="0.01" value="10">
     </div>
-    <div class="col-md-3">
-      <label class="form-label">Trạng thái</label>
-      <select class="form-select" name="status">
-        <option value="Mới tạo" selected>Mới tạo</option>
-        <option value="Lưu nháp">Lưu nháp</option>
-        <option value="Đang xin ý kiến">Đang xin ý kiến</option>
-        <option value="Đang mua hàng">Đang mua hàng</option>
-        <option value="Hoàn thành">Hoàn thành</option>
-        <option value="Hủy">Hủy</option>
-      </select>
-    </div>
+
   </div>
 
   <div class="card mb-3">
@@ -84,7 +83,7 @@
             <tr>
               <th style="width:70px">STT</th>
               <th>Tên sản phẩm</th>
-              <th style="width:160px">Link tham khảo</th>
+              <th style="width:160px">Tham khảo</th>
               <th style="width:140px">Bảo hành</th>
               <th style="width:120px">Số lượng</th>
               <th style="width:160px">Đơn giá</th>

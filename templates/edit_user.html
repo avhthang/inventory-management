@@ -64,8 +64,20 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-3"><label class="form-label">Chức vụ</label><input type="text" name="position"
-                            class="form-control" value="{{ user.position or '' }}"></div>
+                    <div class="mb-3">
+                        <label class="form-label">Chức vụ</label>
+                        <input list="positionList" type="text" name="position" class="form-control" value="{{ user.position or '' }}">
+                        <datalist id="positionList">
+                            <option value="Nhân viên">
+                            <option value="Thực tập sinh">
+                            <option value="Trưởng nhóm">
+                            <option value="Trưởng phòng">
+                            <option value="Trưởng phòng cấp cao">
+                            <option value="Phó giám đốc">
+                            <option value="Giám đốc">
+                            <option value="Kế toán trưởng">
+                        </datalist>
+                    </div>
                     <div class="mb-3"><label class="form-label">Số điện thoại</label><input type="text"
                             name="phone_number" class="form-control" value="{{ user.phone_number or '' }}"></div>
                     <div class="mb-3"><label class="form-label">Ghi chú</label><textarea name="notes"

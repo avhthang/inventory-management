@@ -964,8 +964,10 @@ class ConfigProposal(db.Model):
     scope = db.Column(db.String(50))  # Dùng chung | Cá nhân
     quantity = db.Column(db.Integer, default=1)  # Số lượng bộ thiết bị
     currency = db.Column(db.String(10), default='VND')
-    status = db.Column(db.String(30), default='new')  # new, team_approved, it_consulted, finance_reviewed, approved, purchasing, payment_done, goods_received, handed_over, completed, rejected
+    status = db.Column(db.String(30), default='new')  # new, team_approved, it_consulted, approved, purchasing, payment_done, goods_received, handed_over, completed, rejected
     purchase_status = db.Column(db.String(30), default='Lấy báo giá')  # Deprecated in favor of workflow status, but kept for legacy
+    priority = db.Column(db.String(50), default='Trung bình')
+    is_from_stock = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)
     supplier_info = db.Column(db.Text) # Changed to Text for detailed info
     subtotal = db.Column(db.Float, default=0.0)
@@ -5040,6 +5042,7 @@ def add_config_proposal():
                 proposer_name=proposer_name,
                 proposer_unit=proposer_unit,
                 scope=scope,
+                priority=request.form.get('priority') or 'Trung bình',
                 vat_percent=vat_percent,
                 currency=currency,
                 # status=status argument removed to favor default 'new' below or use explicit 'new'
@@ -5185,25 +5188,18 @@ def proposal_action(proposal_id):
             supplier_info = request.form.get('supplier_info')
             if supplier_info:
                 p.supplier_info = supplier_info
+                
+            is_from_stock = request.form.get('is_from_stock') == 'on'
+            p.is_from_stock = is_from_stock
             
             p.status = 'it_consulted'
             p.it_consultant_id = current_user.id
             p.it_consulted_at = datetime.utcnow()
             p.it_consultation_note = note
-            p.current_stage_deadline = get_deadline(2) # SLA for Finance: 48h
-            flash('Đã hoàn thành tư vấn kỹ thuật. Chuyển sang Tài chính.', 'success')
-
-        elif action == 'review_finance':
-            if 'config_proposals.review_finance' not in permissions and current_user.role != 'admin':
-                flash('Bạn không có quyền kiểm tra ngân sách.', 'danger')
-                return redirect(url_for('config_proposal_detail', proposal_id=p.id))
-            
-            p.status = 'finance_reviewed'
-            p.finance_reviewer_id = current_user.id
-            p.finance_reviewed_at = datetime.utcnow()
-            p.finance_review_note = note
             p.current_stage_deadline = get_deadline(2) # SLA for Director: 48h
-            flash('Đã xác nhận ngân sách. Chuyển Giám đốc phê duyệt.', 'success')
+            flash('Đã hoàn thành tư vấn kỹ thuật. Chuyển sang Giám đốc phê duyệt.', 'success')
+
+
 
         elif action == 'approve_director':
             if 'config_proposals.approve_director' not in permissions and current_user.role != 'admin':
@@ -5214,10 +5210,15 @@ def proposal_action(proposal_id):
             p.director_approver_id = current_user.id
             p.director_approved_at = datetime.utcnow()
             p.director_approval_note = note
-            # Finalize deadlines? Or set next deadline? 
-            # Since it's a checklist now, deadlines are trickier. Let's set a general "Completion" deadline?
-            p.current_stage_deadline = get_deadline(14) # ~2 weeks for full purchasing process
-            flash('Đã phê duyệt đề xuất. Các bộ phận liên quan vui lòng thực hiện checklist mua sắm.', 'success')
+            
+            if p.is_from_stock:
+                p.status = 'completed'
+                p.current_stage_deadline = None
+                flash('Đã phê duyệt đề xuất. Thiết bị được cấp từ kho và quy trình đã hoàn tất.', 'success')
+            else:
+                p.status = 'approved'
+                p.current_stage_deadline = get_deadline(14) # ~2 weeks for full purchasing process
+                flash('Đã phê duyệt đề xuất. Các bộ phận liên quan vui lòng thực hiện checklist mua sắm.', 'success')
 
         # --- Post-Approval Checklist Actions ---
         # Any of these can happen if status is 'approved'.
@@ -5311,9 +5312,7 @@ def proposal_action(proposal_id):
             # Simplified reject logic
             can_reject = False
             if p.status == 'new' and (is_manager or 'config_proposals.approve_team' in permissions): can_reject = True
-            elif p.status == 'team_approved' and ('config_proposals.consult_it' in permissions): can_reject = True
-            elif p.status == 'it_consulted' and ('config_proposals.review_finance' in permissions): can_reject = True
-            elif p.status == 'finance_reviewed' and ('config_proposals.approve_director' in permissions): can_reject = True
+            elif p.status == 'it_consulted' and ('config_proposals.approve_director' in permissions): can_reject = True
             elif current_user.role == 'admin': can_reject = True
             
             if not can_reject:
@@ -5456,6 +5455,7 @@ def clone_config_proposal(proposal_id):
         proposer_name=p.proposer_name,
         proposer_unit=p.proposer_unit,
         scope=p.scope,
+        priority=p.priority,
         currency=p.currency,
         status='new', # Reset to new
         subtotal=p.subtotal,
@@ -5557,6 +5557,7 @@ def edit_config_proposal(proposal_id):
             p.proposer_name = request.form.get('proposer_name')
             p.proposer_unit = request.form.get('proposer_unit')
             p.scope = request.form.get('scope')
+            p.priority = request.form.get('priority') or p.priority
             p.currency = request.form.get('currency') or 'VND'
             # Status update via edit removed to prevent workflow disruption.
             # p.status should only change via action buttons.
@@ -5619,7 +5620,42 @@ def edit_config_proposal(proposal_id):
             p.vat_amount = round(grand_subtotal * (p.vat_percent / 100.0), 2)
             p.total_amount = round(grand_subtotal + p.vat_amount, 2)
             db.session.commit()
-            flash('Đã cập nhật đề xuất.', 'success')
+            
+            if request.form.get('submit_action') == 'resubmit' and p.status == 'rejected':
+                p.status = 'new'
+                p.rejection_reason = None
+                p.team_lead_approved_at = None
+                p.team_lead_approver_id = None
+                p.it_consulted_at = None
+                p.it_consultant_id = None
+                p.it_consultation_note = None
+                p.finance_reviewed_at = None
+                p.finance_reviewer_id = None
+                p.finance_review_note = None
+                p.director_approved_at = None
+                p.director_approver_id = None
+                p.director_approval_note = None
+                p.current_stage_deadline = None
+                
+                log_update = OrderTracking(
+                    proposal_id=p.id,
+                    status_content="Sửa thông tin đề xuất",
+                    note="Đã cập nhật lại thông tin cấu hình/giá.",
+                    updated_by=current_user.id
+                )
+                db.session.add(log_update)
+                
+                log_resubmit = OrderTracking(
+                    proposal_id=p.id,
+                    status_content="Gửi duyệt lại",
+                    note="Đề xuất đã được gửi duyệt lại.",
+                    updated_by=current_user.id
+                )
+                db.session.add(log_resubmit)
+                db.session.commit()
+                flash('Đã lưu cấu hình và khởi tạo lại phiên duyệt.', 'success')
+            else:
+                flash('Đã cập nhật đề xuất.', 'success')
             return redirect(url_for('config_proposal_detail', proposal_id=p.id))
         except Exception as e:
             db.session.rollback()
