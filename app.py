@@ -1246,12 +1246,68 @@ def _log_audit(entity_type, entity_id, old_dict, new_dict):
 # --- Ensure tables exist and run lightweight schema migrations ---
 _tables_initialized = False
 
+def _sql_literal(value):
+    """Render a safe SQL literal for simple defaults used in migrations."""
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return "'" + str(value).replace("'", "''") + "'"
+
+def ensure_missing_model_columns():
+    """Check all existing tables and add newly introduced model columns."""
+    with app.app_context():
+        try:
+            inspector = inspect(db.engine)
+            existing_tables = set(inspector.get_table_names())
+            model_tables = db.metadata.tables
+
+            with db.engine.connect() as conn:
+                for table_name, table in model_tables.items():
+                    if table_name not in existing_tables:
+                        continue
+
+                    db_columns = {col['name'] for col in inspector.get_columns(table_name)}
+                    for col in table.columns:
+                        if col.primary_key or col.name in db_columns:
+                            continue
+
+                        # Avoid risky NOT NULL adds when no default exists.
+                        default_value = None
+                        has_scalar_default = bool(col.default is not None and getattr(col.default, 'is_scalar', False))
+                        if has_scalar_default:
+                            default_value = col.default.arg
+
+                        if not col.nullable and default_value is None:
+                            print(f"[SKIP] {table_name}.{col.name} is NOT NULL without default")
+                            continue
+
+                        col_type = col.type.compile(dialect=db.engine.dialect)
+                        stmt = f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {col_type}'
+                        if default_value is not None:
+                            stmt += f" DEFAULT {_sql_literal(default_value)}"
+                        if not col.nullable:
+                            stmt += " NOT NULL"
+
+                        try:
+                            conn.execute(text(stmt))
+                            conn.commit()
+                            print(f"[OK] Added missing column {table_name}.{col.name}")
+                        except Exception as e:
+                            # Keep startup resilient if a specific column cannot be added.
+                            print(f"[WARN] Could not add {table_name}.{col.name}: {e}")
+        except Exception as e:
+            print(f"Schema check error: {e}")
+
 @app.before_request
 def ensure_tables_once():
     global _tables_initialized
     if not _tables_initialized:
         try:
             db.create_all()
+            ensure_missing_model_columns()
             # Skip SQLite-specific migrations when using external DBs (e.g., PostgreSQL)
             if is_external_database():
                 _tables_initialized = True
