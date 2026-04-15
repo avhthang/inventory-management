@@ -761,6 +761,23 @@ def migrate_missing_columns_v3():
 
 migrate_missing_columns_v3()
 
+def migrate_user_avatar():
+    with app.app_context():
+        try:
+            from sqlalchemy import inspect, text
+            inspector = inspect(db.engine)
+            if 'user' in inspector.get_table_names():
+                cols = {c['name'] for c in inspector.get_columns('user')}
+                if 'avatar' not in cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(text("ALTER TABLE user ADD COLUMN avatar VARCHAR(255)"))
+                        conn.commit()
+                        print("[OK] Added avatar to user table")
+        except Exception as e:
+            print(f"Migration error (avatar): {e}")
+
+migrate_user_avatar()
+
 # Ensure default admin exists on startup
 with app.app_context():
     try:
@@ -826,6 +843,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+    avatar = db.Column(db.String(255))
     full_name = db.Column(db.String(120))
     last_name_token = db.Column(db.String(120))
     email = db.Column(db.String(120), unique=True)
@@ -1880,7 +1898,7 @@ def login():
         username = request.form['username']
         password = request.form['password']
         remember = True if request.form.get('remember') else False
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter(func.lower(User.username) == func.lower(username)).first()
         if user and check_password_hash(user.password, password):
             # Kiểm tra trạng thái người dùng
             if user.status in ['Nghỉ không lương', 'Nghỉ việc']:
@@ -1904,6 +1922,30 @@ def logout():
     session.pop('user_id', None)
     flash('Bạn đã đăng xuất.', 'info')
     return redirect(url_for('login'))
+
+@app.route('/profile', methods=['GET', 'POST'])
+def user_profile():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    
+    if request.method == 'POST':
+        file = request.files.get('avatar')
+        if file and file.filename != '':
+            filename = secure_filename(file.filename)
+            import uuid
+            ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+            new_filename = f"{user.id}_{uuid.uuid4().hex}.{ext}" if ext else f"{user.id}_{uuid.uuid4().hex}"
+            
+            upload_dir = os.path.join(app.root_path, 'static', 'uploads', 'avatars')
+            os.makedirs(upload_dir, exist_ok=True)
+            file.save(os.path.join(upload_dir, new_filename))
+            
+            user.avatar = new_filename
+            db.session.commit()
+            flash('Cập nhật thông tin/ảnh đại diện thành công!', 'success')
+            return redirect(url_for('user_profile'))
+            
+    return render_template('profile.html', user=user)
 
 @app.route('/save_dashboard_device_types', methods=['POST'])
 def save_dashboard_device_types():
@@ -3437,7 +3479,10 @@ def user_list():
 
     query = User.query
     if filter_username:
-        query = query.filter(User.username.ilike(f'%{filter_username}%'))
+        query = query.filter(or_(
+            User.username.ilike(f'%{filter_username}%'),
+            User.full_name.ilike(f'%{filter_username}%')
+        ))
     if filter_role:
         query = query.filter_by(role=filter_role)
     if filter_department:

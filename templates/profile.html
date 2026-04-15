@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Thông tin Cá nhân{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-person-vcard text-white"></i> Thông tin Người Dùng</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('user_profile') }}" method="POST" enctype="multipart/form-data">
+                    <div class="row">
+                        <!-- Cột trái: Ảnh đại diện -->
+                        <div class="col-md-4 text-center mb-4">
+                            {% if current_user.avatar %}
+                                <img src="{{ url_for('static', filename='uploads/avatars/' + current_user.avatar) }}" 
+                                     alt="Avatar" class="rounded-circle img-thumbnail mb-3" 
+                                     style="width: 150px; height: 150px; object-fit: cover;">
+                            {% else %}
+                                <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center mx-auto mb-3" 
+                                     style="width: 150px; height: 150px; font-size: 4rem;">
+                                    <i class="bi bi-person"></i>
+                                </div>
+                            {% endif %}
+                            <div class="mb-3 text-start">
+                                <label for="avatar" class="form-label">Cập nhật ảnh đại diện</label>
+                                <input class="form-control form-control-sm" type="file" id="avatar" name="avatar" accept="image/*">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-save"></i> Cập nhật Ảnh</button>
+                        </div>
+                        
+                        <!-- Cột phải: Thông tin -->
+                        <div class="col-md-8">
+                            <h5 class="border-bottom pb-2 mb-3">Thông tin chung</h5>
+                            <dl class="row">
+                                <dt class="col-sm-4 text-muted">Tên đăng nhập</dt>
+                                <dd class="col-sm-8 fw-bold">{{ user.username }}</dd>
+
+                                <dt class="col-sm-4 text-muted">Họ và Tên</dt>
+                                <dd class="col-sm-8">{{ user.full_name or 'Chưa cập nhật' }}</dd>
+
+                                <dt class="col-sm-4 text-muted">Email</dt>
+                                <dd class="col-sm-8">{{ user.email or 'Chưa cập nhật' }}</dd>
+
+                                <dt class="col-sm-4 text-muted">Điện thoại</dt>
+                                <dd class="col-sm-8">{{ user.phone_number or 'Chưa cập nhật' }}</dd>
+
+                                <dt class="col-sm-4 text-muted">Phòng ban</dt>
+                                <dd class="col-sm-8">
+                                    {% if user.department_info %}
+                                        {{ user.department_info.name }}
+                                    {% else %}
+                                        Chưa có phòng ban
+                                    {% endif %}
+                                </dd>
+
+                                <dt class="col-sm-4 text-muted">Vị trí / Chức vụ</dt>
+                                <dd class="col-sm-8">{{ user.position or 'Chưa cập nhật' }}</dd>
+
+                                <dt class="col-sm-4 text-muted">Trạng thái</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge {% if user.status == 'Đang làm' %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {{ user.status }}
+                                    </span>
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
