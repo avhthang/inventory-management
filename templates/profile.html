@@ -59,12 +59,20 @@
                                 <dd class="col-sm-8">{{ user.position or 'Chưa cập nhật' }}</dd>
 
                                 <dt class="col-sm-4 text-muted">Trạng thái</dt>
-                                <dd class="col-sm-8">
+                                <dd class="col-sm-8 mb-4">
                                     <span class="badge {% if user.status == 'Đang làm' %}bg-success{% else %}bg-secondary{% endif %}">
                                         {{ user.status }}
                                     </span>
                                 </dd>
                             </dl>
+                            <h5 class="border-bottom pb-2 mb-3 mt-2">Cài đặt Thông báo</h5>
+                            <div class="mb-3 row">
+                                <label for="telegram_chat_id" class="col-sm-4 col-form-label text-muted">Telegram Chat ID</label>
+                                <div class="col-sm-8">
+                                    <input type="text" class="form-control" id="telegram_chat_id" name="telegram_chat_id" value="{{ user.telegram_chat_id or '' }}" placeholder="VD: 123456789">
+                                    <div class="form-text mt-1"><i class="bi bi-info-circle"></i> Chat ID để bot hệ thống gửi tin nhắn cập nhật trực tiếp đến bạn. </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </form>

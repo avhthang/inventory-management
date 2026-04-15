@@ -844,6 +844,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     avatar = db.Column(db.String(255))
+    telegram_chat_id = db.Column(db.String(100))
     full_name = db.Column(db.String(120))
     last_name_token = db.Column(db.String(120))
     email = db.Column(db.String(120), unique=True)
@@ -861,6 +862,55 @@ class User(db.Model):
     offboard_date = db.Column(db.Date)
     given_handovers = db.relationship('DeviceHandover', foreign_keys='DeviceHandover.giver_id', back_populates='giver', lazy='dynamic')
     received_handovers = db.relationship('DeviceHandover', foreign_keys='DeviceHandover.receiver_id', back_populates='receiver', lazy='dynamic')
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message = db.Column(db.String(255), nullable=False)
+    link = db.Column(db.String(255))
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user = db.relationship('User', backref=db.backref('notifications', order_by='Notification.created_at.desc()', lazy='dynamic'))
+
+import urllib.request
+import urllib.parse
+import json
+import threading
+
+def send_telegram_message(chat_id, text):
+    token = os.environ.get('TELEGRAM_BOT_TOKEN')
+    if not token or not chat_id:
+        return
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = json.dumps({'chat_id': str(chat_id), 'text': text}).encode('utf-8')
+    req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            pass
+    except Exception as e:
+        print(f"Telegram error: {e}")
+
+def notify_user(user_id, message, link=""):
+    try:
+        user = User.query.get(user_id)
+        if not user: return
+        notif = Notification(user_id=user_id, message=message, link=link)
+        db.session.add(notif)
+        db.session.commit()
+        if user.telegram_chat_id:
+            text_msg = f"THÔNG BÁO\n{message}"
+            threading.Thread(target=send_telegram_message, args=(user.telegram_chat_id, text_msg)).start()
+    except Exception as e:
+        print(f"Notify error: {e}")
+
+def notify_group(message, link=""):
+    try:
+        group_id = os.environ.get('TELEGRAM_GROUP_CHAT_ID')
+        if not group_id: return
+        text_msg = f"THÔNG BÁO HỆ THỐNG\n{message}"
+        threading.Thread(target=send_telegram_message, args=(group_id, text_msg)).start()
+    except Exception as e:
+        print(f"Notify group error: {e}")
 
 class Device(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1495,8 +1545,40 @@ def inject_user():
                             perm_codes.add(perm.code)
                 except Exception:
                     pass
-        return dict(current_user=current_user, current_permissions=perm_codes)
-    return dict(current_user=None, current_permissions=set())
+        unread_notifications = current_user.notifications.filter_by(is_read=False).all() if current_user else []
+        return dict(current_user=current_user, current_permissions=perm_codes, unread_notifications=unread_notifications)
+    return dict(current_user=None, current_permissions=set(), unread_notifications=[])
+
+from werkzeug.exceptions import abort
+
+@app.route('/notifications/read/<int:notif_id>', methods=['POST', 'GET'])
+def read_notification(notif_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    notif = Notification.query.get_or_404(notif_id)
+    if notif.user_id != session['user_id']: return abort(403)
+    notif.is_read = True
+    db.session.commit()
+    if notif.link:
+        return redirect(notif.link)
+    return redirect(request.referrer or url_for('home'))
+
+@app.route('/notifications/read_all', methods=['POST'])
+def read_all_notifications():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    Notification.query.filter_by(user_id=session['user_id'], is_read=False).update({'is_read': True})
+    db.session.commit()
+    flash('Đã đánh dấu đọc tất cả.', 'success')
+    return redirect(request.referrer or url_for('home'))
+
+@app.route('/notifications/delete/<int:notif_id>', methods=['POST'])
+def delete_notification(notif_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    notif = Notification.query.get_or_404(notif_id)
+    if notif.user_id != session['user_id']: return abort(403)
+    db.session.delete(notif)
+    db.session.commit()
+    flash('Đã xóa thông báo.', 'success')
+    return redirect(request.referrer or url_for('home'))
 
 @app.template_filter('vnd')
 def format_vnd(value):
@@ -1929,6 +2011,7 @@ def user_profile():
     user = User.query.get(session['user_id'])
     
     if request.method == 'POST':
+        user.telegram_chat_id = request.form.get('telegram_chat_id', '').strip()
         file = request.files.get('avatar')
         if file and file.filename != '':
             filename = secure_filename(file.filename)
@@ -3241,6 +3324,8 @@ def add_handover():
         if handovers_created_count > 0:
             db.session.commit()
             flash(f'Tạo thành công {handovers_created_count} phiếu bàn giao!', 'success')
+            notify_user(int(receiver_id), f"Bạn vừa nhận bàn giao {handovers_created_count} thiết bị mới.", url_for('handover_list'))
+            notify_group(f"Thực hiện bàn giao {handovers_created_count} thiết bị thành công.", url_for('handover_list'))
         else:
             db.session.rollback() # Hoàn tác nếu không có phiếu nào được tạo
             flash('Không có phiếu bàn giao nào được tạo. Vui lòng kiểm tra lại thông tin thiết bị.', 'danger')
@@ -4851,6 +4936,9 @@ def update_bug_report(report_id):
  
         bug_report.updated_at = datetime.utcnow()
         db.session.commit()
+        if status in ['Đã xử lý', 'Đã đóng']:
+            notify_user(bug_report.created_by, f"Báo lỗi '{bug_report.title}' của bạn đã chuyển sang trạng thái: {status}", url_for('bug_report_detail', report_id=bug_report.id, _external=True))
+            notify_group(f"Báo lỗi '{bug_report.title}' đã chuyển sang trạng thái: {status}.", url_for('bug_report_detail', report_id=bug_report.id, _external=True))
         flash('Đã cập nhật báo lỗi thành công.', 'success')
     except Exception as e:
         db.session.rollback()
@@ -5466,6 +5554,25 @@ def proposal_action(proposal_id):
             flash('Đã gửi duyệt lại thành công.', 'success')
 
         db.session.commit()
+        
+        # Notifications for Proposal Actions
+        action_names = {
+            'approve_team': 'Duyệt (Bộ phận)',
+            'consult_it': 'IT tư vấn xong',
+            'approve_director': 'Phê duyệt',
+            'start_purchasing': 'Bắt đầu mua sắm',
+            'confirm_payment': 'Thanh toán hoàn tất',
+            'confirm_goods_received': 'Đã nhận hàng',
+            'confirm_handover': 'Bàn giao thiết bị xong',
+            'confirm_invoice': 'Nhận hóa đơn',
+            'reject': 'Từ chối'
+        }
+        if action in action_names:
+            msg_user = f"Đề xuất '{p.name}' của bạn vừa được: {action_names[action]}."
+            msg_group = f"Đề xuất '{p.name}' vừa được {action_names[action]}."
+            notify_user(p.created_by, msg_user, url_for('config_proposal_detail', proposal_id=p.id))
+            notify_group(msg_group, url_for('config_proposal_detail', proposal_id=p.id))
+            
     except Exception as e:
         db.session.rollback()
         flash(f'Lỗi xử lý: {str(e)}', 'danger')

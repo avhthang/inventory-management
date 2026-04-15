@@ -106,7 +106,45 @@
                     </li>
                     {% endif %}
                 </ul>
-                <ul class="navbar-nav">
+                <ul class="navbar-nav align-items-center">
+                    <li class="nav-item dropdown me-3">
+                        <a class="nav-link position-relative text-dark" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-bell fs-5"></i>
+                            {% if unread_notifications %}
+                            <span class="position-absolute top-10 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.60rem;">
+                                {{ unread_notifications|length }}
+                            </span>
+                            {% endif %}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="notificationDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                            <li><h6 class="dropdown-header d-flex justify-content-between align-items-center">
+                                Thông báo
+                                <form action="{{ url_for('read_all_notifications') }}" method="POST" class="m-0 p-0">
+                                    <button type="submit" class="btn btn-link py-0 px-1 text-decoration-none" style="font-size: 0.8rem;">Đọc tất cả</button>
+                                </form>
+                            </h6></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% if current_user.notifications.count() > 0 %}
+                                {% for notif in current_user.notifications.limit(10).all() %}
+                                <li>
+                                    <div class="dropdown-item d-flex justify-content-between align-items-start py-2 {% if not notif.is_read %}bg-light{% endif %}" style="white-space: normal;">
+                                        <div class="flex-grow-1">
+                                            <a href="{{ url_for('read_notification', notif_id=notif.id) }}" class="text-decoration-none {% if not notif.is_read %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 0.9rem;">
+                                                <i class="bi bi-info-circle text-primary me-1"></i> {{ notif.message }}
+                                            </a>
+                                            <div class="text-muted mt-1" style="font-size: 0.75rem;">{{ notif.created_at.strftime('%H:%M %d/%m') }}</div>
+                                        </div>
+                                        <form action="{{ url_for('delete_notification', notif_id=notif.id) }}" method="POST" class="ms-2">
+                                            <button type="submit" class="btn btn-link text-danger p-0 m-0" title="Xóa"><i class="bi bi-x"></i></button>
+                                        </form>
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            {% else %}
+                                <li><span class="dropdown-item text-muted text-center py-3">Không có thông báo.</span></li>
+                            {% endif %}
+                        </ul>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarUserDropdown" role="button"
                             data-bs-toggle="dropdown" aria-expanded="false">
