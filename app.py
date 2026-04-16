@@ -768,13 +768,17 @@ def migrate_user_avatar():
             inspector = inspect(db.engine)
             if 'user' in inspector.get_table_names():
                 cols = {c['name'] for c in inspector.get_columns('user')}
-                if 'avatar' not in cols:
-                    with db.engine.connect() as conn:
+                with db.engine.connect() as conn:
+                    if 'avatar' not in cols:
                         conn.execute(text("ALTER TABLE user ADD COLUMN avatar VARCHAR(255)"))
                         conn.commit()
                         print("[OK] Added avatar to user table")
+                    if 'telegram_chat_id' not in cols:
+                        conn.execute(text("ALTER TABLE user ADD COLUMN telegram_chat_id VARCHAR(100)"))
+                        conn.commit()
+                        print("[OK] Added telegram_chat_id to user table")
         except Exception as e:
-            print(f"Migration error (avatar): {e}")
+            print(f"Migration error (avatar/telegram): {e}")
 
 migrate_user_avatar()
 
@@ -2024,9 +2028,10 @@ def user_profile():
             file.save(os.path.join(upload_dir, new_filename))
             
             user.avatar = new_filename
-            db.session.commit()
-            flash('Cập nhật thông tin/ảnh đại diện thành công!', 'success')
-            return redirect(url_for('user_profile'))
+            
+        db.session.commit()
+        flash('Cập nhật thông tin thành công!', 'success')
+        return redirect(url_for('user_profile'))
             
     return render_template('profile.html', user=user)
 
