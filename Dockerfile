@@ -1,5 +1,5 @@
 # Multi-stage Docker build for Inventory Management System
-FROM python:3.12-slim as builder
+FROM python:3.12-slim-bullseye AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
