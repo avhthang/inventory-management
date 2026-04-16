@@ -6597,6 +6597,114 @@ def edit_resource(id):
     return redirect(url_for('resources'))
 
 @app.route('/resources/delete/<int:id>', methods=['POST'])
+# ---------- Backup Management ----------
+import json, os, shutil, threading, time
+from datetime import datetime
+from flask import send_from_directory, flash, redirect, url_for, request, render_template
+
+# Helper to list backup files
+def _list_backups():
+    backup_dir = os.path.abspath('backups')
+    files = []
+    if os.path.isdir(backup_dir):
+        for f in os.listdir(backup_dir):
+            if f.endswith('.zip'):
+                path = os.path.join(backup_dir, f)
+                files.append({
+                    'name': f,
+                    'size': os.path.getsize(path),
+                    'date': datetime.fromtimestamp(os.path.getmtime(path)).strftime('%Y-%m-%d %H:%M:%S')
+                })
+    return files
+
+# Route: backup management page
+@app.route('/backup', methods=['GET'])
+def backup_page():
+    backups = _list_backups()
+    return render_template('backup.html', backups=backups)
+
+# Route: manual backup creation
+@app.route('/backup/create', methods=['POST'])
+def backup_create():
+    backup = DatabaseBackup()
+    backup_path = backup.create_backup()
+    # Move to backups folder
+    dest_dir = os.path.abspath('backups')
+    os.makedirs(dest_dir, exist_ok=True)
+    dest = os.path.join(dest_dir, os.path.basename(backup_path))
+    shutil.move(backup_path, dest)
+    flash(f"Backup created: {os.path.basename(dest)}", 'success')
+    return redirect(url_for('backup_page'))
+
+# Route: download backup
+@app.route('/backup/download/<filename>', methods=['GET'])
+def backup_download(filename):
+    backup_dir = os.path.abspath('backups')
+    return send_from_directory(backup_dir, filename, as_attachment=True)
+
+# Route: restore backup
+@app.route('/backup/restore/<filename>', methods=['POST'])
+def backup_restore(filename):
+    backup_dir = os.path.abspath('backups')
+    backup_path = os.path.join(backup_dir, filename)
+    if not os.path.isfile(backup_path):
+        flash('Backup file not found', 'danger')
+        return redirect(url_for('backup_page'))
+    backup = DatabaseBackup()
+    backup.restore_backup(backup_path)
+    flash(f"Restored backup: {filename}", 'success')
+    return redirect(url_for('backup_page'))
+
+# Route: configure automatic backup schedule
+@app.route('/backup/schedule', methods=['POST'])
+def backup_schedule():
+    hour = int(request.form.get('hour', 2))
+    minute = int(request.form.get('minute', 0))
+    # Save config
+    cfg = {
+        'daily_enabled': True,
+        'daily_time': f"{hour:02d}:{minute:02d}"
+    }
+    cfg_path = os.path.join(instance_path, 'backup_config.json')
+    with open(cfg_path, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f)
+    flash(f"Automatic backup scheduled daily at {hour:02d}:{minute:02d}", 'success')
+    return redirect(url_for('backup_page'))
+
+# Background scheduler thread using schedule library
+def _run_scheduler():
+    def job():
+        backup = DatabaseBackup()
+        backup_path = backup.create_backup()
+        dest_dir = os.path.abspath('backups')
+        os.makedirs(dest_dir, exist_ok=True)
+        dest = os.path.join(dest_dir, os.path.basename(backup_path))
+        shutil.move(backup_path, dest)
+        print(f"✅ Scheduled backup saved to {dest}")
+    # Load schedule config
+    try:
+        cfg_path = os.path.join(instance_path, 'backup_config.json')
+        if os.path.exists(cfg_path):
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+                time_str = cfg.get('daily_time', backup_config_daily_time)
+                hour, minute = map(int, time_str.split(':'))
+        else:
+            hour, minute = map(int, backup_config_daily_time.split(':'))
+    except Exception:
+        hour, minute = 2, 0
+    schedule.every().day.at(f"{hour:02d}:{minute:02d}").do(job)
+    while True:
+        schedule.run_pending()
+        time.sleep(30)
+
+# Start scheduler thread if enabled
+if backup_config_daily_enabled:
+    t = threading.Thread(target=_run_scheduler, daemon=True)
+    t.start()
+
+# ---------- End of Backup Management ----------
+
 def delete_resource(id):
     if 'user_id' not in session: return redirect(url_for('login'))
     perms = _get_current_permissions()

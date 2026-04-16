@@ -1,101 +1,56 @@
 {% extends "base.html" %}
 
-{% block title %}Backup & Restore{% endblock %}
+{% block title %}Quản lý Backup{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="card-title mb-0">Backup & Restore Dữ Liệu</h2>
-            <a href="{{ url_for('home') }}" class="btn btn-secondary">Quay lại</a>
-        </div>
-        
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0"><i class="bi bi-download"></i> Xuất Backup</h5>
-                    </div>
-                    <div class="card-body">
-                        <p>Tạo file backup chứa toàn bộ dữ liệu hệ thống bao gồm:</p>
-                        <ul>
-                            <li>Cơ sở dữ liệu SQLite</li>
-                            <li>Thư mục upload (file Excel, hình ảnh, v.v.)</li>
-                        </ul>
-                        <a href="{{ url_for('backup_export') }}" class="btn btn-success">
-                            <i class="bi bi-download"></i> Tạo và Tải Backup
-                        </a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-gear"></i> Backup Tự động</h5>
-                    </div>
-                    <div class="card-body">
-                        <p>Cấu hình backup tự động:</p>
-                        <ul>
-                            <li>Backup hàng ngày/tuần</li>
-                            <li>Lưu trên server</li>
-                            <li>Tự động xóa file cũ</li>
-                        </ul>
-                        <a href="{{ url_for('backup_config') }}" class="btn btn-primary">
-                            <i class="bi bi-gear"></i> Cấu hình
-                        </a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0"><i class="bi bi-upload"></i> Import Backup</h5>
-                    </div>
-                    <div class="card-body">
-                        <p><strong>Cảnh báo:</strong> Việc import backup sẽ thay thế toàn bộ dữ liệu hiện tại!</p>
-                        <p>Database hiện tại sẽ được backup tự động trước khi restore.</p>
-                        
-                        <form method="POST" action="{{ url_for('backup_import') }}" enctype="multipart/form-data">
-                            <div class="mb-3">
-                                <label for="backup_file" class="form-label">Chọn file backup (.zip)</label>
-                                <input type="file" class="form-control" id="backup_file" name="backup_file" accept=".zip" required>
-                            </div>
-                            <button type="submit" class="btn btn-warning" onclick="return confirm('Bạn có chắc chắn muốn import backup này? Dữ liệu hiện tại sẽ bị thay thế!')">
-                                <i class="bi bi-upload"></i> Import Backup
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="row mt-4">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="bi bi-list"></i> Quản lý Backup</h5>
-                    </div>
-                    <div class="card-body">
-                        <p>Xem và quản lý các file backup đã tạo:</p>
-                        <a href="{{ url_for('backup_list') }}" class="btn btn-info">
-                            <i class="bi bi-list"></i> Xem danh sách backup
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="alert alert-info mt-4">
-            <h6><i class="bi bi-info-circle"></i> Hướng dẫn sử dụng:</h6>
-            <ul class="mb-0">
-                <li><strong>Xuất Backup:</strong> Nhấn nút "Tạo và Tải Backup" để tải file backup về máy</li>
-                <li><strong>Import Backup:</strong> Chọn file backup (.zip) và nhấn "Import Backup" để khôi phục dữ liệu</li>
-                <li>File backup được tạo tự động với tên: <code>backup_inventory_YYYYMMDD_HHMMSS.zip</code></li>
-                <li>Hệ thống sẽ tự động backup database hiện tại trước khi import</li>
-            </ul>
-        </div>
+<div class="container mt-4">
+  <h2 class="mb-4">Quản lý Backup</h2>
+
+  <!-- Manual backup button -->
+  <form method="post" action="{{ url_for('backup_create') }}" class="d-inline">
+    <button type="submit" class="btn btn-success mb-3"><i class="bi bi-cloud-arrow-up"></i> Tạo Backup</button>
+  </form>
+
+  <!-- Schedule form -->
+  <form method="post" action="{{ url_for('backup_schedule') }}" class="d-inline ms-3">
+    <div class="input-group" style="max-width: 250px;">
+      <input type="number" name="hour" min="0" max="23" class="form-control" placeholder="Giờ" required>
+      <input type="number" name="minute" min="0" max="59" class="form-control" placeholder="Phút" required>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-clock"></i> Lên lịch</button>
     </div>
+  </form>
+
+  <hr>
+
+  <h4>Danh sách Backup</h4>
+  {% if backups %}
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Tên file</th>
+          <th>Kích thước</th>
+          <th>Thời gian</th>
+          <th>Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in backups %}
+          <tr>
+            <td>{{ b.name }}</td>
+            <td>{{ (b.size/1024/1024)|round(2) }} MB</td>
+            <td>{{ b.date }}</td>
+            <td>
+              <a href="{{ url_for('backup_download', filename=b.name) }}" class="btn btn-sm btn-outline-primary me-2"><i class="bi bi-download"></i> Tải</a>
+              <form method="post" action="{{ url_for('backup_restore', filename=b.name) }}" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-counterclockwise"></i> Khôi phục</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Chưa có backup nào.</p>
+  {% endif %}
 </div>
 {% endblock %}
