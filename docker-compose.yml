@@ -10,6 +10,8 @@ services:
       - DATABASE_URL=postgresql://inventory_user:inventory_pass@db:5432/inventory_db
       - SECRET_KEY=${SECRET_KEY}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_GROUP_CHAT_ID=${TELEGRAM_GROUP_CHAT_ID}
     volumes:
       - ./instance:/app/instance
       - ./logs:/app/logs

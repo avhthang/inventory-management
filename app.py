@@ -769,14 +769,21 @@ def migrate_user_avatar():
             if 'user' in inspector.get_table_names():
                 cols = {c['name'] for c in inspector.get_columns('user')}
                 with db.engine.connect() as conn:
+                    table_name = '"user"' if 'postgres' in str(db.engine.url) else 'user'
                     if 'avatar' not in cols:
-                        conn.execute(text("ALTER TABLE user ADD COLUMN avatar VARCHAR(255)"))
-                        conn.commit()
-                        print("[OK] Added avatar to user table")
+                        try:
+                            conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN avatar VARCHAR(255)"))
+                            conn.commit()
+                            print("[OK] Added avatar to user table")
+                        except Exception as inner_e:
+                            print(f"Error adding avatar: {inner_e}")
                     if 'telegram_chat_id' not in cols:
-                        conn.execute(text("ALTER TABLE user ADD COLUMN telegram_chat_id VARCHAR(100)"))
-                        conn.commit()
-                        print("[OK] Added telegram_chat_id to user table")
+                        try:
+                            conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN telegram_chat_id VARCHAR(100)"))
+                            conn.commit()
+                            print("[OK] Added telegram_chat_id to user table")
+                        except Exception as inner_e:
+                            print(f"Error adding telegram_chat_id: {inner_e}")
         except Exception as e:
             print(f"Migration error (avatar/telegram): {e}")
 
@@ -4704,6 +4711,11 @@ def create_bug_report():
                         ))
             
             db.session.commit()
+            
+            # Notifications
+            notify_user(created_by_id, f"Báo lỗi '{title}' đã được tạo thành công.", url_for('bug_report_detail', report_id=bug_report.id, _external=True))
+            notify_group(f"Báo lỗi mới: '{title}'", url_for('bug_report_detail', report_id=bug_report.id, _external=True))
+
             flash('Đã tạo báo lỗi thành công! Quản trị viên sẽ xem xét và xử lý.', 'success')
             return redirect(url_for('bug_report_detail', report_id=bug_report.id))
         except Exception as e:
@@ -5285,6 +5297,11 @@ def add_config_proposal():
             proposal.vat_amount = round(grand_subtotal * (vat_percent / 100.0), 2)
             proposal.total_amount = round(grand_subtotal + proposal.vat_amount, 2)
             db.session.commit()
+            
+            # Notifications
+            notify_user(session['user_id'], f"Đề xuất cấu hình '{name}' đã được tạo.", url_for('config_proposal_detail', proposal_id=proposal.id, _external=True))
+            notify_group(f"Đề xuất cấu hình mới: '{name}'", url_for('config_proposal_detail', proposal_id=proposal.id, _external=True))
+            
             flash('Tạo đề xuất cấu hình thiết bị thành công.', 'success')
             return redirect(url_for('config_proposals'))
         except Exception as e:

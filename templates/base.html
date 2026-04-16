@@ -108,7 +108,7 @@
                 </ul>
                 <ul class="navbar-nav align-items-center">
                     <li class="nav-item dropdown me-3">
-                        <a class="nav-link position-relative text-dark" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link position-relative" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-bell fs-5"></i>
                             {% if unread_notifications %}
                             <span class="position-absolute top-10 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.60rem;">
@@ -140,6 +140,8 @@
                                     </div>
                                 </li>
                                 {% endfor %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-center text-primary py-2" href="{{ url_for('all_notifications') }}">Xem tất cả thông báo</a></li>
                             {% else %}
                                 <li><span class="dropdown-item text-muted text-center py-3">Không có thông báo.</span></li>
                             {% endif %}

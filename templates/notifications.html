@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Tất cả thông báo{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-bell"></i> Tất cả thông báo</h5>
+                {% if pagination.items %}
+                <form action="{{ url_for('read_all_notifications') }}" method="POST" class="m-0 p-0">
+                    <button type="submit" class="btn btn-sm btn-light">Đọc tất cả</button>
+                </form>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for notif in pagination.items %}
+                    <div class="list-group-item d-flex justify-content-between align-items-start py-3 {% if not notif.is_read %}bg-light{% endif %}">
+                        <div class="flex-grow-1">
+                            <a href="{{ url_for('read_notification', notif_id=notif.id) }}" class="text-decoration-none {% if not notif.is_read %}fw-bold text-dark{% else %}text-muted{% endif %}">
+                                <i class="bi bi-info-circle text-primary me-2"></i> {{ notif.message }}
+                            </a>
+                            <div class="text-muted mt-2 small"><i class="bi bi-clock"></i> {{ notif.created_at.strftime('%H:%M %d/%m/%Y') }}</div>
+                        </div>
+                        <form action="{{ url_for('delete_notification', notif_id=notif.id) }}" method="POST" class="ms-3">
+                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Xóa"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center text-muted">
+                        <i class="bi bi-bell-slash fs-1 d-block mb-3"></i>
+                        <p>Bạn không có thông báo nào.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% if pagination.pages > 1 %}
+            <div class="card-footer bg-white text-center">
+                <nav aria-label="Page navigation" class="d-inline-block mt-2">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('all_notifications', page=pagination.prev_num) }}">Trước</a>
+                        </li>
+                        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('all_notifications', page=page_num) }}">{{ page_num }}</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('all_notifications', page=pagination.next_num) }}">Sau</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
