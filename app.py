@@ -1591,6 +1591,14 @@ def delete_notification(notif_id):
     flash('Đã xóa thông báo.', 'success')
     return redirect(request.referrer or url_for('home'))
 
+@app.route('/notifications')
+def all_notifications():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    page = request.args.get('page', 1, type=int)
+    pagination = user.notifications.order_by(Notification.created_at.desc()).paginate(page=page, per_page=20, error_out=False)
+    return render_template('notifications.html', pagination=pagination)
+
 @app.template_filter('vnd')
 def format_vnd(value):
     try:
