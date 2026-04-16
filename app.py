@@ -3354,9 +3354,11 @@ def add_handover():
     
     # Logic cho phương thức GET
     preselected_device_id = request.args.get('device_id', type=int)
-    # Chỉ hiển thị các thiết bị sẵn sàng để chọn
-    devices = Device.query.filter_by(status='Sẵn sàng').order_by(Device.device_code).all()
-    users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    devices = db.session.query(Device).join(DeviceType, Device.device_type == DeviceType.name)\
+        .filter(Device.status == 'Sẵn sàng', DeviceType.category == 'Thiết bị IT')\
+        .order_by(Device.device_code).all()
+    users = User.query.filter(User.status.notin_(['Nghỉ việc', 'Nghỉ không lương']))\
+        .order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     
     return render_template('add_handover.html', 
                            devices=devices, 
