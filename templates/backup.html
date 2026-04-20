@@ -273,6 +273,27 @@
                 timeSettings.querySelectorAll('input').forEach(i => i.disabled = false);
             }
         });
+
+        // Loading states for buttons
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function() {
+                const btn = this.querySelector('button[type="submit"]');
+                if (btn && !btn.classList.contains('btn-sm')) {
+                    const originalText = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...';
+                    
+                    // Re-enable after 10s if it's a download so user isn't stuck
+                    if (this.getAttribute('action') && this.getAttribute('action').includes('download=true')) {
+                        setTimeout(() => {
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                        }, 10000);
+                    }
+                }
+            });
+        });
     });
 </script>
 {% endblock %}
