@@ -6622,6 +6622,13 @@ def backup_page():
 # Route: manual backup creation
 @app.route('/backup/create', methods=['POST'])
 def backup_create():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.edit' not in current_permissions:
+        flash('Bạn không có quyền tạo backup.', 'danger')
+        return redirect(url_for('backup_page'))
+        
     backup = DatabaseBackup()
     backup_path = backup.create_backup()
     # Move to backups folder
@@ -6635,12 +6642,26 @@ def backup_create():
 # Route: download backup
 @app.route('/backup/download/<filename>', methods=['GET'])
 def backup_download(filename):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
+        flash('Bạn không có quyền tải backup.', 'danger')
+        return redirect(url_for('backup_page'))
+        
     backup_dir = os.path.abspath('backups')
     return send_from_directory(backup_dir, filename, as_attachment=True)
 
 # Route: restore backup
 @app.route('/backup/restore/<filename>', methods=['POST'])
 def backup_restore(filename):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.edit' not in current_permissions:
+        flash('Bạn không có quyền khôi phục dữ liệu.', 'danger')
+        return redirect(url_for('backup_page'))
+        
     backup_dir = os.path.abspath('backups')
     backup_path = os.path.join(backup_dir, filename)
     if not os.path.isfile(backup_path):
@@ -6654,6 +6675,13 @@ def backup_restore(filename):
 # Route: configure automatic backup schedule
 @app.route('/backup/schedule', methods=['POST'])
 def backup_schedule():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.edit' not in current_permissions:
+        flash('Bạn không có quyền cấu hình backup.', 'danger')
+        return redirect(url_for('backup_page'))
+        
     hour = int(request.form.get('hour', 2))
     minute = int(request.form.get('minute', 0))
     # Save config
