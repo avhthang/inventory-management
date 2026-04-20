@@ -5946,17 +5946,7 @@ def create_admin_command():
     db.session.commit()
     click.echo("Đã tạo tài khoản admin thành công (Username: admin, Pass: admin123).")
 
-# --- Backup/Restore Routes ---
-@app.route('/backup')
-def backup_page():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    current_permissions = _get_current_permissions()
-    current_user = _get_current_user()
-    # Kiểm tra phân quyền: chỉ admin hoặc người có quyền backup.view mới được truy cập
-    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
-        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
-        return redirect(url_for('home'))
-    return render_template('backup.html')
+
 
 @app.route('/backup/export')
 def backup_export():
@@ -6619,6 +6609,13 @@ def _list_backups():
 # Route: backup management page
 @app.route('/backup', methods=['GET'])
 def backup_page():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
+        
     backups = _list_backups()
     return render_template('backup.html', backups=backups)
 
