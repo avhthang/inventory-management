@@ -6596,7 +6596,6 @@ def edit_resource(id):
     flash('Cập nhật tài nguyên thành công!', 'success')
     return redirect(url_for('resources'))
 
-@app.route('/resources/delete/<int:id>', methods=['POST'])
 # ---------- Backup Management ----------
 import json, os, shutil, threading, time
 from datetime import datetime
@@ -6705,6 +6704,7 @@ if backup_config_daily_enabled:
 
 # ---------- End of Backup Management ----------
 
+@app.route('/resources/delete/<int:id>', methods=['POST'])
 def delete_resource(id):
     if 'user_id' not in session: return redirect(url_for('login'))
     perms = _get_current_permissions()
