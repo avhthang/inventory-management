@@ -8,7 +8,7 @@
         <h2 class="card-title mb-0">Chỉnh sửa người dùng: {{ user.username }}</h2>
     </div>
     <div class="card-body">
-        <form method="POST">
+        <form method="POST" id="edit-user-form">
             {% if next_url %}
             <input type="hidden" name="next" value="{{ next_url }}">
             {% endif %}
@@ -157,7 +157,7 @@
 <script>
     $(document).ready(function () {
         const statusSelect = document.getElementById('status-select');
-        const form = document.querySelector('form');
+        const form = document.getElementById('edit-user-form');
         const resignationModal = new bootstrap.Modal(document.getElementById('resignationModal'));
         const confirmBtn = document.getElementById('confirm-resignation');
 

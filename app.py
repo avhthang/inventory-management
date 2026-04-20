@@ -3771,6 +3771,33 @@ def create_return_handover_for_user(user_id, current_user_id):
         print(f"Error creating return handover: {e}")
         return False
 
+@app.route('/users/<int:user_id>/quit', methods=['POST'])
+def quit_user(user_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    user_executing = _get_current_user()
+    
+    if not (user_executing and user_executing.role == 'admin') and 'users.edit' not in current_permissions:
+        flash('Bạn không có quyền thực hiện thao tác này.', 'danger')
+        return redirect(url_for('user_list'))
+        
+    user = User.query.get_or_404(user_id)
+    if user.status == 'Nghỉ việc':
+        flash('Người dùng này đã nghỉ việc rồi.', 'info')
+        return redirect(url_for('user_list'))
+        
+    success = create_return_handover_for_user(user_id, session.get('user_id'))
+    user.status = 'Nghỉ việc'
+    user.offboard_date = datetime.now(VIETNAM_TZ).date()
+    db.session.commit()
+    
+    if success:
+        flash(f'Đã xử lý nghỉ việc cho {user.username}. Đã tự động tạo phiếu thu hồi thiết bị.', 'success')
+    else:
+        flash(f'Đã chuyển trạng thái nghỉ việc cho {user.username} nhưng có lỗi khi tạo phiếu thu hồi.', 'warning')
+        
+    return redirect(request.referrer or url_for('user_list'))
+
 @app.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
 def edit_user(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
