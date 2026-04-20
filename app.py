@@ -38,6 +38,10 @@ os.makedirs(os.path.join(instance_path, 'proposal_attachments'), exist_ok=True)
 # Timezone configuration (GMT+7)
 VIETNAM_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
 
+def get_now():
+    """Lấy thời gian hiện tại theo múi giờ Việt Nam"""
+    return datetime.now(VIETNAM_TZ)
+
 # Backup configuration variables
 backup_config_daily_enabled = True
 backup_config_weekly_enabled = True
@@ -1109,12 +1113,13 @@ class BackupLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(255), nullable=False)
     action = db.Column(db.String(50), nullable=False) # 'backup' or 'restore'
-    status = db.Column(db.String(20), default='success') # 'success' or 'failed'
+    status = db.Column(db.String(20), default='success') # 'success', 'failed', 'processing'
     details = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_now)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     
     user = db.relationship('User', backref='backup_logs')
+
 
 
 class OrderTracking(db.Model):
@@ -6604,7 +6609,7 @@ def backup_create():
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir, exist_ok=True)
             
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_now().strftime("%Y%m%d_%H%M%S")
         filename = f"backup_{timestamp}.zip"
         dest_path = os.path.join(backup_dir, filename)
         
@@ -6670,44 +6675,71 @@ def backup_restore(filename):
     if not os.path.isfile(backup_path):
         flash('Không tìm thấy file sao lưu.', 'danger')
         return redirect(url_for('backup_page'))
-        
-    try:
-        # Create a snapshot before restore
-        snapshot_filename = f"pre_restore_snapshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-        snapshot_path = os.path.join(backup_dir, snapshot_filename)
-        
-        backup_engine = DatabaseBackup()
-        backup_engine.create_backup(snapshot_path)
-        
-        # Perform restore
-        backup_engine.restore_backup(backup_path)
-        
-        # Log the action
-        log = BackupLog(
-            filename=filename,
-            action='restore',
-            status='success',
-            details=f"Snapshot created: {snapshot_filename}",
-            user_id=session.get('user_id')
-        )
-        db.session.add(log)
-        db.session.commit()
-        
-        flash(f"Khôi phục dữ liệu thành công từ: {filename}. Bản snapshot đã được tạo: {snapshot_filename}", 'success')
-    except Exception as e:
-        db.session.rollback()
-        log = BackupLog(
-            filename=filename,
-            action='restore',
-            status='failed',
-            details=str(e),
-            user_id=session.get('user_id')
-        )
-        db.session.add(log)
-        db.session.commit()
-        flash(f"Lỗi khi khôi phục dữ liệu: {str(e)}", 'danger')
-        
+    
+    user_id = session.get('user_id')
+    
+    def run_restore_task(app_context, b_path, b_filename, u_id):
+        with app_context:
+            try:
+                # Log start
+                log = BackupLog(
+                    filename=b_filename,
+                    action='restore',
+                    status='processing',
+                    details='Đang bắt đầu khôi phục...',
+                    user_id=u_id
+                )
+                db.session.add(log)
+                db.session.commit()
+                log_id = log.id
+
+                # Create snapshot
+                snapshot_filename = f"pre_restore_snapshot_{get_now().strftime('%Y%m%d_%H%M%S')}.zip"
+                snapshot_path = os.path.join(backup_dir, snapshot_filename)
+                
+                engine = DatabaseBackup()
+                engine.create_backup(snapshot_path)
+                
+                # Perform restore
+                success = engine.restore_backup(b_path)
+                
+                # Update log
+                final_log = BackupLog.query.get(log_id)
+                if success:
+                    final_log.status = 'success'
+                    final_log.details = f"Khôi phục thành công. Snapshot: {snapshot_filename}"
+                else:
+                    final_log.status = 'failed'
+                    final_log.details = "Lỗi trong quá trình khôi phục (xem log server)"
+                db.session.commit()
+                
+            except Exception as e:
+                print(f"Background Restore Error: {e}")
+                try:
+                    # Logic to log error if possible
+                    error_log = BackupLog(
+                        filename=b_filename,
+                        action='restore',
+                        status='failed',
+                        details=f"Error: {str(e)}",
+                        user_id=u_id
+                    )
+                    db.session.add(error_log)
+                    db.session.commit()
+                except:
+                    pass
+
+    # Start background thread
+    thread = threading.Thread(
+        target=run_restore_task, 
+        args=(app.app_context(), backup_path, filename, user_id)
+    )
+    thread.daemon = True
+    thread.start()
+    
+    flash('Tiến trình khôi phục đang được thực hiện dưới nền. Vui lòng kiểm tra Nhật ký sau 1-2 phút để xem kết quả.', 'info')
     return redirect(url_for('backup_page'))
+
 
 # Route: configure automatic backup schedule
 @app.route('/backup/schedule', methods=['POST'])
@@ -6748,7 +6780,7 @@ def _run_scheduler():
         try:
             backup_dir = os.path.abspath('backups')
             os.makedirs(backup_dir, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = get_now().strftime("%Y%m%d_%H%M%S")
             filename = f"auto_backup_{timestamp}.zip"
             dest_path = os.path.join(backup_dir, filename)
             backup = DatabaseBackup()

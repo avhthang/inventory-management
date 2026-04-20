@@ -206,6 +206,8 @@
                                             <td>
                                                 {% if log.status == 'success' %}
                                                 <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i> Thành công</span>
+                                                {% elif log.status == 'processing' %}
+                                                <span class="text-primary"><span class="spinner-border spinner-border-sm me-1"></span> Đang xử lý</span>
                                                 {% else %}
                                                 <span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i> Thất bại</span>
                                                 {% endif %}
