@@ -1105,6 +1105,18 @@ class ConfigProposalAttachment(db.Model):
     uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     uploader = db.relationship('User', foreign_keys=[uploaded_by])
 
+class BackupLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    action = db.Column(db.String(50), nullable=False) # 'backup' or 'restore'
+    status = db.Column(db.String(20), default='success') # 'success' or 'failed'
+    details = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    
+    user = db.relationship('User', backref='backup_logs')
+
+
 class OrderTracking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     proposal_id = db.Column(db.Integer, db.ForeignKey('config_proposal.id'), nullable=False)
@@ -6215,86 +6227,7 @@ def backup_config():
                          current_time=current_time,
                          current_date=current_date)
 
-@app.route('/backup/list')
-def backup_list():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    current_permissions = _get_current_permissions()
-    current_user = _get_current_user()
-    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
-        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
-        return redirect(url_for('home'))
-    
-    backups = []
-    try:
-        for filename in os.listdir(backup_path):
-            if filename.endswith('.zip'):
-                filepath = os.path.join(backup_path, filename)
-                file_time = datetime.fromtimestamp(os.path.getctime(filepath))
-                file_size = os.path.getsize(filepath)
-                backups.append({
-                    'filename': filename,
-                    'created': file_time,
-                    'size': file_size,
-                    'type': 'auto' if filename.startswith('auto_backup_') else 'manual'
-                })
-        
-        # Sort by creation time (newest first)
-        backups.sort(key=lambda x: x['created'], reverse=True)
-    except Exception as e:
-        flash(f'Lỗi khi lấy danh sách backup: {str(e)}', 'danger')
-        backups = []
-    
-    return render_template('backup_list.html', backups=backups)
 
-@app.route('/backup/restore/<filename>')
-def backup_restore_from_file(filename):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    current_permissions = _get_current_permissions()
-    current_user = _get_current_user()
-    if not (current_user and current_user.role == 'admin') and 'backup.view' not in current_permissions:
-        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
-        return redirect(url_for('home'))
-    
-    try:
-        backup_filepath = os.path.join(backup_path, filename)
-        if not os.path.exists(backup_filepath):
-            flash('File backup không tồn tại.', 'danger')
-            return redirect(url_for('backup_list'))
-        
-        # Use shared backup logic
-        backup = DatabaseBackup()
-        success = backup.restore_backup(backup_filepath)
-        
-        if success:
-            flash(f'Khôi phục backup từ {filename} thành công!', 'success')
-        else:
-            flash(f'Lỗi khi khôi phục backup: Xem log để biết chi tiết', 'danger')
-        return redirect(url_for('backup_list'))
-        
-    except Exception as e:
-        flash(f'Lỗi khi khôi phục backup: {str(e)}', 'danger')
-        return redirect(url_for('backup_list'))
-
-@app.route('/backup/delete/<filename>', methods=['POST'])
-def backup_delete(filename):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    current_permissions = _get_current_permissions()
-    current_user = _get_current_user()
-    if not (current_user and current_user.role == 'admin') and 'backup.delete' not in current_permissions:
-        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
-        return redirect(url_for('home'))
-    
-    try:
-        backup_filepath = os.path.join(backup_path, filename)
-        if os.path.exists(backup_filepath):
-            os.remove(backup_filepath)
-            flash(f'Đã xóa file backup {filename} thành công!', 'success')
-        else:
-            flash('File backup không tồn tại.', 'danger')
-    except Exception as e:
-        flash(f'Lỗi khi xóa file backup: {str(e)}', 'danger')
-    
-    return redirect(url_for('backup_list'))
 
 
 
@@ -6644,7 +6577,17 @@ def backup_page():
         return redirect(url_for('home'))
         
     backups = _list_backups()
-    return render_template('backup.html', backups=backups)
+    logs = BackupLog.query.order_by(BackupLog.created_at.desc()).limit(50).all()
+    
+    # Cleanup old logs (older than 30 days)
+    try:
+        cutoff = datetime.utcnow() - timedelta(days=30)
+        BackupLog.query.filter(BackupLog.created_at < cutoff).delete()
+        db.session.commit()
+    except:
+        db.session.rollback()
+
+    return render_template('backup.html', backups=backups, logs=logs)
 
 # Route: manual backup creation
 @app.route('/backup/create', methods=['POST'])
@@ -6656,14 +6599,47 @@ def backup_create():
         flash('Bạn không có quyền tạo backup.', 'danger')
         return redirect(url_for('backup_page'))
         
-    backup = DatabaseBackup()
-    backup_path = backup.create_backup()
-    # Move to backups folder
-    dest_dir = os.path.abspath('backups')
-    os.makedirs(dest_dir, exist_ok=True)
-    dest = os.path.join(dest_dir, os.path.basename(backup_path))
-    shutil.move(backup_path, dest)
-    flash(f"Backup created: {os.path.basename(dest)}", 'success')
+    try:
+        backup_dir = os.path.abspath('backups')
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir, exist_ok=True)
+            
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"backup_{timestamp}.zip"
+        dest_path = os.path.join(backup_dir, filename)
+        
+        backup = DatabaseBackup()
+        backup.create_backup(dest_path)
+        
+        # Log the action
+        log = BackupLog(
+            filename=filename,
+            action='backup',
+            status='success',
+            user_id=session.get('user_id')
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        flash(f"Đã tạo bản sao lưu thành công: {filename}", 'success')
+        
+        # Optional: Trigger download if requested via query param
+        if request.args.get('download') == 'true':
+            return send_from_directory(backup_dir, filename, as_attachment=True)
+            
+    except Exception as e:
+        db.session.rollback()
+        log = BackupLog(
+            filename='N/A',
+            action='backup',
+            status='failed',
+            details=str(e),
+            user_id=session.get('user_id')
+        )
+        db.session.add(log)
+        db.session.commit()
+        flash(f"Lỗi khi tạo backup: {str(e)}", 'danger')
+        
     return redirect(url_for('backup_page'))
 
 # Route: download backup
@@ -6692,11 +6668,45 @@ def backup_restore(filename):
     backup_dir = os.path.abspath('backups')
     backup_path = os.path.join(backup_dir, filename)
     if not os.path.isfile(backup_path):
-        flash('Backup file not found', 'danger')
+        flash('Không tìm thấy file sao lưu.', 'danger')
         return redirect(url_for('backup_page'))
-    backup = DatabaseBackup()
-    backup.restore_backup(backup_path)
-    flash(f"Restored backup: {filename}", 'success')
+        
+    try:
+        # Create a snapshot before restore
+        snapshot_filename = f"pre_restore_snapshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        snapshot_path = os.path.join(backup_dir, snapshot_filename)
+        
+        backup_engine = DatabaseBackup()
+        backup_engine.create_backup(snapshot_path)
+        
+        # Perform restore
+        backup_engine.restore_backup(backup_path)
+        
+        # Log the action
+        log = BackupLog(
+            filename=filename,
+            action='restore',
+            status='success',
+            details=f"Snapshot created: {snapshot_filename}",
+            user_id=session.get('user_id')
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        flash(f"Khôi phục dữ liệu thành công từ: {filename}. Bản snapshot đã được tạo: {snapshot_filename}", 'success')
+    except Exception as e:
+        db.session.rollback()
+        log = BackupLog(
+            filename=filename,
+            action='restore',
+            status='failed',
+            details=str(e),
+            user_id=session.get('user_id')
+        )
+        db.session.add(log)
+        db.session.commit()
+        flash(f"Lỗi khi khôi phục dữ liệu: {str(e)}", 'danger')
+        
     return redirect(url_for('backup_page'))
 
 # Route: configure automatic backup schedule
@@ -6725,13 +6735,17 @@ def backup_schedule():
 # Background scheduler thread using schedule library
 def _run_scheduler():
     def job():
-        backup = DatabaseBackup()
-        backup_path = backup.create_backup()
-        dest_dir = os.path.abspath('backups')
-        os.makedirs(dest_dir, exist_ok=True)
-        dest = os.path.join(dest_dir, os.path.basename(backup_path))
-        shutil.move(backup_path, dest)
-        print(f"✅ Scheduled backup saved to {dest}")
+        try:
+            backup_dir = os.path.abspath('backups')
+            os.makedirs(backup_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"auto_backup_{timestamp}.zip"
+            dest_path = os.path.join(backup_dir, filename)
+            backup = DatabaseBackup()
+            backup.create_backup(dest_path)
+            print(f"✅ Scheduled backup saved to {dest_path}")
+        except Exception as e:
+            print(f"❌ Scheduled backup failed: {str(e)}")
     # Load schedule config
     try:
         cfg_path = os.path.join(instance_path, 'backup_config.json')
@@ -6753,6 +6767,67 @@ def _run_scheduler():
 if backup_config_daily_enabled:
     t = threading.Thread(target=_run_scheduler, daemon=True)
     t.start()
+
+@app.route('/backup/upload_restore', methods=['POST'])
+def backup_upload_restore():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.edit' not in current_permissions:
+        flash('Bạn không có quyền khôi phục dữ liệu.', 'danger')
+        return redirect(url_for('backup_page'))
+        
+    if 'backup_file' not in request.files:
+        flash('Không có file nào được tải lên.', 'warning')
+        return redirect(url_for('backup_page'))
+        
+    file = request.files['backup_file']
+    if file.filename == '':
+        flash('Chưa chọn file.', 'warning')
+        return redirect(url_for('backup_page'))
+        
+    if not file.filename.endswith('.zip'):
+        flash('Chỉ chấp nhận file .zip', 'danger')
+        return redirect(url_for('backup_page'))
+        
+    try:
+        backup_dir = os.path.abspath('backups')
+        os.makedirs(backup_dir, exist_ok=True)
+        
+        filename = secure_filename(file.filename)
+        # Add timestamp to avoid collision
+        filename = f"uploaded_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}"
+        file_path = os.path.join(backup_dir, filename)
+        file.save(file_path)
+        
+        # Now call restore
+        return backup_restore(filename)
+        
+    except Exception as e:
+        flash(f"Lỗi khi tải lên và khôi phục: {str(e)}", 'danger')
+        return redirect(url_for('backup_page'))
+
+@app.route('/backup/delete/<filename>', methods=['POST'])
+def backup_delete(filename):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'backup.edit' not in current_permissions:
+        flash('Bạn không có quyền xóa bản sao lưu.', 'danger')
+        return redirect(url_for('backup_page'))
+        
+    try:
+        backup_dir = os.path.abspath('backups')
+        filepath = os.path.join(backup_dir, filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            flash(f"Đã xóa bản sao lưu: {filename}", 'success')
+        else:
+            flash("Không tìm thấy file cần xóa.", 'warning')
+    except Exception as e:
+        flash(f"Lỗi khi xóa: {str(e)}", 'danger')
+        
+    return redirect(url_for('backup_page'))
 
 # ---------- End of Backup Management ----------
 

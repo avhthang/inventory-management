@@ -1,56 +1,223 @@
 {% extends "base.html" %}
 
-{% block title %}Quản lý Backup{% endblock %}
+{% block title %}Quản lý Sao lưu & Khôi phục{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-  <h2 class="mb-4">Quản lý Backup</h2>
-
-  <!-- Manual backup button -->
-  <form method="post" action="{{ url_for('backup_create') }}" class="d-inline">
-    <button type="submit" class="btn btn-success mb-3"><i class="bi bi-cloud-arrow-up"></i> Tạo Backup</button>
-  </form>
-
-  <!-- Schedule form -->
-  <form method="post" action="{{ url_for('backup_schedule') }}" class="d-inline ms-3">
-    <div class="input-group" style="max-width: 250px;">
-      <input type="number" name="hour" min="0" max="23" class="form-control" placeholder="Giờ" required>
-      <input type="number" name="minute" min="0" max="59" class="form-control" placeholder="Phút" required>
-      <button class="btn btn-primary" type="submit"><i class="bi bi-clock"></i> Lên lịch</button>
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="fw-bold"><i class="bi bi-shield-lock text-primary me-2"></i>Hệ thống Sao lưu & Khôi phục</h2>
+            <p class="text-muted">Quản lý an toàn dữ liệu hệ thống, tạo bản sao lưu định kỳ và khôi phục khi cần thiết.</p>
+        </div>
     </div>
-  </form>
 
-  <hr>
+    <div class="row g-4">
+        <!-- Quick Actions & Configuration -->
+        <div class="col-lg-4">
+            <!-- Action Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="card-title mb-0 fw-bold">Thao tác nhanh</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-3">
+                        <form action="{{ url_for('backup_create') }}" method="POST">
+                            <button type="submit" class="btn btn-primary btn-lg w-100 py-3 shadow-sm rounded-3">
+                                <i class="bi bi-cloud-arrow-up-fill me-2"></i> Tạo bản sao lưu mới
+                            </button>
+                        </form>
+                        
+                        <form action="{{ url_for('backup_create', download='true') }}" method="POST">
+                            <button type="submit" class="btn btn-outline-primary w-100 py-2">
+                                <i class="bi bi-download me-2"></i> Backup & Tải xuống ngay
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h6 class="fw-bold mb-3">Khôi phục từ file</h6>
+                    <form action="{{ url_for('backup_upload_restore') }}" method="POST" enctype="multipart/form-data" id="upload-restore-form">
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Chọn file bản sao lưu (.zip)</label>
+                            <input type="file" name="backup_file" class="form-control form-control-sm" accept=".zip" required>
+                        </div>
+                        <button type="submit" class="btn btn-warning w-100" onclick="return confirm('CẢNH BÁO: Hành động này sẽ thay thế TOÀN BỘ dữ liệu hiện tại. Hệ thống sẽ tự động tạo một bản snapshot trước khi thực hiện. Bạn có chắc muốn tiếp tục?')">
+                            <i class="bi bi-arrow-counterclockwise me-2"></i> Tải lên & Khôi phục
+                        </button>
+                    </form>
+                </div>
+            </div>
 
-  <h4>Danh sách Backup</h4>
-  {% if backups %}
-    <table class="table table-striped">
-      <thead>
-        <tr>
-          <th>Tên file</th>
-          <th>Kích thước</th>
-          <th>Thời gian</th>
-          <th>Thao tác</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for b in backups %}
-          <tr>
-            <td>{{ b.name }}</td>
-            <td>{{ (b.size/1024/1024)|round(2) }} MB</td>
-            <td>{{ b.date }}</td>
-            <td>
-              <a href="{{ url_for('backup_download', filename=b.name) }}" class="btn btn-sm btn-outline-primary me-2"><i class="bi bi-download"></i> Tải</a>
-              <form method="post" action="{{ url_for('backup_restore', filename=b.name) }}" style="display:inline;">
-                <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-counterclockwise"></i> Khôi phục</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p>Chưa có backup nào.</p>
-  {% endif %}
+            <!-- Automation Card -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="card-title mb-0 fw-bold">Lịch sao lưu tự động</h5>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('backup_schedule') }}" method="POST">
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Chu kỳ sao lưu</label>
+                            <select class="form-select shadow-none" name="frequency">
+                                <option value="daily" selected>Hàng ngày</option>
+                                <option value="weekly">Hàng tuần (Thứ Hai)</option>
+                            </select>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col">
+                                <label class="form-label small text-muted">Giờ</label>
+                                <input type="number" name="hour" class="form-control" min="0" max="23" value="2">
+                            </div>
+                            <div class="col">
+                                <label class="form-label small text-muted">Phút</label>
+                                <input type="number" name="minute" class="form-control" min="0" max="59" value="0">
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mb-4">
+                            <input class="form-check-input" type="checkbox" id="autoEnabled" checked>
+                            <label class="form-check-label" for="autoEnabled">Kích hoạt sao lưu tự động</label>
+                        </div>
+                        <button type="submit" class="btn btn-dark w-100">
+                            <i class="bi bi-save me-2"></i> Lưu cấu hình
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lists Area -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0 fw-bold">Danh sách các bản sao lưu</h5>
+                    <span class="badge bg-light text-dark">{{ backups|length }} bản lưu</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4">Tên file</th>
+                                    <th>Kích thước</th>
+                                    <th>Thời gian tạo</th>
+                                    <th class="text-end pe-4">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for b in backups %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-file-earmark-zip text-warning fs-4 me-3"></i>
+                                            <div>
+                                                <div class="fw-bold">{{ b.name }}</div>
+                                                <div class="text-muted small">
+                                                    {% if b.name.startswith('pre_restore') %}Snapshot{% elif b.name.startswith('auto') %}Tự động{% else %}Thủ công{% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ (b.size/1024/1024)|round(2) }} MB</td>
+                                    <td class="text-muted">{{ b.date }}</td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group shadow-sm">
+                                            <a href="{{ url_for('backup_download', filename=b.name) }}" class="btn btn-sm btn-white border" title="Tải về">
+                                                <i class="bi bi-download"></i>
+                                            </a>
+                                            <form action="{{ url_for('backup_restore', filename=b.name) }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-white border border-start-0" 
+                                                        onclick="return confirm('Khôi phục dữ liệu từ bản này?')" title="Khôi phục">
+                                                    <i class="bi bi-arrow-counterclockwise text-warning"></i>
+                                                </button>
+                                            </form>
+                                            <form action="{{ url_for('backup_delete', filename=b.name) }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-white border border-start-0" 
+                                                        onclick="return confirm('Bạn chắc chắn muốn xóa vĩnh viễn bản sao lưu này?')" title="Xóa">
+                                                    <i class="bi bi-trash text-danger"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% if not backups %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="bi bi-cloud-slash fs-1 d-block mb-2"></i>
+                                        Chưa có bản sao lưu nào được tạo.
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Card -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="card-title mb-0 fw-bold">Nhật ký hoạt động (30 ngày gần nhất)</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 small">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4">Thời gian</th>
+                                    <th>Hành động</th>
+                                    <th>Trạng thái</th>
+                                    <th>Chi tiết</th>
+                                    <th class="pe-4">Người thực hiện</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in logs %}
+                                <tr>
+                                    <td class="ps-4 text-muted">{{ log.created_at.strftime('%H:%M %d/%m/%Y') }}</td>
+                                    <td>
+                                        {% if log.action == 'backup' %}
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Sao lưu</span>
+                                        {% else %}
+                                        <span class="badge bg-warning-subtle text-warning-dark border border-warning-subtle">Khôi phục</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.status == 'success' %}
+                                        <i class="bi bi-check-circle-fill text-success me-1"></i> Thành công
+                                        {% else %}
+                                        <i class="bi bi-x-circle-fill text-danger me-1"></i> Thất bại
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 200px;" title="{{ log.filename or log.details }}">
+                                            {{ log.filename or log.details }}
+                                        </div>
+                                    </td>
+                                    <td class="pe-4">
+                                        {{ log.user.username if log.user else 'System' }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% if not logs %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">Trống</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<style>
+    .text-warning-dark { color: #856404; }
+    .bg-primary-subtle { background-color: #cfe2ff; }
+    .bg-warning-subtle { background-color: #fff3cd; }
+    .btn-white { background-color: #fff; color: #333; }
+    .btn-white:hover { background-color: #f8f9fa; color: #000; }
+</style>
 {% endblock %}
