@@ -6721,15 +6721,25 @@ def backup_schedule():
         
     hour = int(request.form.get('hour', 2))
     minute = int(request.form.get('minute', 0))
+    frequency = request.form.get('frequency', 'daily')
+    
     # Save config
     cfg = {
-        'daily_enabled': True,
-        'daily_time': f"{hour:02d}:{minute:02d}"
+        'frequency': frequency,
+        'hour': hour,
+        'minute': minute
     }
     cfg_path = os.path.join(instance_path, 'backup_config.json')
     with open(cfg_path, 'w', encoding='utf-8') as f:
         json.dump(cfg, f)
-    flash(f"Automatic backup scheduled daily at {hour:02d}:{minute:02d}", 'success')
+    
+    freq_map = {
+        'none': 'đã tắt',
+        'daily': 'hàng ngày',
+        'weekly': 'hàng tuần',
+        'monthly': 'hàng tháng'
+    }
+    flash(f"Đã cập nhật lịch sao lưu tự động: {freq_map.get(frequency, frequency)} lúc {hour:02d}:{minute:02d}", 'success')
     return redirect(url_for('backup_page'))
 
 # Background scheduler thread using schedule library
@@ -6746,22 +6756,47 @@ def _run_scheduler():
             print(f"✅ Scheduled backup saved to {dest_path}")
         except Exception as e:
             print(f"❌ Scheduled backup failed: {str(e)}")
+            
     # Load schedule config
     try:
         cfg_path = os.path.join(instance_path, 'backup_config.json')
+        frequency = 'daily'
+        hour, minute = 2, 0
+        
         if os.path.exists(cfg_path):
             with open(cfg_path, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
-                time_str = cfg.get('daily_time', backup_config_daily_time)
-                hour, minute = map(int, time_str.split(':'))
-        else:
-            hour, minute = map(int, backup_config_daily_time.split(':'))
-    except Exception:
-        hour, minute = 2, 0
-    schedule.every().day.at(f"{hour:02d}:{minute:02d}").do(job)
+                frequency = cfg.get('frequency', 'daily')
+                hour = cfg.get('hour', 2)
+                minute = cfg.get('minute', 0)
+        
+        if frequency == 'none':
+            print("Auto backup is disabled.")
+            return
+
+        time_str = f"{hour:02d}:{minute:02d}"
+        if frequency == 'daily':
+            schedule.every().day.at(time_str).do(job)
+            print(f"Auto backup scheduled: Daily at {time_str}")
+        elif frequency == 'weekly':
+            schedule.every().monday.at(time_str).do(job)
+            print(f"Auto backup scheduled: Weekly (Mon) at {time_str}")
+        elif frequency == 'monthly':
+            # schedule doesn't have every().month directly easily without custom logic
+            # but we can use every(30).days or similar, or just check day 1
+            def monthly_job():
+                if datetime.now().day == 1:
+                    job()
+            schedule.every().day.at(time_str).do(monthly_job)
+            print(f"Auto backup scheduled: Monthly (Day 1) at {time_str}")
+            
+    except Exception as e:
+        print(f"Error initializing backup scheduler: {e}")
+        schedule.every().day.at("02:00").do(job)
+        
     while True:
         schedule.run_pending()
-        time.sleep(30)
+        time.sleep(60)
 
 # Start scheduler thread if enabled
 if backup_config_daily_enabled:
