@@ -88,12 +88,34 @@ git clone https://github.com/avhthang/inventory-management.git /tmp/inventory-ma
 sudo sh /tmp/inventory-management/install.sh
 ```
 
+Script se hoi ban chon kieu truy cap:
+
+```text
+1) MiniPC + Cloudflare Tunnel
+2) Server/domain sau reverse proxy ngoai
+3) Server/domain chay truc tiep port 80/443
+```
+
+Co the chay khong tuong tac neu da biet mode:
+
+```bash
+# Hien tai cua ban: miniPC + Cloudflare Tunnel
+sudo INSTALL_MODE=tunnel DOMAIN=inventory.example.com sh /tmp/inventory-management/install.sh
+
+# Sau nay neu chay tren server rieng va co Nginx Proxy Manager/Caddy/Traefik
+sudo INSTALL_MODE=proxy DOMAIN=inventory.example.com sh /tmp/inventory-management/install.sh
+
+# Server rieng khong co reverse proxy khac, Inventory chiem truc tiep 80/443
+sudo INSTALL_MODE=direct DOMAIN=inventory.example.com sh /tmp/inventory-management/install.sh
+```
+
 Script se:
 
 - Tao cau truc `/opt/docker/compose/inventory`, `/opt/docker/configs/inventory`, `/opt/docker/secrets/inventory`, `/srv/inventory`, `/srv/postgres/inventory`, `/srv/redis/inventory`
 - Clone hoac update source tu GitHub vao `/srv/inventory/app`
 - Tao `/opt/docker/secrets/inventory/inventory.env` neu chua co
 - Sinh `SECRET_KEY` va mat khau PostgreSQL ngau nhien
+- Cau hinh bind port phu hop voi mode ban chon
 - Start stack bang Docker Compose
 
 Neu muon lam thu cong, tiep tuc cac buoc ben duoi.

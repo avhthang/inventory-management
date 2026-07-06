@@ -23,6 +23,19 @@ git clone https://github.com/avhthang/inventory-management.git /tmp/inventory-ma
 sudo sh /tmp/inventory-management/install.sh
 ```
 
+Chay khong tuong tac:
+
+```bash
+# MiniPC + Cloudflare Tunnel
+sudo INSTALL_MODE=tunnel DOMAIN=inventory.example.com sh /tmp/inventory-management/install.sh
+
+# Server/domain qua reverse proxy ngoai
+sudo INSTALL_MODE=proxy DOMAIN=inventory.example.com sh /tmp/inventory-management/install.sh
+
+# Server/domain chay truc tiep port 80/443
+sudo INSTALL_MODE=direct DOMAIN=inventory.example.com sh /tmp/inventory-management/install.sh
+```
+
 Lenh chay nhanh tren server:
 
 ```bash
