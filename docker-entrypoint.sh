@@ -17,7 +17,7 @@ url = urlparse(os.environ.get('DATABASE_URL', ''))
 if url.scheme not in ('postgresql', 'postgres'):
     sys.exit(0)
 
-host = url.hostname or 'db'
+host = url.hostname or 'inventory-postgres'
 port = url.port or 5432
 deadline = time.time() + int('${DB_WAIT_TIMEOUT:-60}')
 

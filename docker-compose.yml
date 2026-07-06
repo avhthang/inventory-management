@@ -1,28 +1,31 @@
 
 
 services:
-  app:
+  inventory-app:
+    container_name: inventory-app
     build:
       context: ${INVENTORY_APP_DIR:-.}
     env_file:
-      - path: ${INVENTORY_ENV_FILE:-.env}
+      - path: ${INVENTORY_ENV_FILE:-/opt/docker/secrets/inventory/inventory.env}
         required: false
     environment:
       FLASK_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-postgresql://inventory_user:inventory_pass@db:5432/inventory_db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://inventory_user:inventory_pass@inventory-postgres:5432/inventory_db}
       INVENTORY_INSTANCE_DIR: /app/instance
       INVENTORY_BACKUP_DIR: /app/backups
       PREFERRED_URL_SCHEME: ${PREFERRED_URL_SCHEME:-https}
       FORCE_HTTPS: ${FORCE_HTTPS:-false}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
     volumes:
-      - ${INVENTORY_DATA_DIR:-./data/inventory}/instance:/app/instance
-      - ${INVENTORY_DATA_DIR:-./data/inventory}/logs:/app/logs
-      - ${INVENTORY_DATA_DIR:-./data/inventory}/backups:/app/backups
+      - ${INVENTORY_DATA_DIR:-/srv/inventory/data}/instance:/app/instance
+      - ${INVENTORY_DATA_DIR:-/srv/inventory/data}/logs:/app/logs
+      - ${INVENTORY_DATA_DIR:-/srv/inventory/data}/backups:/app/backups
       - static_data:/app/static
     depends_on:
-      db:
+      inventory-postgres:
         condition: service_healthy
+    networks:
+      - inventory-internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -30,14 +33,17 @@ services:
       timeout: 10s
       retries: 3
 
-  db:
+  inventory-postgres:
+    container_name: inventory-postgres
     image: postgres:15-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-inventory_db}
       POSTGRES_USER: ${POSTGRES_USER:-inventory_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventory_pass}
     volumes:
-      - ${POSTGRES_DATA_DIR:-./data/postgres}:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_DIR:-/srv/postgres/inventory/data}:/var/lib/postgresql/data
+    networks:
+      - inventory-internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
@@ -45,18 +51,21 @@ services:
       timeout: 5s
       retries: 5
 
-  nginx:
+  inventory-nginx:
+    container_name: inventory-nginx
     image: nginx:alpine
     ports:
       - "${INVENTORY_HTTP_BIND:-127.0.0.1}:${INVENTORY_HTTP_PORT:-8088}:80"
       - "${INVENTORY_HTTPS_BIND:-127.0.0.1}:${INVENTORY_HTTPS_PORT:-8443}:443"
     volumes:
-      - ${INVENTORY_NGINX_CONF:-./nginx.conf}:/etc/nginx/nginx.conf:ro
-      - ${INVENTORY_SSL_DIR:-./data/inventory/ssl}:/etc/nginx/ssl
-      - ${INVENTORY_INIT_SSL:-./init-ssl.sh}:/docker-entrypoint-init-ssl.sh:ro
+      - ${INVENTORY_NGINX_CONF:-/opt/docker/configs/inventory/nginx.conf}:/etc/nginx/nginx.conf:ro
+      - ${INVENTORY_SSL_DIR:-/opt/docker/configs/inventory/ssl}:/etc/nginx/ssl
+      - ${INVENTORY_INIT_SSL:-/opt/docker/scripts/inventory/init-ssl.sh}:/docker-entrypoint-init-ssl.sh:ro
       - static_data:/app/static
     depends_on:
-      - app
+      - inventory-app
+    networks:
+      - inventory-internal
     restart: unless-stopped
     entrypoint: >
       sh -c "
@@ -66,10 +75,13 @@ services:
       exec /docker-entrypoint.sh nginx -g 'daemon off;'
       "
 
-  redis:
+  inventory-redis:
+    container_name: inventory-redis
     image: redis:7-alpine
     volumes:
-      - ${REDIS_DATA_DIR:-./data/redis}:/data
+      - ${REDIS_DATA_DIR:-/srv/redis/inventory/data}:/data
+    networks:
+      - inventory-internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -79,3 +91,8 @@ services:
 
 volumes:
   static_data:
+    name: inventory-static-data
+
+networks:
+  inventory-internal:
+    name: inventory-internal
