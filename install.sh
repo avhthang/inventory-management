@@ -134,6 +134,7 @@ create_directories() {
   mkdir -p "$APP_DIR" "$COMPOSE_DIR" "$CONFIG_DIR/ssl" "$SCRIPT_DIR" "$SECRET_DIR" "$BACKUP_DIR"
   mkdir -p /srv/inventory/data/instance /srv/inventory/data/backups /srv/inventory/data/logs
   mkdir -p /srv/postgres/inventory/data /srv/redis/inventory/data
+  chown -R 999:999 /srv/inventory/data
 }
 
 sync_source() {
