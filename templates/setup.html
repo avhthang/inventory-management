@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Khoi tao he thong{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <h3 class="card-title text-center mb-4">Khoi tao tai khoan quan tri</h3>
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Ten dang nhap admin</label>
+                        <input type="text" name="username" id="username" class="form-control" value="admin" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="full_name" class="form-label">Ho ten</label>
+                        <input type="text" name="full_name" id="full_name" class="form-control" value="System Administrator">
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" name="email" id="email" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Mat khau</label>
+                        <input type="password" name="password" id="password" class="form-control" minlength="8" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Nhap lai mat khau</label>
+                        <input type="password" name="confirm_password" id="confirm_password" class="form-control" minlength="8" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Tao tai khoan admin</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

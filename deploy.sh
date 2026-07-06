@@ -20,4 +20,9 @@ Start or update Inventory with:
   docker compose --env-file /opt/docker/secrets/inventory/inventory.env up -d --build
 
 Read HOMELAB_DEPLOYMENT.md for the full setup guide.
+
+Quick install from GitHub:
+
+  git clone https://github.com/avhthang/inventory-management.git /tmp/inventory-management
+  sudo sh /tmp/inventory-management/install.sh
 EOF

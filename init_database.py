@@ -1,36 +1,31 @@
 #!/usr/bin/env python3
 """
-Database initialization script
-Creates the database and initial data for the inventory management system
-Supports both SQLite and external databases (PostgreSQL/MySQL)
-"""
-import sys
-import os
-from datetime import datetime
-from werkzeug.security import generate_password_hash
+Initialize database tables and seed baseline data.
 
-# Add the current directory to Python path
+The first admin account is created through /setup by default. For unattended
+installs, set INVENTORY_CREATE_ADMIN_FROM_ENV=true and provide ADMIN_PASSWORD.
+"""
+import os
+import sys
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from app import app, db, User, Department
+from app import app, db, User, Department, create_initial_admin, seed_rbac_data
 from config import get_database_info, is_external_database
-from security import generate_secure_password
+
 
 def init_database():
-    """Initialize the database with required tables and initial data"""
+    """Initialize the database with required tables and optional first admin."""
     with app.app_context():
         db_info = get_database_info()
-        is_external = is_external_database()
-        
+
         print("Initializing database...")
         print(f"Database type: {db_info['type']}")
-        print(f"External database: {is_external}")
-        
-        # Create all tables
+        print(f"External database: {is_external_database()}")
+
         db.create_all()
-        print("✓ Database tables created")
-        
-        # Create default department
+        print("Database tables created")
+
         dept = Department.query.filter_by(name='IT Department').first()
         if not dept:
             dept = Department(
@@ -40,48 +35,35 @@ def init_database():
             )
             db.session.add(dept)
             db.session.commit()
-            print("✓ Created IT Department")
+            print("Created IT Department")
         else:
-            print("✓ IT Department already exists")
-        
-        # Create admin user
-        admin = User.query.filter_by(username='admin').first()
-        if not admin:
-            # Generate secure password
-            admin_password = os.environ.get('ADMIN_PASSWORD', generate_secure_password())
-            admin = User(
-                username='admin',
-                password=generate_password_hash(admin_password),
-                full_name='System Administrator',
-                email='admin@company.com',
-                role='admin',
-                department_id=dept.id,
-                status='Đang làm'
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print(f"✓ Created admin user (username: admin, password: {admin_password})")
-        else:
-            print("✓ Admin user already exists")
-        
-        
-        # Seed RBAC data
-        from app import seed_rbac_data
+            print("IT Department already exists")
+
         seed_rbac_data()
-        
-        print("\n" + "="*50)
-        print("Database initialization completed successfully!")
-        print("="*50)
-        print("Login credentials:")
-        print("Username: admin")
-        if 'ADMIN_PASSWORD' in os.environ:
-            print(f"Password: {os.environ['ADMIN_PASSWORD']}")
+
+        create_admin_from_env = os.environ.get('INVENTORY_CREATE_ADMIN_FROM_ENV', 'false').lower() == 'true'
+        admin_password = os.environ.get('ADMIN_PASSWORD')
+        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@company.com')
+
+        if User.query.first():
+            print("Initial admin setup skipped because users already exist")
+        elif create_admin_from_env and admin_password:
+            create_initial_admin(
+                username=admin_username,
+                password=admin_password,
+                full_name=os.environ.get('ADMIN_FULL_NAME', 'System Administrator'),
+                email=admin_email
+            )
+            print(f"Created initial admin user from environment (username: {admin_username})")
         else:
-            print("Password: Generated securely (check console output above)")
-        print("="*50)
-        print("RBAC roles and permissions have been seeded.")
-        print("Admin user has been assigned Admin role with all permissions.")
-        print("="*50)
+            print("Initial admin setup skipped. Open /setup to create the first admin user.")
+
+        print("=" * 50)
+        print("Database initialization completed successfully")
+        print("Recommended database: PostgreSQL")
+        print("=" * 50)
+
 
 if __name__ == "__main__":
     init_database()

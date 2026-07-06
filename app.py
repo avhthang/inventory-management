@@ -802,7 +802,10 @@ with app.app_context():
                 it_dept = Department(name='IT', description='Phòng Công nghệ Thông tin')
                 db.session.add(it_dept)
                 db.session.flush()
-            admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+            create_admin_from_env = os.environ.get('INVENTORY_CREATE_ADMIN_FROM_ENV', 'false').lower() == 'true'
+            admin_password = os.environ.get('ADMIN_PASSWORD')
+            if not create_admin_from_env or not admin_password:
+                raise RuntimeError('Bootstrap admin is not enabled')
             admin_user = User(
                 username='admin',
                 password=generate_password_hash(admin_password),
@@ -814,7 +817,7 @@ with app.app_context():
             db.session.add(admin_user)
             it_dept.manager_id = admin_user.id
             db.session.commit()
-            print('Default admin created (username=admin).')
+            print('Bootstrap admin created from environment.')
     except Exception as _e:
         # Do not block app start if admin creation fails
         pass
@@ -1281,6 +1284,51 @@ def seed_rbac_data():
 
 # Seed RBAC data after models are defined
 seed_rbac_data()
+
+def _users_exist():
+    try:
+        return User.query.count() > 0
+    except Exception:
+        return False
+
+def _get_or_create_initial_department():
+    dept = Department.query.filter_by(name='IT Department').first()
+    if not dept:
+        dept = Department(
+            name='IT Department',
+            description='Initial administration department',
+            order_index=1
+        )
+        db.session.add(dept)
+        db.session.flush()
+    return dept
+
+def _assign_admin_role(user):
+    seed_rbac_data()
+    admin_role = Role.query.filter_by(name='Admin').first()
+    if admin_role and not UserRole.query.filter_by(user_id=user.id, role_id=admin_role.id).first():
+        db.session.add(UserRole(user_id=user.id, role_id=admin_role.id))
+
+def create_initial_admin(username, password, full_name=None, email=None):
+    """Create the first administrator account for a fresh installation."""
+    if _users_exist():
+        raise ValueError("Initial setup is locked because a user already exists")
+
+    dept = _get_or_create_initial_department()
+    admin = User(
+        username=username,
+        password=generate_password_hash(password),
+        full_name=full_name or 'System Administrator',
+        email=email or None,
+        role='admin',
+        department_id=dept.id
+    )
+    db.session.add(admin)
+    db.session.flush()
+    dept.manager_id = admin.id
+    _assign_admin_role(admin)
+    db.session.commit()
+    return admin
 
 # --- Device Hierarchy Configuration ---
 # --- Device Hierarchy Configuration ---
@@ -2009,8 +2057,44 @@ def home():
                          selected_departments=selected_departments)
 
 # ... (Auth routes) ...
+@app.route('/setup', methods=['GET', 'POST'])
+def first_run_setup():
+    if _users_exist():
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        confirm_password = request.form.get('confirm_password') or ''
+        full_name = (request.form.get('full_name') or '').strip()
+        email = (request.form.get('email') or '').strip()
+
+        if not username or not password:
+            flash('Ten dang nhap va mat khau la bat buoc.', 'danger')
+            return render_template('setup.html')
+        if password != confirm_password:
+            flash('Mat khau xac nhan khong khop.', 'danger')
+            return render_template('setup.html')
+        if len(password) < 8:
+            flash('Mat khau admin nen co it nhat 8 ky tu.', 'danger')
+            return render_template('setup.html')
+
+        try:
+            admin = create_initial_admin(username, password, full_name, email)
+            session['user_id'] = admin.id
+            session.permanent = True
+            flash('Da tao tai khoan quan tri dau tien.', 'success')
+            return redirect(url_for('home'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Khong the tao tai khoan quan tri: {str(e)}', 'danger')
+
+    return render_template('setup.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if not _users_exist():
+        return redirect(url_for('first_run_setup'))
     if 'user_id' in session: return redirect(url_for('home'))
     if request.method == 'POST':
         username = request.form['username']
@@ -5974,9 +6058,14 @@ def create_admin_command():
         db.session.add(it_dept)
         db.session.flush()  # Để lấy id của department vừa tạo
     
+    admin_password = os.environ.get('ADMIN_PASSWORD')
+    if not admin_password:
+        click.echo("ADMIN_PASSWORD must be set before running flask create-admin.")
+        return
+
     admin_user = User(
         username='admin',
-        password=generate_password_hash(os.environ.get('ADMIN_PASSWORD', 'admin123')),
+        password=generate_password_hash(admin_password),
         full_name='Quản Trị Viên',
         email='admin@example.com',
         role='admin',
@@ -5988,7 +6077,7 @@ def create_admin_command():
     it_dept.manager_id = admin_user.id
     
     db.session.commit()
-    click.echo("Đã tạo tài khoản admin thành công (Username: admin, Pass: admin123).")
+    click.echo("Admin account created.")
 
 
 

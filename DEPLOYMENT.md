@@ -16,6 +16,13 @@ Inventory hien duoc trien khai theo mo hinh tach service:
 
 Hay dung [HOMELAB_DEPLOYMENT.md](HOMELAB_DEPLOYMENT.md) lam tai lieu chinh.
 
+Cai nhanh tu GitHub:
+
+```bash
+git clone https://github.com/avhthang/inventory-management.git /tmp/inventory-management
+sudo sh /tmp/inventory-management/install.sh
+```
+
 Lenh chay nhanh tren server:
 
 ```bash
@@ -40,3 +47,5 @@ inventory-redis
 ```
 
 Database va Redis khong publish port ra host. Chung chi nam trong network rieng `inventory-internal`.
+
+Admin dau tien duoc tao tai `/setup` khi database chua co user nao. PostgreSQL la database mac dinh cho production.

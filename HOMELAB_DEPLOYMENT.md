@@ -81,6 +81,23 @@ Dat source code Inventory tai:
 /srv/inventory/app
 ```
 
+Co the cai nhanh bang script:
+
+```bash
+git clone https://github.com/avhthang/inventory-management.git /tmp/inventory-management
+sudo sh /tmp/inventory-management/install.sh
+```
+
+Script se:
+
+- Tao cau truc `/opt/docker/compose/inventory`, `/opt/docker/configs/inventory`, `/opt/docker/secrets/inventory`, `/srv/inventory`, `/srv/postgres/inventory`, `/srv/redis/inventory`
+- Clone hoac update source tu GitHub vao `/srv/inventory/app`
+- Tao `/opt/docker/secrets/inventory/inventory.env` neu chua co
+- Sinh `SECRET_KEY` va mat khau PostgreSQL ngau nhien
+- Start stack bang Docker Compose
+
+Neu muon lam thu cong, tiep tuc cac buoc ben duoi.
+
 ## 3. Copy file trien khai
 
 Tu source code Inventory:
@@ -100,10 +117,31 @@ Sua `/opt/docker/secrets/inventory/inventory.env` va doi toi thieu:
 - `SECRET_KEY`
 - `POSTGRES_PASSWORD`
 - Mat khau trong `DATABASE_URL`
-- `ADMIN_PASSWORD`
 
 Gia tri `POSTGRES_PASSWORD` va mat khau trong `DATABASE_URL` phai giong nhau.
 Host trong `DATABASE_URL` giu la `inventory-postgres` khi chay bang compose nay.
+
+## 3.1. Tao admin lan dau
+
+Mac dinh he thong khong tao san `admin/admin123`.
+Sau khi stack chay, mo:
+
+```text
+http://127.0.0.1:8088/setup
+```
+
+Hoac mo qua subdomain/domain cua ban. Trang setup chi xuat hien khi database chua co user nao.
+Sau khi tao user dau tien, route `/setup` se tu khoa va user do duoc gan quyen Admin.
+
+Neu can cai tu dong khong can mo browser, dat trong env:
+
+```env
+INVENTORY_CREATE_ADMIN_FROM_ENV=true
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your-strong-password
+ADMIN_EMAIL=admin@company.com
+ADMIN_FULL_NAME=System Administrator
+```
 
 ## 4. Chay Inventory
 
@@ -123,8 +161,8 @@ Lan dau container len, app se tu:
 
 - Doi `inventory-postgres` san sang
 - Tao bang database
-- Tao tai khoan `admin` bang `ADMIN_PASSWORD`
 - Seed role/permission co ban
+- Cho tao admin dau tien tai `/setup`, hoac tao tu env neu bat `INVENTORY_CREATE_ADMIN_FROM_ENV=true`
 
 ## 5. Ten container va network
 
@@ -219,6 +257,30 @@ Tao backup logic cua app:
 cd /opt/docker/compose/inventory
 docker compose --env-file /opt/docker/secrets/inventory/inventory.env exec inventory-app python backup_restore.py backup /app/backups/manual_$(date +%Y%m%d_%H%M%S).zip
 ```
+
+Restore tu file backup:
+
+```bash
+cd /opt/docker/compose/inventory
+docker compose --env-file /opt/docker/secrets/inventory/inventory.env exec inventory-app python backup_restore.py restore /app/backups/ten_file_backup.zip
+```
+
+Lua chon DB mac dinh la PostgreSQL vi phu hop nhat voi ung dung quan ly thiet bi:
+
+- Du lieu quan he nhieu bang, nhieu khoa ngoai va phan quyen
+- Backup/restore bang `pg_dump` va `psql` on dinh
+- De tach volume theo service trong `/srv/postgres/inventory/data`
+- De mo rong sau nay khi co nhieu nguoi dung, dashboard, audit/log va bao cao
+
+Khong khuyen nghi SQLite cho production/homelab dai han vi backup khi dang ghi de loi hon va kho mo rong hon.
+
+Version PostgreSQL duoc quan ly bang bien:
+
+```env
+POSTGRES_IMAGE=postgres:15-alpine
+```
+
+Khong nen doi major version truc tiep tren cung data volume. Khi muon nang major version, hay tao backup bang `backup_restore.py`, dung stack, doi image, tao volume moi neu can, roi restore.
 
 ## 10. Cap nhat app
 

@@ -35,7 +35,7 @@ services:
 
   inventory-postgres:
     container_name: inventory-postgres
-    image: postgres:15-alpine
+    image: ${POSTGRES_IMAGE:-postgres:15-alpine}
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-inventory_db}
       POSTGRES_USER: ${POSTGRES_USER:-inventory_user}
