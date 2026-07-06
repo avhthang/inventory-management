@@ -59,15 +59,13 @@ backups/
 .env.production
 .env.staging
 
-# Documentation
+# Documentation and deployment helper scripts
 README.md
 DEPLOYMENT.md
+HOMELAB_DEPLOYMENT.md
 HD_trien_khai.md
-
-# Deployment scripts
 deploy.sh
-setup_postgres.py
-migrate_to_postgres.py
+install.sh
 
 
 # Test files
