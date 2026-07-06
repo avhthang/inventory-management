@@ -57,13 +57,16 @@ class ProductionConfig(Config):
     # Trust proxy headers (X-Forwarded-Proto, X-Forwarded-For, etc.)
     # This is important when running behind nginx reverse proxy
     PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME', 'https')
-    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
+    FORCE_HTTPS = os.environ.get('FORCE_HTTPS', 'False').lower() == 'true'
     
     @classmethod
     def init_app(cls, app):
         Config.init_app(app)
+        if not app.config.get('SQLALCHEMY_DATABASE_URI'):
+            raise ValueError("DATABASE_URL must be set in production environment")
         
         # Configure Flask to trust proxy headers
         # This allows Flask to correctly detect HTTPS when behind nginx
@@ -86,7 +89,7 @@ class ProductionConfig(Config):
                 return
             # Check if request is HTTP (not HTTPS)
             # In production behind nginx, check X-Forwarded-Proto header
-            if request.headers.get('X-Forwarded-Proto') == 'http':
+            if app.config.get('FORCE_HTTPS') and request.headers.get('X-Forwarded-Proto') == 'http':
                 # Redirect to HTTPS version
                 url = request.url.replace('http://', 'https://', 1)
                 return redirect(url, code=301)

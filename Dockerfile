@@ -49,9 +49,11 @@ WORKDIR /app
 
 # Copy application code
 COPY . .
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Create necessary directories
 RUN mkdir -p /app/instance /app/logs /app/backups && \
+    chmod +x /usr/local/bin/docker-entrypoint.sh && \
     chown -R appuser:appuser /app
 
 # Switch to non-root user
@@ -65,4 +67,5 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # Default command
-CMD ["/bin/sh", "-c", "gunicorn --workers 4 --bind 0.0.0.0:${PORT:-8000} --timeout 300 app:app"]
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["/bin/sh", "-c", "gunicorn --workers ${WORKERS:-4} --bind 0.0.0.0:${PORT:-8000} --timeout ${TIMEOUT:-300} app:app"]

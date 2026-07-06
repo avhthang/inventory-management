@@ -7,7 +7,7 @@ Supports both SQLite and external databases (PostgreSQL/MySQL)
 import sys
 import os
 from datetime import datetime
-import hashlib
+from werkzeug.security import generate_password_hash
 
 # Add the current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -49,10 +49,9 @@ def init_database():
         if not admin:
             # Generate secure password
             admin_password = os.environ.get('ADMIN_PASSWORD', generate_secure_password())
-            password_hash = hashlib.sha256(admin_password.encode()).hexdigest()
             admin = User(
                 username='admin',
-                password=password_hash,
+                password=generate_password_hash(admin_password),
                 full_name='System Administrator',
                 email='admin@company.com',
                 role='admin',

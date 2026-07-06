@@ -22,11 +22,11 @@ from config import config, get_database_info, is_external_database
 from backup_restore import DatabaseBackup
 
 # --- Cấu hình ứng dụng ---
-instance_path = os.path.join(os.getcwd(), 'instance')
+instance_path = os.environ.get('INVENTORY_INSTANCE_DIR') or os.path.join(os.getcwd(), 'instance')
 os.makedirs(instance_path, exist_ok=True)
 
 # Backup configuration
-backup_path = os.path.join(os.getcwd(), 'backups')
+backup_path = os.environ.get('INVENTORY_BACKUP_DIR') or os.path.join(os.getcwd(), 'backups')
 os.makedirs(backup_path, exist_ok=True)
 
 # Attachment directories
