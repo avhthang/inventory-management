@@ -3589,6 +3589,16 @@ def import_handovers():
 
         try:
             df = pd.read_excel(file, engine='openpyxl')
+            df = _normalize_excel_columns(df, {
+                'Mã thiết bị': ['Mã Thiết Bị'],
+                'Tên đăng nhập người giao': ['Người Giao', 'Người giao'],
+                'Tên đăng nhập người nhận': ['Người Nhận', 'Người nhận'],
+                'Ngày bàn giao': ['Ngày Bàn Giao', 'Ngày Bàn giao'],
+                'Tình trạng thiết bị': ['Tình Trạng Thiết Bị', 'Tình trạng'],
+                'Lý do bàn giao': ['Lý Do', 'Lý do'],
+                'Nơi đặt thiết bị': ['Nơi Đặt', 'Nơi đặt'],
+                'Ghi chú': ['Ghi Chú']
+            })
             required_columns = ['Mã thiết bị', 'Tên đăng nhập người giao', 'Tên đăng nhập người nhận', 'Ngày bàn giao', 'Tình trạng thiết bị']
             if not all(col in df.columns for col in required_columns):
                 flash(f'File Excel phải chứa các cột bắt buộc: {", ".join(required_columns)}.', 'danger')
@@ -3598,14 +3608,14 @@ def import_handovers():
             handovers_to_add = []
             
             for index, row in df.iterrows():
-                device_code = str(row['Mã thiết bị'])
-                giver_username = str(row['Tên đăng nhập người giao'])
-                receiver_username = str(row['Tên đăng nhập người nhận'])
-                handover_date_str = str(row['Ngày bàn giao'])
+                device_code = _cell_text(row['Mã thiết bị'])
+                giver_username = _cell_text(row['Tên đăng nhập người giao'])
+                receiver_username = _cell_text(row['Tên đăng nhập người nhận'])
+                handover_date_str = _cell_text(row['Ngày bàn giao'])
 
                 device = Device.query.filter_by(device_code=device_code).first()
-                giver = User.query.filter_by(username=giver_username).first()
-                receiver = User.query.filter_by(username=receiver_username).first()
+                giver = User.query.filter_by(username=giver_username).first() or User.query.filter_by(full_name=giver_username).first()
+                receiver = User.query.filter_by(username=receiver_username).first() or User.query.filter_by(full_name=receiver_username).first()
 
                 # --- Validation ---
                 current_row_errors = []
@@ -3616,9 +3626,6 @@ def import_handovers():
                 if not receiver:
                     current_row_errors.append(f'Người nhận "{receiver_username}" không tồn tại.')
                 
-                if device and device.status == 'Đã cấp phát':
-                     current_row_errors.append(f'Thiết bị "{device_code}" đã được cấp phát, không thể bàn giao.')
-
                 if current_row_errors:
                     errors.append(f"Dòng {index + 2}: " + ", ".join(current_row_errors))
                     continue 
@@ -3646,6 +3653,7 @@ def import_handovers():
                 )
                 # Insert row-by-row to avoid PG executemany casts
                 db.session.add(new_handover)
+                handovers_to_add.append(new_handover)
                 
                 # Cập nhật trạng thái của thiết bị
                 device.status = 'Đã cấp phát'
@@ -4051,48 +4059,50 @@ def import_devices():
         
         try:
             df = pd.read_excel(file, engine='openpyxl')
-            expected_columns = [
-                'Mã thiết bị', 'Tên thiết bị', 'Loại thiết bị', 'Số serial', 'Ngày mua', 'Giá mua', 'Người mua',
-                'Tình trạng', 'Trạng thái', 'Người quản lý', 'Ngày cấp phát',
-                'Cấu hình', 'Ghi chú', 'Thương hiệu', 'Nhà cung cấp', 'Bảo hành'
-            ]
-            if not all(col in df.columns for col in expected_columns):
-                flash('File Excel thiếu một hoặc nhiều cột bắt buộc. Vui lòng kiểm tra lại tiêu đề các cột.', 'danger')
+            required_columns = ['Mã thiết bị', 'Tên thiết bị', 'Loại thiết bị', 'Tình trạng', 'Trạng thái']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                flash(f'File Excel thiếu cột bắt buộc: {", ".join(missing_columns)}.', 'danger')
                 return redirect(url_for('import_devices'))
             
             valid_conditions = ['Mới', 'Sử dụng bình thường', 'Cần bảo trì', 'Hỏng']
             valid_statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì']
-            valid_device_types = [
-                'Laptop', 'Case máy tính', 'Màn hình', 'Bàn phím', 'Chuột', 'Ổ cứng',
-                'Ram', 'Card màn hình', 'Máy in', 'Thiết bị mạng', 'Server', 'Thiết bị khác'
-            ]
+            valid_device_types = {dt.name for dt in DeviceType.query.all()}
             
             devices_to_add = []
             errors = []
 
             for index, row in df.iterrows():
                 manager_id = None
+                device_code = _cell_text(row['Mã thiết bị'])
+                device_name = _cell_text(row['Tên thiết bị'])
+                device_type = _cell_text(row['Loại thiết bị'])
+                condition = _cell_text(row['Tình trạng'])
+                status = _cell_text(row['Trạng thái'])
                 
-                if not all(pd.notna(row[col]) for col in ['Mã thiết bị', 'Tên thiết bị', 'Loại thiết bị', 'Tình trạng', 'Trạng thái']):
+                if not all([device_code, device_name, device_type, condition, status]):
                     errors.append(f'Dòng {index+2}: Thiếu thông tin ở các cột bắt buộc.')
                     continue
-                if Device.query.filter_by(device_code=row['Mã thiết bị']).first():
-                    errors.append(f'Dòng {index+2}: Mã thiết bị {row["Mã thiết bị"]} đã tồn tại.')
+                if Device.query.filter_by(device_code=device_code).first():
+                    errors.append(f'Dòng {index+2}: Mã thiết bị {device_code} đã tồn tại.')
                     continue
-                if row['Loại thiết bị'] not in valid_device_types:
-                    errors.append(f'Dòng {index+2}: Loại thiết bị "{row["Loại thiết bị"]}" không hợp lệ.')
+                if valid_device_types and device_type not in valid_device_types:
+                    errors.append(f'Dòng {index+2}: Loại thiết bị "{device_type}" không hợp lệ.')
                     continue
 
-                if pd.notna(row['Người quản lý']) and row['Người quản lý']:
-                    manager = User.query.filter_by(full_name=row['Người quản lý']).first()
+                manager_name = row.get('Người quản lý')
+                if pd.notna(manager_name) and manager_name:
+                    manager = User.query.filter_by(full_name=manager_name).first() or User.query.filter_by(username=str(manager_name).strip()).first()
                     if not manager:
-                        errors.append(f'Dòng {index+2}: Người quản lý {row["Người quản lý"]} không tồn tại.')
+                        errors.append(f'Dòng {index+2}: Người quản lý {manager_name} không tồn tại.')
                         continue
                     manager_id = manager.id
                 
                 try:
-                    purchase_date = pd.to_datetime(row['Ngày mua']).date() if pd.notna(row['Ngày mua']) else None
-                    assign_date = pd.to_datetime(row['Ngày cấp phát']).date() if pd.notna(row['Ngày cấp phát']) else None
+                    purchase_date_val = row.get('Ngày mua')
+                    assign_date_val = row.get('Ngày cấp phát')
+                    purchase_date = pd.to_datetime(purchase_date_val).date() if pd.notna(purchase_date_val) else None
+                    assign_date = pd.to_datetime(assign_date_val).date() if pd.notna(assign_date_val) else None
                 except ValueError:
                     errors.append(f'Dòng {index+2}: Định dạng ngày không hợp lệ.'); continue
                 
@@ -4117,14 +4127,14 @@ def import_devices():
                     return str(v)
 
                 device = Device(
-                    device_code=_s(row['Mã thiết bị']),
-                    name=_s(row['Tên thiết bị']),
-                    device_type=_s(row['Loại thiết bị']),
+                    device_code=device_code,
+                    name=device_name,
+                    device_type=device_type,
                     serial_number=_s(row.get('Số serial')),
                     purchase_date=purchase_date,
                     import_date=purchase_date,
-                    condition=_s(row['Tình trạng']),
-                    status=_s(row['Trạng thái']),
+                    condition=condition,
+                    status=status,
                     manager_id=manager_id,
                     assign_date=assign_date,
                     configuration=_s(row.get('Cấu hình')),
@@ -4244,6 +4254,23 @@ def _to_vietnam_time(dt):
     except Exception:
         return dt
 
+def _normalize_excel_columns(df, aliases):
+    """Rename known Excel column aliases to canonical import names."""
+    rename_map = {}
+    for canonical, alternatives in aliases.items():
+        if canonical in df.columns:
+            continue
+        for alternative in alternatives:
+            if alternative in df.columns:
+                rename_map[alternative] = canonical
+                break
+    return df.rename(columns=rename_map)
+
+def _cell_text(value):
+    if pd.isna(value):
+        return ''
+    return str(value).strip()
+
 def download_maintenance_file(log_id, filename):
     if 'user_id' not in session: return redirect(url_for('login'))
     if 'maintenance.download' not in _get_current_permissions():
@@ -4264,7 +4291,7 @@ def import_users():
         
         try:
             df = pd.read_excel(file, engine='openpyxl')
-            required_columns = ['Tên đăng nhập', 'Mật khẩu', 'Họ và tên', 'Email', 'Vai trò']
+            required_columns = ['Tên đăng nhập', 'Họ và tên', 'Email', 'Vai trò']
             if not all(col in df.columns for col in required_columns):
                 flash(f'File Excel phải chứa các cột bắt buộc: {", ".join(required_columns)}.', 'danger')
                 return redirect(url_for('import_users'))
@@ -4273,13 +4300,16 @@ def import_users():
             users_to_add = []
             
             for index, row in df.iterrows():
-                username = str(row['Tên đăng nhập'])
-                password = str(row['Mật khẩu'])
-                email = str(row['Email'])
+                username = _cell_text(row['Tên đăng nhập'])
+                password = _cell_text(row.get('Mật khẩu'))
+                email = _cell_text(row['Email'])
 
-                if not username or not password or not email:
-                    errors.append(f'Dòng {index + 2}: Tên đăng nhập, Mật khẩu, và Email không được để trống.')
+                if not username or not email:
+                    errors.append(f'Dòng {index + 2}: Tên đăng nhập và Email không được để trống.')
                     continue
+                if not password:
+                    from security import generate_secure_password
+                    password = generate_secure_password()
                 if User.query.filter_by(username=username).first():
                     errors.append(f'Dòng {index + 2}: Tên đăng nhập "{username}" đã tồn tại.')
                     continue
@@ -4342,6 +4372,7 @@ def export_users_excel():
         data.append({
             'ID': user.id,
             'Tên đăng nhập': user.username,
+            'Mật khẩu': '',
             'Họ và tên': user.full_name,
             'Email': user.email,
             'Phòng ban': user.department_info.name if user.department_info else None,
@@ -5297,7 +5328,21 @@ def export_handovers_excel():
     handovers = DeviceHandover.query.order_by(DeviceHandover.handover_date.desc()).all()
     data = []
     for handover in handovers:
-        data.append({'Ngày Bàn Giao': handover.handover_date.strftime('%d-%m-%Y'), 'Mã Thiết Bị': handover.device.device_code if handover.device else '', 'Tên Thiết Bị': handover.device.name if handover.device else '', 'Loại Thiết Bị': handover.device_type if handover.device else '', 'Người Giao': handover.giver.full_name if handover.giver else '', 'Người Nhận': handover.receiver.full_name if handover.receiver else '', 'Phòng ban Người Nhận': (handover.receiver.department_info.name if handover.receiver and handover.receiver.department_info else ''), 'Tình Trạng Thiết Bị': handover.device_condition, 'Lý Do': handover.reason, 'Nơi Đặt': handover.location, 'Ghi Chú': handover.notes})
+        data.append({
+            'Mã thiết bị': handover.device.device_code if handover.device else '',
+            'Tên đăng nhập người giao': handover.giver.username if handover.giver else '',
+            'Tên đăng nhập người nhận': handover.receiver.username if handover.receiver else '',
+            'Ngày bàn giao': handover.handover_date.strftime('%d-%m-%Y') if handover.handover_date else '',
+            'Tình trạng thiết bị': handover.device_condition,
+            'Lý do bàn giao': handover.reason,
+            'Nơi đặt thiết bị': handover.location,
+            'Ghi chú': handover.notes,
+            'Tên thiết bị': handover.device.name if handover.device else '',
+            'Loại thiết bị': handover.device.device_type if handover.device else '',
+            'Người giao': handover.giver.full_name if handover.giver else '',
+            'Người nhận': handover.receiver.full_name if handover.receiver else '',
+            'Phòng ban người nhận': (handover.receiver.department_info.name if handover.receiver and handover.receiver.department_info else '')
+        })
     df = pd.DataFrame(data)
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Handovers')
