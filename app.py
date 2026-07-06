@@ -114,13 +114,13 @@ PERMISSIONS = [
     ('handovers.view', 'Xem lịch sử/Tạo phiếu bàn giao'),
     ('handovers.edit', 'Sửa phiếu bàn giao'),
     ('handovers.delete', 'Xóa phiếu bàn giao'),
-    # Đề xuất cấu hình
-    ('config_proposals.view', 'Xem đề xuất cấu hình'),
-    ('config_proposals.create', 'Tạo đề xuất cấu hình'),
-    ('config_proposals.edit', 'Sửa đề xuất cấu hình (khi chưa duyệt)'),
-    ('config_proposals.delete', 'Xóa đề xuất cấu hình'),
+    # Đề xuất thiết bị
+    ('config_proposals.view', 'Xem đề xuất thiết bị'),
+    ('config_proposals.create', 'Tạo đề xuất thiết bị'),
+    ('config_proposals.edit', 'Sửa đề xuất thiết bị'),
+    ('config_proposals.delete', 'Xóa đề xuất thiết bị'),
     ('config_proposals.approve_team', 'Duyệt đề xuất (Trưởng bộ phận)'),
-    ('config_proposals.consult_it', 'Tư vấn kỹ thuật (IT)'),
+    ('config_proposals.consult_it', 'IT lập phương án thiết bị'),
     ('config_proposals.review_finance', 'Kiểm tra ngân sách (Tài chính/Kế toán)'),
     ('config_proposals.approve_director', 'Phê duyệt (Giám đốc)'),
     ('config_proposals.execute_purchase', 'Thực hiện mua sắm (Mua hàng)'),
@@ -1143,6 +1143,7 @@ class ConfigProposalItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     proposal_id = db.Column(db.Integer, db.ForeignKey('config_proposal.id'), nullable=False)
     order_no = db.Column(db.Integer, default=0)
+    option_name = db.Column(db.String(120))
     product_name = db.Column(db.String(255))
     product_link = db.Column(db.String(255))  # Link tham khảo sản phẩm
     warranty = db.Column(db.String(120))
@@ -1878,7 +1879,7 @@ def roles_permissions():
         'Phòng server': ['server_room.view', 'server_room.edit', 'server_room.delete'],
         'Bàn giao thiết bị': ['handovers.view', 'handovers.edit', 'handovers.delete'],
         'Phiếu nhập kho': ['inventory.view', 'inventory.edit', 'inventory.delete'],
-        'Đề xuất cấu hình': ['config_proposals.view', 'config_proposals.edit', 'config_proposals.delete'],
+        'Đề xuất thiết bị': ['config_proposals.view', 'config_proposals.edit', 'config_proposals.delete'],
         'Báo lỗi': ['bug_reports.create', 'bug_reports.view', 'bug_reports.edit', 'bug_reports.delete', 'bug_reports.assign'],
         'Người dùng': ['users.view', 'users.edit', 'users.delete'],
         'Phòng ban': ['departments.view', 'departments.edit', 'departments.delete'],
@@ -2029,7 +2030,7 @@ def role_detail(role_id):
         'Phòng server': ['server_room.view', 'server_room.edit', 'server_room.delete'],
         'Bàn giao thiết bị': ['handovers.view', 'handovers.edit', 'handovers.delete'],
         'Phiếu nhập kho': ['inventory.view', 'inventory.edit', 'inventory.delete'],
-        'Đề xuất cấu hình': ['config_proposals.view', 'config_proposals.edit', 'config_proposals.delete'],
+        'Đề xuất thiết bị': ['config_proposals.view', 'config_proposals.edit', 'config_proposals.delete'],
         'Báo lỗi': ['bug_reports.create', 'bug_reports.view', 'bug_reports.edit', 'bug_reports.delete', 'bug_reports.assign'],
         'Người dùng': ['users.view', 'users.edit', 'users.delete'],
         'Phòng ban': ['departments.view', 'departments.edit', 'departments.delete'],
@@ -5513,9 +5514,10 @@ def add_config_proposal():
             # purchase_status removed
             notes = request.form.get('notes')
             supplier_info_hdr = request.form.get('supplier_info')
+            general_requirements = request.form.get('general_requirements', '').strip()
 
-            if not name or not proposal_date_str:
-                flash('Vui lòng nhập Tên đề xuất và Ngày đề xuất.', 'danger')
+            if not name or not proposal_date_str or not general_requirements:
+                flash('Vui lòng nhập Tên đề xuất, Ngày đề xuất và Nhu cầu sử dụng.', 'danger')
                 return redirect(url_for('add_config_proposal'))
 
             proposal_date = datetime.strptime(proposal_date_str, '%Y-%m-%d').date()
@@ -5537,7 +5539,7 @@ def add_config_proposal():
                 created_by=session['user_id'],
                 status='new',
                 current_stage_deadline=datetime.utcnow() + timedelta(days=1), # SLA for Team Lead
-                general_requirements=request.form.get('general_requirements'),
+                general_requirements=general_requirements,
                 required_date=datetime.strptime(request.form.get('required_date'), '%Y-%m-%d').date() if request.form.get('required_date') else None
             )
             db.session.add(proposal)
@@ -5547,6 +5549,7 @@ def add_config_proposal():
             rows = int(request.form.get('rows_count', 8))
             for i in range(rows):
                 prefix = f'rows[{i}]'
+                option_name = request.form.get(f'{prefix}[option_name]')
                 product_name = request.form.get(f'{prefix}[product_name]')
                 product_link = request.form.get(f'{prefix}[product_link]')
                 product_code = request.form.get(f'{prefix}[product_code]')
@@ -5560,6 +5563,7 @@ def add_config_proposal():
                 db.session.add(ConfigProposalItem(
                     proposal_id=proposal.id,
                     order_no=i + 1,
+                    option_name=option_name,
                     product_name=product_name,
                     product_link=product_link,
                     product_code=product_code,
@@ -5577,10 +5581,10 @@ def add_config_proposal():
             db.session.commit()
             
             # Notifications
-            notify_user(session['user_id'], f"Đề xuất cấu hình '{name}' đã được tạo.", url_for('config_proposal_detail', proposal_id=proposal.id, _external=True))
-            notify_group(f"Đề xuất cấu hình mới: '{name}'", url_for('config_proposal_detail', proposal_id=proposal.id, _external=True))
+            notify_user(session['user_id'], f"Đề xuất thiết bị '{name}' đã được tạo.", url_for('config_proposal_detail', proposal_id=proposal.id, _external=True))
+            notify_group(f"Đề xuất thiết bị mới: '{name}'", url_for('config_proposal_detail', proposal_id=proposal.id, _external=True))
             
-            flash('Tạo đề xuất cấu hình thiết bị thành công.', 'success')
+            flash('Tạo đề xuất thiết bị thành công.', 'success')
             return redirect(url_for('config_proposals'))
         except Exception as e:
             db.session.rollback()
@@ -5671,13 +5675,17 @@ def proposal_action(proposal_id):
 
         elif action == 'consult_it':
             if 'config_proposals.consult_it' not in permissions and current_user.role != 'admin':
-                flash('Bạn không có quyền tư vấn kỹ thuật.', 'danger')
+                flash('Bạn không có quyền lập phương án thiết bị.', 'danger')
                 return redirect(url_for('config_proposal_detail', proposal_id=p.id))
             
             supplier_info = request.form.get('supplier_info')
             if supplier_info:
                 p.supplier_info = supplier_info
                 
+            if not ConfigProposalItem.query.filter_by(proposal_id=p.id).first():
+                flash('IT cần cập nhật ít nhất một phương án thiết bị trước khi chuyển bước.', 'danger')
+                return redirect(url_for('edit_config_proposal', proposal_id=p.id))
+
             is_from_stock = request.form.get('is_from_stock') == 'on'
             p.is_from_stock = is_from_stock
             
@@ -5686,7 +5694,7 @@ def proposal_action(proposal_id):
             p.it_consulted_at = datetime.utcnow()
             p.it_consultation_note = note
             p.current_stage_deadline = get_deadline(2) # SLA for Director: 48h
-            flash('Đã hoàn thành tư vấn kỹ thuật. Chuyển sang Giám đốc phê duyệt.', 'success')
+            flash('Đã hoàn thành phương án thiết bị. Chuyển sang Giám đốc phê duyệt.', 'success')
 
 
 
@@ -5858,7 +5866,7 @@ def proposal_action(proposal_id):
         # Notifications for Proposal Actions
         action_names = {
             'approve_team': 'Duyệt (Bộ phận)',
-            'consult_it': 'IT tư vấn xong',
+            'consult_it': 'IT đã lập phương án',
             'approve_director': 'Phê duyệt',
             'start_purchasing': 'Bắt đầu mua sắm',
             'confirm_payment': 'Thanh toán hoàn tất',
@@ -5980,6 +5988,7 @@ def clone_config_proposal(proposal_id):
         db.session.add(ConfigProposalItem(
             proposal_id=new_p.id,
             order_no=it.order_no,
+            option_name=it.option_name,
             product_name=it.product_name,
             product_link=it.product_link,
             product_code=it.product_code,
@@ -6101,6 +6110,7 @@ def edit_config_proposal(proposal_id):
             rows = int(request.form.get('rows_count', 0))
             for i in range(rows):
                 prefix = f'rows[{i}]'
+                option_name = request.form.get(f'{prefix}[option_name]')
                 product_name = request.form.get(f'{prefix}[product_name]')
                 product_link = request.form.get(f'{prefix}[product_link]')
                 product_code = request.form.get(f'{prefix}[product_code]')
@@ -6114,6 +6124,7 @@ def edit_config_proposal(proposal_id):
                 db.session.add(ConfigProposalItem(
                     proposal_id=p.id,
                     order_no=i + 1,
+                    option_name=option_name,
                     product_name=product_name,
                     product_link=product_link,
                     product_code=product_code,

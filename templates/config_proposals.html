@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
-{% block title %}Đề xuất cấu hình{% endblock %}
+{% block title %}Đề xuất thiết bị{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Đề xuất cấu hình thiết bị</h3>
+  <h3>Đề xuất thiết bị</h3>
   <a class="btn btn-primary" href="{{ url_for('add_config_proposal') }}"><i class="bi bi-plus-lg"></i> Tạo đề xuất</a>
 </div>
 
 <form class="row g-2 mb-3" method="get">
   <div class="col-md-7">
-    <input type="text" class="form-control" name="name" placeholder="Tìm theo tên đề xuất"
+    <input type="text" class="form-control" name="name" placeholder="Tìm theo tên đề xuất thiết bị"
       value="{{ filter_name or '' }}">
   </div>
   <div class="col-md-2">
@@ -29,7 +29,7 @@
         <thead>
           <tr>
             <th class="text-center">#</th>
-            <th class="text-center">Tên đề xuất</th>
+            <th class="text-center">Tên đề xuất thiết bị</th>
             <th class="text-center">Ngày đề xuất</th>
             <th class="text-center" style="white-space: nowrap;">
               <strong>Người đề xuất</strong>
@@ -98,7 +98,7 @@
             <td class="text-center">
               {% if p.status == 'new' %}<span class="badge bg-secondary">Mới tạo</span>
               {% elif p.status == 'team_approved' %}<span class="badge bg-info">Đã duyệt (BP)</span>
-              {% elif p.status == 'it_consulted' %}<span class="badge bg-primary">Đã tư vấn (IT)</span>
+              {% elif p.status == 'it_consulted' %}<span class="badge bg-primary">IT đã lập phương án</span>
 
               {% elif p.status == 'approved' %}<span class="badge bg-success">Đã duyệt (Lãnh đạo)</span>
               {% elif p.status == 'purchasing' %}<span class="badge bg-primary">Đang mua sắm</span>

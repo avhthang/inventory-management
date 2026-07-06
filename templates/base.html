@@ -67,7 +67,7 @@
                     {% if current_permissions and 'config_proposals.view' in current_permissions %}
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint == 'config_proposals' %}active{% endif %}"
-                            href="{{ url_for('config_proposals') }}">Đề xuất cấu hình</a></li>
+                            href="{{ url_for('config_proposals') }}">Đề xuất thiết bị</a></li>
                     {% endif %}
                     {% if current_permissions and ('users.view' in current_permissions or 'departments.view' in
                     current_permissions or 'backup.view' in current_permissions or 'rbac.view' in current_permissions or

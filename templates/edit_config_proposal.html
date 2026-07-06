@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
-{% block title %}Sửa đề xuất{% endblock %}
+{% block title %}Sửa đề xuất thiết bị{% endblock %}
 {% block content %}
-<h3 class="mb-3">Sửa đề xuất cấu hình</h3>
+<h3 class="mb-3">Sửa đề xuất thiết bị</h3>
 
 <form method="post">
   <div class="row g-3 mb-3">
@@ -53,8 +53,8 @@
       <textarea class="form-control" rows="2" name="general_requirements">{{ p.general_requirements or '' }}</textarea>
     </div>
     <div class="col-12">
-      <label class="form-label">NCC / Báo giá</label>
-      <input type="text" class="form-control" name="supplier_info" value="{{ p.supplier_info or '' }}">
+      <label class="form-label">Ghi chú IT / nơi mua đề xuất</label>
+      <textarea class="form-control" rows="2" name="supplier_info">{{ p.supplier_info or '' }}</textarea>
     </div>
     <div class="col-12">
       <label class="form-label">Ghi chú chung</label>
@@ -80,7 +80,7 @@
   <div class="card mb-3">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0">Chi tiết thiết bị</h5>
+        <h5 class="mb-0">Phương án thiết bị / cấu hình IT đề xuất</h5>
         <button type="button" id="btnAddRow" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Thêm
           dòng</button>
       </div>
@@ -89,8 +89,9 @@
           <thead class="table-light">
             <tr>
               <th style="width:70px">STT</th>
-              <th>Tên sản phẩm</th>
-              <th style="width:160px">Tham khảo</th>
+              <th style="width:150px">Phương án</th>
+              <th>Tên thiết bị / cấu hình</th>
+              <th style="width:180px">Nơi mua / link</th>
               <th style="width:140px">Bảo hành</th>
               <th style="width:120px">Số lượng</th>
               <th style="width:160px">Đơn giá</th>
@@ -102,6 +103,8 @@
             {% for it in items %}
             <tr>
               <td class="text-center">{{ loop.index }}</td>
+              <td><input name="rows[{{ loop.index0 }}][option_name]" class="form-control"
+                  value="{{ it.option_name or 'Phương án 1' }}" /></td>
               <td><input name="rows[{{ loop.index0 }}][product_name]" class="form-control"
                   value="{{ it.product_name }}" /></td>
               <td><input name="rows[{{ loop.index0 }}][product_link]" class="form-control"
@@ -119,12 +122,12 @@
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="6" class="text-end fw-semibold">Tổng tạm tính</td>
+              <td colspan="7" class="text-end fw-semibold">Tổng tạm tính</td>
               <td class="text-end"><span id="subtotal">0</span></td>
               <td></td>
             </tr>
             <tr>
-              <td colspan="6" class="text-end fw-semibold">Số lượng (Bộ)</td>
+              <td colspan="7" class="text-end fw-semibold">Số lượng (Bộ)</td>
               <td class="text-end">
                 <input type="number" class="form-control form-control-sm text-end" name="quantity" id="quantity"
                   value="{{ p.quantity or 1 }}" min="1" required>
@@ -132,12 +135,12 @@
               <td></td>
             </tr>
             <tr>
-              <td colspan="6" class="text-end fw-semibold">Tiền VAT</td>
+              <td colspan="7" class="text-end fw-semibold">Tiền VAT</td>
               <td class="text-end"><span id="vat_amount">0</span></td>
               <td></td>
             </tr>
             <tr>
-              <td colspan="6" class="text-end fw-bold">Tổng cộng</td>
+              <td colspan="7" class="text-end fw-bold">Tổng cộng</td>
               <td class="text-end fw-bold"><span id="total_amount">0</span></td>
               <td></td>
             </tr>
@@ -203,9 +206,10 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
       <td class="text-center">${idx + 1}</td>
+      <td><input name="rows[${idx}][option_name]" class="form-control" value="Phương án ${idx + 1}"/></td>
       <td><input name="rows[${idx}][product_name]" class="form-control"/></td>
+      <td><input name="rows[${idx}][product_link]" class="form-control" placeholder="Nhà cung cấp hoặc https://..."/></td>
       <td><input name="rows[${idx}][warranty]" class="form-control"/></td>
-      <td><input name="rows[${idx}][supplier_info]" class="form-control"/></td>
       <td><input name="rows[${idx}][quantity]" type="number" min="0" class="form-control qty" value="0"/></td>
       <td><input name="rows[${idx}][unit_price]" type="number" min="0" step="0.01" class="form-control unit" value="0"/></td>
       <td class="text-end"><span class="line">0</span></td>
@@ -225,11 +229,12 @@
           trs.forEach((tr, i) => {
             tr.querySelector('td').textContent = i + 1;
             const inputs = tr.querySelectorAll('input');
-            inputs[0].name = `rows[${i}][product_name]`;
-            inputs[1].name = `rows[${i}][warranty]`;
-            inputs[2].name = `rows[${i}][supplier_info]`;
-            inputs[3].name = `rows[${i}][quantity]`;
-            inputs[4].name = `rows[${i}][unit_price]`;
+            inputs[0].name = `rows[${i}][option_name]`;
+            inputs[1].name = `rows[${i}][product_name]`;
+            inputs[2].name = `rows[${i}][product_link]`;
+            inputs[3].name = `rows[${i}][warranty]`;
+            inputs[4].name = `rows[${i}][quantity]`;
+            inputs[5].name = `rows[${i}][unit_price]`;
           });
           rowsCountInput.value = trs.length;
           recalc();
@@ -246,7 +251,10 @@
     }
 
     function init() {
-      // initialize lines
+      if (tbody.querySelectorAll('tr').length === 0) {
+        newRow(0);
+        rowsCountInput.value = 1;
+      }
       recalc();
       bind();
     }

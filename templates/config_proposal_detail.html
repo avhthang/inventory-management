@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
-{% block title %}Chi tiết đề xuất{% endblock %}
+{% block title %}Chi tiết đề xuất thiết bị{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Chi tiết đề xuất #{{ p.id }}</h3>
+  <h3>Chi tiết đề xuất thiết bị #{{ p.id }}</h3>
   <div>
     <!-- Allow Edit if Creator/Admin (anytime) OR IT (team_approved) OR New/Rejected (edit perm) -->
     {% set can_edit = False %}
@@ -63,7 +63,7 @@
       {% set steps = [
       ('new', 'Mới tạo'),
       ('team_approved', 'Phê duyệt Trưởng BP'),
-      ('it_consulted', 'Tư vấn IT'),
+      ('it_consulted', 'IT lập phương án'),
       ('approved', 'Lãnh đạo phê duyệt')
       ] %}
       {% set ns = namespace(current_step_idx=-1) %}
@@ -118,7 +118,7 @@
           {% set step_handler = 'Bộ phận IT' %}
           {% if p.it_consulted_at %}
           {% set step_handler = p.it_consultant.full_name if p.it_consultant else step_handler %}
-          {% set step_info = 'Đã tư vấn: ' ~ (p.it_consulted_at|localtime('%d/%m/%Y %H:%M')) %}
+          {% set step_info = 'Đã lập phương án: ' ~ (p.it_consulted_at|localtime('%d/%m/%Y %H:%M')) %}
           {% endif %}
 
           {% elif s_code == 'approved' %}
@@ -427,7 +427,7 @@
           <div class="col-md-6"><strong>Trạng thái:</strong> 
             {% if p.status == 'new' %}<span class="badge bg-secondary">Mới tạo</span>
             {% elif p.status == 'team_approved' %}<span class="badge bg-info">Đã duyệt (BP)</span>
-            {% elif p.status == 'it_consulted' %}<span class="badge bg-primary">Đã tư vấn (IT)</span>
+            {% elif p.status == 'it_consulted' %}<span class="badge bg-primary">IT đã lập phương án</span>
 
             {% elif p.status == 'approved' %}<span class="badge bg-success">Đã duyệt (Lãnh đạo)</span>
             {% elif p.status == 'purchasing' %}<span class="badge bg-primary">Đang mua sắm</span>
@@ -440,7 +440,7 @@
           </div>
           <div class="col-12"><strong>Nội dung/Ghi chú:</strong> {{ p.notes or 'Không có' }}</div>
           <div class="col-12">
-            <strong>Thông tin nhà cung cấp:</strong>
+            <strong>Ghi chú IT / nơi mua đề xuất:</strong>
             <div class="bg-light p-2 rounded border mt-1">{{ p.supplier_info or 'Chưa có thông tin' }}</div>
           </div>
         </div>
@@ -449,13 +449,15 @@
 
     <!-- Items Table -->
     <div class="card mb-3">
-      <div class="card-header bg-light"><strong>Danh sách thiết bị</strong></div>
+      <div class="card-header bg-light"><strong>Các phương án thiết bị IT đề xuất</strong></div>
       <div class="card-body p-0">
         <table class="table table-bordered align-middle mb-0">
           <thead class="table-light">
             <tr>
               <th style="width:50px" class="text-center">#</th>
-              <th>Tên sản phẩm</th>
+              <th style="width:150px">Phương án</th>
+              <th>Thiết bị / cấu hình</th>
+              <th style="width:180px">Nơi mua / link</th>
               <th style="width:100px">Bảo hành</th>
               <th class="text-end" style="width:80px">SL</th>
               <th class="text-end" style="width:120px">Đơn giá</th>
@@ -466,24 +468,32 @@
             {% for it in items %}
             <tr>
               <td class="text-center">{{ it.order_no }}</td>
+              <td>{{ it.option_name or 'Phương án 1' }}</td>
               <td>
-                {% if it.product_link %}
-                <a href="{{ it.product_link }}" target="_blank">{{ it.product_name }}</a>
-                {% else %}
                 {{ it.product_name }}
-                {% endif %}
                 {% if it.product_code %}<br><small class="text-muted">Mã: {{ it.product_code }}</small>{% endif %}
+              </td>
+              <td>
+                {% if it.product_link and (it.product_link.startswith('http://') or it.product_link.startswith('https://')) %}
+                <a href="{{ it.product_link }}" target="_blank">{{ it.product_link }}</a>
+                {% else %}
+                {{ it.product_link or '' }}
+                {% endif %}
               </td>
               <td>{{ it.warranty }}</td>
               <td class="text-end">{{ it.quantity }}</td>
               <td class="text-end">{{ (it.unit_price or 0)|vnd }}</td>
               <td class="text-end">{{ (it.line_total or 0)|vnd }}</td>
             </tr>
+            {% else %}
+            <tr>
+              <td colspan="8" class="text-center text-muted">Chưa có phương án. IT sẽ cập nhật sau khi trưởng bộ phận đồng ý.</td>
+            </tr>
             {% endfor %}
           </tbody>
           <tfoot class="table-light">
             <tr>
-              <td colspan="5" class="text-end fw-bold">Tổng cộng ({{ p.quantity }} bộ x {{ p.vat_percent }}% VAT)</td>
+              <td colspan="7" class="text-end fw-bold">Tổng cộng ({{ p.quantity }} bộ x {{ p.vat_percent }}% VAT)</td>
               <td class="text-end fw-bold text-success">{{ (p.total_amount or 0)|vnd }} {{ p.currency }}</td>
             </tr>
           </tfoot>
@@ -516,12 +526,12 @@
             </button>
             {% endif %}
 
-            <!-- Step 2: IT Consult -->
+            <!-- Step 2: IT Options -->
             {% if p.status == 'team_approved' and ('config_proposals.consult_it' in current_permissions or
             current_user.role == 'admin') %}
             <div class="d-flex align-items-center">
               <button type="submit" name="action" value="consult_it" class="btn btn-info text-white me-3">
-                <i class="bi bi-send"></i> Hoàn thành Tư vấn & Gửi
+                <i class="bi bi-send"></i> Hoàn thành phương án & Gửi
               </button>
               <div class="form-check mb-0 mt-0">
                 <input class="form-check-input" type="checkbox" name="is_from_stock" id="isFromStock">
@@ -602,7 +612,7 @@
         {% if p.it_consulted_at %}
         <li class="list-group-item list-group-item-info">
           <div class="d-flex w-100 justify-content-between">
-            <span><i class="bi bi-check"></i> Tư vấn IT</span>
+            <span><i class="bi bi-check"></i> IT lập phương án</span>
             <small>{{ p.it_consulted_at|localtime }}</small>
           </div>
           {% if p.it_consultant %}

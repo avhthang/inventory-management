@@ -1,241 +1,102 @@
 {% extends 'base.html' %}
-{% block title %}Tạo đề xuất cấu hình{% endblock %}
+{% block title %}Tạo đề xuất thiết bị{% endblock %}
 {% block content %}
-<h3 class="mb-3">Tạo đề xuất cấu hình thiết bị</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Tạo đề xuất thiết bị</h3>
+  <a href="{{ url_for('config_proposals') }}" class="btn btn-secondary">Quay lại</a>
+</div>
 
 <form method="post">
-  <div class="row g-3 mb-3">
-    <div class="col-md-6">
-      <label class="form-label">Tên đề xuất</label>
-      <input type="text" class="form-control" name="name" required>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Ngày đề xuất</label>
-      <input type="date" class="form-control" name="proposal_date" value="{{ default_date }}" required>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Phạm vi</label>
-      <select class="form-select" name="scope">
-        <option value="Dùng chung">Dùng chung</option>
-        <option value="Cá nhân">Cá nhân</option>
-      </select>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label">Người đề xuất</label>
-      <select class="form-select select2" name="proposer_name" id="proposer_select">
-        {% for u in users %}
-        <option value="{{ u.full_name }}" data-unit="{{ u.department_info.name if u.department_info else '' }}" {% if
-          u.id==current_user.id %}selected{% endif %}>{{ u.full_name }} ({{ u.username }})</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label">Đơn vị đề xuất</label>
-      <input type="text" class="form-control" name="proposer_unit" readonly>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Thời hạn cần thiết bị</label>
-      <input type="date" class="form-control" name="required_date">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Mức độ ưu tiên</label>
-      <select class="form-select" name="priority">
-        <option value="Thấp">Thấp</option>
-        <option value="Trung bình" selected>Trung bình</option>
-        <option value="Cao">Cao</option>
-        <option value="Khẩn cấp">Khẩn cấp</option>
-      </select>
-    </div>
-    <div class="col-12">
-      <label class="form-label">Yêu cầu chung</label>
-      <textarea class="form-control" rows="2" name="general_requirements"></textarea>
-    </div>
-    <!-- Supplier Info removed -->
-    <div class="col-12">
-      <label class="form-label">Ghi chú chung</label>
-      <textarea class="form-control" rows="2" name="notes"></textarea>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Loại tiền</label>
-      <select class="form-select" name="currency">
-        <option value="VND" selected>VND</option>
-        <option value="USD">USD</option>
-        <option value="EURO">EURO</option>
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">VAT (%)</label>
-      <input type="number" class="form-control" name="vat_percent" id="vat_percent" step="0.01" value="10">
-    </div>
-
-  </div>
-
   <div class="card mb-3">
+    <div class="card-header bg-light">
+      <strong>Thông tin yêu cầu</strong>
+    </div>
     <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0">Chi tiết thiết bị</h5>
-        <button type="button" id="btnAddRow" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Thêm
-          dòng</button>
-      </div>
-      <div class="table-responsive">
-        <table class="table table-bordered align-middle" id="itemsTable">
-          <thead class="table-light">
-            <tr>
-              <th style="width:70px">STT</th>
-              <th>Tên sản phẩm</th>
-              <th style="width:160px">Tham khảo</th>
-              <th style="width:140px">Bảo hành</th>
-              <th style="width:120px">Số lượng</th>
-              <th style="width:160px">Đơn giá</th>
-              <th style="width:180px" class="text-end">Thành tiền</th>
-              <th style="width:50px"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Dòng sẽ được sinh động qua JS, mặc định 8 dòng -->
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="6" class="text-end fw-semibold">Tổng tạm tính</td>
-              <td class="text-end"><span id="subtotal">0</span></td>
-              <td></td>
-            </tr>
-            <tr>
-              <td colspan="6" class="text-end fw-semibold">Số lượng (Bộ)</td>
-              <td class="text-end">
-                <input type="number" class="form-control form-control-sm text-end" name="quantity" id="quantity"
-                  value="1" min="1" required>
-              </td>
-              <td></td>
-            </tr>
-            <tr>
-              <td colspan="6" class="text-end fw-semibold">Tiền VAT</td>
-              <td class="text-end"><span id="vat_amount">0</span></td>
-              <td></td>
-            </tr>
-            <tr>
-              <td colspan="6" class="text-end fw-bold">Tổng cộng</td>
-              <td class="text-end fw-bold"><span id="total_amount">0</span></td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required">Tên đề xuất</label>
+          <input type="text" class="form-control" name="name" placeholder="VD: Mua máy tính cho nhân sự mới" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label required">Ngày đề xuất</label>
+          <input type="date" class="form-control" name="proposal_date" value="{{ default_date }}" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Phạm vi</label>
+          <select class="form-select" name="scope">
+            <option value="Cá nhân">Cá nhân</option>
+            <option value="Dùng chung">Dùng chung</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required">Người đề xuất</label>
+          <select class="form-select select2" name="proposer_name" id="proposer_select" required>
+            {% for u in users %}
+            <option value="{{ u.full_name }}" data-unit="{{ u.department_info.name if u.department_info else '' }}"
+              {% if u.id==current_user.id %}selected{% endif %}>{{ u.full_name }} ({{ u.username }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Đơn vị đề xuất</label>
+          <input type="text" class="form-control" name="proposer_unit" readonly>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Thời hạn cần thiết bị</label>
+          <input type="date" class="form-control" name="required_date">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Mức độ ưu tiên</label>
+          <select class="form-select" name="priority">
+            <option value="Thấp">Thấp</option>
+            <option value="Trung bình" selected>Trung bình</option>
+            <option value="Cao">Cao</option>
+            <option value="Khẩn cấp">Khẩn cấp</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Số lượng bộ</label>
+          <input type="number" class="form-control" name="quantity" value="1" min="1">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Loại tiền dự kiến</label>
+          <select class="form-select" name="currency">
+            <option value="VND" selected>VND</option>
+            <option value="USD">USD</option>
+            <option value="EURO">EURO</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label required">Nhu cầu sử dụng</label>
+          <textarea class="form-control" rows="4" name="general_requirements"
+            placeholder="Mô tả nhu cầu: công việc cần dùng, phần mềm cần chạy, yêu cầu màn hình/phụ kiện, ngân sách mong muốn..."
+            required></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Ghi chú</label>
+          <textarea class="form-control" rows="2" name="notes"></textarea>
+        </div>
       </div>
     </div>
   </div>
 
-  <input type="hidden" name="rows_count" id="rows_count" value="8">
-  <button type="submit" class="btn btn-primary">Lưu đề xuất</button>
+  <button type="submit" class="btn btn-primary">Gửi đề xuất</button>
   <a href="{{ url_for('config_proposals') }}" class="btn btn-secondary">Hủy</a>
 </form>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  (function () {
-    const tbody = document.querySelector('#itemsTable tbody');
-    const rowsCountInput = document.getElementById('rows_count');
-    const subtotalEl = document.getElementById('subtotal');
-    const quantityEl = document.getElementById('quantity');
-    const vatPercentEl = document.getElementById('vat_percent');
-    const vatAmountEl = document.getElementById('vat_amount');
-    const totalAmountEl = document.getElementById('total_amount');
-    const addRowBtn = document.getElementById('btnAddRow');
+  $(document).ready(function () {
+    $('#proposer_select').select2({ theme: 'bootstrap-5' });
 
-    function fmt(n) {
-      const x = Number.isFinite(n) ? n : 0;
-      return Math.round(x).toLocaleString('vi-VN');
-    }
-    function parseNum(v) {
-      const n = parseFloat(String(v).replace(/,/g, ''));
-      return isNaN(n) ? 0 : n;
+    function updateUnit() {
+      var unit = $('#proposer_select').find(':selected').data('unit');
+      $('input[name="proposer_unit"]').val(unit || '');
     }
 
-    function recalc() {
-      let subtotal = 0;
-      tbody.querySelectorAll('tr').forEach(tr => {
-        const qty = parseNum(tr.querySelector('.qty').value);
-        const unit = parseNum(tr.querySelector('.unit').value);
-        const line = Math.max(0, qty) * Math.max(0, unit);
-        tr.querySelector('.line').textContent = fmt(line);
-        subtotal += line;
-      });
-      subtotalEl.textContent = fmt(subtotal);
-
-      const quantity = parseNum(quantityEl.value) || 1;
-      const grandSubtotal = subtotal * quantity;
-
-      const vatPercent = parseNum(vatPercentEl.value);
-      const vatAmount = Math.round(grandSubtotal * (vatPercent / 100));
-      vatAmountEl.textContent = fmt(vatAmount);
-      totalAmountEl.textContent = fmt(grandSubtotal + vatAmount);
-    }
-
-    function newRow(idx) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-      <td class="text-center">${idx + 1}</td>
-      <td><input name="rows[${idx}][product_name]" class="form-control"/></td>
-      <td><input name="rows[${idx}][product_link]" class="form-control" placeholder="https://..."/></td>
-      <td><input name="rows[${idx}][warranty]" class="form-control"/></td>
-      <td><input name="rows[${idx}][quantity]" type="number" min="0" class="form-control qty" value="0"/></td>
-      <td><input name="rows[${idx}][unit_price]" type="number" min="0" step="0.01" class="form-control unit" value="0"/></td>
-      <td class="text-end"><span class="line">0</span></td>
-      <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-remove">×</button></td>
-    `;
-      tbody.appendChild(tr);
-    }
-
-    function bind() {
-      tbody.addEventListener('input', (e) => {
-        if (e.target.matches('.qty, .unit')) recalc();
-      });
-      tbody.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-remove')) {
-          e.target.closest('tr').remove();
-          // re-index
-          const trs = [...tbody.querySelectorAll('tr')];
-          trs.forEach((tr, i) => {
-            tr.querySelector('td').textContent = i + 1;
-            const inputs = tr.querySelectorAll('input');
-            inputs[0].name = `rows[${i}][product_name]`;
-            inputs[1].name = `rows[${i}][warranty]`;
-            inputs[2].name = `rows[${i}][supplier_info]`;
-            inputs[3].name = `rows[${i}][quantity]`;
-            inputs[4].name = `rows[${i}][unit_price]`;
-          });
-          rowsCountInput.value = trs.length;
-          recalc();
-        }
-      });
-      addRowBtn.addEventListener('click', () => {
-        const idx = tbody.querySelectorAll('tr').length;
-        newRow(idx);
-        rowsCountInput.value = idx + 1;
-      });
-      vatPercentEl.addEventListener('input', recalc);
-      quantityEl.addEventListener('input', recalc);
-    }
-
-    function init() {
-      for (let i = 0; i < 8; i++) newRow(i);
-      bind();
-      recalc();
-    }
-    init();
-
-    // Select2 Logic
-    $(document).ready(function () {
-      $('#proposer_select').select2({ theme: 'bootstrap-5' });
-
-      function updateUnit() {
-        var unit = $('#proposer_select').find(':selected').data('unit');
-        $('input[name="proposer_unit"]').val(unit || '');
-      }
-
-      $('#proposer_select').on('change', updateUnit);
-      updateUnit(); // Init
-    });
-  })();
+    $('#proposer_select').on('change', updateUnit);
+    updateUnit();
+  });
 </script>
 {% endblock %}
