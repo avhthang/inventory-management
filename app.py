@@ -18,6 +18,7 @@ import schedule
 import threading
 import time
 import pytz
+import re
 from config import config, get_database_info, is_external_database
 from backup_restore import DatabaseBackup
 
@@ -986,6 +987,7 @@ class DeviceType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     category = db.Column(db.String(100), nullable=False) # 'Thiết bị IT', 'Thiết bị văn phòng', etc.
+    code_prefix = db.Column(db.String(20))
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -1387,6 +1389,107 @@ def _log_audit(entity_type, entity_id, old_dict, new_dict):
         # Do not break main flow if logging fails
         pass
 
+def _default_device_type_prefixes():
+    return {
+        'Laptop': 'LT',
+        'Case máy tính': 'PC',
+        'Màn hình': 'MH',
+        'Bàn phím': 'BP',
+        'Chuột': 'CH',
+        'Ổ cứng': 'OC',
+        'Ram': 'RAM',
+        'Card màn hình': 'VGA',
+        'Máy in': 'MI',
+        'Máy chiếu': 'MC',
+        'Máy scan': 'SC',
+        'Thiết bị mạng': 'NET',
+        'Server': 'SV',
+        'Ổ điện': 'OD',
+        'Dây mạng': 'DM',
+        'Cáp kết nối': 'CAP',
+        'Thiết bị điện khác': 'TDD',
+        'Thiết bị khác': 'TBK',
+    }
+
+def _normalize_device_type_prefix(prefix):
+    return (prefix or '').strip().upper()
+
+def _is_valid_device_type_prefix(prefix):
+    return bool(re.fullmatch(r'[A-Z0-9]{1,20}', prefix or ''))
+
+def sync_device_type_prefixes():
+    """Seed default device type prefixes for old and fresh databases."""
+    try:
+        defaults = _default_device_type_prefixes()
+        if DeviceType.query.count() == 0:
+            default_categories = {
+                'Laptop': 'Thiết bị IT',
+                'Case máy tính': 'Thiết bị IT',
+                'Màn hình': 'Thiết bị IT',
+                'Bàn phím': 'Thiết bị IT',
+                'Chuột': 'Thiết bị IT',
+                'Ổ cứng': 'Thiết bị IT',
+                'Ram': 'Thiết bị IT',
+                'Card màn hình': 'Thiết bị IT',
+                'Máy in': 'Thiết bị văn phòng',
+                'Máy chiếu': 'Thiết bị văn phòng',
+                'Máy scan': 'Thiết bị văn phòng',
+                'Thiết bị mạng': 'Thiết bị IT',
+                'Server': 'Thiết bị IT',
+                'Ổ điện': 'Thiết bị dùng chung',
+                'Dây mạng': 'Thiết bị IT',
+                'Cáp kết nối': 'Thiết bị IT',
+                'Thiết bị điện khác': 'Thiết bị dùng chung',
+                'Thiết bị khác': 'Khác',
+            }
+            for name, prefix in defaults.items():
+                db.session.add(DeviceType(
+                    name=name,
+                    category=default_categories.get(name, 'Khác'),
+                    code_prefix=prefix
+                ))
+        else:
+            for dt in DeviceType.query.all():
+                if not dt.code_prefix:
+                    default_prefix = defaults.get(dt.name)
+                    if default_prefix:
+                        dt.code_prefix = default_prefix
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Device type prefix sync error: {e}")
+
+def _get_device_type_code_prefix(device_type_name):
+    name = (device_type_name or '').strip()
+    if not name:
+        return None
+    device_type = DeviceType.query.filter(func.lower(DeviceType.name) == name.lower()).first()
+    prefix = _normalize_device_type_prefix(device_type.code_prefix if device_type else None)
+    if not prefix:
+        prefix = _default_device_type_prefixes().get(name, '')
+    return prefix if _is_valid_device_type_prefix(prefix) else None
+
+def generate_device_code_for_type(device_type_name, reserved_codes=None):
+    prefix = _get_device_type_code_prefix(device_type_name)
+    if not prefix:
+        return None
+
+    pattern = re.compile(rf'^{re.escape(prefix)}-(\d+)$', re.IGNORECASE)
+    max_num = 0
+    existing_codes = db.session.query(Device.device_code).filter(Device.device_code.ilike(f'{prefix}-%')).all()
+    for row in existing_codes:
+        match = pattern.match(row[0] or '')
+        if match:
+            max_num = max(max_num, int(match.group(1)))
+
+    reserved = set(reserved_codes or [])
+    next_num = max_num + 1
+    while True:
+        code = f'{prefix}-{next_num:03d}'
+        if code not in reserved and not Device.query.filter_by(device_code=code).first():
+            return code
+        next_num += 1
+
 # --- Ensure tables exist and run lightweight schema migrations ---
 _tables_initialized = False
 
@@ -1452,6 +1555,7 @@ def ensure_tables_once():
         try:
             db.create_all()
             ensure_missing_model_columns()
+            sync_device_type_prefixes()
             # Skip SQLite-specific migrations when using external DBs (e.g., PostgreSQL)
             if is_external_database():
                 _tables_initialized = True
@@ -2953,11 +3057,13 @@ def return_device(device_id):
 def add_device():
     if 'user_id' not in session: return redirect(url_for('login'))
     if request.method == 'POST':
-        device_code = request.form.get('device_code')
+        device_type = request.form.get('device_type', '').strip()
+        device_code = request.form.get('device_code', '').strip()
         if not device_code:
-            last_device = Device.query.order_by(Device.id.desc()).first()
-            last_id = last_device.id if last_device else 0
-            device_code = f"TB{last_id + 1:05d}"
+            device_code = generate_device_code_for_type(device_type)
+            if not device_code:
+                flash('Vui lòng cấu hình mã loại thiết bị trước khi để trống mã thiết bị.', 'danger')
+                return redirect(url_for('add_device'))
             
         if Device.query.filter_by(device_code=device_code).first():
             flash(f'Mã thiết bị {device_code} đã tồn tại.', 'danger')
@@ -2966,7 +3072,7 @@ def add_device():
         new_device = Device(
             device_code=device_code,
             name=request.form['name'],
-            device_type=request.form['device_type'],
+            device_type=device_type,
             serial_number=request.form.get('serial_number'),
             brand=request.form.get('brand'),
             supplier=request.form.get('supplier'),
@@ -3189,39 +3295,8 @@ def add_devices_bulk():
             # Removed InventoryReceiptItem creation
 
             created_count = 0
+            reserved_codes = set()
 
-            # Helper: map device type to code prefix and width
-            def _type_to_prefix(device_type: str):
-                t = (device_type or '').strip().lower()
-                if 'laptop' in t:
-                    return ('LT', 3)
-                if 'case' in t or 'case máy tính' in t or 'desktop' in t:
-                    return ('Case', 3)
-                if 'màn hình' in t or 'monitor' in t:
-                    return ('MH', 3)
-                if 'server' in t:
-                    return ('SV', 3)
-                if 'chuột' in t or 'mouse' in t:
-                    return ('C', 3)
-                if 'bàn phím' in t or 'keyboard' in t:
-                    return ('BP', 3)
-                return ('TB', 5)
-
-            # Precompute next sequence per prefix from DB
-            unique_prefixes = set(_type_to_prefix(dt)[0] for dt in device_types if (dt or '').strip())
-            next_seq_by_prefix = {}
-            for pref in unique_prefixes:
-                existing_codes = [row[0] for row in db.session.query(Device.device_code).filter(Device.device_code.like(f"{pref}_%")) .all()]
-                max_num = 0
-                for code in existing_codes:
-                    try:
-                        tail = code.split('_', 1)[1]
-                        num = int(''.join(ch for ch in tail if ch.isdigit()))
-                        if num > max_num:
-                            max_num = num
-                    except Exception:
-                        continue
-                next_seq_by_prefix[pref] = max_num + 1
             for idx, name in enumerate(names):
                 if not name or not name.strip():
                     continue
@@ -3265,15 +3340,17 @@ def add_devices_bulk():
                         device_code = ''
 
                     if not device_code:
-                        pref, width = _type_to_prefix(dtype)
-                        seq = next_seq_by_prefix.get(pref, 1)
-                        device_code = f"{pref}_{seq:0{width}d}"
-                        next_seq_by_prefix[pref] = seq + 1
+                        device_code = generate_device_code_for_type(dtype, reserved_codes)
+                        if not device_code:
+                            db.session.rollback()
+                            flash(f'Vui lòng cấu hình mã loại thiết bị cho "{dtype}" trước khi để trống mã thiết bị.', 'danger')
+                            return redirect(url_for('add_devices_bulk'))
 
-                    if Device.query.filter_by(device_code=device_code).first():
+                    if device_code in reserved_codes or Device.query.filter_by(device_code=device_code).first():
                         db.session.rollback()
                         flash(f'Mã thiết bị {device_code} đã tồn tại. Dừng thao tác.', 'danger')
                         return redirect(url_for('add_devices_bulk'))
+                    reserved_codes.add(device_code)
 
                     new_device = Device(
                         device_code=device_code,
@@ -6998,15 +7075,22 @@ def add_device_type():
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         category = request.form.get('category', '').strip()
+        code_prefix = _normalize_device_type_prefix(request.form.get('code_prefix', ''))
         description = request.form.get('description', '').strip()
         
         if not name or not category:
             flash('Tên và nhóm thiết bị là bắt buộc.', 'danger')
+        elif not code_prefix:
+            flash('Mã loại thiết bị là bắt buộc.', 'danger')
+        elif not _is_valid_device_type_prefix(code_prefix):
+            flash('Mã loại chỉ được gồm chữ cái A-Z và số, tối đa 20 ký tự.', 'danger')
         elif DeviceType.query.filter_by(name=name).first():
             flash('Loại thiết bị đã tồn tại.', 'warning')
+        elif DeviceType.query.filter(func.upper(DeviceType.code_prefix) == code_prefix).first():
+            flash('Mã loại thiết bị đã tồn tại.', 'warning')
         else:
             try:
-                dt = DeviceType(name=name, category=category, description=description)
+                dt = DeviceType(name=name, category=category, code_prefix=code_prefix, description=description)
                 db.session.add(dt)
                 db.session.commit()
                 flash('Đã thêm loại thiết bị mới.', 'success')
@@ -7029,16 +7113,24 @@ def edit_device_type(id):
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         category = request.form.get('category', '').strip()
+        code_prefix = _normalize_device_type_prefix(request.form.get('code_prefix', ''))
         description = request.form.get('description', '').strip()
         
         if not name or not category:
             flash('Tên và nhóm thiết bị là bắt buộc.', 'danger')
+        elif not code_prefix:
+            flash('Mã loại thiết bị là bắt buộc.', 'danger')
+        elif not _is_valid_device_type_prefix(code_prefix):
+            flash('Mã loại chỉ được gồm chữ cái A-Z và số, tối đa 20 ký tự.', 'danger')
         elif name != dt.name and DeviceType.query.filter_by(name=name).first():
             flash('Tên loại thiết bị đã tồn tại.', 'warning')
+        elif DeviceType.query.filter(DeviceType.id != dt.id, func.upper(DeviceType.code_prefix) == code_prefix).first():
+            flash('Mã loại thiết bị đã tồn tại.', 'warning')
         else:
             try:
                 dt.name = name
                 dt.category = category
+                dt.code_prefix = code_prefix
                 dt.description = description
                 db.session.commit()
                 flash('Đã cập nhật loại thiết bị.', 'success')

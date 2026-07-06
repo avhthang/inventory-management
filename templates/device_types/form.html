@@ -19,6 +19,15 @@
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label required">Mã loại thiết bị</label>
+                        <input type="text" name="code_prefix" class="form-control text-uppercase"
+                            value="{{ device_type.code_prefix if device_type and device_type.code_prefix else '' }}"
+                            placeholder="VD: BP, MH, LT" maxlength="20" pattern="[A-Za-z0-9]+"
+                            title="Chỉ dùng chữ cái A-Z và số" required>
+                        <div class="form-text">Dùng để tự sinh mã thiết bị, ví dụ BP-001, MH-001.</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label required">Nhóm thiết bị</label>
                         <select name="category" class="form-select" required>
                             <option value="">-- Chọn nhóm --</option>

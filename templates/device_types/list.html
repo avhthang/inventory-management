@@ -21,6 +21,7 @@
                         <tr>
                             <th style="width: 50px;">STT</th>
                             <th style="width: 300px;">Tên loại</th>
+                            <th style="width: 140px;">Mã loại</th>
                             <th>Mô tả</th>
                             <th class="text-center" style="width: 150px;">Hành động</th>
                         </tr>
@@ -30,6 +31,7 @@
                         <tr>
                             <td class="text-center">{{ loop.index }}</td>
                             <td><strong>{{ dt.name }}</strong></td>
+                            <td><span class="badge bg-secondary">{{ dt.code_prefix or '' }}</span></td>
                             <td>{{ dt.description or '' }}</td>
                             <td class="text-center">
                                 <a href="{{ url_for('edit_device_type', id=dt.id) }}"
