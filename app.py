@@ -951,8 +951,53 @@ class Device(db.Model):
     brand = db.Column(db.String(100))
     supplier = db.Column(db.String(150))
     warranty = db.Column(db.String(50))
+    cpu = db.Column(db.String(120))
+    ram_gb = db.Column(db.Integer)
+    ssd = db.Column(db.String(120))
+    hdd = db.Column(db.String(120))
+    vga = db.Column(db.String(120))
+    wifi_card = db.Column(db.String(120))
+    network_card = db.Column(db.String(120))
     manager = db.relationship('User', foreign_keys=[manager_id])
     purchase_price = db.Column(db.Float)
+
+DEVICE_PC_SPEC_FIELDS = {
+    'cpu': 'CPU',
+    'ram_gb': 'RAM (GB)',
+    'ssd': 'SSD',
+    'hdd': 'HDD',
+    'vga': 'VGA',
+    'wifi_card': 'Card Wi-Fi',
+    'network_card': 'Card mạng',
+}
+
+def _parse_ram_gb(value):
+    if value is None or pd.isna(value):
+        return None
+    match = re.search(r'\d+', str(value))
+    return int(match.group(0)) if match else None
+
+def _device_pc_specs_from_form():
+    return {
+        'cpu': (request.form.get('cpu') or '').strip() or None,
+        'ram_gb': _parse_ram_gb(request.form.get('ram_gb')),
+        'ssd': (request.form.get('ssd') or '').strip() or None,
+        'hdd': (request.form.get('hdd') or '').strip() or None,
+        'vga': (request.form.get('vga') or '').strip() or None,
+        'wifi_card': (request.form.get('wifi_card') or '').strip() or None,
+        'network_card': (request.form.get('network_card') or '').strip() or None,
+    }
+
+def _device_pc_specs_from_row(row):
+    return {
+        'cpu': _cell_text(row.get('CPU')) or None,
+        'ram_gb': _parse_ram_gb(row.get('RAM (GB)')),
+        'ssd': _cell_text(row.get('SSD')) or None,
+        'hdd': _cell_text(row.get('HDD')) or None,
+        'vga': _cell_text(row.get('VGA')) or None,
+        'wifi_card': _cell_text(row.get('Card Wi-Fi')) or None,
+        'network_card': _cell_text(row.get('Card mạng')) or None,
+    }
 
 class DeviceMaintenanceLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -3114,7 +3159,8 @@ def add_device():
             condition=request.form['condition'],
             manager_id=request.form.get('manager_id') if request.form.get('manager_id') else None,
             assign_date=datetime.strptime(request.form['assign_date'], '%Y-%m-%d').date() if request.form.get('assign_date') else None,
-            notes=request.form.get('notes')
+            notes=request.form.get('notes'),
+            **_device_pc_specs_from_form()
         )
         db.session.add(new_device)
         db.session.commit()
@@ -3148,6 +3194,13 @@ def edit_device(device_id):
             'supplier': device.supplier,
             'warranty': device.warranty,
             'configuration': device.configuration,
+            'cpu': device.cpu,
+            'ram_gb': device.ram_gb,
+            'ssd': device.ssd,
+            'hdd': device.hdd,
+            'vga': device.vga,
+            'wifi_card': device.wifi_card,
+            'network_card': device.network_card,
             'purchase_date': device.purchase_date,
             'purchase_price': device.purchase_price,
             'buyer': device.buyer,
@@ -3174,6 +3227,8 @@ def edit_device(device_id):
         device.supplier = request.form.get('supplier')
         device.warranty = request.form.get('warranty')
         device.configuration = request.form.get('configuration')
+        for field, value in _device_pc_specs_from_form().items():
+            setattr(device, field, value)
         device.purchase_date = datetime.strptime(request.form['purchase_date'], '%Y-%m-%d').date()
         device.purchase_price = request.form.get('purchase_price', type=float, default=None)
         device.buyer = request.form.get('buyer')
@@ -3195,6 +3250,13 @@ def edit_device(device_id):
             'supplier': device.supplier,
             'warranty': device.warranty,
             'configuration': device.configuration,
+            'cpu': device.cpu,
+            'ram_gb': device.ram_gb,
+            'ssd': device.ssd,
+            'hdd': device.hdd,
+            'vga': device.vga,
+            'wifi_card': device.wifi_card,
+            'network_card': device.network_card,
             'purchase_date': device.purchase_date,
             'purchase_price': device.purchase_price,
             'buyer': device.buyer,
@@ -4249,7 +4311,8 @@ def import_devices():
                     brand=_s(row.get('Thương hiệu')),
                     supplier=_s(row.get('Nhà cung cấp')),
                     warranty=_s(row.get('Bảo hành')),
-                    purchase_price=price
+                    purchase_price=price,
+                    **_device_pc_specs_from_row(row)
                 )
                 # Insert row-by-row to avoid large executemany translation issues on PG
                 db.session.add(device)
@@ -4285,6 +4348,9 @@ def export_devices_excel():
             'Trạng thái': device.status, 'Người quản lý': device.manager.full_name if device.manager else '',
             'Ngày cấp phát': device.assign_date.strftime('%d-%m-%Y') if device.assign_date else '',
             'Cấu hình': device.configuration or '', 'Ghi chú': device.notes or '',
+            'CPU': device.cpu or '', 'RAM (GB)': device.ram_gb or '', 'SSD': device.ssd or '',
+            'HDD': device.hdd or '', 'VGA': device.vga or '', 'Card Wi-Fi': device.wifi_card or '',
+            'Card mạng': device.network_card or '',
             'Người nhập': device.importer or '', 'Thương hiệu': device.brand or '', 'Nhà cung cấp': device.supplier or '',
             'Bảo hành': device.warranty or ''
         })

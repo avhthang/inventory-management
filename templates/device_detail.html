@@ -112,6 +112,39 @@
         <hr>
         <div class="row mt-3">
             <div class="col-md-6">
+                {% if device.cpu or device.ram_gb or device.ssd or device.hdd or device.vga or device.wifi_card or device.network_card %}
+                <h5><i class="bi bi-pc-display"></i> Cấu hình Case PC</h5>
+                <table class="table table-sm table-borderless table-details mb-4">
+                    <tr>
+                        <td width="35%"><strong>CPU:</strong></td>
+                        <td>{{ device.cpu or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>RAM:</strong></td>
+                        <td>{{ device.ram_gb ~ ' GB' if device.ram_gb else 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>SSD:</strong></td>
+                        <td>{{ device.ssd or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>HDD:</strong></td>
+                        <td>{{ device.hdd or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>VGA:</strong></td>
+                        <td>{{ device.vga or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Card Wi-Fi:</strong></td>
+                        <td>{{ device.wifi_card or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Card mạng:</strong></td>
+                        <td>{{ device.network_card or 'N/A' }}</td>
+                    </tr>
+                </table>
+                {% endif %}
                 <h5><i class="bi bi-gear-fill"></i> Cấu hình chi tiết</h5>
                 <pre class="bg-light p-2 rounded"
                     style="font-size: 0.9rem;">{{ device.configuration or 'Không có thông tin cấu hình.' }}</pre>

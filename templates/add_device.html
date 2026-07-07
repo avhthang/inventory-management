@@ -58,6 +58,53 @@
                                 <label class="form-label">Bảo hành</label>
                                 <input type="text" name="warranty" class="form-control" placeholder="VD: 12 tháng">
                             </div>
+                            <div id="pc-spec-fields" class="border rounded p-3 mb-3 bg-light" style="display: none;">
+                                <h6 class="mb-3">Cấu hình Case PC</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label class="form-label">CPU</label>
+                                            <input type="text" name="cpu" class="form-control" placeholder="VD: Intel Core i5-12400">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label class="form-label">RAM (GB)</label>
+                                            <input type="number" min="0" step="1" name="ram_gb" class="form-control" placeholder="VD: 16">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label class="form-label">SSD</label>
+                                            <input type="text" name="ssd" class="form-control" placeholder="VD: 512GB NVMe">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label class="form-label">HDD</label>
+                                            <input type="text" name="hdd" class="form-control" placeholder="VD: 1TB">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label class="form-label">VGA</label>
+                                            <input type="text" name="vga" class="form-control" placeholder="VD: GTX 1660">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label class="form-label">Card Wi-Fi</label>
+                                            <input type="text" name="wifi_card" class="form-control" placeholder="VD: Intel AX200">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-12">
+                                        <div class="form-group mb-0">
+                                            <label class="form-label">Card mạng</label>
+                                            <input type="text" name="network_card" class="form-control" placeholder="VD: Realtek 1GbE">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="form-group mb-3">
                                 <label class="form-label">Cấu hình chi tiết</label>
                                 <textarea name="configuration" class="form-control" rows="3"
@@ -144,4 +191,19 @@
         </form>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const typeSelect = document.querySelector('select[name="device_type"]');
+    const pcFields = document.getElementById('pc-spec-fields');
+    const isPcType = function (value) {
+        const text = (value || '').toLowerCase();
+        return text.includes('case') || text.includes('pc') || text.includes('desktop') || text.includes('máy tính');
+    };
+    const togglePcFields = function () {
+        pcFields.style.display = isPcType(typeSelect.value) ? '' : 'none';
+    };
+    typeSelect.addEventListener('change', togglePcFields);
+    togglePcFields();
+});
+</script>
 {% endblock %}

@@ -277,7 +277,7 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
-                                        {% if device.configuration %}
+                                        {% if device.configuration or device.cpu or device.ram_gb or device.ssd or device.hdd or device.vga or device.wifi_card or device.network_card %}
                                         <button type="button" class="btn btn-sm btn-link text-secondary"
                                             data-bs-toggle="modal" data-bs-target="#configModal-{{ device.id }}"
                                             title="Xem cấu hình">
@@ -317,7 +317,7 @@
                 </form>
 
                 {% for device in devices.items %}
-                {% if device.configuration %}
+                {% if device.configuration or device.cpu or device.ram_gb or device.ssd or device.hdd or device.vga or device.wifi_card or device.network_card %}
                 <div class="modal fade" id="configModal-{{ device.id }}" tabindex="-1"
                     aria-labelledby="configModalLabel-{{ device.id }}" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered">
@@ -330,8 +330,25 @@
                                     aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
+                                {% if device.cpu or device.ram_gb or device.ssd or device.hdd or device.vga or device.wifi_card or device.network_card %}
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-sm">
+                                        <tbody>
+                                            <tr><th>CPU</th><td>{{ device.cpu or '' }}</td></tr>
+                                            <tr><th>RAM</th><td>{{ device.ram_gb ~ ' GB' if device.ram_gb else '' }}</td></tr>
+                                            <tr><th>SSD</th><td>{{ device.ssd or '' }}</td></tr>
+                                            <tr><th>HDD</th><td>{{ device.hdd or '' }}</td></tr>
+                                            <tr><th>VGA</th><td>{{ device.vga or '' }}</td></tr>
+                                            <tr><th>Card Wi-Fi</th><td>{{ device.wifi_card or '' }}</td></tr>
+                                            <tr><th>Card mạng</th><td>{{ device.network_card or '' }}</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% endif %}
+                                {% if device.configuration %}
                                 <pre
                                     style="white-space: pre-wrap; word-break: break-all;">{{ device.configuration }}</pre>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
