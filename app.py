@@ -4929,11 +4929,23 @@ def bug_reports():
     
     reports = q.order_by(BugReport.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
-    # Get list of users who created reports (for filter dropdown)
-    creators = _visible_users_query_for(current_user).join(BugReport, User.id == BugReport.created_by).distinct().all()
-    
-    # Get list of users who are assigned reports
-    assignees = _visible_users_query_for(current_user).join(BugReport, User.id == BugReport.assigned_to).distinct().all()
+    visible_user_ids = _visible_user_ids_for(current_user)
+    creator_ids = [
+        row[0] for row in _apply_bug_report_scope(
+            db.session.query(BugReport.created_by).filter(BugReport.created_by != None),
+            current_user
+        ).distinct().all()
+    ]
+    assignee_ids = [
+        row[0] for row in _apply_bug_report_scope(
+            db.session.query(BugReport.assigned_to).filter(BugReport.assigned_to != None),
+            current_user
+        ).distinct().all()
+    ]
+    creator_ids = [uid for uid in creator_ids if uid in visible_user_ids]
+    assignee_ids = [uid for uid in assignee_ids if uid in visible_user_ids]
+    creators = User.query.filter(User.id.in_(creator_ids)).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all() if creator_ids else []
+    assignees = User.query.filter(User.id.in_(assignee_ids)).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all() if assignee_ids else []
 
     # Get list of distinct device codes in reports (simple parsing or just rough list)
     # Since device_code is text and can be comma separated, getting distinct values is tricky. 
