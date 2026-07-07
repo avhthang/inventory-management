@@ -24,7 +24,7 @@ class DatabaseBackup:
         """Create a backup of the database"""
         if backup_path is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = f"backup_{timestamp}.zip"
+            backup_path = f"backup_{timestamp}.bak"
         
         print(f"Creating backup: {backup_path}")
         
@@ -38,13 +38,17 @@ class DatabaseBackup:
             
             # Add configuration files
             self._backup_config_files(zipf)
+
+            # Add application data files such as attachments and runtime config
+            self._backup_data_files(zipf)
             
             # Add metadata
             metadata = {
                 'backup_date': datetime.now().isoformat(),
                 'database_type': self.db_info['type'],
                 'database_info': self.db_info,
-                'version': '1.0'
+                'format': 'inventory_bak',
+                'version': '1.1'
             }
             zipf.writestr('backup_metadata.json', json.dumps(metadata, indent=2))
         
@@ -105,26 +109,41 @@ class DatabaseBackup:
                     zipf.write(tmp_file.name, dump_file)
                     print(f"  Added {self.db_info['type']} dump: {dump_file}")
                 else:
-                    print(f"  Error creating dump: {result.stderr.decode()}")
+                    raise RuntimeError(f"Error creating dump: {result.stderr.decode()}")
                 
                 os.unlink(tmp_file.name)
                 
         except Exception as e:
             print(f"  Error backing up external database: {e}")
+            raise
     
     def _backup_config_files(self, zipf):
         """Backup configuration files"""
         config_files = [
             '.env',
             'config.py',
-            'requirements.txt',
-            'app.py'
+            'requirements.txt'
         ]
         
         for file_path in config_files:
             if os.path.exists(file_path):
                 zipf.write(file_path, f'config/{file_path}')
                 print(f"  Added config file: {file_path}")
+
+    def _backup_data_files(self, zipf):
+        """Backup runtime data files from the instance directory."""
+        instance_dir = os.environ.get('INVENTORY_INSTANCE_DIR') or os.path.join(os.getcwd(), 'instance')
+        if not os.path.isdir(instance_dir):
+            return
+
+        for root, _, files in os.walk(instance_dir):
+            for filename in files:
+                abs_path = os.path.join(root, filename)
+                rel_path = os.path.relpath(abs_path, instance_dir)
+                if rel_path.replace('\\', '/') == 'inventory.db':
+                    continue
+                zipf.write(abs_path, f'data/{rel_path}')
+                print(f"  Added data file: {rel_path}")
     
     def restore_backup(self, backup_path):
         """Restore from backup"""
@@ -146,12 +165,17 @@ class DatabaseBackup:
             
             # Restore database
             if self.is_external:
-                self._restore_external_db(zipf)
+                if not self._restore_external_db(zipf):
+                    return False
             else:
-                self._restore_sqlite(zipf)
+                if not self._restore_sqlite(zipf):
+                    return False
             
             # Restore config files
             self._restore_config_files(zipf)
+
+            # Restore runtime data files
+            self._restore_data_files(zipf)
         
         print("✅ Restore completed successfully")
         return True
@@ -168,9 +192,11 @@ class DatabaseBackup:
             
             shutil.copy('/tmp/database/inventory.db', os.path.join(instance_dir, 'inventory.db'))
             print("  Restored SQLite database")
+            return True
             
         except Exception as e:
             print(f"  Error restoring SQLite database: {e}")
+            return False
     
     def _restore_external_db(self, zipf):
         """Restore external database"""
@@ -215,17 +241,20 @@ class DatabaseBackup:
                 
                 if result.returncode == 0:
                     print(f"  Restored {self.db_info['type']} database")
+                    return True
                 else:
                     print(f"  Error restoring database: {result.stderr.decode()}")
+                    return False
                 
                 os.unlink(tmp_file.name)
                 
         except Exception as e:
             print(f"  Error restoring external database: {e}")
+            return False
     
     def _restore_config_files(self, zipf):
         """Restore configuration files"""
-        config_files = ['config/.env', 'config/config.py', 'config/requirements.txt', 'config/app.py']
+        config_files = ['config/.env', 'config/config.py']
         
         for config_file in config_files:
             try:
@@ -235,6 +264,23 @@ class DatabaseBackup:
                 print(f"  Restored config file: {target_file}")
             except:
                 pass  # Config file might not exist in backup
+
+    def _restore_data_files(self, zipf):
+        """Restore runtime data files from a backup package."""
+        instance_dir = os.environ.get('INVENTORY_INSTANCE_DIR') or os.path.join(os.getcwd(), 'instance')
+        os.makedirs(instance_dir, exist_ok=True)
+
+        for member in zipf.namelist():
+            if not member.startswith('data/') or member.endswith('/'):
+                continue
+            rel_path = member[len('data/'):]
+            target_path = os.path.abspath(os.path.join(instance_dir, rel_path))
+            if not target_path.startswith(os.path.abspath(instance_dir) + os.sep):
+                continue
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            with zipf.open(member) as src, open(target_path, 'wb') as dst:
+                shutil.copyfileobj(src, dst)
+            print(f"  Restored data file: {rel_path}")
 
 class S3Backup:
     def __init__(self, bucket_name, region='us-east-1'):
@@ -271,9 +317,9 @@ class S3Backup:
 def main():
     if len(sys.argv) < 2:
         print("Usage:")
-        print("  python3 backup_restore.py backup [backup_file.zip]")
-        print("  python3 backup_restore.py restore <backup_file.zip>")
-        print("  python3 backup_restore.py backup-s3 <backup_file.zip> [s3_key]")
+        print("  python3 backup_restore.py backup [backup_file.bak]")
+        print("  python3 backup_restore.py restore <backup_file.bak>")
+        print("  python3 backup_restore.py backup-s3 <backup_file.bak> [s3_key]")
         print("  python3 backup_restore.py restore-s3 <s3_key> [local_file]")
         sys.exit(1)
     

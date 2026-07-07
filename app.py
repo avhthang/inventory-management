@@ -4315,6 +4315,22 @@ def _get_current_user():
     except Exception:
         return None
 
+def _is_admin_user(user=None):
+    """Return True for legacy admin users or users assigned to the Admin role."""
+    try:
+        if user is None:
+            user = _get_current_user()
+        if not user:
+            return False
+        if (user.role or '').lower() == 'admin':
+            return True
+        admin_role = Role.query.filter(func.lower(Role.name) == 'admin').first()
+        if not admin_role:
+            return False
+        return UserRole.query.filter_by(user_id=user.id, role_id=admin_role.id).first() is not None
+    except Exception:
+        return False
+
 def _has_dashboard_access(current_permissions=None, current_user=None):
     """Check if current user can access dashboard."""
     if current_user is None:
@@ -5520,6 +5536,11 @@ def add_config_proposal():
                 flash('Vui lòng nhập Tên đề xuất, Ngày đề xuất và Nhu cầu sử dụng.', 'danger')
                 return redirect(url_for('add_config_proposal'))
 
+            current_user = User.query.get(session['user_id'])
+            if not _is_admin_user(current_user):
+                proposer_name = current_user.full_name or current_user.username
+                proposer_unit = current_user.department_info.name if current_user.department_info else ''
+
             proposal_date = datetime.strptime(proposal_date_str, '%Y-%m-%d').date()
 
             proposal = ConfigProposal(
@@ -5596,12 +5617,10 @@ def add_config_proposal():
     # Fetch users for Proposer selection
     # If Admin, show ALL users. Else, show only Department users.
     dept_users = []
-    if current_user.role == 'Admin':
+    if _is_admin_user(current_user):
         dept_users = User.query.all()
-    elif current_user.department_id:
-        dept_users = User.query.filter_by(department_id=current_user.department_id).all()
     else:
-        dept_users = [current_user] # Fallback
+        dept_users = [current_user]
         
     return render_template('add_config_proposal.html', default_date=default_date, users=dept_users, current_user=current_user)
 
@@ -6042,17 +6061,10 @@ def edit_config_proposal(proposal_id):
     # Else: Usually Creator's Dept, or Current User's Dept if new.
     dept_users = []
     
-    if current_user.role == 'Admin':
+    if _is_admin_user(current_user):
         dept_users = User.query.all()
     else:
-        target_dept_id = current_user.department_id
-        if p.creator and p.creator.department_id:
-            target_dept_id = p.creator.department_id
-        
-        if target_dept_id:
-            dept_users = User.query.filter_by(department_id=target_dept_id).all()
-        else:
-            dept_users = [current_user]
+        dept_users = [current_user]
 
     if request.method == 'POST':
         try:
@@ -6071,8 +6083,9 @@ def edit_config_proposal(proposal_id):
             date_str = request.form.get('proposal_date')
             if date_str:
                 p.proposal_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            p.proposer_name = request.form.get('proposer_name')
-            p.proposer_unit = request.form.get('proposer_unit')
+            if _is_admin_user(current_user):
+                p.proposer_name = request.form.get('proposer_name')
+                p.proposer_unit = request.form.get('proposer_unit')
             p.scope = request.form.get('scope')
             p.priority = request.form.get('priority') or p.priority
             p.currency = request.form.get('currency') or 'VND'
@@ -6244,7 +6257,7 @@ def backup_export():
     temp_backup_file = None
     try:
         # Create a temporary file for the zip
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.bak')
         temp_backup_file = temp_file.name
         temp_file.close()
 
@@ -6264,7 +6277,7 @@ def backup_export():
         # Actually DatabaseBackup doesn't change filename if provided.
         # Let's give it a nice name for download
         timestamp = datetime.now(VIETNAM_TZ).strftime('%Y%m%d_%H%M%S')
-        download_filename = f'backup_inventory_{timestamp}.zip'
+        download_filename = f'backup_inventory_{timestamp}.bak'
 
         def remove_file(response, path=temp_backup_file):
             try:
@@ -6278,7 +6291,7 @@ def backup_export():
             temp_backup_file,
             as_attachment=True,
             download_name=download_filename,
-            mimetype='application/zip'
+            mimetype='application/octet-stream'
         ))
     except Exception as e:
         try:
@@ -6306,13 +6319,13 @@ def backup_import():
         flash('Vui lòng chọn file backup.', 'danger')
         return redirect(url_for('backup_page'))
     
-    if not file.filename.endswith('.zip'):
-        flash('File backup phải có định dạng .zip', 'danger')
+    if not _is_backup_filename(file.filename):
+        flash('File backup phải có định dạng .bak hoặc .zip backup cũ.', 'danger')
         return redirect(url_for('backup_page'))
     
     try:
         # Lưu file tạm
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.bak')
         temp_path = temp_file.name
         temp_file.close()
         
@@ -6718,19 +6731,25 @@ from datetime import datetime
 from flask import send_from_directory, flash, redirect, url_for, request, render_template
 
 # Helper to list backup files
+def _backup_storage_dir():
+    return os.path.abspath(backup_path)
+
+def _is_backup_filename(filename):
+    return bool(filename and filename.lower().endswith(('.bak', '.zip')))
+
 def _list_backups():
-    backup_dir = os.path.abspath('backups')
+    backup_dir = _backup_storage_dir()
     files = []
     if os.path.isdir(backup_dir):
         for f in os.listdir(backup_dir):
-            if f.endswith('.zip'):
+            if _is_backup_filename(f):
                 path = os.path.join(backup_dir, f)
                 files.append({
                     'name': f,
                     'size': os.path.getsize(path),
                     'date': datetime.fromtimestamp(os.path.getmtime(path)).strftime('%Y-%m-%d %H:%M:%S')
                 })
-    return files
+    return sorted(files, key=lambda item: item['date'], reverse=True)
 
 # Route: backup management page
 @app.route('/backup', methods=['GET'])
@@ -6766,12 +6785,12 @@ def backup_create():
         return redirect(url_for('backup_page'))
         
     try:
-        backup_dir = os.path.abspath('backups')
+        backup_dir = _backup_storage_dir()
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir, exist_ok=True)
             
         timestamp = get_now().strftime("%Y%m%d_%H%M%S")
-        filename = f"backup_{timestamp}.zip"
+        filename = f"manual_backup_{timestamp}.bak"
         dest_path = os.path.join(backup_dir, filename)
         
         backup = DatabaseBackup()
@@ -6789,10 +6808,6 @@ def backup_create():
         
         flash(f"Đã tạo bản sao lưu thành công: {filename}", 'success')
         
-        # Optional: Trigger download if requested via query param
-        if request.args.get('download') == 'true':
-            return send_from_directory(backup_dir, filename, as_attachment=True)
-            
     except Exception as e:
         db.session.rollback()
         log = BackupLog(
@@ -6818,7 +6833,10 @@ def backup_download(filename):
         flash('Bạn không có quyền tải backup.', 'danger')
         return redirect(url_for('backup_page'))
         
-    backup_dir = os.path.abspath('backups')
+    if not _is_backup_filename(filename):
+        flash('File sao lưu không hợp lệ.', 'danger')
+        return redirect(url_for('backup_page'))
+    backup_dir = _backup_storage_dir()
     return send_from_directory(backup_dir, filename, as_attachment=True)
 
 # Route: restore backup
@@ -6831,7 +6849,10 @@ def backup_restore(filename):
         flash('Bạn không có quyền khôi phục dữ liệu.', 'danger')
         return redirect(url_for('backup_page'))
         
-    backup_dir = os.path.abspath('backups')
+    if not _is_backup_filename(filename):
+        flash('File sao lưu không hợp lệ.', 'danger')
+        return redirect(url_for('backup_page'))
+    backup_dir = _backup_storage_dir()
     backup_path = os.path.join(backup_dir, filename)
     if not os.path.isfile(backup_path):
         flash('Không tìm thấy file sao lưu.', 'danger')
@@ -6855,7 +6876,7 @@ def backup_restore(filename):
                 log_id = log.id
 
                 # Create snapshot
-                snapshot_filename = f"pre_restore_snapshot_{get_now().strftime('%Y%m%d_%H%M%S')}.zip"
+                snapshot_filename = f"pre_restore_snapshot_{get_now().strftime('%Y%m%d_%H%M%S')}.bak"
                 snapshot_path = os.path.join(backup_dir, snapshot_filename)
                 
                 engine = DatabaseBackup()
@@ -6939,10 +6960,10 @@ def backup_schedule():
 def _run_scheduler():
     def job():
         try:
-            backup_dir = os.path.abspath('backups')
+            backup_dir = _backup_storage_dir()
             os.makedirs(backup_dir, exist_ok=True)
             timestamp = get_now().strftime("%Y%m%d_%H%M%S")
-            filename = f"auto_backup_{timestamp}.zip"
+            filename = f"auto_backup_{timestamp}.bak"
             dest_path = os.path.join(backup_dir, filename)
             backup = DatabaseBackup()
             backup.create_backup(dest_path)
@@ -7014,12 +7035,12 @@ def backup_upload_restore():
         flash('Chưa chọn file.', 'warning')
         return redirect(url_for('backup_page'))
         
-    if not file.filename.endswith('.zip'):
-        flash('Chỉ chấp nhận file .zip', 'danger')
+    if not _is_backup_filename(file.filename):
+        flash('Chỉ chấp nhận file .bak của hệ thống hoặc file .zip backup cũ.', 'danger')
         return redirect(url_for('backup_page'))
         
     try:
-        backup_dir = os.path.abspath('backups')
+        backup_dir = _backup_storage_dir()
         os.makedirs(backup_dir, exist_ok=True)
         
         filename = secure_filename(file.filename)
@@ -7045,7 +7066,7 @@ def backup_delete(filename):
         return redirect(url_for('backup_page'))
         
     try:
-        backup_dir = os.path.abspath('backups')
+        backup_dir = _backup_storage_dir()
         filepath = os.path.join(backup_dir, filename)
         if os.path.exists(filepath):
             os.remove(filepath)
