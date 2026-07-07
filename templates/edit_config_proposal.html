@@ -25,7 +25,7 @@
       <label class="form-label">Người đề xuất</label>
       <select class="form-select select2" name="proposer_name" id="proposer_select">
         {% for u in users %}
-        <option value="{{ u.full_name or u.username }}" data-unit="{{ u.department_info.name if u.department_info else '' }}" {% if
+        <option value="{{ u.id }}" data-unit="{{ u.department_info.name if u.department_info else '' }}" {% if
           (u.full_name or u.username)==p.proposer_name %}selected{% endif %}>{{ u.full_name or u.username }} ({{ u.username }})</option>
         {% endfor %}
       </select>

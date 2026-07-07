@@ -1259,6 +1259,12 @@ def seed_rbac_data():
                 user_role = Role(name='User', description='Người dùng - chỉ xem thiết bị')
                 db.session.add(user_role)
                 db.session.commit()
+
+            manager_role = Role.query.filter_by(name='Manager').first()
+            if not manager_role:
+                manager_role = Role(name='Manager', description='Quản lý phòng ban - xem dữ liệu trong phạm vi phụ trách')
+                db.session.add(manager_role)
+                db.session.commit()
             
             # Grant all permissions to Admin
             perms = Permission.query.all()
@@ -1273,6 +1279,29 @@ def seed_rbac_data():
             if dev_view and not RolePermission.query.filter_by(role_id=user_role.id, permission_id=dev_view.id).first():
                 db.session.add(RolePermission(role_id=user_role.id, permission_id=dev_view.id))
                 db.session.commit()
+
+            manager_permission_codes = [
+                'dashboard.view',
+                'devices.view',
+                'handovers.view',
+                'config_proposals.view',
+                'config_proposals.create',
+                'config_proposals.edit',
+                'config_proposals.approve_team',
+                'bug_reports.create',
+                'bug_reports.view',
+                'bug_reports.assign',
+            ]
+            for code in manager_permission_codes:
+                perm = Permission.query.filter_by(code=code).first()
+                if perm and not RolePermission.query.filter_by(role_id=manager_role.id, permission_id=perm.id).first():
+                    db.session.add(RolePermission(role_id=manager_role.id, permission_id=perm.id))
+            db.session.commit()
+
+            for manager_id in {dept.manager_id for dept in Department.query.filter(Department.manager_id != None).all()}:
+                if manager_id and not UserRole.query.filter_by(user_id=manager_id, role_id=manager_role.id).first():
+                    db.session.add(UserRole(user_id=manager_id, role_id=manager_role.id))
+            db.session.commit()
             
             # Assign Admin role to existing admin user if any
             admin_user = User.query.filter_by(role='admin').first()
@@ -1311,6 +1340,13 @@ def _assign_admin_role(user):
     admin_role = Role.query.filter_by(name='Admin').first()
     if admin_role and not UserRole.query.filter_by(user_id=user.id, role_id=admin_role.id).first():
         db.session.add(UserRole(user_id=user.id, role_id=admin_role.id))
+
+def _assign_manager_role(user_id):
+    if not user_id:
+        return
+    manager_role = Role.query.filter_by(name='Manager').first()
+    if manager_role and not UserRole.query.filter_by(user_id=int(user_id), role_id=manager_role.id).first():
+        db.session.add(UserRole(user_id=int(user_id), role_id=manager_role.id))
 
 def create_initial_admin(username, password, full_name=None, email=None):
     """Create the first administrator account for a fresh installation."""
@@ -2510,6 +2546,7 @@ def add_department():
     
     try:
         db.session.add(new_dept)
+        _assign_manager_role(manager_id)
         db.session.commit()
         flash('Thêm phòng ban thành công', 'success')
     except Exception as e:
@@ -2539,6 +2576,7 @@ def edit_department(id):
         dept.description = description
         dept.parent_id = parent_id if parent_id else None
         dept.manager_id = manager_id if manager_id else None
+        _assign_manager_role(manager_id)
         db.session.commit()
         flash('Cập nhật phòng ban thành công', 'success')
     except Exception as e:
@@ -2851,7 +2889,7 @@ def device_list():
     if filter_category is None or filter_category == '':
         filter_category = saved_filters.get('filter_category', '')
     
-    query = Device.query
+    query = _visible_devices_query_for(user)
 
     # Apply category filter
     device_hierarchy = _get_device_type_hierarchy()
@@ -2867,28 +2905,6 @@ def device_list():
     elif filter_device_type:
          query = query.filter(Device.device_type == filter_device_type)
     
-    # Apply permission-based filtering
-    # Admin or users with full devices.view permission see all devices
-    is_admin = user.role == 'admin' if user else False
-    has_full_view = 'devices.view' in current_permissions and is_admin
-    
-    if not has_full_view:
-        # Personal accounts: only see devices they manage
-        if user and user.department_id:
-            dept = Department.query.get(user.department_id)
-            if dept and dept.manager_id == user_id:
-                # Manager: see devices of people in their department and sub-departments
-                dept_ids = get_subordinate_department_ids(dept.id)
-                # Get all users in these departments
-                dept_user_ids = [u.id for u in User.query.filter(User.department_id.in_(dept_ids)).all()]
-                dept_user_ids.append(user_id)  # Include self
-                query = query.filter(Device.manager_id.in_(dept_user_ids))
-            else:
-                # Regular user: only see devices they manage
-                query = query.filter(Device.manager_id == user_id)
-        else:
-            # No department: only see own devices
-            query = query.filter(Device.manager_id == user_id)
     if filter_device_code:
         query = query.filter(Device.device_code.ilike(f'%{filter_device_code}%'))
     if filter_name:
@@ -2913,13 +2929,7 @@ def device_list():
     devices_pagination = query.order_by(Device.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
-    user_query = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username))
-    if user and user.role != 'admin':
-        if user.department_id:
-            user_query = user_query.filter(User.department_id == user.department_id)
-        else:
-            user_query = user_query.filter(User.id == user_id)
-    users = user_query.all()
+    users = _visible_users_query_for(user).all()
     if manager_filter_id is not None and all(u.id != manager_filter_id for u in users):
         extra_user = User.query.get(manager_filter_id)
         if extra_user:
@@ -4331,6 +4341,116 @@ def _is_admin_user(user=None):
     except Exception:
         return False
 
+def _managed_department_ids(user=None):
+    """Departments directly managed by user, including nested child departments."""
+    try:
+        if user is None:
+            user = _get_current_user()
+        if not user:
+            return []
+        ids = []
+        for dept in Department.query.filter_by(manager_id=user.id).all():
+            ids.extend(get_subordinate_department_ids(dept.id))
+        return sorted(set(ids))
+    except Exception:
+        return []
+
+def _is_manager_user(user=None):
+    return bool(_managed_department_ids(user))
+
+def _visible_user_ids_for(user=None):
+    """Admin: all users. Manager: users in managed departments. User: self only."""
+    try:
+        if user is None:
+            user = _get_current_user()
+        if not user:
+            return []
+        if _is_admin_user(user):
+            return [row[0] for row in db.session.query(User.id).all()]
+        dept_ids = _managed_department_ids(user)
+        if dept_ids:
+            ids = [row[0] for row in db.session.query(User.id).filter(User.department_id.in_(dept_ids)).all()]
+            ids.append(user.id)
+            return sorted(set(ids))
+        return [user.id]
+    except Exception:
+        return [user.id] if user else []
+
+def _visible_users_query_for(user=None):
+    if user is None:
+        user = _get_current_user()
+    ids = _visible_user_ids_for(user)
+    return User.query.filter(User.id.in_(ids)).order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username))
+
+def _visible_devices_query_for(user=None):
+    if user is None:
+        user = _get_current_user()
+    if _is_admin_user(user):
+        return Device.query
+    return Device.query.filter(Device.manager_id.in_(_visible_user_ids_for(user)))
+
+def _can_access_user(target_user_id, user=None):
+    try:
+        return int(target_user_id) in set(_visible_user_ids_for(user))
+    except Exception:
+        return False
+
+def _managed_department_names(user=None):
+    try:
+        dept_ids = _managed_department_ids(user)
+        if not dept_ids:
+            return []
+        return [row[0] for row in db.session.query(Department.name).filter(Department.id.in_(dept_ids)).all()]
+    except Exception:
+        return []
+
+def _apply_config_proposal_scope(query, user=None):
+    if user is None:
+        user = _get_current_user()
+    if _is_admin_user(user):
+        return query
+    visible_user_ids = _visible_user_ids_for(user)
+    own_names = [user.full_name, user.username] if user else []
+    own_names = [name for name in own_names if name]
+    dept_names = _managed_department_names(user)
+    conditions = [ConfigProposal.created_by.in_(visible_user_ids)]
+    if own_names:
+        conditions.append(ConfigProposal.proposer_name.in_(own_names))
+    if dept_names:
+        conditions.append(ConfigProposal.proposer_unit.in_(dept_names))
+    return query.filter(or_(*conditions))
+
+def _can_access_config_proposal(proposal, user=None):
+    if user is None:
+        user = _get_current_user()
+    if not proposal or not user:
+        return False
+    if _is_admin_user(user):
+        return True
+    if proposal.created_by in _visible_user_ids_for(user):
+        return True
+    if proposal.proposer_name in [user.full_name, user.username]:
+        return True
+    return bool(proposal.proposer_unit and proposal.proposer_unit in _managed_department_names(user))
+
+def _apply_bug_report_scope(query, user=None):
+    if user is None:
+        user = _get_current_user()
+    if _is_admin_user(user):
+        return query
+    visible_user_ids = _visible_user_ids_for(user)
+    return query.filter(or_(BugReport.created_by.in_(visible_user_ids), BugReport.assigned_to.in_(visible_user_ids)))
+
+def _can_access_bug_report(report, user=None):
+    if user is None:
+        user = _get_current_user()
+    if not report or not user:
+        return False
+    if _is_admin_user(user):
+        return True
+    visible_user_ids = set(_visible_user_ids_for(user))
+    return report.created_by in visible_user_ids or report.assigned_to in visible_user_ids
+
 def _has_dashboard_access(current_permissions=None, current_user=None):
     """Check if current user can access dashboard."""
     if current_user is None:
@@ -4347,10 +4467,8 @@ def _bug_permission_flags(current_permissions=None, current_user=None):
         current_user = _get_current_user()
     if current_permissions is None:
         current_permissions = _get_current_permissions()
-    system_admin = current_user.role == 'admin' if current_user else False
-    can_manage = system_admin or ('bug_reports.manage_advanced' in current_permissions)
-    base_perms = {'bug_reports.view', 'bug_reports.edit', 'bug_reports.assign'}
-    can_view_all = can_manage or any(perm in current_permissions for perm in base_perms)
+    can_manage = _is_admin_user(current_user) or ('bug_reports.manage_advanced' in current_permissions)
+    can_view_all = can_manage
     return can_manage, can_view_all
 
 def _to_vietnam_time(dt):
@@ -4717,11 +4835,6 @@ def bug_reports():
     
     current_user = User.query.get(user_id)
     can_manage_bug_reports, can_view_all_reports = _bug_permission_flags(current_permissions, current_user)
-    # Admin/quyền mở rộng hoặc người tạo hoặc người được gán, hoặc báo lỗi công khai
-    can_view = can_view_all_reports or is_creator or is_assignee or bug_report.visibility == 'public'
-    if not can_view:
-        flash('Bạn không có quyền xem báo lỗi này.', 'danger')
-        return redirect(url_for('bug_reports'))
     
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
@@ -4740,19 +4853,7 @@ def bug_reports():
     assignee_filter = request.args.get('assignee', '').strip() or saved_filters.get('assignee', '')
     device_code_filter = request.args.get('device_code', '').strip() or saved_filters.get('device_code', '')
     
-    # Người dùng thường chỉ thấy báo lỗi công khai, báo lỗi mình tạo, hoặc được gán
-    # Admin và người có quyền xem tất cả thì thấy tất cả
-    if can_view_all_reports:
-        q = BugReport.query.filter(BugReport.merged_into.is_(None))  # Không hiển thị báo lỗi đã được gộp
-    else:
-        q = BugReport.query.filter(
-            BugReport.merged_into.is_(None),  # Không hiển thị báo lỗi đã được gộp
-            or_(
-                BugReport.visibility == 'public',      # Báo lỗi công khai
-                BugReport.created_by == user_id,       # Báo lỗi do chính mình tạo
-                BugReport.assigned_to == user_id       # Báo lỗi được gán cho mình
-            )
-        )
+    q = _apply_bug_report_scope(BugReport.query.filter(BugReport.merged_into.is_(None)), current_user)
     
     if status_filter:
         q = q.filter(BugReport.status == status_filter)
@@ -4829,10 +4930,10 @@ def bug_reports():
     reports = q.order_by(BugReport.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
     # Get list of users who created reports (for filter dropdown)
-    creators = db.session.query(User).join(BugReport, User.id == BugReport.created_by).distinct().order_by(User.full_name, User.username).all()
+    creators = _visible_users_query_for(current_user).join(BugReport, User.id == BugReport.created_by).distinct().all()
     
     # Get list of users who are assigned reports
-    assignees = db.session.query(User).join(BugReport, User.id == BugReport.assigned_to).distinct().order_by(User.full_name, User.username).all()
+    assignees = _visible_users_query_for(current_user).join(BugReport, User.id == BugReport.assigned_to).distinct().all()
 
     # Get list of distinct device codes in reports (simple parsing or just rough list)
     # Since device_code is text and can be comma separated, getting distinct values is tricky. 
@@ -4842,7 +4943,7 @@ def bug_reports():
     # If they are comma separated "Code1, Code2", they will appear as such in the filter list.
     # Users can search via the filter text input if we change it to text later, but for now dropdown.
     # We will get all texts and split them in python to list unique codes.
-    all_report_codes = db.session.query(BugReport.device_code).filter(BugReport.device_code != None, BugReport.device_code != '').all()
+    all_report_codes = _apply_bug_report_scope(db.session.query(BugReport.device_code).filter(BugReport.device_code != None, BugReport.device_code != ''), current_user).all()
     unique_device_codes = set()
     for r in all_report_codes:
         if r.device_code:
@@ -4896,14 +4997,10 @@ def create_bug_report():
     current_user = User.query.get(user_id)
     can_manage_bug_reports, can_view_all_reports = _bug_permission_flags(current_permissions, current_user)
     
-    # Chỉ hiển thị thiết bị được gán cho user (trừ khi là admin)
-    if can_view_all_reports:
-        devices = Device.query.order_by(Device.device_code).all()
-    else:
-        devices = Device.query.filter_by(manager_id=user_id).order_by(Device.device_code).all()
+    devices = _visible_devices_query_for(current_user).order_by(Device.device_code).all()
     
     # Get list of users for "báo lỗi hộ" feature - Allow selecting any active user
-    reportable_users = User.query.filter(~User.status.in_(['Nghỉ không lương', 'Nghỉ việc', 'Resigned', 'Retired'])).order_by(User.full_name, User.username).all()
+    reportable_users = _visible_users_query_for(current_user).filter(~User.status.in_(['Nghỉ không lương', 'Nghỉ việc', 'Resigned', 'Retired'])).all()
  
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
@@ -4923,7 +5020,7 @@ def create_bug_report():
             try:
                 report_for_id = int(report_for_user)
                 # Verify that user can report for this person
-                if any(u.id == report_for_id for u in reportable_users):
+                if _can_access_user(report_for_id, current_user):
                     created_by_id = report_for_id
             except ValueError:
                 pass
@@ -4945,11 +5042,7 @@ def create_bug_report():
         device_codes_str = ','.join(deduped_codes) if deduped_codes else None
         
         # If reporting for someone else, also show their devices
-        if created_by_id != user_id and can_view_all_reports:
-            # Admin can see all devices when reporting for someone
-            devices = Device.query.order_by(Device.device_code).all()
-        elif created_by_id != user_id:
-            # Show devices assigned to the person being reported for
+        if created_by_id != user_id:
             devices = Device.query.filter_by(manager_id=created_by_id).order_by(Device.device_code).all()
  
         if not title or not description:
@@ -5028,22 +5121,19 @@ def bug_report_detail(report_id):
     is_assignee = bool(bug_report.assigned_to == user_id) if bug_report.assigned_to else False
     current_user = User.query.get(user_id)
     can_manage_bug_reports, can_view_all_reports = _bug_permission_flags(current_permissions, current_user)
+    if not _can_access_bug_report(bug_report, current_user):
+        flash('Bạn không có quyền xem báo lỗi này.', 'danger')
+        return redirect(url_for('bug_reports'))
     # Lấy danh sách nhân viên để gán
     # Admin: tất cả nhân viên
     # Người khác: chỉ nhân viên trong phòng ban của mình và các phòng ban con
     user = current_user
     employees = []
-    if can_view_all_reports:
-        employees = User.query.order_by(User.full_name, User.username).all()
-    elif user and user.department_id and ('bug_reports.assign' in current_permissions):
-        dept = Department.query.get(user.department_id)
-        if dept:
-            dept_ids = get_subordinate_department_ids(dept.id)
-            dept_ids.append(dept.id)  # Include own department
-            employees = User.query.filter(User.department_id.in_(dept_ids)).order_by(User.full_name, User.username).all()
+    if can_view_all_reports or _is_manager_user(user):
+        employees = _visible_users_query_for(user).all()
     
     is_closed = bug_report.status == 'Đã đóng'
-    can_comment = (not is_closed) and (bug_report.is_public or can_view_all_reports or is_creator or is_assignee)
+    can_comment = (not is_closed) and _can_access_bug_report(bug_report, current_user)
     can_upload = (not is_closed) and (can_manage_bug_reports or is_creator or is_assignee)
     can_request_reopen = is_closed and is_creator and not bug_report.reopen_requested
     can_rate = is_closed and is_creator
@@ -5056,10 +5146,10 @@ def bug_report_detail(report_id):
     # Lấy danh sách báo lỗi có thể liên kết (không bao gồm chính nó và các báo lỗi đã được gộp)
     available_reports = []
     if can_manage_related:
-        available_reports = BugReport.query.filter(
+        available_reports = _apply_bug_report_scope(BugReport.query.filter(
             BugReport.id != report_id,
             BugReport.merged_into.is_(None)
-        ).order_by(BugReport.created_at.desc()).limit(100).all()
+        ), current_user).order_by(BugReport.created_at.desc()).limit(100).all()
 
     return render_template(
         'bug_reports/detail.html',
@@ -5123,14 +5213,14 @@ def edit_bug_report(report_id):
         
         if not title or not description:
             flash('Vui lòng nhập tiêu đề và mô tả.', 'danger')
-            devices = Device.query.order_by(Device.device_code).all()
+            devices = _visible_devices_query_for(User.query.get(user_id)).order_by(Device.device_code).all()
             return render_template('bug_reports/edit.html', bug_report=bug_report, devices=devices, 
                                  selected_device_codes=deduped_codes, selected_visibility=visibility, 
                                  selected_priority=priority, draft_title=title, draft_description=description)
         
         if len(title) > 100:
             flash('Tiêu đề không được vượt quá 100 ký tự.', 'danger')
-            devices = Device.query.order_by(Device.device_code).all()
+            devices = _visible_devices_query_for(User.query.get(user_id)).order_by(Device.device_code).all()
             return render_template('bug_reports/edit.html', bug_report=bug_report, devices=devices,
                                  selected_device_codes=deduped_codes, selected_visibility=visibility,
                                  selected_priority=priority, draft_title=title, draft_description=description)
@@ -5167,13 +5257,13 @@ def edit_bug_report(report_id):
             db.session.rollback()
             app.logger.error(f'Error editing bug report: {str(e)}', exc_info=True)
             flash(f'Lỗi khi cập nhật báo lỗi: {str(e)}', 'danger')
-            devices = Device.query.order_by(Device.device_code).all()
+            devices = _visible_devices_query_for(User.query.get(user_id)).order_by(Device.device_code).all()
             return render_template('bug_reports/edit.html', bug_report=bug_report, devices=devices,
                                  selected_device_codes=deduped_codes, selected_visibility=visibility,
                                  selected_priority=priority, draft_title=title, draft_description=description)
     
     # GET request - show edit form
-    devices = Device.query.order_by(Device.device_code).all()
+    devices = _visible_devices_query_for(User.query.get(user_id)).order_by(Device.device_code).all()
     selected_codes = bug_report.device_code_list
     return render_template('bug_reports/edit.html', bug_report=bug_report, devices=devices,
                          selected_device_codes=selected_codes, selected_visibility=bug_report.visibility,
@@ -5288,13 +5378,12 @@ def add_bug_report_comment(report_id):
     is_creator = bug_report.created_by == user_id
     is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
     current_user = User.query.get(user_id)
-    _, can_view_all_reports = _bug_permission_flags(current_permissions, current_user)
 
     if bug_report.status == 'Đã đóng':
         flash('Vấn đề đã đóng. Vui lòng gửi yêu cầu mở lại để tiếp tục trao đổi.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
 
-    if not (bug_report.is_public or is_creator or can_view_all_reports or is_assignee):
+    if not _can_access_bug_report(bug_report, current_user):
         flash('Bạn không có quyền bình luận báo lỗi này.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
     
@@ -5328,16 +5417,16 @@ def upload_bug_report_attachment(report_id):
     bug_report = BugReport.query.get_or_404(report_id)
     
     # Kiểm tra quyền: người tạo hoặc admin
-    current_permissions = _get_current_permissions()
     is_creator = bug_report.created_by == user_id
     is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
-    can_manage_bug_reports, can_view_all_reports = _bug_permission_flags(current_permissions, User.query.get(user_id))
+    current_user = User.query.get(user_id)
+    can_manage_bug_reports, _ = _bug_permission_flags(_get_current_permissions(), current_user)
 
     if bug_report.status == 'Đã đóng':
         flash('Vấn đề đã đóng. Không thể tải thêm tệp đính kèm.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
 
-    if not (can_manage_bug_reports or is_creator or is_assignee):
+    if not _can_access_bug_report(bug_report, current_user):
         flash('Bạn không có quyền tải file cho báo lỗi này.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
     
@@ -5380,12 +5469,7 @@ def download_bug_report_file(report_id, filename):
     bug_report = BugReport.query.get_or_404(report_id)
     
     # Kiểm tra quyền: người tạo hoặc admin
-    current_permissions = _get_current_permissions()
-    is_creator = bug_report.created_by == user_id
-    is_assignee = bug_report.assigned_to == user_id if bug_report.assigned_to else False
-    _, can_view_all_reports = _bug_permission_flags(current_permissions, User.query.get(user_id))
-
-    if not (can_view_all_reports or is_creator or is_assignee or bug_report.is_public):
+    if not _can_access_bug_report(bug_report, User.query.get(user_id)):
         flash('Bạn không có quyền tải file.', 'danger')
         return redirect(url_for('bug_report_detail', report_id=report_id))
     
@@ -5468,7 +5552,8 @@ def config_proposals():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     
-    q = ConfigProposal.query
+    current_user = _get_current_user()
+    q = _apply_config_proposal_scope(ConfigProposal.query, current_user)
     filter_name = request.args.get('name', '').strip()
     filter_unit = request.args.get('unit', '').strip()
     filter_proposer = request.args.get('proposer', '').strip()
@@ -5500,9 +5585,10 @@ def config_proposals():
     proposals_pagination = q.order_by(ConfigProposal.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
     # Fetch distinct values for dropdowns
-    proposers = [r.proposer_name for r in db.session.query(ConfigProposal.proposer_name).distinct().filter(ConfigProposal.proposer_name != None).order_by(ConfigProposal.proposer_name).all()]
-    units = [r.proposer_unit for r in db.session.query(ConfigProposal.proposer_unit).distinct().filter(ConfigProposal.proposer_unit != None).order_by(ConfigProposal.proposer_unit).all()]
-    statuses = [r.status for r in db.session.query(ConfigProposal.status).distinct().filter(ConfigProposal.status != None).order_by(ConfigProposal.status).all()]
+    scoped_for_filters = _apply_config_proposal_scope(ConfigProposal.query, current_user).subquery()
+    proposers = [r[0] for r in db.session.query(scoped_for_filters.c.proposer_name).distinct().filter(scoped_for_filters.c.proposer_name != None).order_by(scoped_for_filters.c.proposer_name).all()]
+    units = [r[0] for r in db.session.query(scoped_for_filters.c.proposer_unit).distinct().filter(scoped_for_filters.c.proposer_unit != None).order_by(scoped_for_filters.c.proposer_unit).all()]
+    statuses = [r[0] for r in db.session.query(scoped_for_filters.c.status).distinct().filter(scoped_for_filters.c.status != None).order_by(scoped_for_filters.c.status).all()]
 
     return render_template('config_proposals.html', 
                            proposals=proposals_pagination, 
@@ -5537,7 +5623,17 @@ def add_config_proposal():
                 return redirect(url_for('add_config_proposal'))
 
             current_user = User.query.get(session['user_id'])
-            if not _is_admin_user(current_user):
+            selected_proposer = None
+            try:
+                selected_proposer = _visible_users_query_for(current_user).filter(User.id == int(proposer_name)).first()
+            except Exception:
+                selected_proposer = _visible_users_query_for(current_user).filter(
+                    or_(User.full_name == proposer_name, User.username == proposer_name)
+                ).first()
+            if selected_proposer:
+                proposer_name = selected_proposer.full_name or selected_proposer.username
+                proposer_unit = selected_proposer.department_info.name if selected_proposer.department_info else ''
+            else:
                 proposer_name = current_user.full_name or current_user.username
                 proposer_unit = current_user.department_info.name if current_user.department_info else ''
 
@@ -5616,11 +5712,7 @@ def add_config_proposal():
     current_user = User.query.get(session['user_id'])
     # Fetch users for Proposer selection
     # If Admin, show ALL users. Else, show only Department users.
-    dept_users = []
-    if _is_admin_user(current_user):
-        dept_users = User.query.all()
-    else:
-        dept_users = [current_user]
+    dept_users = _visible_users_query_for(current_user).all()
         
     return render_template('add_config_proposal.html', default_date=default_date, users=dept_users, current_user=current_user)
 
@@ -5642,6 +5734,9 @@ def proposal_action(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     p = ConfigProposal.query.get_or_404(proposal_id)
     current_user = User.query.get(session['user_id'])
+    if not _can_access_config_proposal(p, current_user):
+        flash('Bạn không có quyền truy cập đề xuất này.', 'danger')
+        return redirect(url_for('config_proposals'))
     permissions = _get_current_permissions()
     
 
@@ -5910,6 +6005,9 @@ def proposal_action(proposal_id):
 def config_proposal_detail(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     p = ConfigProposal.query.get_or_404(proposal_id)
+    if not _can_access_config_proposal(p):
+        flash('Bạn không có quyền xem đề xuất này.', 'danger')
+        return redirect(url_for('config_proposals'))
     items = ConfigProposalItem.query.filter_by(proposal_id=proposal_id).order_by(ConfigProposalItem.order_no).all()
     p = ConfigProposal.query.get_or_404(proposal_id)
     items = ConfigProposalItem.query.filter_by(proposal_id=proposal_id).order_by(ConfigProposalItem.order_no).all()
@@ -6024,6 +6122,9 @@ def clone_config_proposal(proposal_id):
 def edit_config_proposal(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     p = ConfigProposal.query.get_or_404(proposal_id)
+    if not _can_access_config_proposal(p):
+        flash('Bạn không có quyền sửa đề xuất này.', 'danger')
+        return redirect(url_for('config_proposals'))
     current_permissions = _get_current_permissions()
     current_user = User.query.get(session['user_id']) # Ensure we have user obj
     
@@ -6061,10 +6162,7 @@ def edit_config_proposal(proposal_id):
     # Else: Usually Creator's Dept, or Current User's Dept if new.
     dept_users = []
     
-    if _is_admin_user(current_user):
-        dept_users = User.query.all()
-    else:
-        dept_users = [current_user]
+    dept_users = _visible_users_query_for(current_user).all()
 
     if request.method == 'POST':
         try:
@@ -6083,9 +6181,16 @@ def edit_config_proposal(proposal_id):
             date_str = request.form.get('proposal_date')
             if date_str:
                 p.proposal_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            if _is_admin_user(current_user):
-                p.proposer_name = request.form.get('proposer_name')
-                p.proposer_unit = request.form.get('proposer_unit')
+            selected_proposer_name = request.form.get('proposer_name')
+            try:
+                selected_proposer = _visible_users_query_for(current_user).filter(User.id == int(selected_proposer_name)).first()
+            except Exception:
+                selected_proposer = _visible_users_query_for(current_user).filter(
+                    or_(User.full_name == selected_proposer_name, User.username == selected_proposer_name)
+                ).first()
+            if selected_proposer:
+                p.proposer_name = selected_proposer.full_name or selected_proposer.username
+                p.proposer_unit = selected_proposer.department_info.name if selected_proposer.department_info else ''
             p.scope = request.form.get('scope')
             p.priority = request.form.get('priority') or p.priority
             p.currency = request.form.get('currency') or 'VND'
@@ -6747,7 +6852,7 @@ def _list_backups():
                 files.append({
                     'name': f,
                     'size': os.path.getsize(path),
-                    'date': datetime.fromtimestamp(os.path.getmtime(path)).strftime('%Y-%m-%d %H:%M:%S')
+                    'date': datetime.fromtimestamp(os.path.getmtime(path), pytz.utc).astimezone(VIETNAM_TZ).strftime('%Y-%m-%d %H:%M:%S')
                 })
     return sorted(files, key=lambda item: item['date'], reverse=True)
 
