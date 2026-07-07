@@ -99,7 +99,7 @@ apply_access_mode_env() {
       replace_env INVENTORY_HTTPS_PORT "8443"
       replace_env PREFERRED_URL_SCHEME "https"
       replace_env FORCE_HTTPS "false"
-      replace_env SESSION_COOKIE_SECURE "true"
+      replace_env SESSION_COOKIE_SECURE "false"
       ;;
     proxy)
       replace_env INVENTORY_HTTP_BIND "127.0.0.1"
@@ -108,7 +108,7 @@ apply_access_mode_env() {
       replace_env INVENTORY_HTTPS_PORT "8443"
       replace_env PREFERRED_URL_SCHEME "https"
       replace_env FORCE_HTTPS "false"
-      replace_env SESSION_COOKIE_SECURE "true"
+      replace_env SESSION_COOKIE_SECURE "false"
       ;;
     direct)
       replace_env INVENTORY_HTTP_BIND "0.0.0.0"
@@ -117,7 +117,7 @@ apply_access_mode_env() {
       replace_env INVENTORY_HTTPS_PORT "443"
       replace_env PREFERRED_URL_SCHEME "https"
       replace_env FORCE_HTTPS "false"
-      replace_env SESSION_COOKIE_SECURE "true"
+      replace_env SESSION_COOKIE_SECURE "false"
       ;;
     *)
       echo "Unknown INSTALL_MODE: $INSTALL_MODE"

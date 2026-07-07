@@ -15,7 +15,7 @@ services:
       INVENTORY_BACKUP_DIR: /app/backups
       PREFERRED_URL_SCHEME: ${PREFERRED_URL_SCHEME:-https}
       FORCE_HTTPS: ${FORCE_HTTPS:-false}
-      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
     volumes:
       - ${INVENTORY_DATA_DIR:-/srv/inventory/data}/instance:/app/instance
       - ${INVENTORY_DATA_DIR:-/srv/inventory/data}/logs:/app/logs
