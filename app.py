@@ -7026,7 +7026,11 @@ def _exclusive_file_lock(lock_name, stale_after_seconds=7200):
         while True:
             try:
                 fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                payload = json.dumps({'pid': os.getpid(), 'created_at': time.time()}).encode('utf-8')
+                payload = json.dumps({
+                    'pid': os.getpid(),
+                    'created_at': time.time(),
+                    'lock_name': lock_name
+                }).encode('utf-8')
                 os.write(fd, payload)
                 acquired = True
                 break
@@ -7085,6 +7089,13 @@ def _backup_schedule_enabled():
 def _backup_task_active():
     lock_path = os.path.join(_lock_dir(), 'backup_task.lock')
     if not os.path.exists(lock_path):
+        return False
+    lock_data = _read_lock_file(lock_path)
+    if lock_data.get('lock_name') != 'backup_task':
+        try:
+            os.remove(lock_path)
+        except FileNotFoundError:
+            pass
         return False
     if _lock_is_stale(lock_path, 1800):
         try:
