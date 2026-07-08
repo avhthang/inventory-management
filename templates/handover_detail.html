@@ -17,10 +17,6 @@
         <div class="col-md-4"><strong>Địa điểm:</strong> {{ handover.location or '-' }}</div>
       </div>
       <div class="row mb-2">
-        <div class="col-md-4"><strong>Mã thiết bị:</strong> {{ device.device_code if device else 'Đã xóa' }}</div>
-        <div class="col-md-8"><strong>Tên thiết bị:</strong> {{ device.name if device else '-' }}</div>
-      </div>
-      <div class="row mb-2">
         <div class="col-md-6"><strong>Người giao:</strong> {{ giver.full_name if giver else 'Đã xóa' }} ({{ giver.username if giver else '' }})</div>
         <div class="col-md-6"><strong>Người nhận:</strong> {{ receiver.full_name if receiver else 'Đã xóa' }} ({{ receiver.username if receiver else '' }})</div>
       </div>
@@ -28,5 +24,63 @@
       <div class="mb-0"><strong>Ghi chú:</strong> {{ handover.notes or '-' }}</div>
     </div>
   </div>
+
+  <div class="card mb-3">
+    <div class="card-header bg-light">
+      <strong>Danh sách thiết bị trong phiếu</strong>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Mã thiết bị</th>
+              <th>Tên thiết bị</th>
+              <th>Loại</th>
+              <th>Serial</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in handover_items %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>
+                {% if item.device %}
+                <a href="{{ url_for('device_detail', device_id=item.device.id) }}">{{ item.device.device_code }}</a>
+                {% else %}
+                <span class="text-danger">Đã xóa</span>
+                {% endif %}
+              </td>
+              <td>{{ item.device.name if item.device else '-' }}</td>
+              <td>{{ item.device.device_type if item.device else '-' }}</td>
+              <td>{{ item.device.serial_number if item.device and item.device.serial_number else '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if condition_images %}
+  <div class="card mb-3">
+    <div class="card-header bg-light">
+      <strong>Ảnh tình trạng thiết bị</strong>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% for image in condition_images %}
+        <div class="col-6 col-md-4">
+          <a href="{{ url_for('static', filename='uploads/handovers/' + image) }}" target="_blank">
+            <img src="{{ url_for('static', filename='uploads/handovers/' + image) }}"
+              class="img-thumbnail w-100" style="height: 160px; object-fit: contain;" alt="Ảnh tình trạng {{ loop.index }}">
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

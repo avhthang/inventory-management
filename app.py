@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
-from sqlalchemy import or_, func, event, text, inspect, case
+from sqlalchemy import or_, func, event, text, inspect, case, cast, String
 from sqlalchemy.exc import OperationalError
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -90,6 +90,7 @@ app = Flask(__name__, instance_path=instance_path)
 app.jinja_env.add_extension('jinja2.ext.do')
 app.config.from_object(config[config_name])
 os.makedirs(os.path.join(app.root_path, 'static', 'uploads', 'devices'), exist_ok=True)
+os.makedirs(os.path.join(app.root_path, 'static', 'uploads', 'handovers'), exist_ok=True)
 
 # Override with environment variables if present and normalize postgres scheme
 _env_db_url = os.environ.get('DATABASE_URL')
@@ -751,6 +752,10 @@ def migrate_missing_columns_v3():
                 _add_col_if_missing('device', 'warranty', 'VARCHAR(50)')
                 _add_col_if_missing('device', 'image_filename', 'VARCHAR(255)')
 
+                # device_handover
+                _add_col_if_missing('device_handover', 'batch_id', 'VARCHAR(64)')
+                _add_col_if_missing('device_handover', 'condition_images', 'TEXT')
+
                 # bug_report
                 _add_col_if_missing('bug_report', 'merged_into', 'INTEGER')
                 _add_col_if_missing('bug_report', 'visibility', "VARCHAR(20) DEFAULT 'private'")
@@ -1023,6 +1028,46 @@ def _delete_device_image_file(image_filename):
     except OSError:
         pass
 
+def _handover_images_dir():
+    path = os.path.join(app.root_path, 'static', 'uploads', 'handovers')
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def _save_handover_condition_images(files, batch_id):
+    selected_files = [f for f in files if f and f.filename]
+    if len(selected_files) > 5:
+        raise ValueError('Chỉ được thêm tối đa 5 ảnh tình trạng thiết bị.')
+    filenames = []
+    import uuid
+    for file_storage in selected_files:
+        filename = secure_filename(file_storage.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        if ext not in DEVICE_IMAGE_EXTENSIONS:
+            raise ValueError('Ảnh tình trạng thiết bị phải có định dạng JPG, PNG, WEBP hoặc GIF.')
+        saved_name = f"{batch_id}_{uuid.uuid4().hex}.{ext}"
+        file_storage.save(os.path.join(_handover_images_dir(), saved_name))
+        filenames.append(saved_name)
+    return filenames
+
+def _handover_image_list(handover):
+    if not handover or not handover.condition_images:
+        return []
+    try:
+        data = json.loads(handover.condition_images)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def _delete_handover_condition_images(image_filenames):
+    for image_filename in image_filenames or []:
+        safe_name = os.path.basename(image_filename)
+        path = os.path.join(_handover_images_dir(), safe_name)
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except OSError:
+            pass
+
 def _device_pc_specs_from_row(row):
     return {
         'cpu': _cell_text(row.get('CPU')) or None,
@@ -1090,6 +1135,7 @@ class UserRole(db.Model):
 
 class DeviceHandover(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.String(64))
     handover_date = db.Column(db.Date, nullable=False, default=date.today)
     device_id = db.Column(db.Integer, db.ForeignKey('device.id'), nullable=False)
     device = db.relationship('Device', backref='handovers')
@@ -1101,6 +1147,7 @@ class DeviceHandover(db.Model):
     reason = db.Column(db.String(255))
     location = db.Column(db.String(255))
     notes = db.Column(db.Text)
+    condition_images = db.Column(db.Text)
 
 class ConsumableItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -3639,7 +3686,25 @@ def handover_list():
     if filter_end_date:
         query = query.filter(DeviceHandover.handover_date <= datetime.strptime(filter_end_date, '%Y-%m-%d').date())
 
-    handovers_pagination = query.order_by(DeviceHandover.handover_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    batch_key = func.coalesce(DeviceHandover.batch_id, cast(DeviceHandover.id, String))
+    representative_ids = query.with_entities(func.min(DeviceHandover.id).label('id')).group_by(batch_key).subquery()
+    handovers_pagination = DeviceHandover.query\
+        .join(representative_ids, DeviceHandover.id == representative_ids.c.id)\
+        .order_by(DeviceHandover.handover_date.desc(), DeviceHandover.id.desc())\
+        .paginate(page=page, per_page=per_page, error_out=False)
+
+    visible_batch_ids = [handover.batch_id for handover in handovers_pagination.items if handover.batch_id]
+    batch_items = {}
+    if visible_batch_ids:
+        rows = DeviceHandover.query\
+            .filter(DeviceHandover.batch_id.in_(visible_batch_ids))\
+            .order_by(DeviceHandover.batch_id, DeviceHandover.id)\
+            .all()
+        for row in rows:
+            batch_items.setdefault(row.batch_id, []).append(row)
+    for handover in handovers_pagination.items:
+        handover.display_items = batch_items.get(handover.batch_id, [handover]) if handover.batch_id else [handover]
+
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
     return render_template('handovers.html', handovers=handovers_pagination, users=users, device_types=device_types, filter_device_code=filter_device_code, filter_giver_id=filter_giver_id, filter_receiver_id=filter_receiver_id, filter_device_type=filter_device_type, filter_start_date=filter_start_date, filter_end_date=filter_end_date)
@@ -3682,6 +3747,9 @@ def download_handover_template():
 @app.route('/add_handover', methods=['GET', 'POST'])
 def add_handover():
     if 'user_id' not in session: return redirect(url_for('login'))
+    current_user = _get_current_user()
+    current_permissions = _get_current_permissions()
+    can_manage_all_devices = current_user and (current_user.role == 'admin' or 'devices.edit' in current_permissions or 'handovers.edit' in current_permissions)
     
     if request.method == 'POST':
         # Lấy danh sách ID thiết bị từ form và nhóm
@@ -3697,18 +3765,32 @@ def add_handover():
             return redirect(url_for('add_handover'))
             
         handover_date = datetime.strptime(handover_date_str, '%Y-%m-%d').date()
+        import uuid
+        batch_id = uuid.uuid4().hex
+        try:
+            condition_images = _save_handover_condition_images(request.files.getlist('condition_images'), batch_id)
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return redirect(url_for('add_handover'))
+        condition_images_json = json.dumps(condition_images, ensure_ascii=False) if condition_images else None
         
         handovers_created_count = 0
         for device_id in device_ids:
             if not device_id: continue # Bỏ qua các giá trị rỗng
 
             device_to_update = Device.query.get(device_id)
-            # Kiểm tra xem thiết bị có hợp lệ và sẵn sàng không
-            if not device_to_update or device_to_update.status != 'Sẵn sàng':
-                flash(f'Thiết bị có mã "{device_to_update.device_code if device_to_update else "không xác định"}" không hợp lệ hoặc không sẵn sàng để bàn giao.', 'warning')
+            if not device_to_update:
+                flash('Thiết bị không hợp lệ.', 'warning')
+                continue
+            if not can_manage_all_devices and device_to_update.manager_id != current_user.id:
+                flash(f'Bạn chỉ có thể bàn giao thiết bị mình đang quản lý: {device_to_update.device_code}.', 'warning')
+                continue
+            if can_manage_all_devices and device_to_update.status == CONVERTED_CONSUMABLE_STATUS:
+                flash(f'Thiết bị {device_to_update.device_code} không hợp lệ để bàn giao.', 'warning')
                 continue
 
             new_handover = DeviceHandover(
+                batch_id=batch_id,
                 handover_date=handover_date, 
                 device_id=device_id, 
                 giver_id=request.form['giver_id'], 
@@ -3716,7 +3798,8 @@ def add_handover():
                 device_condition=request.form['device_condition'], 
                 reason=request.form.get('reason', ''), 
                 location=request.form.get('location', ''), 
-                notes=request.form.get('notes', '')
+                notes=request.form.get('notes', ''),
+                condition_images=condition_images_json
             )
             db.session.add(new_handover)
             
@@ -3729,20 +3812,22 @@ def add_handover():
 
         if handovers_created_count > 0:
             db.session.commit()
-            flash(f'Tạo thành công {handovers_created_count} phiếu bàn giao!', 'success')
+            flash(f'Tạo thành công phiếu bàn giao gồm {handovers_created_count} thiết bị!', 'success')
             notify_user(int(receiver_id), f"Bạn vừa nhận bàn giao {handovers_created_count} thiết bị mới.", url_for('handover_list'))
             notify_group(f"Thực hiện bàn giao {handovers_created_count} thiết bị thành công.", url_for('handover_list'))
         else:
             db.session.rollback() # Hoàn tác nếu không có phiếu nào được tạo
+            _delete_handover_condition_images(condition_images)
             flash('Không có phiếu bàn giao nào được tạo. Vui lòng kiểm tra lại thông tin thiết bị.', 'danger')
 
         return redirect(url_for('handover_list'))
     
     # Logic cho phương thức GET
     preselected_device_id = request.args.get('device_id', type=int)
-    devices = db.session.query(Device).join(DeviceType, Device.device_type == DeviceType.name)\
-        .filter(Device.status == 'Sẵn sàng', DeviceType.category == 'Thiết bị IT')\
-        .order_by(Device.device_code).all()
+    devices_query = Device.query.filter(Device.status != CONVERTED_CONSUMABLE_STATUS)
+    if not can_manage_all_devices:
+        devices_query = devices_query.filter(Device.manager_id == current_user.id)
+    devices = devices_query.order_by(Device.device_code).all()
     users = User.query.filter(User.status.notin_(['Nghỉ việc', 'Nghỉ không lương']))\
         .order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     
@@ -3844,8 +3929,16 @@ def edit_handover(handover_id):
 def delete_handover(handover_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     handover = DeviceHandover.query.get_or_404(handover_id)
+    images_to_delete = _handover_image_list(handover)
+    batch_id = handover.batch_id
     db.session.delete(handover)
     db.session.commit()
+    if batch_id:
+        remaining = DeviceHandover.query.filter_by(batch_id=batch_id).count()
+        if remaining == 0:
+            _delete_handover_condition_images(images_to_delete)
+    else:
+        _delete_handover_condition_images(images_to_delete)
     flash('Xóa phiếu bàn giao thành công!', 'success')
     return redirect(url_for('handover_list'))
 
@@ -3854,10 +3947,21 @@ def delete_handover(handover_id):
 def handover_detail(handover_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     handover = DeviceHandover.query.get_or_404(handover_id)
+    handover_items = [handover]
+    if handover.batch_id:
+        handover_items = DeviceHandover.query.filter_by(batch_id=handover.batch_id).order_by(DeviceHandover.id).all()
     device = handover.device
     giver = handover.giver
     receiver = handover.receiver
-    return render_template('handover_detail.html', handover=handover, device=device, giver=giver, receiver=receiver)
+    return render_template(
+        'handover_detail.html',
+        handover=handover,
+        handover_items=handover_items,
+        condition_images=_handover_image_list(handover),
+        device=device,
+        giver=giver,
+        receiver=receiver
+    )
 
 # Thêm route mới này vào file app.py (trong khu vực Handover Routes)
 
@@ -4135,10 +4239,13 @@ def create_return_handover_for_user(user_id, current_user_id):
     
     try:
         handovers_created = 0
+        import uuid
+        batch_id = uuid.uuid4().hex
         
         # Tạo phiếu trả thiết bị cho từng thiết bị (vì mỗi handover chỉ handle 1 device)
         for device in devices:
             return_handover = DeviceHandover(
+                batch_id=batch_id,
                 handover_date=datetime.now(VIETNAM_TZ).date(),
                 device_id=device.id,
                 giver_id=user_id,  # Người giao là nhân viên nghỉ việc

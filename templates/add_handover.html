@@ -6,7 +6,7 @@
 <div class="card">
     <div class="card-body">
         <h2 class="card-title">Tạo Phiếu Bàn Giao Thiết Bị</h2>
-        <form method="POST" id="handover-form">
+        <form method="POST" id="handover-form" enctype="multipart/form-data">
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label class="form-label required">Ngày bàn giao </label>
@@ -63,6 +63,12 @@
             <div class="mb-3">
                 <label class="form-label">Ghi chú</label>
                 <textarea name="notes" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Ảnh tình trạng thiết bị</label>
+                <input type="file" name="condition_images" id="condition_images" class="form-control"
+                    accept="image/*" multiple>
+                <div class="form-text">Không bắt buộc. Có thể thêm tối đa 5 ảnh.</div>
             </div>
 
             <div class="form-group mt-3">
@@ -185,6 +191,14 @@ $(document).ready(function() {
     } else {
         addDeviceRow();
     }
+
+    $('#handover-form').on('submit', function(e) {
+        const imageInput = document.getElementById('condition_images');
+        if (imageInput && imageInput.files.length > 5) {
+            e.preventDefault();
+            alert('Chỉ được thêm tối đa 5 ảnh tình trạng thiết bị.');
+        }
+    });
 });
 </script>
 {% endblock %}
