@@ -44,6 +44,9 @@
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint in ['device_list', 'device_detail'] %}active{% endif %}"
                             href="{{ url_for('device_list') }}">Thiết bị</a></li>
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint in ['consumable_list'] %}active{% endif %}"
+                            href="{{ url_for('consumable_list') }}">Tiêu hao</a></li>
                     {% endif %}
                     {% if current_permissions and 'resources.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'resources' %}active{% endif %}"

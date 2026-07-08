@@ -1067,6 +1067,42 @@ class DeviceHandover(db.Model):
     location = db.Column(db.String(255))
     notes = db.Column(db.Text)
 
+class ConsumableItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(50), unique=True, nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    category = db.Column(db.String(100), default='Thiết bị tiêu hao')
+    unit = db.Column(db.String(30), default='cái')
+    current_quantity = db.Column(db.Integer, nullable=False, default=0)
+    min_quantity = db.Column(db.Integer, nullable=False, default=0)
+    location = db.Column(db.String(150))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    transactions = db.relationship(
+        'ConsumableTransaction',
+        back_populates='item',
+        cascade='all, delete-orphan'
+    )
+
+class ConsumableTransaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    consumable_id = db.Column(db.Integer, db.ForeignKey('consumable_item.id'), nullable=False)
+    transaction_type = db.Column(db.String(30), nullable=False)  # Nhập, Xuất, Điều chỉnh
+    quantity = db.Column(db.Integer, nullable=False)
+    before_quantity = db.Column(db.Integer, nullable=False, default=0)
+    after_quantity = db.Column(db.Integer, nullable=False, default=0)
+    transaction_date = db.Column(db.DateTime, nullable=False, default=get_now)
+    issued_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    actor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    reason = db.Column(db.String(255))
+    notes = db.Column(db.Text)
+
+    item = db.relationship('ConsumableItem', back_populates='transactions')
+    issued_to = db.relationship('User', foreign_keys=[issued_to_id])
+    actor = db.relationship('User', foreign_keys=[actor_id])
+
 # --- (Deleted Device Group Models) ---
 
 # --- (Deleted Server Room Extra Info) ---
@@ -7262,6 +7298,303 @@ def backup_delete(filename):
     return redirect(url_for('backup_page'))
 
 # ---------- End of Backup Management ----------
+
+def _require_device_permission(permission_code='devices.view'):
+    if 'user_id' not in session:
+        return False
+    current_user = _get_current_user()
+    current_permissions = _get_current_permissions()
+    return bool(
+        (current_user and current_user.role == 'admin') or
+        (current_permissions and permission_code in current_permissions)
+    )
+
+def _parse_positive_int(value, field_name='Số lượng'):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f'{field_name} phải là số nguyên.')
+    if parsed <= 0:
+        raise ValueError(f'{field_name} phải lớn hơn 0.')
+    return parsed
+
+def _format_vietnam_datetime(value, fmt='%d-%m-%Y %H:%M'):
+    if not value:
+        return ''
+    if value.tzinfo is None:
+        value = VIETNAM_TZ.localize(value)
+    else:
+        value = value.astimezone(VIETNAM_TZ)
+    return value.strftime(fmt)
+
+def _record_consumable_transaction(item, transaction_type, quantity, *, issued_to_id=None, reason='', notes=''):
+    before_quantity = item.current_quantity or 0
+    if transaction_type == 'Nhập':
+        after_quantity = before_quantity + quantity
+    elif transaction_type == 'Xuất':
+        if quantity > before_quantity:
+            raise ValueError('Số lượng xuất lớn hơn tồn kho hiện tại.')
+        after_quantity = before_quantity - quantity
+    elif transaction_type == 'Điều chỉnh':
+        after_quantity = quantity
+        quantity = abs(after_quantity - before_quantity)
+    else:
+        raise ValueError('Loại giao dịch không hợp lệ.')
+
+    item.current_quantity = after_quantity
+    item.updated_at = get_now()
+    transaction = ConsumableTransaction(
+        item=item,
+        transaction_type=transaction_type,
+        quantity=quantity,
+        before_quantity=before_quantity,
+        after_quantity=after_quantity,
+        transaction_date=get_now(),
+        issued_to_id=issued_to_id,
+        actor_id=session.get('user_id'),
+        reason=reason,
+        notes=notes
+    )
+    db.session.add(transaction)
+    return transaction
+
+def _consumable_categories():
+    rows = db.session.query(ConsumableItem.category).filter(ConsumableItem.category != None).distinct().all()
+    categories = sorted([row[0] for row in rows if row[0]])
+    return categories or ['Thiết bị tiêu hao']
+
+@app.route('/consumables')
+def consumable_list():
+    if not _require_device_permission('devices.view'):
+        flash('Bạn không có quyền xem thiết bị tiêu hao.', 'danger')
+        return redirect(url_for('login') if 'user_id' not in session else url_for('home'))
+
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    q = (request.args.get('q') or '').strip()
+    category = (request.args.get('category') or '').strip()
+    low_stock = request.args.get('low_stock') == '1'
+
+    query = ConsumableItem.query
+    if q:
+        query = query.filter(or_(ConsumableItem.code.ilike(f'%{q}%'), ConsumableItem.name.ilike(f'%{q}%')))
+    if category:
+        query = query.filter(ConsumableItem.category == category)
+    if low_stock:
+        query = query.filter(ConsumableItem.current_quantity <= ConsumableItem.min_quantity)
+
+    items = query.order_by(func.lower(ConsumableItem.name)).paginate(page=page, per_page=per_page, error_out=False)
+    transactions = ConsumableTransaction.query.order_by(ConsumableTransaction.transaction_date.desc()).limit(80).all()
+    users = User.query.filter(User.status.notin_(['Nghỉ việc', 'Nghỉ không lương']))\
+        .order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    stats = {
+        'total_items': ConsumableItem.query.count(),
+        'total_quantity': db.session.query(func.coalesce(func.sum(ConsumableItem.current_quantity), 0)).scalar() or 0,
+        'low_stock': ConsumableItem.query.filter(ConsumableItem.current_quantity <= ConsumableItem.min_quantity).count(),
+        'issued_count': ConsumableTransaction.query.filter_by(transaction_type='Xuất').count(),
+    }
+
+    return render_template(
+        'consumables.html',
+        items=items,
+        transactions=transactions,
+        users=users,
+        categories=_consumable_categories(),
+        stats=stats,
+        q=q,
+        category=category,
+        low_stock=low_stock,
+        can_edit=_require_device_permission('devices.edit')
+    )
+
+@app.route('/consumables/add', methods=['POST'])
+def add_consumable():
+    if not _require_device_permission('devices.edit'):
+        flash('Bạn không có quyền thêm thiết bị tiêu hao.', 'danger')
+        return redirect(url_for('consumable_list'))
+
+    code = (request.form.get('code') or '').strip().upper()
+    name = (request.form.get('name') or '').strip()
+    category = (request.form.get('category') or '').strip() or 'Thiết bị tiêu hao'
+    unit = (request.form.get('unit') or '').strip() or 'cái'
+    location = (request.form.get('location') or '').strip()
+    notes = (request.form.get('notes') or '').strip()
+    try:
+        initial_quantity = max(0, int(request.form.get('initial_quantity') or 0))
+        min_quantity = max(0, int(request.form.get('min_quantity') or 0))
+    except ValueError:
+        flash('Số lượng ban đầu và tồn tối thiểu phải là số nguyên.', 'danger')
+        return redirect(url_for('consumable_list'))
+
+    if not code or not name:
+        flash('Mã và tên thiết bị tiêu hao là bắt buộc.', 'danger')
+    elif ConsumableItem.query.filter(func.upper(ConsumableItem.code) == code).first():
+        flash('Mã thiết bị tiêu hao đã tồn tại.', 'warning')
+    else:
+        item = ConsumableItem(
+            code=code,
+            name=name,
+            category=category,
+            unit=unit,
+            current_quantity=0,
+            min_quantity=min_quantity,
+            location=location,
+            notes=notes
+        )
+        db.session.add(item)
+        db.session.flush()
+        if initial_quantity > 0:
+            _record_consumable_transaction(item, 'Nhập', initial_quantity, reason='Tạo mặt hàng ban đầu')
+        db.session.commit()
+        flash('Đã thêm thiết bị tiêu hao.', 'success')
+    return redirect(url_for('consumable_list'))
+
+@app.route('/consumables/<int:item_id>/edit', methods=['POST'])
+def edit_consumable(item_id):
+    if not _require_device_permission('devices.edit'):
+        flash('Bạn không có quyền sửa thiết bị tiêu hao.', 'danger')
+        return redirect(url_for('consumable_list'))
+    item = ConsumableItem.query.get_or_404(item_id)
+    code = (request.form.get('code') or '').strip().upper()
+    duplicate = ConsumableItem.query.filter(func.upper(ConsumableItem.code) == code, ConsumableItem.id != item.id).first()
+    if not code or not (request.form.get('name') or '').strip():
+        flash('Mã và tên thiết bị tiêu hao là bắt buộc.', 'danger')
+    elif duplicate:
+        flash('Mã thiết bị tiêu hao đã tồn tại.', 'warning')
+    else:
+        item.code = code
+        item.name = (request.form.get('name') or '').strip()
+        item.category = (request.form.get('category') or '').strip() or 'Thiết bị tiêu hao'
+        item.unit = (request.form.get('unit') or '').strip() or 'cái'
+        item.location = (request.form.get('location') or '').strip()
+        item.notes = (request.form.get('notes') or '').strip()
+        try:
+            item.min_quantity = max(0, int(request.form.get('min_quantity') or 0))
+        except ValueError:
+            item.min_quantity = 0
+        db.session.commit()
+        flash('Đã cập nhật thiết bị tiêu hao.', 'success')
+    return redirect(url_for('consumable_list'))
+
+@app.route('/consumables/<int:item_id>/delete', methods=['POST'])
+def delete_consumable(item_id):
+    if not _require_device_permission('devices.delete'):
+        flash('Bạn không có quyền xóa thiết bị tiêu hao.', 'danger')
+        return redirect(url_for('consumable_list'))
+    item = ConsumableItem.query.get_or_404(item_id)
+    if item.transactions:
+        flash('Không thể xóa mặt hàng đã có lịch sử nhập/xuất. Hãy giữ lại để bảo toàn nhật ký.', 'warning')
+    else:
+        db.session.delete(item)
+        db.session.commit()
+        flash('Đã xóa thiết bị tiêu hao.', 'success')
+    return redirect(url_for('consumable_list'))
+
+@app.route('/consumables/<int:item_id>/stock_in', methods=['POST'])
+def consumable_stock_in(item_id):
+    if not _require_device_permission('devices.edit'):
+        flash('Bạn không có quyền nhập kho thiết bị tiêu hao.', 'danger')
+        return redirect(url_for('consumable_list'))
+    item = ConsumableItem.query.get_or_404(item_id)
+    try:
+        quantity = _parse_positive_int(request.form.get('quantity'))
+        _record_consumable_transaction(
+            item, 'Nhập', quantity,
+            reason=(request.form.get('reason') or '').strip() or 'Nhập kho',
+            notes=(request.form.get('notes') or '').strip()
+        )
+        db.session.commit()
+        flash('Đã nhập kho thiết bị tiêu hao.', 'success')
+    except ValueError as e:
+        db.session.rollback()
+        flash(str(e), 'danger')
+    return redirect(url_for('consumable_list'))
+
+@app.route('/consumables/<int:item_id>/issue', methods=['POST'])
+def consumable_issue(item_id):
+    if not _require_device_permission('devices.edit'):
+        flash('Bạn không có quyền xuất thiết bị tiêu hao.', 'danger')
+        return redirect(url_for('consumable_list'))
+    item = ConsumableItem.query.get_or_404(item_id)
+    try:
+        quantity = _parse_positive_int(request.form.get('quantity'))
+        issued_to_id = int(request.form.get('issued_to_id') or 0)
+        if not User.query.get(issued_to_id):
+            raise ValueError('Vui lòng chọn người nhận.')
+        _record_consumable_transaction(
+            item, 'Xuất', quantity,
+            issued_to_id=issued_to_id,
+            reason=(request.form.get('reason') or '').strip() or 'Xuất sử dụng',
+            notes=(request.form.get('notes') or '').strip()
+        )
+        db.session.commit()
+        flash('Đã xuất thiết bị tiêu hao cho người dùng.', 'success')
+    except ValueError as e:
+        db.session.rollback()
+        flash(str(e), 'danger')
+    return redirect(url_for('consumable_list'))
+
+@app.route('/consumables/<int:item_id>/adjust', methods=['POST'])
+def consumable_adjust(item_id):
+    if not _require_device_permission('devices.edit'):
+        flash('Bạn không có quyền điều chỉnh tồn kho.', 'danger')
+        return redirect(url_for('consumable_list'))
+    item = ConsumableItem.query.get_or_404(item_id)
+    try:
+        new_quantity = int(request.form.get('new_quantity'))
+        if new_quantity < 0:
+            raise ValueError('Tồn kho mới không được âm.')
+        _record_consumable_transaction(
+            item, 'Điều chỉnh', new_quantity,
+            reason=(request.form.get('reason') or '').strip() or 'Điều chỉnh tồn kho',
+            notes=(request.form.get('notes') or '').strip()
+        )
+        db.session.commit()
+        flash('Đã điều chỉnh tồn kho.', 'success')
+    except (TypeError, ValueError) as e:
+        db.session.rollback()
+        flash(str(e), 'danger')
+    return redirect(url_for('consumable_list'))
+
+@app.route('/consumables/export')
+def export_consumables_excel():
+    if not _require_device_permission('devices.view'):
+        flash('Bạn không có quyền xuất dữ liệu thiết bị tiêu hao.', 'danger')
+        return redirect(url_for('consumable_list'))
+    items = ConsumableItem.query.order_by(ConsumableItem.name).all()
+    transactions = ConsumableTransaction.query.order_by(ConsumableTransaction.transaction_date.desc()).all()
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame([{
+            'Mã': item.code,
+            'Tên thiết bị tiêu hao': item.name,
+            'Nhóm': item.category,
+            'Đơn vị': item.unit,
+            'Tồn kho': item.current_quantity,
+            'Tồn tối thiểu': item.min_quantity,
+            'Vị trí': item.location or '',
+            'Ghi chú': item.notes or ''
+        } for item in items]).to_excel(writer, index=False, sheet_name='Ton_kho')
+        pd.DataFrame([{
+            'Thời gian': _format_vietnam_datetime(tx.transaction_date),
+            'Mã': tx.item.code if tx.item else '',
+            'Tên thiết bị tiêu hao': tx.item.name if tx.item else '',
+            'Loại giao dịch': tx.transaction_type,
+            'Số lượng': tx.quantity,
+            'Tồn trước': tx.before_quantity,
+            'Tồn sau': tx.after_quantity,
+            'Người nhận': tx.issued_to.full_name if tx.issued_to else '',
+            'Người thao tác': tx.actor.full_name if tx.actor else '',
+            'Lý do': tx.reason or '',
+            'Ghi chú': tx.notes or ''
+        } for tx in transactions]).to_excel(writer, index=False, sheet_name='Nhat_ky')
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'consumables_{datetime.now(VIETNAM_TZ).strftime("%Y%m%d")}.xlsx'
+    )
 
 @app.route('/resources/delete/<int:id>', methods=['POST'])
 def delete_resource(id):

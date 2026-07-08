@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
+
+{% block title %}Thiết bị tiêu hao{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+    <div>
+        <h2 class="mb-1">Thiết bị tiêu hao</h2>
+        <div class="text-muted">Quản lý tồn kho các vật tư nhỏ như dây mạng, HDMI, USB, đầu chuyển đổi, module.</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('export_consumables_excel') }}" class="btn btn-success">
+            <i class="bi bi-download"></i> Xuất Excel
+        </a>
+        {% if can_edit %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addConsumableModal">
+            <i class="bi bi-plus-circle"></i> Thêm mặt hàng
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Mặt hàng</div>
+                <div class="fs-3 fw-bold">{{ stats.total_items }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Tổng tồn</div>
+                <div class="fs-3 fw-bold">{{ stats.total_quantity }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Sắp hết</div>
+                <div class="fs-3 fw-bold {% if stats.low_stock %}text-danger{% endif %}">{{ stats.low_stock }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Lượt xuất</div>
+                <div class="fs-3 fw-bold">{{ stats.issued_count }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Tìm kiếm</label>
+                <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Mã hoặc tên mặt hàng">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Nhóm</label>
+                <select name="category" class="form-select">
+                    <option value="">Tất cả</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="low_stock" value="1" id="low_stock" {% if low_stock %}checked{% endif %}>
+                    <label class="form-check-label" for="low_stock">Chỉ sắp hết</label>
+                </div>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">Lọc</button>
+                <a href="{{ url_for('consumable_list') }}" class="btn btn-outline-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-box-seam"></i> Tồn kho</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Mã</th>
+                        <th>Tên mặt hàng</th>
+                        <th>Nhóm</th>
+                        <th class="text-center">Tồn</th>
+                        <th class="text-center">Tối thiểu</th>
+                        <th>Vị trí</th>
+                        <th class="text-center">Trạng thái</th>
+                        {% if can_edit %}<th class="text-center">Hành động</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items.items %}
+                    <tr>
+                        <td><strong>{{ item.code }}</strong></td>
+                        <td>
+                            <div>{{ item.name }}</div>
+                            {% if item.notes %}<div class="small text-muted">{{ item.notes }}</div>{% endif %}
+                        </td>
+                        <td>{{ item.category }}</td>
+                        <td class="text-center fw-bold">{{ item.current_quantity }} {{ item.unit }}</td>
+                        <td class="text-center">{{ item.min_quantity }} {{ item.unit }}</td>
+                        <td>{{ item.location or '' }}</td>
+                        <td class="text-center">
+                            {% if item.current_quantity <= item.min_quantity %}
+                            <span class="badge bg-danger">Sắp hết</span>
+                            {% else %}
+                            <span class="badge bg-success">Đủ tồn</span>
+                            {% endif %}
+                        </td>
+                        {% if can_edit %}
+                        <td class="text-center text-nowrap">
+                            <button class="btn btn-sm btn-outline-success" title="Nhập kho" data-bs-toggle="modal" data-bs-target="#stockInModal-{{ item.id }}">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary ms-1" title="Xuất cho người dùng" data-bs-toggle="modal" data-bs-target="#issueModal-{{ item.id }}">
+                                <i class="bi bi-box-arrow-up"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning ms-1" title="Sửa thông tin" data-bs-toggle="modal" data-bs-target="#editModal-{{ item.id }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary ms-1" title="Điều chỉnh tồn" data-bs-toggle="modal" data-bs-target="#adjustModal-{{ item.id }}">
+                                <i class="bi bi-sliders"></i>
+                            </button>
+                            {% if not item.transactions %}
+                            <form method="POST" action="{{ url_for('delete_consumable', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Xóa mặt hàng này?')">
+                                <button class="btn btn-sm btn-outline-danger ms-1" title="Xóa">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="{{ 8 if can_edit else 7 }}" class="text-center text-muted p-4">Chưa có thiết bị tiêu hao nào.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer">
+        {{ render_pagination(items, 'consumable_list', {'q': q, 'category': category, 'low_stock': '1' if low_stock else ''}) }}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Nhật ký nhập xuất gần đây</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Mặt hàng</th>
+                        <th>Loại</th>
+                        <th class="text-center">SL</th>
+                        <th class="text-center">Tồn sau</th>
+                        <th>Người nhận</th>
+                        <th>Lý do</th>
+                        <th>Người thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr>
+                        <td>{{ tx.transaction_date.strftime('%d-%m-%Y %H:%M') if tx.transaction_date else '' }}</td>
+                        <td>{{ tx.item.code }} - {{ tx.item.name }}</td>
+                        <td>
+                            {% if tx.transaction_type == 'Xuất' %}
+                            <span class="badge bg-primary">Xuất</span>
+                            {% elif tx.transaction_type == 'Nhập' %}
+                            <span class="badge bg-success">Nhập</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Điều chỉnh</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ tx.quantity }}</td>
+                        <td class="text-center">{{ tx.after_quantity }}</td>
+                        <td>{{ tx.issued_to.full_name if tx.issued_to else '' }}</td>
+                        <td>{{ tx.reason or '' }}</td>
+                        <td>{{ tx.actor.full_name if tx.actor else '' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted p-3">Chưa có nhật ký nhập xuất.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if can_edit %}
+<div class="modal fade" id="addConsumableModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('add_consumable') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm thiết bị tiêu hao</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label required">Mã</label>
+                            <input type="text" name="code" class="form-control text-uppercase" placeholder="VD: HDMI-2M" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label required">Tên mặt hàng</label>
+                            <input type="text" name="name" class="form-control" placeholder="VD: Dây HDMI 2m" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Nhóm</label>
+                            <input type="text" name="category" class="form-control" value="Thiết bị tiêu hao">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Đơn vị</label>
+                            <input type="text" name="unit" class="form-control" value="cái">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tồn ban đầu</label>
+                            <input type="number" min="0" name="initial_quantity" class="form-control" value="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tồn tối thiểu</label>
+                            <input type="number" min="0" name="min_quantity" class="form-control" value="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Vị trí</label>
+                            <input type="text" name="location" class="form-control" placeholder="VD: Kho IT">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Ghi chú</label>
+                            <input type="text" name="notes" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-primary">Lưu lại</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% for item in items.items %}
+<div class="modal fade" id="stockInModal-{{ item.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('consumable_stock_in', item_id=item.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nhập kho: {{ item.name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label required">Số lượng nhập</label>
+                    <input type="number" min="1" name="quantity" class="form-control mb-3" required>
+                    <label class="form-label">Lý do</label>
+                    <input type="text" name="reason" class="form-control mb-3" value="Nhập kho">
+                    <label class="form-label">Ghi chú</label>
+                    <textarea name="notes" rows="2" class="form-control"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-success">Nhập kho</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="issueModal-{{ item.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('consumable_issue', item_id=item.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Xuất sử dụng: {{ item.name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-light border">Tồn hiện tại: <strong>{{ item.current_quantity }} {{ item.unit }}</strong></div>
+                    <label class="form-label required">Người nhận</label>
+                    <select name="issued_to_id" class="form-select mb-3" required>
+                        <option value="">-- Chọn người nhận --</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
+                        {% endfor %}
+                    </select>
+                    <label class="form-label required">Số lượng xuất</label>
+                    <input type="number" min="1" max="{{ item.current_quantity }}" name="quantity" class="form-control mb-3" required>
+                    <label class="form-label">Lý do</label>
+                    <input type="text" name="reason" class="form-control mb-3" value="Xuất sử dụng">
+                    <label class="form-label">Ghi chú</label>
+                    <textarea name="notes" rows="2" class="form-control"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-primary">Xuất</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editModal-{{ item.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('edit_consumable', item_id=item.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Sửa mặt hàng</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label required">Mã</label>
+                            <input type="text" name="code" class="form-control text-uppercase" value="{{ item.code }}" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label required">Tên mặt hàng</label>
+                            <input type="text" name="name" class="form-control" value="{{ item.name }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Nhóm</label>
+                            <input type="text" name="category" class="form-control" value="{{ item.category }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Đơn vị</label>
+                            <input type="text" name="unit" class="form-control" value="{{ item.unit }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tồn tối thiểu</label>
+                            <input type="number" min="0" name="min_quantity" class="form-control" value="{{ item.min_quantity }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Vị trí</label>
+                            <input type="text" name="location" class="form-control" value="{{ item.location or '' }}">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Ghi chú</label>
+                            <textarea name="notes" rows="2" class="form-control">{{ item.notes or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-primary">Lưu lại</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="adjustModal-{{ item.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('consumable_adjust', item_id=item.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Điều chỉnh tồn: {{ item.name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-light border">Tồn hiện tại: <strong>{{ item.current_quantity }} {{ item.unit }}</strong></div>
+                    <label class="form-label required">Tồn kho mới</label>
+                    <input type="number" min="0" name="new_quantity" class="form-control mb-3" value="{{ item.current_quantity }}" required>
+                    <label class="form-label">Lý do</label>
+                    <input type="text" name="reason" class="form-control mb-3" value="Điều chỉnh tồn kho">
+                    <label class="form-label">Ghi chú</label>
+                    <textarea name="notes" rows="2" class="form-control"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-warning">Điều chỉnh</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

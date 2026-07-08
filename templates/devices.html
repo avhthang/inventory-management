@@ -16,6 +16,10 @@
                     class="list-group-item list-group-item-action {% if not filter_category and not filter_device_type %}active{% endif %}">
                     <strong class="d-block py-1">Tất cả thiết bị</strong>
                 </a>
+                <a href="{{ url_for('consumable_list') }}" class="list-group-item list-group-item-action">
+                    <strong class="d-block py-1">Thiết bị tiêu hao</strong>
+                    <span class="small text-muted">Quản lý tồn kho, nhập xuất theo người nhận</span>
+                </a>
 
                 {% for category, types in device_hierarchy.items() %}
                 {% set is_active_category = (filter_category == category) %}
@@ -88,6 +92,9 @@
                         <a href="{{ url_for('export_devices_excel') }}" class="btn btn-success ms-1"><i
                                 class="bi bi-download"></i> Xuất Excel</a>
                         {% endif %}
+                        <a href="{{ url_for('consumable_list') }}" class="btn btn-outline-primary ms-1">
+                            <i class="bi bi-box-seam"></i> Thiết bị tiêu hao
+                        </a>
                     </div>
                 </div>
                 <hr>

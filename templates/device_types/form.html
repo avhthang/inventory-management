@@ -31,7 +31,7 @@
                         <label class="form-label required">Nhóm thiết bị</label>
                         <select name="category" class="form-select" required>
                             <option value="">-- Chọn nhóm --</option>
-                            {% set categories = ['Thiết bị IT', 'Thiết bị văn phòng', 'Thiết bị dùng chung', 'Khác'] %}
+                            {% set categories = ['Thiết bị IT', 'Thiết bị văn phòng', 'Thiết bị dùng chung', 'Thiết bị tiêu hao', 'Khác'] %}
                             {% for cat in categories %}
                             <option value="{{ cat }}" {% if device_type and device_type.category==cat %}selected{% endif
                                 %}>{{ cat }}</option>
