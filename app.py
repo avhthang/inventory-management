@@ -89,6 +89,7 @@ config_name = os.environ.get('FLASK_ENV', 'development')
 app = Flask(__name__, instance_path=instance_path)
 app.jinja_env.add_extension('jinja2.ext.do')
 app.config.from_object(config[config_name])
+os.makedirs(os.path.join(app.root_path, 'static', 'uploads', 'devices'), exist_ok=True)
 
 # Override with environment variables if present and normalize postgres scheme
 _env_db_url = os.environ.get('DATABASE_URL')
@@ -748,6 +749,7 @@ def migrate_missing_columns_v3():
                 _add_col_if_missing('device', 'brand', 'VARCHAR(100)')
                 _add_col_if_missing('device', 'supplier', 'VARCHAR(150)')
                 _add_col_if_missing('device', 'warranty', 'VARCHAR(50)')
+                _add_col_if_missing('device', 'image_filename', 'VARCHAR(255)')
 
                 # bug_report
                 _add_col_if_missing('bug_report', 'merged_into', 'INTEGER')
@@ -962,6 +964,7 @@ class Device(db.Model):
     network_card = db.Column(db.String(120))
     manager = db.relationship('User', foreign_keys=[manager_id])
     purchase_price = db.Column(db.Float)
+    image_filename = db.Column(db.String(255))
 
 DEVICE_PC_SPEC_FIELDS = {
     'cpu': 'CPU',
@@ -989,6 +992,36 @@ def _device_pc_specs_from_form():
         'wifi_card': (request.form.get('wifi_card') or '').strip() or None,
         'network_card': (request.form.get('network_card') or '').strip() or None,
     }
+
+DEVICE_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
+
+def _device_images_dir():
+    path = os.path.join(app.root_path, 'static', 'uploads', 'devices')
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def _save_device_image_file(file_storage, device_id):
+    if not file_storage or not file_storage.filename:
+        return None
+    filename = secure_filename(file_storage.filename)
+    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    if ext not in DEVICE_IMAGE_EXTENSIONS:
+        raise ValueError('Ảnh thiết bị phải có định dạng JPG, PNG, WEBP hoặc GIF.')
+    import uuid
+    image_filename = f"{device_id}_{uuid.uuid4().hex}.{ext}"
+    file_storage.save(os.path.join(_device_images_dir(), image_filename))
+    return image_filename
+
+def _delete_device_image_file(image_filename):
+    if not image_filename:
+        return
+    safe_name = os.path.basename(image_filename)
+    path = os.path.join(_device_images_dir(), safe_name)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
 
 def _device_pc_specs_from_row(row):
     return {
@@ -3224,6 +3257,16 @@ def add_device():
         )
         db.session.add(new_device)
         db.session.commit()
+        try:
+            image_filename = _save_device_image_file(request.files.get('device_image'), new_device.id)
+            if image_filename:
+                new_device.image_filename = image_filename
+                db.session.commit()
+        except ValueError as e:
+            db.session.delete(new_device)
+            db.session.commit()
+            flash(str(e), 'danger')
+            return redirect(url_for('add_device'))
         flash('Thêm thiết bị mới thành công!', 'success')
         return redirect(url_for('device_list'))
         
@@ -3269,6 +3312,7 @@ def edit_device(device_id):
             'manager_id': device.manager_id,
             'assign_date': device.assign_date,
             'notes': device.notes,
+            'image_filename': device.image_filename,
         }
         # Cho phép sửa mã thiết bị với kiểm tra trùng lặp
         new_device_code = request.form.get('device_code', '').strip()
@@ -3298,6 +3342,17 @@ def edit_device(device_id):
         device.manager_id = int(manager_id_str) if manager_id_str else None
         device.assign_date = datetime.strptime(request.form['assign_date'], '%Y-%m-%d').date() if request.form.get('assign_date') else None
         device.notes = request.form.get('notes')
+        if request.form.get('remove_device_image') == '1':
+            _delete_device_image_file(device.image_filename)
+            device.image_filename = None
+        try:
+            image_filename = _save_device_image_file(request.files.get('device_image'), device.id)
+            if image_filename:
+                _delete_device_image_file(device.image_filename)
+                device.image_filename = image_filename
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return redirect(url_for('edit_device', device_id=device_id))
         
         db.session.commit()
         # snapshot after
@@ -3325,6 +3380,7 @@ def edit_device(device_id):
             'manager_id': device.manager_id,
             'assign_date': device.assign_date,
             'notes': device.notes,
+            'image_filename': device.image_filename,
         }
         _log_audit('device', device.id, old, new)
         flash('Cập nhật thông tin thiết bị thành công!', 'success')
@@ -3351,6 +3407,7 @@ def delete_device(device_id):
         flash('Không thể xóa thiết bị đã có lịch sử bàn giao.', 'danger')
         return redirect(url_for('device_list'))
     # Removed InventoryReceiptItem deletion
+    _delete_device_image_file(device.image_filename)
     db.session.delete(device)
     db.session.commit()
     flash('Xóa thiết bị thành công!', 'success')
