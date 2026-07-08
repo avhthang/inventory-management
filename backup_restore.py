@@ -331,6 +331,14 @@ class DatabaseBackup:
             if not member.startswith('data/') or member.endswith('/'):
                 continue
             rel_path = member[len('data/'):]
+            normalized_rel_path = rel_path.replace('\\', '/')
+            if (
+                normalized_rel_path.startswith('locks/')
+                or normalized_rel_path.startswith('cache/')
+                or normalized_rel_path.startswith('sessions/')
+                or normalized_rel_path.endswith('.lock')
+            ):
+                continue
             target_path = os.path.abspath(os.path.join(instance_dir, rel_path))
             if not target_path.startswith(os.path.abspath(instance_dir) + os.sep):
                 continue
