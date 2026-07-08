@@ -3840,6 +3840,16 @@ def add_handover():
         'type': device.device_type,
         'serial_number': device.serial_number or '',
         'condition': device.condition or '',
+        'configuration': device.configuration or '',
+        'specs': {
+            'cpu': device.cpu or '',
+            'ram_gb': device.ram_gb,
+            'ssd': device.ssd or '',
+            'hdd': device.hdd or '',
+            'vga': device.vga or '',
+            'wifi_card': device.wifi_card or '',
+            'network_card': device.network_card or '',
+        },
     } for device in devices]
     user_options = [{
         'id': user.id,

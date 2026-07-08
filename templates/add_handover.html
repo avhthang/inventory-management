@@ -3,6 +3,37 @@
 {% block title %}Tạo Phiếu Bàn Giao{% endblock %}
 
 {% block content %}
+<style>
+    .handover-image-preview {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 12px;
+        margin-top: 10px;
+    }
+    .handover-image-thumb {
+        position: relative;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #f8f9fa;
+        min-height: 112px;
+    }
+    .handover-image-thumb img {
+        width: 100%;
+        height: 112px;
+        object-fit: cover;
+        display: block;
+    }
+    .handover-image-thumb button {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+    }
+    .device-config-list {
+        margin: 6px 0 0;
+        padding-left: 18px;
+    }
+</style>
 <div class="card">
     <div class="card-body">
         <h2 class="card-title">Tạo Phiếu Bàn Giao Thiết Bị</h2>
@@ -65,6 +96,7 @@
                             <th>Tên thiết bị</th>
                             <th style="width: 160px;">Mã thiết bị</th>
                             <th style="width: 190px;">Tình trạng</th>
+                            <th style="width: 130px;">Cấu hình</th>
                             <th style="width: 56px;">Xóa</th>
                         </tr>
                     </thead>
@@ -82,6 +114,7 @@
                 <input type="file" name="condition_images" id="condition_images" class="form-control"
                     accept="image/*" multiple>
                 <div class="form-text">Không bắt buộc. Có thể thêm tối đa 5 ảnh.</div>
+                <div id="condition-image-preview" class="handover-image-preview"></div>
             </div>
 
             <div class="form-group mt-3">
@@ -105,7 +138,7 @@
         </td>
         <td>
             <select name="device_ids" class="form-select form-select-sm device-select" required></select>
-            <div class="form-text device-meta"></div>
+            <div class="device-config-details small text-muted d-none"></div>
         </td>
         <td><input type="text" class="form-control form-control-sm device-code" readonly></td>
         <td>
@@ -114,6 +147,12 @@
                 <option value="Sử dụng bình thường">Sử dụng bình thường</option>
                 <option value="Cần bảo trì">Cần bảo trì</option>
             </select>
+        </td>
+        <td class="text-center">
+            <div class="form-check d-inline-flex align-items-center gap-1">
+                <input class="form-check-input show-device-config" type="checkbox">
+                <label class="form-check-label small">Hiện</label>
+            </div>
         </td>
         <td class="text-center">
             <button type="button" class="btn btn-sm btn-outline-danger remove-device-btn" title="Xóa dòng này">
@@ -132,6 +171,10 @@ $(document).ready(function() {
     const devices = {{ device_options|tojson }};
     const container = $('#device-list-container');
     const template = document.getElementById('device-row-template');
+    const imageInput = document.getElementById('condition_images');
+    const imagePreview = document.getElementById('condition-image-preview');
+    let selectedImageFiles = [];
+    let previewUrls = [];
     let preselectedDeviceId = {{ preselected_device_id or 'null' }};
 
     const usersById = new Map(users.map(user => [String(user.id), user]));
@@ -185,7 +228,7 @@ $(document).ready(function() {
             if (usedIds.has(id) && id !== String(currentValue)) {
                 return;
             }
-            const option = new Option(`${device.name} - ${device.code}`, id, false, id === String(currentValue));
+            const option = new Option(`${device.name} (${device.code})`, id, false, id === String(currentValue));
             select.append(option);
         });
 
@@ -205,23 +248,135 @@ $(document).ready(function() {
         });
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function pickConfigValue(configText, keys) {
+        if (!configText) {
+            return '';
+        }
+        const lines = String(configText).split(/\r?\n|;|,/);
+        for (const line of lines) {
+            const match = line.match(/^\s*([^:：-]+)\s*[:：-]\s*(.+)\s*$/);
+            if (!match) {
+                continue;
+            }
+            const key = match[1].trim().toLowerCase();
+            const value = match[2].trim();
+            if (value && keys.some(item => key.includes(item))) {
+                return value;
+            }
+        }
+        return '';
+    }
+
+    function deviceConfigItems(device) {
+        if (!device) {
+            return [];
+        }
+        const specs = device.specs || {};
+        const configText = device.configuration || '';
+        const items = [];
+        const cpu = pickConfigValue(configText, ['cpu']) || specs.cpu;
+        const main = pickConfigValue(configText, ['main', 'mainboard', 'bo mạch', 'bo mach']);
+        const ram = pickConfigValue(configText, ['ram']) || (specs.ram_gb ? `${specs.ram_gb}GB` : '');
+        const ssd = pickConfigValue(configText, ['ssd']) || specs.ssd;
+        const hdd = pickConfigValue(configText, ['hdd']) || specs.hdd;
+        const vga = pickConfigValue(configText, ['vga', 'card màn hình', 'card man hinh', 'gpu']) || specs.vga;
+        const networkCard = pickConfigValue(configText, ['card mạng', 'card mang', 'lan', 'network']) || specs.network_card;
+        const wifiCard = pickConfigValue(configText, ['wifi', 'wi-fi']) || specs.wifi_card;
+        const other = pickConfigValue(configText, ['linh kiện khác', 'linh kien khac', 'khác', 'khac']);
+
+        if (cpu) items.push(['CPU', cpu]);
+        if (main) items.push(['Main', main]);
+        if (ram) items.push(['Ram', ram]);
+
+        const drives = [];
+        if (ssd) drives.push(`SSD: ${ssd}`);
+        if (hdd) drives.push(`HDD: ${hdd}`);
+        if (drives.length) items.push(['Ổ cứng', drives.join(', ')]);
+
+        if (vga) items.push(['Card màn hình', vga]);
+        if (networkCard) items.push(['Card mạng', networkCard]);
+        if (wifiCard) items.push(['Card Wi-Fi', wifiCard]);
+        if (other) items.push(['Linh kiện khác', other]);
+
+        if (!items.length && configText.trim()) {
+            items.push(['Cấu hình khác', configText.trim()]);
+        }
+        return items;
+    }
+
+    function renderDeviceConfig(row, device) {
+        const details = row.find('.device-config-details');
+        const shouldShow = row.find('.show-device-config').is(':checked');
+        const items = deviceConfigItems(device);
+        if (!shouldShow || !items.length) {
+            details.addClass('d-none').empty();
+            return;
+        }
+        const lines = items.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join('');
+        details.removeClass('d-none').html(`<div class="mt-2">Cấu hình:</div><ul class="device-config-list">${lines}</ul>`);
+    }
+
     function updateDeviceRow(row) {
         const device = devicesById.get(String(row.find('.device-select').val()));
         const codeInput = row.find('.device-code');
-        const meta = row.find('.device-meta');
         const conditionSelect = row.find('.device-condition');
 
         if (!device) {
             codeInput.val('');
-            meta.text('');
+            renderDeviceConfig(row, null);
             return;
         }
 
         codeInput.val(device.code);
-        meta.text([device.type, device.serial_number ? `Serial: ${device.serial_number}` : ''].filter(Boolean).join(' · '));
         if (device.condition && conditionSelect.find(`option[value="${device.condition}"]`).length) {
             conditionSelect.val(device.condition);
         }
+        renderDeviceConfig(row, device);
+    }
+
+    function syncImageInputFiles() {
+        const dataTransfer = new DataTransfer();
+        selectedImageFiles.forEach(file => dataTransfer.items.add(file));
+        imageInput.files = dataTransfer.files;
+    }
+
+    function renderImagePreview() {
+        previewUrls.forEach(url => URL.revokeObjectURL(url));
+        previewUrls = [];
+        imagePreview.innerHTML = '';
+
+        selectedImageFiles.forEach((file, index) => {
+            const url = URL.createObjectURL(file);
+            previewUrls.push(url);
+            const thumb = document.createElement('div');
+            thumb.className = 'handover-image-thumb';
+            thumb.innerHTML = `
+                <img src="${url}" alt="Ảnh tình trạng ${index + 1}">
+                <button type="button" class="btn btn-sm btn-danger" data-image-index="${index}" title="Bỏ ảnh này">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            `;
+            imagePreview.appendChild(thumb);
+        });
+    }
+
+    function updateSelectedImages(files) {
+        selectedImageFiles = Array.from(files || []);
+        if (selectedImageFiles.length > 5) {
+            alert('Chỉ được thêm tối đa 5 ảnh tình trạng thiết bị.');
+            selectedImageFiles = selectedImageFiles.slice(0, 5);
+        }
+        syncImageInputFiles();
+        renderImagePreview();
     }
 
     function addDeviceRow(selectedId = null) {
@@ -277,6 +432,10 @@ $(document).ready(function() {
         refreshAllDeviceSelects();
     });
 
+    container.on('change', '.show-device-config', function() {
+        updateDeviceRow($(this).closest('.device-row'));
+    });
+
     if (preselectedDeviceId) {
         addDeviceRow(preselectedDeviceId);
     } else {
@@ -286,7 +445,6 @@ $(document).ready(function() {
     renderUserInfo('#receiver_id_select', '#receiver-info');
 
     $('#handover-form').on('submit', function(e) {
-        const imageInput = document.getElementById('condition_images');
         if (imageInput && imageInput.files.length > 5) {
             e.preventDefault();
             alert('Chỉ được thêm tối đa 5 ảnh tình trạng thiết bị.');
@@ -309,6 +467,17 @@ $(document).ready(function() {
             e.preventDefault();
             alert('Một thiết bị chỉ được chọn một lần trong cùng phiếu bàn giao.');
         }
+    });
+
+    $('#condition_images').on('change', function() {
+        updateSelectedImages(this.files);
+    });
+
+    $('#condition-image-preview').on('click', 'button[data-image-index]', function() {
+        const index = Number(this.getAttribute('data-image-index'));
+        selectedImageFiles.splice(index, 1);
+        syncImageInputFiles();
+        renderImagePreview();
     });
 });
 </script>
