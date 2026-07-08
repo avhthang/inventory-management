@@ -9,21 +9,7 @@
         <form method="POST" id="handover-form" enctype="multipart/form-data">
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label class="form-label required">Ngày bàn giao </label>
-                    <input type="date" name="handover_date" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}" required>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Lý do bàn giao</label>
-                    <input type="text" name="reason" class="form-control" placeholder="VD: Cấp mới cho nhân viên">
-                </div>
-            </div>
-            <div class="row">
-                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Địa điểm / Nơi đặt</label>
-                    <input type="text" name="location" class="form-control" placeholder="VD: Bàn làm việc A12, Phòng Kế toán">
-                </div>
-                 <div class="col-md-6 mb-3">
-                    <label for="giver_id_select" class="form-label required">Người giao </label>
+                    <label for="giver_id_select" class="form-label required">Người giao</label>
                     <select id="giver_id_select" name="giver_id" class="form-select" required>
                         {% for user in users %}
                         <option value="{{ user.id }}" {% if current_user and user.id == current_user.id %}selected{% endif %}>
@@ -31,33 +17,60 @@
                         </option>
                         {% endfor %}
                     </select>
+                    <div id="giver-info" class="border rounded bg-light small p-2 mt-2"></div>
                 </div>
-            </div>
-            <div class="row">
-                 <div class="col-md-6 mb-3">
-                    <label for="receiver_id_select" class="form-label required">Người nhận </label>
+                <div class="col-md-6 mb-3">
+                    <label for="receiver_id_select" class="form-label required">Người nhận</label>
                     <select id="receiver_id_select" name="receiver_id" class="form-select" required>
                         <option value="">-- Chọn hoặc tìm kiếm người nhận --</option>
                         {% for user in users %}
                         <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
                         {% endfor %}
                     </select>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label required">Tình trạng thiết bị </label>
-                    <select name="device_condition" class="form-control" required>
-                        <option value="Mới">Mới</option>
-                        <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
-                        <option value="Cần bảo trì">Cần bảo trì</option>
-                    </select>
+                    <div id="receiver-info" class="border rounded bg-light small p-2 mt-2"></div>
                 </div>
             </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label required">Ngày bàn giao</label>
+                    <input type="date" name="handover_date" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Địa điểm / Nơi đặt</label>
+                    <input type="text" name="location" class="form-control" placeholder="VD: Bàn làm việc A12, Phòng Kế toán">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Lý do bàn giao</label>
+                <input type="text" name="reason" class="form-control" placeholder="VD: Cấp mới cho nhân viên">
+            </div>
+
             <hr>
 
-            <h5>Danh sách thiết bị bàn giao</h5>
-            <div id="device-list-container">
-                </div>
-            <button type="button" id="add-device-btn" class="btn btn-outline-success mt-2"><i class="bi bi-plus-lg"></i> Thêm thiết bị</button>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Danh sách thiết bị bàn giao</h5>
+                <button type="button" id="add-device-btn" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-plus-lg"></i> Thêm thiết bị
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light text-center">
+                        <tr>
+                            <th style="width: 48px;">#</th>
+                            <th style="width: 180px;">Loại thiết bị</th>
+                            <th>Tên thiết bị</th>
+                            <th style="width: 160px;">Mã thiết bị</th>
+                            <th style="width: 190px;">Tình trạng</th>
+                            <th style="width: 56px;">Xóa</th>
+                        </tr>
+                    </thead>
+                    <tbody id="device-list-container"></tbody>
+                </table>
+            </div>
             
             <hr>
             <div class="mb-3">
@@ -80,31 +93,34 @@
 </div>
 
 <template id="device-row-template">
-    <div class="row g-3 align-items-center device-row mb-2 border-bottom pb-2">
-        <div class="col-auto">
-            <span class="row-number fw-bold">1.</span>
-        </div>
-        <div class="col-md-4">
-            <label class="form-label d-none">Mã thiết bị</label>
-            <select name="device_ids" class="form-select device-select" required>
-                <option value="">-- Chọn hoặc tìm kiếm mã thiết bị --</option>
-                {% for device in devices %}
-                <option value="{{ device.id }}">{{ device.device_code }} - {{ device.name }}</option>
+    <tr class="device-row">
+        <td class="text-center fw-bold row-number">1</td>
+        <td>
+            <select class="form-select form-select-sm device-type-filter">
+                <option value="">Tất cả</option>
+                {% for device_type in device_types %}
+                <option value="{{ device_type }}">{{ device_type }}</option>
                 {% endfor %}
             </select>
-        </div>
-        <div class="col-md-4">
-            <label class="form-label d-none">Tên thiết bị</label>
-            <input type="text" class="form-control device-name" placeholder="Tên thiết bị (tự động)" readonly>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label d-none">Serial</label>
-            <input type="text" class="form-control device-serial" placeholder="Serial (tự động)" readonly>
-        </div>
-        <div class="col-auto">
-            <button type="button" class="btn btn-danger remove-device-btn" title="Xóa dòng này"><i class="bi bi-trash"></i></button>
-        </div>
-    </div>
+        </td>
+        <td>
+            <select name="device_ids" class="form-select form-select-sm device-select" required></select>
+            <div class="form-text device-meta"></div>
+        </td>
+        <td><input type="text" class="form-control form-control-sm device-code" readonly></td>
+        <td>
+            <select name="device_conditions" class="form-select form-select-sm device-condition" required>
+                <option value="Mới">Mới</option>
+                <option value="Sử dụng bình thường">Sử dụng bình thường</option>
+                <option value="Cần bảo trì">Cần bảo trì</option>
+            </select>
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-device-btn" title="Xóa dòng này">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    </tr>
 </template>
 {% endblock %}
 
@@ -112,41 +128,132 @@
 {{ super() }}
 <script>
 $(document).ready(function() {
-    // Khởi tạo Select2 cho các trường tĩnh
+    const users = {{ user_options|tojson }};
+    const devices = {{ device_options|tojson }};
+    const container = $('#device-list-container');
+    const template = document.getElementById('device-row-template');
+    let preselectedDeviceId = {{ preselected_device_id or 'null' }};
+
+    const usersById = new Map(users.map(user => [String(user.id), user]));
+    const devicesById = new Map(devices.map(device => [String(device.id), device]));
+
     $('#giver_id_select, #receiver_id_select').select2({
         theme: "bootstrap-5",
         placeholder: "Chọn một mục",
     });
 
-    const container = $('#device-list-container');
-    const template = document.getElementById('device-row-template');
-    let preselectedDeviceId = {{ preselected_device_id or 'null' }};
+    function renderUserInfo(selectId, targetId) {
+        const selectedUser = usersById.get(String($(selectId).val()));
+        if (!selectedUser) {
+            $(targetId).html('<span class="text-muted">Chưa chọn người dùng</span>');
+            return;
+        }
+        const position = selectedUser.position ? ` · ${selectedUser.position}` : '';
+        $(targetId).html(`
+            <div><strong>${selectedUser.name}</strong> <span class="text-muted">(${selectedUser.username})</span></div>
+            <div>Phòng ban: ${selectedUser.department}${position}</div>
+        `);
+    }
+
+    function selectedDeviceIds(exceptSelect = null) {
+        const selected = new Set();
+        container.find('.device-select').each(function() {
+            if (exceptSelect && this === exceptSelect) {
+                return;
+            }
+            const value = $(this).val();
+            if (value) {
+                selected.add(String(value));
+            }
+        });
+        return selected;
+    }
+
+    function fillDeviceSelect(row, keepValue = null) {
+        const typeFilter = row.find('.device-type-filter').val();
+        const select = row.find('.device-select');
+        const usedIds = selectedDeviceIds(select[0]);
+        const currentValue = keepValue || select.val();
+
+        select.empty();
+        select.append(new Option('-- Chọn hoặc tìm kiếm thiết bị --', ''));
+        devices.forEach(device => {
+            const id = String(device.id);
+            if (typeFilter && device.type !== typeFilter) {
+                return;
+            }
+            if (usedIds.has(id) && id !== String(currentValue)) {
+                return;
+            }
+            const option = new Option(`${device.name} - ${device.code}`, id, false, id === String(currentValue));
+            select.append(option);
+        });
+
+        select.val(currentValue && select.find(`option[value="${currentValue}"]`).length ? currentValue : '');
+        select.trigger('change.select2');
+    }
+
+    function refreshAllDeviceSelects() {
+        container.find('.device-row').each(function() {
+            fillDeviceSelect($(this));
+        });
+    }
 
     function updateRowNumbers() {
         container.find('.device-row').each(function(index) {
-            $(this).find('.row-number').text((index + 1) + '.');
+            $(this).find('.row-number').text(index + 1);
         });
+    }
+
+    function updateDeviceRow(row) {
+        const device = devicesById.get(String(row.find('.device-select').val()));
+        const codeInput = row.find('.device-code');
+        const meta = row.find('.device-meta');
+        const conditionSelect = row.find('.device-condition');
+
+        if (!device) {
+            codeInput.val('');
+            meta.text('');
+            return;
+        }
+
+        codeInput.val(device.code);
+        meta.text([device.type, device.serial_number ? `Serial: ${device.serial_number}` : ''].filter(Boolean).join(' · '));
+        if (device.condition && conditionSelect.find(`option[value="${device.condition}"]`).length) {
+            conditionSelect.val(device.condition);
+        }
     }
 
     function addDeviceRow(selectedId = null) {
         const clone = template.content.cloneNode(true);
         const newRow = $(clone.querySelector('.device-row'));
-        
         container.append(newRow);
-        
-        const newSelect = newRow.find('.device-select');
-        
-        if (selectedId) {
-            newSelect.val(selectedId);
-        }
 
+        const newSelect = newRow.find('.device-select');
         newSelect.select2({
             theme: "bootstrap-5",
-            placeholder: "Chọn hoặc tìm kiếm mã thiết bị",
-        }).trigger('change');
+            placeholder: "Chọn hoặc tìm kiếm thiết bị",
+            width: '100%',
+        });
 
+        if (selectedId) {
+            const selectedDevice = devicesById.get(String(selectedId));
+            if (selectedDevice) {
+                newRow.find('.device-type-filter').val(selectedDevice.type || '');
+            }
+        }
+        fillDeviceSelect(newRow, selectedId);
+        updateDeviceRow(newRow);
         updateRowNumbers();
     }
+
+    $('#giver_id_select').on('change', function() {
+        renderUserInfo('#giver_id_select', '#giver-info');
+    });
+
+    $('#receiver_id_select').on('change', function() {
+        renderUserInfo('#receiver_id_select', '#receiver-info');
+    });
 
     $('#add-device-btn').on('click', function() {
         addDeviceRow();
@@ -155,35 +262,19 @@ $(document).ready(function() {
     container.on('click', '.remove-device-btn', function() {
         $(this).closest('.device-row').remove();
         updateRowNumbers();
+        refreshAllDeviceSelects();
+    });
+
+    container.on('change', '.device-type-filter', function() {
+        const row = $(this).closest('.device-row');
+        fillDeviceSelect(row);
+        updateDeviceRow(row);
     });
 
     container.on('change', '.device-select', function() {
-        const deviceId = $(this).val();
         const row = $(this).closest('.device-row');
-        const nameInput = row.find('.device-name');
-        const serialInput = row.find('.device-serial');
-
-        if (deviceId) {
-            fetch(`/api/device_info/${deviceId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.name) {
-                        nameInput.val(data.name);
-                        serialInput.val(data.serial_number);
-                    } else {
-                        nameInput.val('Không tìm thấy');
-                        serialInput.val('N/A');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    nameInput.val('Lỗi');
-                    serialInput.val('Lỗi');
-                });
-        } else {
-            nameInput.val('');
-            serialInput.val('');
-        }
+        updateDeviceRow(row);
+        refreshAllDeviceSelects();
     });
 
     if (preselectedDeviceId) {
@@ -191,12 +282,32 @@ $(document).ready(function() {
     } else {
         addDeviceRow();
     }
+    renderUserInfo('#giver_id_select', '#giver-info');
+    renderUserInfo('#receiver_id_select', '#receiver-info');
 
     $('#handover-form').on('submit', function(e) {
         const imageInput = document.getElementById('condition_images');
         if (imageInput && imageInput.files.length > 5) {
             e.preventDefault();
             alert('Chỉ được thêm tối đa 5 ảnh tình trạng thiết bị.');
+            return;
+        }
+
+        const selected = [];
+        let hasDuplicate = false;
+        container.find('.device-select').each(function() {
+            const value = $(this).val();
+            if (!value) {
+                return;
+            }
+            if (selected.includes(value)) {
+                hasDuplicate = true;
+            }
+            selected.push(value);
+        });
+        if (hasDuplicate) {
+            e.preventDefault();
+            alert('Một thiết bị chỉ được chọn một lần trong cùng phiếu bàn giao.');
         }
     });
 });

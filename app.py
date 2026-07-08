@@ -3754,14 +3754,17 @@ def add_handover():
     if request.method == 'POST':
         # Lấy danh sách ID thiết bị từ form và nhóm
         raw_device_ids = request.form.getlist('device_ids')
-        device_ids_set = set([d for d in raw_device_ids if d])
-        device_ids = list(device_ids_set)
+        device_ids = [d for d in raw_device_ids if d]
+        device_conditions = request.form.getlist('device_conditions')
         receiver_id = request.form.get('receiver_id')
         handover_date_str = request.form.get('handover_date')
         
         # Validation cơ bản
         if not device_ids or not any(d_id for d_id in device_ids if d_id) or not receiver_id or not handover_date_str:
             flash('Vui lòng chọn ít nhất một thiết bị và điền đầy đủ các trường bắt buộc.', 'danger')
+            return redirect(url_for('add_handover'))
+        if len(device_ids) != len(set(device_ids)):
+            flash('Một thiết bị chỉ được chọn một lần trong cùng phiếu bàn giao.', 'danger')
             return redirect(url_for('add_handover'))
             
         handover_date = datetime.strptime(handover_date_str, '%Y-%m-%d').date()
@@ -3775,7 +3778,7 @@ def add_handover():
         condition_images_json = json.dumps(condition_images, ensure_ascii=False) if condition_images else None
         
         handovers_created_count = 0
-        for device_id in device_ids:
+        for index, device_id in enumerate(device_ids):
             if not device_id: continue # Bỏ qua các giá trị rỗng
 
             device_to_update = Device.query.get(device_id)
@@ -3795,7 +3798,7 @@ def add_handover():
                 device_id=device_id, 
                 giver_id=request.form['giver_id'], 
                 receiver_id=receiver_id, 
-                device_condition=request.form['device_condition'], 
+                device_condition=(device_conditions[index] if index < len(device_conditions) and device_conditions[index] else (device_to_update.condition or 'Sử dụng bình thường')),
                 reason=request.form.get('reason', ''), 
                 location=request.form.get('location', ''), 
                 notes=request.form.get('notes', ''),
@@ -3830,10 +3833,29 @@ def add_handover():
     devices = devices_query.order_by(Device.device_code).all()
     users = User.query.filter(User.status.notin_(['Nghỉ việc', 'Nghỉ không lương']))\
         .order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
+    device_options = [{
+        'id': device.id,
+        'code': device.device_code,
+        'name': device.name,
+        'type': device.device_type,
+        'serial_number': device.serial_number or '',
+        'condition': device.condition or '',
+    } for device in devices]
+    user_options = [{
+        'id': user.id,
+        'name': user.full_name or user.username,
+        'username': user.username,
+        'department': user.department_info.name if user.department_info else 'Chưa có phòng ban',
+        'position': user.position or '',
+    } for user in users]
+    device_types = sorted({device.device_type for device in devices if device.device_type})
     
     return render_template('add_handover.html', 
                            devices=devices, 
                            users=users,
+                           device_options=device_options,
+                           user_options=user_options,
+                           device_types=device_types,
                            now=datetime.now(VIETNAM_TZ),
                            preselected_device_id=preselected_device_id)
 
