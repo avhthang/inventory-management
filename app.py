@@ -990,16 +990,24 @@ def _parse_ram_gb(value):
     match = re.search(r'\d+', str(value))
     return int(match.group(0)) if match else None
 
-def _pick_config_value(config_text, keys):
+def _config_key_values(config_text):
     if not config_text:
-        return None
-    for line in re.split(r'\r?\n|;', str(config_text)):
-        cleaned_line = re.sub(r'^\s*[-•]\s*', '', line)
-        match = re.match(r'^\s*([^:：]+)\s*[:：]\s*(.+?)\s*$', cleaned_line)
-        if not match:
-            continue
+        return []
+    text_value = re.sub(r'^\s*[-•]\s*', '', str(config_text).strip())
+    pattern = re.compile(r'(?:^|\r?\n\s*[-•]?\s*|\s+-\s*)([^:：\n]+?)\s*[:：]\s*')
+    matches = list(pattern.finditer(text_value))
+    pairs = []
+    for index, match in enumerate(matches):
         key = match.group(1).strip().lower()
-        value = match.group(2).strip()
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(text_value)
+        value = text_value[match.end():next_start].strip()
+        value = re.sub(r'\s+-\s*$', '', value).strip()
+        if key and value:
+            pairs.append((key, value))
+    return pairs
+
+def _pick_config_value(config_text, keys):
+    for key, value in _config_key_values(config_text):
         if value and any(token in key for token in keys):
             return value
     return None
