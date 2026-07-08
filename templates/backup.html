@@ -8,6 +8,12 @@
         <div class="col-12">
             <h2 class="fw-bold"><i class="bi bi-shield-lock text-primary me-2"></i>Quản lý Dữ liệu Hệ thống</h2>
             <p class="text-muted">Đảm bảo an toàn dữ liệu thông qua các công cụ sao lưu, khôi phục và lập lịch tự động.</p>
+            {% if backup_task_active %}
+            <div class="alert alert-warning mb-0">
+                <i class="bi bi-hourglass-split me-1"></i>
+                Đang có tiến trình backup/restore chạy nền. Vui lòng chờ hoàn tất trước khi tạo hoặc khôi phục bản sao lưu khác.
+            </div>
+            {% endif %}
         </div>
     </div>
 
@@ -41,7 +47,7 @@
                         <div class="card-body">
                             <p class="text-muted small mb-4">Tạo một gói sao lưu <code>.bak</code> gồm dữ liệu hệ thống, dữ liệu ứng dụng và cấu hình. File sẽ xuất hiện trong danh sách bên phải để tải về hoặc dùng khôi phục.</p>
                             <form action="{{ url_for('backup_create') }}" method="POST">
-                                <button type="submit" class="btn btn-primary btn-lg w-100 py-3 shadow-sm rounded-3">
+                                <button type="submit" class="btn btn-primary btn-lg w-100 py-3 shadow-sm rounded-3" {% if backup_task_active %}disabled{% endif %}>
                                     <i class="bi bi-cloud-download-fill me-2 text-white"></i> Tạo sao lưu ngay
                                 </button>
                             </form>

@@ -19,6 +19,8 @@ import threading
 import time
 import pytz
 import re
+import unicodedata
+from contextlib import contextmanager
 from config import config, get_database_info, is_external_database
 from backup_restore import DatabaseBackup
 
@@ -6483,8 +6485,14 @@ def backup_export():
         temp_file.close()
 
         # Use shared backup logic
-        backup = DatabaseBackup()
-        backup.create_backup(temp_backup_file)
+        with _exclusive_file_lock('backup_task', stale_after_seconds=7200) as lock_acquired:
+            if not lock_acquired:
+                if temp_backup_file and os.path.exists(temp_backup_file):
+                    os.unlink(temp_backup_file)
+                flash('Đang có tiến trình backup/restore khác chạy. Vui lòng chờ hoàn tất rồi thử lại.', 'warning')
+                return redirect(url_for('backup_page'))
+            backup = DatabaseBackup()
+            backup.create_backup(temp_backup_file)
         
         # Check if backup file was created and has content
         if not os.path.exists(temp_backup_file) or os.path.getsize(temp_backup_file) == 0:
@@ -6553,8 +6561,14 @@ def backup_import():
         file.save(temp_path)
         
         # Use shared backup logic for restore
-        backup = DatabaseBackup()
-        success = backup.restore_backup(temp_path)
+        with _exclusive_file_lock('backup_task', stale_after_seconds=7200) as lock_acquired:
+            if not lock_acquired:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                flash('Đang có tiến trình backup/restore khác chạy. Vui lòng chờ hoàn tất rồi thử lại.', 'warning')
+                return redirect(url_for('backup_page'))
+            backup = DatabaseBackup()
+            success = backup.restore_backup(temp_path)
         
         # Cleanup
         if os.path.exists(temp_path):
@@ -6972,6 +6986,100 @@ def _list_backups():
                 })
     return sorted(files, key=lambda item: item['date'], reverse=True)
 
+def _lock_dir():
+    path = os.path.join(instance_path, 'locks')
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def _pid_is_running(pid):
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+def _read_lock_file(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+def _lock_is_stale(path, stale_after_seconds):
+    data = _read_lock_file(path)
+    pid = data.get('pid')
+    created_at = data.get('created_at', 0)
+    age = time.time() - float(created_at or 0)
+    return age > stale_after_seconds or (pid and not _pid_is_running(int(pid)))
+
+@contextmanager
+def _exclusive_file_lock(lock_name, stale_after_seconds=7200):
+    path = os.path.join(_lock_dir(), f'{lock_name}.lock')
+    fd = None
+    acquired = False
+    try:
+        while True:
+            try:
+                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                payload = json.dumps({'pid': os.getpid(), 'created_at': time.time()}).encode('utf-8')
+                os.write(fd, payload)
+                acquired = True
+                break
+            except FileExistsError:
+                if _lock_is_stale(path, stale_after_seconds):
+                    try:
+                        os.remove(path)
+                        continue
+                    except FileNotFoundError:
+                        continue
+                break
+        yield acquired
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if acquired:
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
+
+_backup_scheduler_lock_fd = None
+
+def _acquire_backup_scheduler_lock():
+    global _backup_scheduler_lock_fd
+    path = os.path.join(_lock_dir(), 'backup_scheduler.lock')
+    while True:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            payload = json.dumps({'pid': os.getpid(), 'created_at': time.time()}).encode('utf-8')
+            os.write(fd, payload)
+            _backup_scheduler_lock_fd = fd
+            return True
+        except FileExistsError:
+            if _lock_is_stale(path, 3600):
+                try:
+                    os.remove(path)
+                    continue
+                except FileNotFoundError:
+                    continue
+            return False
+
+def _backup_schedule_enabled():
+    cfg_path = os.path.join(instance_path, 'backup_config.json')
+    try:
+        if os.path.exists(cfg_path):
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+            if cfg.get('frequency') == 'none':
+                return False
+            return True
+    except Exception:
+        pass
+    return bool(backup_config_daily_enabled)
+
 # Route: backup management page
 @app.route('/backup', methods=['GET'])
 def backup_page():
@@ -6982,6 +7090,23 @@ def backup_page():
         flash('Bạn không có quyền truy cập chức năng này.', 'danger')
         return redirect(url_for('home'))
         
+    try:
+        stale_cutoff = datetime.utcnow() - timedelta(hours=2)
+        stale_logs = BackupLog.query.filter(
+            BackupLog.status == 'processing',
+            BackupLog.created_at < stale_cutoff
+        ).all()
+        for log in stale_logs:
+            log.status = 'failed'
+            log.details = 'Tiến trình backup/restore đã quá thời gian chờ và được đánh dấu dừng.'
+        if stale_logs:
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    backup_task_lock = os.path.join(_lock_dir(), 'backup_task.lock')
+    backup_task_active = os.path.exists(backup_task_lock) and not _lock_is_stale(backup_task_lock, 7200)
+
     backups = _list_backups()
     logs = BackupLog.query.order_by(BackupLog.created_at.desc()).limit(50).all()
     
@@ -6993,7 +7118,7 @@ def backup_page():
     except:
         db.session.rollback()
 
-    return render_template('backup.html', backups=backups, logs=logs)
+    return render_template('backup.html', backups=backups, logs=logs, backup_task_active=backup_task_active)
 
 # Route: manual backup creation
 @app.route('/backup/create', methods=['POST'])
@@ -7006,17 +7131,22 @@ def backup_create():
         return redirect(url_for('backup_page'))
         
     try:
-        backup_dir = _backup_storage_dir()
-        if not os.path.exists(backup_dir):
-            os.makedirs(backup_dir, exist_ok=True)
-            
-        timestamp = get_now().strftime("%Y%m%d_%H%M%S")
-        filename = f"manual_backup_{timestamp}.bak"
-        dest_path = os.path.join(backup_dir, filename)
-        
-        backup = DatabaseBackup()
-        backup.create_backup(dest_path)
-        
+        with _exclusive_file_lock('backup_task', stale_after_seconds=7200) as lock_acquired:
+            if not lock_acquired:
+                flash('Đang có tiến trình backup/restore khác chạy. Vui lòng chờ hoàn tất rồi thử lại.', 'warning')
+                return redirect(url_for('backup_page'))
+
+            backup_dir = _backup_storage_dir()
+            if not os.path.exists(backup_dir):
+                os.makedirs(backup_dir, exist_ok=True)
+
+            timestamp = get_now().strftime("%Y%m%d_%H%M%S")
+            filename = f"manual_backup_{timestamp}.bak"
+            dest_path = os.path.join(backup_dir, filename)
+
+            backup = DatabaseBackup()
+            backup.create_backup(dest_path)
+
         # Log the action
         log = BackupLog(
             filename=filename,
@@ -7096,15 +7226,23 @@ def backup_restore(filename):
                 db.session.commit()
                 log_id = log.id
 
-                # Create snapshot
-                snapshot_filename = f"pre_restore_snapshot_{get_now().strftime('%Y%m%d_%H%M%S')}.bak"
-                snapshot_path = os.path.join(backup_dir, snapshot_filename)
-                
-                engine = DatabaseBackup()
-                engine.create_backup(snapshot_path)
-                
-                # Perform restore
-                success = engine.restore_backup(b_path)
+                with _exclusive_file_lock('backup_task', stale_after_seconds=7200) as lock_acquired:
+                    if not lock_acquired:
+                        final_log = BackupLog.query.get(log_id)
+                        final_log.status = 'failed'
+                        final_log.details = 'Đang có tiến trình backup/restore khác chạy.'
+                        db.session.commit()
+                        return
+
+                    # Create snapshot
+                    snapshot_filename = f"pre_restore_snapshot_{get_now().strftime('%Y%m%d_%H%M%S')}.bak"
+                    snapshot_path = os.path.join(backup_dir, snapshot_filename)
+
+                    engine = DatabaseBackup()
+                    engine.create_backup(snapshot_path)
+
+                    # Perform restore
+                    success = engine.restore_backup(b_path)
                 
                 # Update log
                 final_log = BackupLog.query.get(log_id)
@@ -7181,14 +7319,18 @@ def backup_schedule():
 def _run_scheduler():
     def job():
         try:
-            backup_dir = _backup_storage_dir()
-            os.makedirs(backup_dir, exist_ok=True)
-            timestamp = get_now().strftime("%Y%m%d_%H%M%S")
-            filename = f"auto_backup_{timestamp}.bak"
-            dest_path = os.path.join(backup_dir, filename)
-            backup = DatabaseBackup()
-            backup.create_backup(dest_path)
-            print(f"✅ Scheduled backup saved to {dest_path}")
+            with _exclusive_file_lock('backup_task', stale_after_seconds=7200) as lock_acquired:
+                if not lock_acquired:
+                    print("Scheduled backup skipped because another backup/restore is running.")
+                    return
+                backup_dir = _backup_storage_dir()
+                os.makedirs(backup_dir, exist_ok=True)
+                timestamp = get_now().strftime("%Y%m%d_%H%M%S")
+                filename = f"auto_backup_{timestamp}.bak"
+                dest_path = os.path.join(backup_dir, filename)
+                backup = DatabaseBackup()
+                backup.create_backup(dest_path)
+                print(f"✅ Scheduled backup saved to {dest_path}")
         except Exception as e:
             print(f"❌ Scheduled backup failed: {str(e)}")
             
@@ -7234,9 +7376,13 @@ def _run_scheduler():
         time.sleep(60)
 
 # Start scheduler thread if enabled
-if backup_config_daily_enabled:
+if _backup_schedule_enabled() and _acquire_backup_scheduler_lock():
     t = threading.Thread(target=_run_scheduler, daemon=True)
     t.start()
+elif _backup_schedule_enabled():
+    print("Backup scheduler already running in another worker; skipping this worker.")
+else:
+    print("Auto backup scheduler disabled by configuration.")
 
 @app.route('/backup/upload_restore', methods=['POST'])
 def backup_upload_restore():
@@ -7342,6 +7488,42 @@ def _consumable_code_base_from_device_type(device_type):
     if ascii_code:
         return ascii_code[:20]
     return 'TH'
+
+def _ascii_slug(value):
+    normalized = unicodedata.normalize('NFKD', value or '')
+    return ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+
+def _consumable_prefix_from_text(value):
+    ascii_value = _ascii_slug(value).upper()
+    words = re.findall(r'[A-Z0-9]+', ascii_value)
+    if not words:
+        return 'TH'
+    if len(words) == 1:
+        return words[0][:8]
+    prefix = ''.join(word[0] for word in words[:4])
+    return prefix[:8] or 'TH'
+
+def _normalize_consumable_category(category):
+    candidate = (category or '').strip()
+    if not candidate:
+        return 'Thiết bị tiêu hao'
+    existing = ConsumableItem.query.filter(func.lower(ConsumableItem.category) == candidate.lower()).first()
+    return existing.category if existing and existing.category else candidate
+
+def _generate_consumable_code(category, name):
+    prefix = _consumable_prefix_from_text(category or name)
+    rows = db.session.query(ConsumableItem.code).filter(ConsumableItem.code.ilike(f'{prefix}-%')).all()
+    max_number = 0
+    pattern = re.compile(rf'^{re.escape(prefix)}-(\d+)$', re.IGNORECASE)
+    for row in rows:
+        match = pattern.match(row[0] or '')
+        if match:
+            max_number = max(max_number, int(match.group(1)))
+    for number in range(max_number + 1, max_number + 10000):
+        code = f'{prefix}-{number:03d}'
+        if not ConsumableItem.query.filter(func.upper(ConsumableItem.code) == code.upper()).first():
+            return code
+    return _unique_consumable_code(prefix)
 
 def _unique_consumable_code(base_code):
     base_code = (base_code or 'TH').strip().upper()[:20]
@@ -7559,9 +7741,11 @@ def add_consumable():
         flash('Bạn không có quyền thêm thiết bị tiêu hao.', 'danger')
         return redirect(url_for('consumable_list'))
 
-    code = (request.form.get('code') or '').strip().upper()
     name = (request.form.get('name') or '').strip()
-    category = (request.form.get('category') or '').strip() or 'Thiết bị tiêu hao'
+    category = _normalize_consumable_category(request.form.get('category'))
+    code = (request.form.get('code') or '').strip().upper()
+    if not code and name:
+        code = _generate_consumable_code(category, name)
     unit = (request.form.get('unit') or '').strip() or 'cái'
     location = (request.form.get('location') or '').strip()
     notes = (request.form.get('notes') or '').strip()
@@ -7572,8 +7756,8 @@ def add_consumable():
         flash('Số lượng ban đầu và tồn tối thiểu phải là số nguyên.', 'danger')
         return redirect(url_for('consumable_list'))
 
-    if not code or not name:
-        flash('Mã và tên thiết bị tiêu hao là bắt buộc.', 'danger')
+    if not name:
+        flash('Tên mặt hàng là bắt buộc.', 'danger')
     elif ConsumableItem.query.filter(func.upper(ConsumableItem.code) == code).first():
         flash('Mã thiết bị tiêu hao đã tồn tại.', 'warning')
     else:
@@ -7604,13 +7788,13 @@ def edit_consumable(item_id):
     code = (request.form.get('code') or '').strip().upper()
     duplicate = ConsumableItem.query.filter(func.upper(ConsumableItem.code) == code, ConsumableItem.id != item.id).first()
     if not code or not (request.form.get('name') or '').strip():
-        flash('Mã và tên thiết bị tiêu hao là bắt buộc.', 'danger')
+        flash('Mã và tên mặt hàng là bắt buộc.', 'danger')
     elif duplicate:
         flash('Mã thiết bị tiêu hao đã tồn tại.', 'warning')
     else:
         item.code = code
         item.name = (request.form.get('name') or '').strip()
-        item.category = (request.form.get('category') or '').strip() or 'Thiết bị tiêu hao'
+        item.category = _normalize_consumable_category(request.form.get('category'))
         item.unit = (request.form.get('unit') or '').strip() or 'cái'
         item.location = (request.form.get('location') or '').strip()
         item.notes = (request.form.get('notes') or '').strip()

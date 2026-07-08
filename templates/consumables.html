@@ -262,6 +262,12 @@
     </div>
 </div>
 
+<datalist id="consumable-category-options">
+    {% for cat in categories %}
+    <option value="{{ cat }}"></option>
+    {% endfor %}
+</datalist>
+
 {% if can_edit %}
 <div class="modal fade" id="addConsumableModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -273,17 +279,17 @@
                 </div>
                 <div class="modal-body">
                     <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label required">Mã</label>
-                            <input type="text" name="code" class="form-control text-uppercase" placeholder="VD: HDMI-2M" required>
-                        </div>
                         <div class="col-md-8">
                             <label class="form-label required">Tên mặt hàng</label>
                             <input type="text" name="name" class="form-control" placeholder="VD: Cáp mạng Cat6 2m Ugreen, HDMI 8K 5m Vention" required>
                         </div>
                         <div class="col-md-4">
+                            <label class="form-label">Mã</label>
+                            <input type="text" name="code" class="form-control text-uppercase" placeholder="Để trống để tự tạo">
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Loại vật tư</label>
-                            <input type="text" name="category" class="form-control" value="Dây mạng" placeholder="VD: Dây mạng, Dây HDMI, USB, Đầu chuyển">
+                            <input type="text" name="category" class="form-control" value="Dây mạng" list="consumable-category-options" placeholder="VD: Dây mạng, Dây HDMI, USB, Đầu chuyển">
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">Đơn vị</label>
@@ -385,17 +391,17 @@
                 </div>
                 <div class="modal-body">
                     <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label required">Mã</label>
-                            <input type="text" name="code" class="form-control text-uppercase" value="{{ item.code }}" required>
-                        </div>
                         <div class="col-md-8">
                             <label class="form-label required">Tên mặt hàng</label>
                             <input type="text" name="name" class="form-control" value="{{ item.name }}" required>
                         </div>
                         <div class="col-md-4">
+                            <label class="form-label required">Mã</label>
+                            <input type="text" name="code" class="form-control text-uppercase" value="{{ item.code }}" required>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Loại vật tư</label>
-                            <input type="text" name="category" class="form-control" value="{{ item.category }}">
+                            <input type="text" name="category" class="form-control" value="{{ item.category }}" list="consumable-category-options">
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">Đơn vị</label>
