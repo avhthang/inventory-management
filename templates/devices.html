@@ -50,7 +50,7 @@
                         <div class="list-group list-group-flush border-bottom">
                             {% for type in types %}
                             <a href="{{ url_for('device_list', filter_category=category, filter_device_type=type) }}"
-                                class="list-group-item list-group-item-action ps-4 border-0 small {% if filter_device_type == type %}active{% endif %}">
+                                class="list-group-item list-group-item-action ps-4 border-0 small {% if type in filter_device_types %}active{% endif %}">
                                 <i class="bi bi-dot"></i> {{ type }}
                             </a>
                             {% endfor %}
@@ -69,7 +69,9 @@
             <div class="card-body">
                 <div class="devices-header d-flex justify-content-between align-items-center gap-2 mb-3">
                     <h2 class="card-title mb-0">
-                        {% if filter_device_type %}
+                        {% if filter_device_types|length > 1 %}
+                        {{ filter_device_types|length }} loại thiết bị
+                        {% elif filter_device_type %}
                         {{ filter_device_type }}
                         {% elif filter_category %}
                         {{ filter_category }}
@@ -107,7 +109,9 @@
 
                 <form method="GET" class="devices-quick-search mb-3">
                     <input type="hidden" name="filter_category" value="{{ filter_category }}">
-                    <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
+                    {% for type in filter_device_types %}
+                    <input type="hidden" name="filter_device_type" value="{{ type }}">
+                    {% endfor %}
                     <input type="hidden" name="filter_status" value="{{ filter_status }}">
                     <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
                     <input type="hidden" name="filter_department" value="{{ filter_department }}">
@@ -194,16 +198,34 @@
                                     <th class="text-center" style="white-space: nowrap;">
                                         <strong>Loại thiết bị</strong>
                                         <button type="button"
-                                            class="btn btn-sm {% if filter_device_type %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+                                            class="btn btn-sm {% if filter_device_types %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
                                             data-bs-toggle="dropdown" title="Lọc loại thiết bị">
                                             <i class="bi bi-funnel"></i>
                                         </button>
-                                        <div class="dropdown-menu p-2 shadow" style="width: 240px; max-height: 320px; overflow-y: auto;">
-                                            <a class="dropdown-item" href="javascript:filterByParam('filter_device_type', '')">-- Tất cả --</a>
+                                        <div class="dropdown-menu p-2 shadow" style="width: 260px;">
+                                            <form method="GET" action="{{ url_for('device_list') }}">
+                                                {% for key, values in request.args.lists() %}
+                                                {% if key not in ['filter_device_type', 'page'] %}
+                                                {% for value in values %}
+                                                <input type="hidden" name="{{ key }}" value="{{ value }}">
+                                                {% endfor %}
+                                                {% endif %}
+                                                {% endfor %}
+                                                <div class="small text-muted mb-2">Chọn một hoặc nhiều loại</div>
+                                                <div style="max-height: 240px; overflow-y: auto;">
                                             {% for type in device_types %}
-                                            <a class="dropdown-item {% if filter_device_type == type %}active{% endif %}"
-                                                href="javascript:filterByParam('filter_device_type', '{{ type }}')">{{ type }}</a>
+                                                    <label class="dropdown-item d-flex align-items-center gap-2 mb-0">
+                                                        <input type="checkbox" name="filter_device_type" value="{{ type }}"
+                                                            {% if type in filter_device_types %}checked{% endif %}>
+                                                        <span>{{ type }}</span>
+                                                    </label>
                                             {% endfor %}
+                                                </div>
+                                                <div class="d-flex gap-2 mt-2">
+                                                    <button type="submit" class="btn btn-primary btn-sm flex-fill">Áp dụng</button>
+                                                    <a class="btn btn-outline-secondary btn-sm" href="javascript:clearDeviceTypeFilter()">Tất cả</a>
+                                                </div>
+                                            </form>
                                         </div>
                                     </th>
                                     <th class="text-center" style="white-space: nowrap;">
@@ -440,9 +462,9 @@
 {{ super() }}
 <style>
     .devices-page {
-        width: calc(100vw - 2rem);
-        margin-left: calc(50% - 50vw + 1rem);
-        margin-right: calc(50% - 50vw + 1rem);
+        width: calc(100vw - 4rem);
+        margin-left: calc(50% - 50vw + 2rem);
+        margin-right: calc(50% - 50vw + 2rem);
     }
 
     .devices-page .card-body {
@@ -455,17 +477,13 @@
     }
 
     .devices-page.sidebar-collapsed .devices-sidebar-col {
-        flex: 0 0 58px;
-        max-width: 58px;
+        flex: 0 0 170px;
+        max-width: 170px;
     }
 
     .devices-page.sidebar-collapsed .devices-main-col {
-        flex: 0 0 calc(100% - 58px);
-        max-width: calc(100% - 58px);
-    }
-
-    .devices-page.sidebar-collapsed .devices-sidebar-card .card-title {
-        display: none;
+        flex: 0 0 calc(100% - 170px);
+        max-width: calc(100% - 170px);
     }
 
     .devices-sidebar-card .card-header .bi-chevron-down {
@@ -516,12 +534,13 @@
     }
 
     .devices-table-wrap {
-        overflow-x: visible;
+        overflow-x: auto;
     }
 
     .devices-table {
         table-layout: fixed;
         width: 100%;
+        min-width: 1180px;
         font-size: .88rem;
     }
 
@@ -546,7 +565,7 @@
     .devices-table td:nth-child(3) { width: 108px; text-align: center; }
 
     .devices-table th:nth-child(4),
-    .devices-table td:nth-child(4) { width: 22%; }
+    .devices-table td:nth-child(4) { width: 260px; min-width: 260px; }
 
     .devices-table th:nth-child(5),
     .devices-table td:nth-child(5) { width: 134px; text-align: center; }
@@ -635,9 +654,13 @@
         } else {
             url.searchParams.delete(param);
         }
-        if (param === 'filter_device_type') {
-            url.searchParams.delete('filter_category');
-        }
+        url.searchParams.set('page', 1);
+        window.location.href = url.toString();
+    }
+
+    function clearDeviceTypeFilter() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('filter_device_type');
         url.searchParams.set('page', 1);
         window.location.href = url.toString();
     }

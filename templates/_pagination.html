@@ -9,9 +9,11 @@
     <div class="d-flex align-items-center">
         <form method="GET" action="{{ url_for(endpoint) }}" class="d-flex align-items-center me-3">
             {# Preserve all current args in the per_page form #}
-            {% for key, value in request.args.items() %}
+            {% for key, values in request.args.lists() %}
             {% if key != 'per_page' and key != 'page' %}
+            {% for value in values %}
             <input type="hidden" name="{{ key }}" value="{{ value }}">
+            {% endfor %}
             {% endif %}
             {% endfor %}
             <label for="per_page_select" class="form-label me-2 mb-0">Số dòng:</label>
@@ -26,9 +28,12 @@
         <nav>
             <ul class="pagination mb-0">
                 {# Helper to merge args safely #}
-                {% set args = request.args.to_dict() %}
-                {% do args.pop('page', None) %}
-                {% do args.pop('per_page', None) %}
+                {% set args = {} %}
+                {% for key, values in request.args.lists() %}
+                    {% if key not in ['page', 'per_page'] %}
+                        {% do args.update({key: values}) %}
+                    {% endif %}
+                {% endfor %}
 
                 {# Prev #}
                 <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">

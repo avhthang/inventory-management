@@ -2945,11 +2945,15 @@ def device_list():
     user = User.query.get(user_id)
     
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
+    per_page_arg = request.args.get('per_page', type=int)
+    if per_page_arg in (10, 20, 50, 100):
+        session['devices_per_page'] = per_page_arg
+    per_page = session.get('devices_per_page', 10)
     # Load current filters from query params or session-saved defaults
     saved_filters = session.get('devices_filters', {}) or {}
     filter_device_code = request.args.get('filter_device_code')
     filter_name = request.args.get('filter_name')
+    filter_device_types = [value for value in request.args.getlist('filter_device_type') if value]
     filter_device_type = request.args.get('filter_device_type')
     filter_status = request.args.get('filter_status')
     filter_manager_id = request.args.get('filter_manager_id')
@@ -2963,6 +2967,9 @@ def device_list():
         filter_name = saved_filters.get('filter_name', '')
     if filter_device_type is None:
         filter_device_type = ''
+    if not filter_device_types and filter_device_type:
+        filter_device_types = [filter_device_type]
+    filter_device_type = filter_device_types[0] if len(filter_device_types) == 1 else ''
     if filter_status is None:
         filter_status = ''
     if filter_manager_id is None or filter_manager_id == '':
@@ -2978,15 +2985,16 @@ def device_list():
     device_hierarchy = _get_device_type_hierarchy()
     if filter_category and filter_category in device_hierarchy:
         category_types = device_hierarchy[filter_category]
-        if filter_device_type:
-             if filter_device_type in category_types:
-                 query = query.filter(Device.device_type == filter_device_type)
+        if filter_device_types:
+             selected_category_types = [item for item in filter_device_types if item in category_types]
+             if selected_category_types:
+                 query = query.filter(Device.device_type.in_(selected_category_types))
              else:
                  query = query.filter(text('1=0'))
         else:
             query = query.filter(Device.device_type.in_(category_types))
-    elif filter_device_type:
-         query = query.filter(Device.device_type == filter_device_type)
+    elif filter_device_types:
+         query = query.filter(Device.device_type.in_(filter_device_types))
     
     if filter_device_code:
         query = query.filter(Device.device_code.ilike(f'%{filter_device_code}%'))
@@ -3043,6 +3051,7 @@ def device_list():
         filter_device_code=filter_device_code,
         filter_name=filter_name,
         filter_device_type=filter_device_type,
+        filter_device_types=filter_device_types,
         filter_status=filter_status,
         filter_manager_id=filter_manager_id,
         filter_department=filter_department,
