@@ -287,8 +287,16 @@ $(document).ready(function() {
         const cpu = pickConfigValue(configText, ['cpu', 'chip']) || specs.cpu;
         const main = pickConfigValue(configText, ['main', 'mainboard', 'bo mạch', 'bo mach']) || specs.mainboard;
         const ram = pickConfigValue(configText, ['ram']) || (specs.ram_gb ? `${specs.ram_gb}GB` : '');
-        const ssd = pickConfigValue(configText, ['ssd', 'ổ cứng', 'o cung', 'disk', 'drive']) || specs.ssd;
-        const hdd = pickConfigValue(configText, ['hdd']) || specs.hdd;
+        const driveValue = pickConfigValue(configText, ['ổ cứng', 'o cung', 'disk', 'drive']);
+        let ssd = pickConfigValue(configText, ['ssd']) || specs.ssd;
+        let hdd = pickConfigValue(configText, ['hdd']) || specs.hdd;
+        if (driveValue) {
+            const ssdMatch = driveValue.match(/\bssd\b\s*:?\s*([^,+;]+)/i);
+            const hddMatch = driveValue.match(/\bhdd\b\s*:?\s*([^,+;]+)/i);
+            if (ssdMatch && !ssd) ssd = ssdMatch[1].trim();
+            if (hddMatch && !hdd) hdd = hddMatch[1].trim();
+            if (!ssd && !hdd) ssd = driveValue;
+        }
         const vga = pickConfigValue(configText, ['vga', 'card màn hình', 'card man hinh', 'gpu']) || specs.vga;
         const networkCard = pickConfigValue(configText, ['card mạng', 'card mang', 'lan', 'network']) || specs.network_card;
         const wifiCard = pickConfigValue(configText, ['wifi', 'wi-fi']) || specs.wifi_card;

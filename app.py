@@ -1005,12 +1005,24 @@ def _pick_config_value(config_text, keys):
     return None
 
 def _device_pc_specs_from_config_text(config_text):
+    drive_value = _pick_config_value(config_text, ['ổ cứng', 'o cung', 'disk', 'drive'])
+    ssd_value = _pick_config_value(config_text, ['ssd'])
+    hdd_value = _pick_config_value(config_text, ['hdd'])
+    if drive_value:
+        ssd_match = re.search(r'\bssd\b\s*:?\s*([^,+;]+)', drive_value, re.IGNORECASE)
+        hdd_match = re.search(r'\bhdd\b\s*:?\s*([^,+;]+)', drive_value, re.IGNORECASE)
+        if ssd_match and not ssd_value:
+            ssd_value = ssd_match.group(1).strip()
+        if hdd_match and not hdd_value:
+            hdd_value = hdd_match.group(1).strip()
+        if not ssd_value and not hdd_value:
+            ssd_value = drive_value
     return {
         'cpu': _pick_config_value(config_text, ['cpu', 'chip']),
         'mainboard': _pick_config_value(config_text, ['main', 'mainboard', 'bo mạch', 'bo mach']),
         'ram_gb': _parse_ram_gb(_pick_config_value(config_text, ['ram'])),
-        'ssd': _pick_config_value(config_text, ['ssd', 'ổ cứng', 'o cung', 'disk', 'drive']),
-        'hdd': _pick_config_value(config_text, ['hdd']),
+        'ssd': ssd_value,
+        'hdd': hdd_value,
         'vga': _pick_config_value(config_text, ['vga', 'card màn hình', 'card man hinh', 'gpu']),
         'wifi_card': _pick_config_value(config_text, ['wifi', 'wi-fi']),
         'network_card': _pick_config_value(config_text, ['card mạng', 'card mang', 'lan', 'network']),
