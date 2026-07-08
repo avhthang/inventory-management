@@ -17,6 +17,7 @@
     {% if request.endpoint == 'list_departments' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/departments.css') }}">
     {% endif %}
+    {% block styles %}{% endblock %}
 </head>
 
 <body>
