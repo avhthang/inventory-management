@@ -1019,6 +1019,10 @@ def _device_pc_specs_from_config_text(config_text):
     if drive_value:
         ssd_match = re.search(r'\bssd\b\s*:?\s*([^,+;]+)', drive_value, re.IGNORECASE)
         hdd_match = re.search(r'\bhdd\b\s*:?\s*([^,+;]+)', drive_value, re.IGNORECASE)
+        if not ssd_match:
+            ssd_match = re.search(r'([^,+;]+)\s*\bssd\b', drive_value, re.IGNORECASE)
+        if not hdd_match:
+            hdd_match = re.search(r'([^,+;]+)\s*\bhdd\b', drive_value, re.IGNORECASE)
         if ssd_match and not ssd_value:
             ssd_value = ssd_match.group(1).strip()
         if hdd_match and not hdd_value:

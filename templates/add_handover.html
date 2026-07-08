@@ -296,8 +296,10 @@ $(document).ready(function() {
         if (driveValue) {
             const ssdMatch = driveValue.match(/\bssd\b\s*:?\s*([^,+;]+)/i);
             const hddMatch = driveValue.match(/\bhdd\b\s*:?\s*([^,+;]+)/i);
-            if (ssdMatch && !ssd) ssd = ssdMatch[1].trim();
-            if (hddMatch && !hdd) hdd = hddMatch[1].trim();
+            const suffixSsdMatch = ssdMatch || driveValue.match(/([^,+;]+)\s*\bssd\b/i);
+            const suffixHddMatch = hddMatch || driveValue.match(/([^,+;]+)\s*\bhdd\b/i);
+            if (suffixSsdMatch && !ssd) ssd = suffixSsdMatch[1].trim();
+            if (suffixHddMatch && !hdd) hdd = suffixHddMatch[1].trim();
             if (!ssd && !hdd) ssd = driveValue;
         }
         const vga = pickConfigValue(configText, ['vga', 'card màn hình', 'card man hinh', 'gpu']) || specs.vga;
