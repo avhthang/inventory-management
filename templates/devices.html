@@ -7,11 +7,15 @@
 <div class="devices-page">
 <div class="row g-3">
     <!-- Sidebar -->
-    <div class="col-lg-2 col-md-3">
-        <div class="card mb-3">
-            <div class="card-header bg-light">
+    <div class="col-lg-2 col-md-3 devices-sidebar-col">
+        <div class="card mb-3 devices-sidebar-card">
+            <button class="card-header bg-light border-0 text-start w-100 d-flex justify-content-between align-items-center"
+                type="button" data-bs-toggle="collapse" data-bs-target="#deviceCategoryPanel"
+                aria-expanded="true" aria-controls="deviceCategoryPanel">
                 <h5 class="card-title mb-0"><i class="bi bi-list-ul"></i> Danh mục thiết bị</h5>
-            </div>
+                <i class="bi bi-chevron-down"></i>
+            </button>
+            <div id="deviceCategoryPanel" class="collapse show">
             <div class="list-group list-group-flush">
                 <a href="{{ url_for('device_list') }}"
                     class="list-group-item list-group-item-action {% if not filter_category and not filter_device_type %}active{% endif %}">
@@ -55,11 +59,12 @@
                 </div>
                 {% endfor %}
             </div>
+            </div>
         </div>
     </div>
 
     <!-- Main Content -->
-    <div class="col-lg-10 col-md-9">
+    <div class="col-lg-10 col-md-9 devices-main-col">
         <div class="card">
             <div class="card-body">
                 <div class="devices-header d-flex justify-content-between align-items-center gap-2 mb-3">
@@ -100,56 +105,19 @@
                 </div>
                 <hr>
 
-                <p class="mb-2"><strong><i class="bi bi-funnel"></i> Bộ lọc bổ sung</strong></p>
-                <form method="GET" onsubmit="document.getElementById('saveFiltersForm').submit();">
+                <form method="GET" class="devices-quick-search mb-3">
                     <input type="hidden" name="filter_category" value="{{ filter_category }}">
-
-                    <div class="row g-2 align-items-end">
-                        <div class="col-md-3"><input type="text" name="filter_device_code" class="form-control"
-                                placeholder="Mã thiết bị" value="{{ filter_device_code }}"></div>
-                        <div class="col-md-3"><input type="text" name="filter_name" class="form-control"
-                                placeholder="Tên thiết bị" value="{{ filter_name }}"></div>
-                        <!-- Removed device type select as it's in sidebar -->
-
-                        <div class="col-md-3">
-                            <select name="filter_status" class="form-select">
-                                <option value="">-- Trạng thái: Tất cả --</option>
-                                {% for status in statuses %}
-                                <option value="{{ status }}" {% if filter_status==status %}selected{% endif %}>{{ status
-                                    }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-3 d-flex gap-1">
-                            <button type="submit" class="btn btn-primary btn-sm flex-fill">Lọc ngay</button>
-                            <a href="{{ url_for('device_list') }}" class="btn btn-secondary btn-sm">Reset</a>
-                            <button type="button" class="btn btn-outline-success btn-sm" title="Lưu mặc định"
-                                onclick="updateAndSubmitSaveStatus()">
-                                <i class="bi bi-bookmark-check"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="row g-2 align-items-end mt-1">
-                        <div class="col-md-3">
-                            <select id="manager_filter_select" name="filter_manager_id"
-                                class="form-select form-select-sm">
-                                <option value="">-- Người quản lý --</option>
-                                {% for user in users %}
-                                <option value="{{ user.id }}" {% if filter_manager_id==user.id|string %}selected{% endif
-                                    %}>{{ user.full_name or user.username }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <select name="filter_department" class="form-select form-select-sm">
-                                <option value="">-- Phòng ban --</option>
-                                {% for dept in departments %}
-                                <option value="{{ dept }}" {% if filter_department==dept %}selected{% endif %}>{{ dept
-                                    }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
+                    <input type="hidden" name="filter_device_type" value="{{ filter_device_type }}">
+                    <input type="hidden" name="filter_status" value="{{ filter_status }}">
+                    <input type="hidden" name="filter_manager_id" value="{{ filter_manager_id }}">
+                    <input type="hidden" name="filter_department" value="{{ filter_department }}">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="search" name="q" class="form-control"
+                            placeholder="Tìm nhanh theo mã thiết bị, tên thiết bị, người quản lý"
+                            value="{{ filter_q or '' }}">
+                        <button type="submit" class="btn btn-primary">Tìm</button>
+                        <a href="{{ url_for('device_list') }}" class="btn btn-outline-secondary">Reset</a>
                     </div>
                 </form>
                 <form id="saveFiltersForm" method="POST" action="{{ url_for('save_device_filters') }}" class="d-none">
@@ -223,7 +191,21 @@
                                     <th>Mã thiết bị</th>
                                     <th style="max-width: 250px;">Tên thiết bị</th>
                                     <!-- Device Type removed from column or simplified -->
-                                    <th class="text-center">Loại</th>
+                                    <th class="text-center" style="white-space: nowrap;">
+                                        <strong>Loại thiết bị</strong>
+                                        <button type="button"
+                                            class="btn btn-sm {% if filter_device_type %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+                                            data-bs-toggle="dropdown" title="Lọc loại thiết bị">
+                                            <i class="bi bi-funnel"></i>
+                                        </button>
+                                        <div class="dropdown-menu p-2 shadow" style="width: 240px; max-height: 320px; overflow-y: auto;">
+                                            <a class="dropdown-item" href="javascript:filterByParam('filter_device_type', '')">-- Tất cả --</a>
+                                            {% for type in device_types %}
+                                            <a class="dropdown-item {% if filter_device_type == type %}active{% endif %}"
+                                                href="javascript:filterByParam('filter_device_type', '{{ type }}')">{{ type }}</a>
+                                            {% endfor %}
+                                        </div>
+                                    </th>
                                     <th class="text-center" style="white-space: nowrap;">
                                         <strong>Người quản lý</strong>
                                         <button type="button"
@@ -252,6 +234,18 @@
                                     </th>
                                     <th class="text-center" style="white-space: nowrap;">
                                         <strong>Trạng thái</strong>
+                                        <button type="button"
+                                            class="btn btn-sm {% if filter_status %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
+                                            data-bs-toggle="dropdown" title="Lọc trạng thái">
+                                            <i class="bi bi-funnel"></i>
+                                        </button>
+                                        <div class="dropdown-menu p-2 shadow" style="width: 220px;">
+                                            <a class="dropdown-item" href="javascript:filterByParam('filter_status', '')">-- Tất cả --</a>
+                                            {% for status in statuses %}
+                                            <a class="dropdown-item {% if filter_status == status %}active{% endif %}"
+                                                href="javascript:filterByParam('filter_status', '{{ status }}')">{{ status }}</a>
+                                            {% endfor %}
+                                        </div>
                                     </th>
                                     <th class="text-center">Cấu hình</th>
                                     <th class="text-center">Hành động</th>
@@ -294,6 +288,9 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-center text-nowrap">
+                                        <a href="{{ url_for('device_detail', device_id=device.id) }}"
+                                            class="btn btn-sm btn-outline-primary" title="Xem chi tiết"><i
+                                                class="bi bi-eye"></i></a>
                                         {% if current_permissions and 'devices.edit' in current_permissions %}
                                         <a href="{{ url_for('edit_device', device_id=device.id) }}"
                                             class="btn btn-sm btn-outline-warning" title="Sửa"><i
@@ -430,7 +427,7 @@
                 'filter_device_type':
                 filter_device_type, 'filter_status': filter_status, 'filter_manager_id': filter_manager_id,
                 'filter_department':
-                filter_department, 'filter_category': filter_category} %}
+                filter_department, 'filter_category': filter_category, 'q': filter_q} %}
                 {{ render_pagination(devices, 'device_list', filters) }}
             </div>
         </div>
@@ -450,6 +447,33 @@
 
     .devices-page .card-body {
         padding: 1rem;
+    }
+
+    .devices-sidebar-col,
+    .devices-main-col {
+        transition: flex-basis .18s ease, max-width .18s ease;
+    }
+
+    .devices-page.sidebar-collapsed .devices-sidebar-col {
+        flex: 0 0 58px;
+        max-width: 58px;
+    }
+
+    .devices-page.sidebar-collapsed .devices-main-col {
+        flex: 0 0 calc(100% - 58px);
+        max-width: calc(100% - 58px);
+    }
+
+    .devices-page.sidebar-collapsed .devices-sidebar-card .card-title {
+        display: none;
+    }
+
+    .devices-sidebar-card .card-header .bi-chevron-down {
+        transition: transform .18s ease;
+    }
+
+    .devices-page.sidebar-collapsed .devices-sidebar-card .card-header .bi-chevron-down {
+        transform: rotate(-90deg);
     }
 
     .devices-page .card-header h5 {
@@ -487,6 +511,10 @@
         margin-left: 0 !important;
     }
 
+    .devices-quick-search {
+        max-width: 720px;
+    }
+
     .devices-table-wrap {
         overflow-x: visible;
     }
@@ -521,7 +549,7 @@
     .devices-table td:nth-child(4) { width: 22%; }
 
     .devices-table th:nth-child(5),
-    .devices-table td:nth-child(5) { width: 118px; text-align: center; }
+    .devices-table td:nth-child(5) { width: 134px; text-align: center; }
 
     .devices-table th:nth-child(6),
     .devices-table td:nth-child(6) { width: 150px; text-align: center; }
@@ -533,7 +561,7 @@
     .devices-table td:nth-child(8) { width: 74px; text-align: center; }
 
     .devices-table th:nth-child(9),
-    .devices-table td:nth-child(9) { width: 122px; text-align: center; }
+    .devices-table td:nth-child(9) { width: 150px; text-align: center; }
 
     .devices-table td:nth-child(4) > div,
     .devices-table td:nth-child(6) {
@@ -607,6 +635,9 @@
         } else {
             url.searchParams.delete(param);
         }
+        if (param === 'filter_device_type') {
+            url.searchParams.delete('filter_category');
+        }
         url.searchParams.set('page', 1);
         window.location.href = url.toString();
     }
@@ -620,6 +651,13 @@
         });
         $('#bulk_manager_select').select2({ theme: 'bootstrap-5', placeholder: 'Không đổi', allowClear: true });
         $('#select_all').on('change', function () { $('.row_checkbox').prop('checked', this.checked); });
+
+        const categoryPanel = document.getElementById('deviceCategoryPanel');
+        const devicesPage = document.querySelector('.devices-page');
+        if (categoryPanel && devicesPage) {
+            categoryPanel.addEventListener('hidden.bs.collapse', () => devicesPage.classList.add('sidebar-collapsed'));
+            categoryPanel.addEventListener('shown.bs.collapse', () => devicesPage.classList.remove('sidebar-collapsed'));
+        }
     });
 
     function updateAndSubmitSaveFilters() {

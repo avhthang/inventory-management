@@ -2955,16 +2955,16 @@ def device_list():
     filter_manager_id = request.args.get('filter_manager_id')
     filter_department = request.args.get('filter_department')
     filter_category = request.args.get('filter_category') # New Category Filter
+    filter_q = request.args.get('q', '').strip()
 
     if filter_device_code is None or filter_device_code == '':
         filter_device_code = saved_filters.get('filter_device_code', '')
     if filter_name is None or filter_name == '':
         filter_name = saved_filters.get('filter_name', '')
-    if filter_device_type is None or filter_device_type == '':
-        filter_device_type = saved_filters.get('filter_device_type', '')
-    if filter_status is None or filter_status == '':
-        # prefer saved filters; fallback to legacy default status
-        filter_status = saved_filters.get('filter_status', session.get('default_device_status', ''))
+    if filter_device_type is None:
+        filter_device_type = ''
+    if filter_status is None:
+        filter_status = ''
     if filter_manager_id is None or filter_manager_id == '':
         filter_manager_id = saved_filters.get('filter_manager_id', '')
     if filter_department is None or filter_department == '':
@@ -2992,6 +2992,16 @@ def device_list():
         query = query.filter(Device.device_code.ilike(f'%{filter_device_code}%'))
     if filter_name:
         query = query.filter(Device.name.ilike(f'%{filter_name}%'))
+    if filter_q:
+        like_q = f'%{filter_q}%'
+        query = query.filter(or_(
+            Device.device_code.ilike(like_q),
+            Device.name.ilike(like_q),
+            Device.manager.has(or_(
+                User.full_name.ilike(like_q),
+                User.username.ilike(like_q)
+            ))
+        ))
     # filter_device_type handled above
     if filter_status:
         query = query.filter_by(status=filter_status)
@@ -3036,6 +3046,7 @@ def device_list():
         filter_status=filter_status,
         filter_manager_id=filter_manager_id,
         filter_department=filter_department,
+        filter_q=filter_q,
         filter_category=filter_category,
         device_hierarchy=device_hierarchy,
         primary_admin=primary_admin
