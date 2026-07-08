@@ -263,7 +263,8 @@ $(document).ready(function() {
         }
         const lines = String(configText).split(/\r?\n|;|,/);
         for (const line of lines) {
-            const match = line.match(/^\s*([^:：-]+)\s*[:：-]\s*(.+)\s*$/);
+            const cleanedLine = line.replace(/^\s*[-•]\s*/, '');
+            const match = cleanedLine.match(/^\s*([^:：]+)\s*[:：]\s*(.+)\s*$/);
             if (!match) {
                 continue;
             }
@@ -283,10 +284,10 @@ $(document).ready(function() {
         const specs = device.specs || {};
         const configText = device.configuration || '';
         const items = [];
-        const cpu = pickConfigValue(configText, ['cpu']) || specs.cpu;
+        const cpu = pickConfigValue(configText, ['cpu', 'chip']) || specs.cpu;
         const main = pickConfigValue(configText, ['main', 'mainboard', 'bo mạch', 'bo mach']) || specs.mainboard;
         const ram = pickConfigValue(configText, ['ram']) || (specs.ram_gb ? `${specs.ram_gb}GB` : '');
-        const ssd = pickConfigValue(configText, ['ssd']) || specs.ssd;
+        const ssd = pickConfigValue(configText, ['ssd', 'ổ cứng', 'o cung', 'disk', 'drive']) || specs.ssd;
         const hdd = pickConfigValue(configText, ['hdd']) || specs.hdd;
         const vga = pickConfigValue(configText, ['vga', 'card màn hình', 'card man hinh', 'gpu']) || specs.vga;
         const networkCard = pickConfigValue(configText, ['card mạng', 'card mang', 'lan', 'network']) || specs.network_card;

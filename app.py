@@ -994,7 +994,8 @@ def _pick_config_value(config_text, keys):
     if not config_text:
         return None
     for line in re.split(r'\r?\n|;', str(config_text)):
-        match = re.match(r'^\s*([^:：-]+)\s*[:：-]\s*(.+?)\s*$', line)
+        cleaned_line = re.sub(r'^\s*[-•]\s*', '', line)
+        match = re.match(r'^\s*([^:：]+)\s*[:：]\s*(.+?)\s*$', cleaned_line)
         if not match:
             continue
         key = match.group(1).strip().lower()
@@ -1005,10 +1006,10 @@ def _pick_config_value(config_text, keys):
 
 def _device_pc_specs_from_config_text(config_text):
     return {
-        'cpu': _pick_config_value(config_text, ['cpu']),
+        'cpu': _pick_config_value(config_text, ['cpu', 'chip']),
         'mainboard': _pick_config_value(config_text, ['main', 'mainboard', 'bo mạch', 'bo mach']),
         'ram_gb': _parse_ram_gb(_pick_config_value(config_text, ['ram'])),
-        'ssd': _pick_config_value(config_text, ['ssd']),
+        'ssd': _pick_config_value(config_text, ['ssd', 'ổ cứng', 'o cung', 'disk', 'drive']),
         'hdd': _pick_config_value(config_text, ['hdd']),
         'vga': _pick_config_value(config_text, ['vga', 'card màn hình', 'card man hinh', 'gpu']),
         'wifi_card': _pick_config_value(config_text, ['wifi', 'wi-fi']),
