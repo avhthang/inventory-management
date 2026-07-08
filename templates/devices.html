@@ -9,13 +9,13 @@
     <!-- Sidebar -->
     <div class="col-lg-2 col-md-3 devices-sidebar-col">
         <div class="card mb-3 devices-sidebar-card">
-            <button class="card-header bg-light border-0 text-start w-100 d-flex justify-content-between align-items-center"
-                type="button" data-bs-toggle="collapse" data-bs-target="#deviceCategoryPanel"
-                aria-expanded="true" aria-controls="deviceCategoryPanel">
+            <button id="deviceSidebarToggle"
+                class="card-header bg-light border-0 text-start w-100 d-flex justify-content-between align-items-center"
+                type="button" aria-expanded="true" aria-controls="deviceCategoryPanel">
                 <h5 class="card-title mb-0"><i class="bi bi-list-ul"></i> Danh mục thiết bị</h5>
                 <i class="bi bi-chevron-down"></i>
             </button>
-            <div id="deviceCategoryPanel" class="collapse show">
+            <div id="deviceCategoryPanel">
             <div class="list-group list-group-flush">
                 <a href="{{ url_for('device_list') }}"
                     class="list-group-item list-group-item-action {% if not filter_category and not filter_device_type %}active{% endif %}">
@@ -199,33 +199,27 @@
                                         <strong>Loại thiết bị</strong>
                                         <button type="button"
                                             class="btn btn-sm {% if filter_device_types %}btn-success text-white{% else %}btn-link{% endif %} p-0 ms-1"
-                                            data-bs-toggle="dropdown" title="Lọc loại thiết bị">
+                                            data-bs-toggle="dropdown" data-bs-auto-close="outside" title="Lọc loại thiết bị">
                                             <i class="bi bi-funnel"></i>
                                         </button>
-                                        <div class="dropdown-menu p-2 shadow" style="width: 260px;">
-                                            <form method="GET" action="{{ url_for('device_list') }}">
-                                                {% for key, values in request.args.lists() %}
-                                                {% if key not in ['filter_device_type', 'page'] %}
-                                                {% for value in values %}
-                                                <input type="hidden" name="{{ key }}" value="{{ value }}">
-                                                {% endfor %}
-                                                {% endif %}
-                                                {% endfor %}
-                                                <div class="small text-muted mb-2">Chọn một hoặc nhiều loại</div>
-                                                <div style="max-height: 240px; overflow-y: auto;">
+                                        <div class="dropdown-menu p-2 shadow device-type-filter-menu" style="width: 280px;">
+                                            <div class="form-check small mb-2">
+                                                <input class="form-check-input" type="checkbox" id="deviceTypeSelectAll">
+                                                <label class="form-check-label fw-semibold" for="deviceTypeSelectAll">Chọn tất cả</label>
+                                            </div>
+                                            <div class="border-top pt-2" style="max-height: 240px; overflow-y: auto;">
                                             {% for type in device_types %}
                                                     <label class="dropdown-item d-flex align-items-center gap-2 mb-0">
-                                                        <input type="checkbox" name="filter_device_type" value="{{ type }}"
+                                                        <input type="checkbox" class="form-check-input device-type-filter-option" value="{{ type }}"
                                                             {% if type in filter_device_types %}checked{% endif %}>
                                                         <span>{{ type }}</span>
                                                     </label>
                                             {% endfor %}
-                                                </div>
-                                                <div class="d-flex gap-2 mt-2">
-                                                    <button type="submit" class="btn btn-primary btn-sm flex-fill">Áp dụng</button>
-                                                    <a class="btn btn-outline-secondary btn-sm" href="javascript:clearDeviceTypeFilter()">Tất cả</a>
-                                                </div>
-                                            </form>
+                                            </div>
+                                            <div class="d-flex gap-2 mt-2">
+                                                <button type="button" class="btn btn-primary btn-sm flex-fill" onclick="applyDeviceTypeFilter()">Áp dụng</button>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearDeviceTypeFilter()">Bỏ lọc</button>
+                                            </div>
                                         </div>
                                     </th>
                                     <th class="text-center" style="white-space: nowrap;">
@@ -477,13 +471,27 @@
     }
 
     .devices-page.sidebar-collapsed .devices-sidebar-col {
-        flex: 0 0 170px;
-        max-width: 170px;
+        flex: 0 0 54px;
+        max-width: 54px;
     }
 
     .devices-page.sidebar-collapsed .devices-main-col {
-        flex: 0 0 calc(100% - 170px);
-        max-width: calc(100% - 170px);
+        flex: 0 0 calc(100% - 54px);
+        max-width: calc(100% - 54px);
+    }
+
+    .devices-page.sidebar-collapsed #deviceCategoryPanel {
+        display: none;
+    }
+
+    .devices-page.sidebar-collapsed .devices-sidebar-card .card-header {
+        justify-content: center !important;
+        padding-left: .5rem;
+        padding-right: .5rem;
+    }
+
+    .devices-page.sidebar-collapsed .devices-sidebar-card .card-title {
+        display: none;
     }
 
     .devices-sidebar-card .card-header .bi-chevron-down {
@@ -492,6 +500,11 @@
 
     .devices-page.sidebar-collapsed .devices-sidebar-card .card-header .bi-chevron-down {
         transform: rotate(-90deg);
+    }
+
+    #deviceTypeSelectAll:indeterminate {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
     }
 
     .devices-page .card-header h5 {
@@ -665,6 +678,29 @@
         window.location.href = url.toString();
     }
 
+    function getDeviceTypeFilterOptions() {
+        return Array.from(document.querySelectorAll('.device-type-filter-option'));
+    }
+
+    function syncDeviceTypeSelectAll() {
+        const selectAll = document.getElementById('deviceTypeSelectAll');
+        const options = getDeviceTypeFilterOptions();
+        if (!selectAll || options.length === 0) return;
+        const checkedCount = options.filter(option => option.checked).length;
+        selectAll.checked = checkedCount === options.length;
+        selectAll.indeterminate = checkedCount > 0 && checkedCount < options.length;
+    }
+
+    function applyDeviceTypeFilter() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('filter_device_type');
+        getDeviceTypeFilterOptions()
+            .filter(option => option.checked)
+            .forEach(option => url.searchParams.append('filter_device_type', option.value));
+        url.searchParams.set('page', 1);
+        window.location.href = url.toString();
+    }
+
     $(document).ready(function () {
         // Kích hoạt Select2 cho bộ lọc người quản lý
         $('#manager_filter_select').select2({
@@ -675,12 +711,31 @@
         $('#bulk_manager_select').select2({ theme: 'bootstrap-5', placeholder: 'Không đổi', allowClear: true });
         $('#select_all').on('change', function () { $('.row_checkbox').prop('checked', this.checked); });
 
-        const categoryPanel = document.getElementById('deviceCategoryPanel');
+        const sidebarToggle = document.getElementById('deviceSidebarToggle');
         const devicesPage = document.querySelector('.devices-page');
-        if (categoryPanel && devicesPage) {
-            categoryPanel.addEventListener('hidden.bs.collapse', () => devicesPage.classList.add('sidebar-collapsed'));
-            categoryPanel.addEventListener('shown.bs.collapse', () => devicesPage.classList.remove('sidebar-collapsed'));
+        if (sidebarToggle && devicesPage) {
+            sidebarToggle.addEventListener('click', function () {
+                const collapsed = devicesPage.classList.toggle('sidebar-collapsed');
+                sidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            });
         }
+
+        const deviceTypeMenu = document.querySelector('.device-type-filter-menu');
+        if (deviceTypeMenu) {
+            deviceTypeMenu.addEventListener('click', event => event.stopPropagation());
+        }
+
+        const selectAll = document.getElementById('deviceTypeSelectAll');
+        if (selectAll) {
+            selectAll.addEventListener('change', function () {
+                getDeviceTypeFilterOptions().forEach(option => {
+                    option.checked = selectAll.checked;
+                });
+                selectAll.indeterminate = false;
+            });
+        }
+        getDeviceTypeFilterOptions().forEach(option => option.addEventListener('change', syncDeviceTypeSelectAll));
+        syncDeviceTypeSelectAll();
     });
 
     function updateAndSubmitSaveFilters() {
