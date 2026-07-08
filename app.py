@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
-from sqlalchemy import or_, func, event, text, inspect
+from sqlalchemy import or_, func, event, text, inspect, case
 from sqlalchemy.exc import OperationalError
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -2993,6 +2993,8 @@ def device_list():
     # filter_device_type handled above
     if filter_status:
         query = query.filter_by(status=filter_status)
+    else:
+        query = query.filter(Device.status != CONVERTED_CONSUMABLE_STATUS)
     manager_filter_id = None
     if filter_manager_id:
         try:
@@ -3009,7 +3011,7 @@ def device_list():
     
     devices_pagination = query.order_by(Device.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
-    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn']
+    statuses = ['Sẵn sàng', 'Đã cấp phát', 'Bảo trì', 'Hỏng', 'Thanh lý', 'Test', 'Mượn', CONVERTED_CONSUMABLE_STATUS]
     users = _visible_users_query_for(user).all()
     if manager_filter_id is not None and all(u.id != manager_filter_id for u in users):
         extra_user = User.query.get(manager_filter_id)
@@ -7327,6 +7329,27 @@ def _format_vietnam_datetime(value, fmt='%d-%m-%Y %H:%M'):
         value = value.astimezone(VIETNAM_TZ)
     return value.strftime(fmt)
 
+CONVERTED_CONSUMABLE_STATUS = 'Đã chuyển tiêu hao'
+
+def _consumable_code_base_from_device_type(device_type):
+    prefix = _get_device_type_code_prefix(device_type)
+    if prefix:
+        return prefix
+    ascii_code = re.sub(r'[^A-Za-z0-9]+', '', device_type or '').upper()
+    if ascii_code:
+        return ascii_code[:20]
+    return 'TH'
+
+def _unique_consumable_code(base_code):
+    base_code = (base_code or 'TH').strip().upper()[:20]
+    code = base_code
+    counter = 1
+    while ConsumableItem.query.filter(func.upper(ConsumableItem.code) == code).first():
+        suffix = str(counter)
+        code = f"{base_code[:20-len(suffix)]}{suffix}"
+        counter += 1
+    return code
+
 def _record_consumable_transaction(item, transaction_type, quantity, *, issued_to_id=None, reason='', notes=''):
     before_quantity = item.current_quantity or 0
     if transaction_type == 'Nhập':
@@ -7362,6 +7385,33 @@ def _consumable_categories():
     rows = db.session.query(ConsumableItem.category).filter(ConsumableItem.category != None).distinct().all()
     categories = sorted([row[0] for row in rows if row[0]])
     return categories or ['Thiết bị tiêu hao']
+
+def _consumable_convert_candidates():
+    rows = db.session.query(
+        Device.device_type,
+        func.count(Device.id).label('total'),
+        func.sum(
+            case((Device.manager_id != None, 1), else_=0)
+        ).label('assigned')
+    ).filter(Device.status != CONVERTED_CONSUMABLE_STATUS)\
+     .group_by(Device.device_type)\
+     .order_by(func.lower(Device.device_type))\
+     .all()
+    candidates = []
+    for row in rows:
+        device_type = row[0]
+        total = int(row[1] or 0)
+        assigned = int(row[2] or 0)
+        available = max(0, total - assigned)
+        candidates.append({
+            'device_type': device_type,
+            'total': total,
+            'assigned': assigned,
+            'available': available,
+            'suggested_code': _consumable_code_base_from_device_type(device_type),
+            'existing_item': ConsumableItem.query.filter(func.lower(ConsumableItem.name) == device_type.lower()).first()
+        })
+    return candidates
 
 @app.route('/consumables')
 def consumable_list():
@@ -7406,6 +7456,94 @@ def consumable_list():
         low_stock=low_stock,
         can_edit=_require_device_permission('devices.edit')
     )
+
+@app.route('/consumables/convert', methods=['GET', 'POST'])
+def convert_devices_to_consumables():
+    if not _require_device_permission('devices.edit'):
+        flash('Bạn không có quyền chuyển đổi thiết bị tiêu hao.', 'danger')
+        return redirect(url_for('consumable_list'))
+
+    if request.method == 'POST':
+        selected_types = [t.strip() for t in request.form.getlist('device_types') if t.strip()]
+        if not selected_types:
+            flash('Vui lòng chọn ít nhất một loại thiết bị cần chuyển đổi.', 'warning')
+            return redirect(url_for('convert_devices_to_consumables'))
+
+        converted_devices = 0
+        converted_types = 0
+        try:
+            for device_type in selected_types:
+                devices = Device.query.filter(
+                    Device.device_type == device_type,
+                    Device.status != CONVERTED_CONSUMABLE_STATUS
+                ).order_by(Device.id).all()
+                if not devices:
+                    continue
+
+                item = ConsumableItem.query.filter(func.lower(ConsumableItem.name) == device_type.lower()).first()
+                if not item:
+                    item = ConsumableItem(
+                        code=_unique_consumable_code(_consumable_code_base_from_device_type(device_type)),
+                        name=device_type,
+                        category='Thiết bị tiêu hao',
+                        unit='cái',
+                        current_quantity=0,
+                        min_quantity=0,
+                        location='Kho IT',
+                        notes=f'Tự tạo khi chuyển đổi từ danh mục thiết bị ngày {get_now().strftime("%d-%m-%Y")}.'
+                    )
+                    db.session.add(item)
+                    db.session.flush()
+
+                total_quantity = len(devices)
+                _record_consumable_transaction(
+                    item,
+                    'Nhập',
+                    total_quantity,
+                    reason=f'Chuyển đổi từ danh mục thiết bị: {device_type}',
+                    notes='Gom các thiết bị cũ thành tồn kho tiêu hao.'
+                )
+
+                issued_by_user = {}
+                for device in devices:
+                    if device.manager_id:
+                        issued_by_user[device.manager_id] = issued_by_user.get(device.manager_id, 0) + 1
+
+                for receiver_id, quantity in issued_by_user.items():
+                    _record_consumable_transaction(
+                        item,
+                        'Xuất',
+                        quantity,
+                        issued_to_id=receiver_id,
+                        reason='Chuyển đổi thiết bị đã bàn giao',
+                        notes=f'Tự tạo từ {quantity} thiết bị cũ loại {device_type}.'
+                    )
+
+                stamp = get_now().strftime('%d-%m-%Y %H:%M')
+                for device in devices:
+                    old_status = device.status
+                    device.status = CONVERTED_CONSUMABLE_STATUS
+                    note_line = f'[{stamp}] Đã chuyển sang thiết bị tiêu hao: {item.code} - {item.name}. Trạng thái cũ: {old_status}.'
+                    device.notes = f"{device.notes}\n{note_line}" if device.notes else note_line
+
+                converted_devices += total_quantity
+                converted_types += 1
+
+            db.session.commit()
+            flash(f'Đã chuyển đổi {converted_devices} thiết bị thuộc {converted_types} loại sang thiết bị tiêu hao.', 'success')
+            return redirect(url_for('consumable_list'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Không thể chuyển đổi: {str(e)}', 'danger')
+            return redirect(url_for('convert_devices_to_consumables'))
+
+    candidates = _consumable_convert_candidates()
+    likely_keywords = ['dây', 'cáp', 'usb', 'đầu chuyển', 'module', 'quang', 'adapter', 'sạc', 'chuột', 'bàn phím']
+    for candidate in candidates:
+        name = (candidate['device_type'] or '').lower()
+        candidate['suggested'] = any(keyword in name for keyword in likely_keywords)
+
+    return render_template('convert_consumables.html', candidates=candidates)
 
 @app.route('/consumables/add', methods=['POST'])
 def add_consumable():
