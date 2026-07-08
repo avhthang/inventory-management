@@ -284,7 +284,7 @@ $(document).ready(function() {
         const configText = device.configuration || '';
         const items = [];
         const cpu = pickConfigValue(configText, ['cpu']) || specs.cpu;
-        const main = pickConfigValue(configText, ['main', 'mainboard', 'bo mạch', 'bo mach']);
+        const main = pickConfigValue(configText, ['main', 'mainboard', 'bo mạch', 'bo mach']) || specs.mainboard;
         const ram = pickConfigValue(configText, ['ram']) || (specs.ram_gb ? `${specs.ram_gb}GB` : '');
         const ssd = pickConfigValue(configText, ['ssd']) || specs.ssd;
         const hdd = pickConfigValue(configText, ['hdd']) || specs.hdd;
@@ -308,7 +308,7 @@ $(document).ready(function() {
         if (other) items.push(['Linh kiện khác', other]);
 
         if (!items.length && configText.trim()) {
-            items.push(['Cấu hình khác', configText.trim()]);
+            items.push(['Thông tin khác', configText.trim()]);
         }
         return items;
     }

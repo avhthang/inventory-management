@@ -751,6 +751,7 @@ def migrate_missing_columns_v3():
                 _add_col_if_missing('device', 'supplier', 'VARCHAR(150)')
                 _add_col_if_missing('device', 'warranty', 'VARCHAR(50)')
                 _add_col_if_missing('device', 'image_filename', 'VARCHAR(255)')
+                _add_col_if_missing('device', 'mainboard', 'VARCHAR(120)')
 
                 # device_handover
                 _add_col_if_missing('device_handover', 'batch_id', 'VARCHAR(64)')
@@ -961,6 +962,7 @@ class Device(db.Model):
     supplier = db.Column(db.String(150))
     warranty = db.Column(db.String(50))
     cpu = db.Column(db.String(120))
+    mainboard = db.Column(db.String(120))
     ram_gb = db.Column(db.Integer)
     ssd = db.Column(db.String(120))
     hdd = db.Column(db.String(120))
@@ -973,6 +975,7 @@ class Device(db.Model):
 
 DEVICE_PC_SPEC_FIELDS = {
     'cpu': 'CPU',
+    'mainboard': 'Main',
     'ram_gb': 'RAM (GB)',
     'ssd': 'SSD',
     'hdd': 'HDD',
@@ -987,15 +990,42 @@ def _parse_ram_gb(value):
     match = re.search(r'\d+', str(value))
     return int(match.group(0)) if match else None
 
-def _device_pc_specs_from_form():
+def _pick_config_value(config_text, keys):
+    if not config_text:
+        return None
+    for line in re.split(r'\r?\n|;', str(config_text)):
+        match = re.match(r'^\s*([^:：-]+)\s*[:：-]\s*(.+?)\s*$', line)
+        if not match:
+            continue
+        key = match.group(1).strip().lower()
+        value = match.group(2).strip()
+        if value and any(token in key for token in keys):
+            return value
+    return None
+
+def _device_pc_specs_from_config_text(config_text):
     return {
-        'cpu': (request.form.get('cpu') or '').strip() or None,
-        'ram_gb': _parse_ram_gb(request.form.get('ram_gb')),
-        'ssd': (request.form.get('ssd') or '').strip() or None,
-        'hdd': (request.form.get('hdd') or '').strip() or None,
-        'vga': (request.form.get('vga') or '').strip() or None,
-        'wifi_card': (request.form.get('wifi_card') or '').strip() or None,
-        'network_card': (request.form.get('network_card') or '').strip() or None,
+        'cpu': _pick_config_value(config_text, ['cpu']),
+        'mainboard': _pick_config_value(config_text, ['main', 'mainboard', 'bo mạch', 'bo mach']),
+        'ram_gb': _parse_ram_gb(_pick_config_value(config_text, ['ram'])),
+        'ssd': _pick_config_value(config_text, ['ssd']),
+        'hdd': _pick_config_value(config_text, ['hdd']),
+        'vga': _pick_config_value(config_text, ['vga', 'card màn hình', 'card man hinh', 'gpu']),
+        'wifi_card': _pick_config_value(config_text, ['wifi', 'wi-fi']),
+        'network_card': _pick_config_value(config_text, ['card mạng', 'card mang', 'lan', 'network']),
+    }
+
+def _device_pc_specs_from_form():
+    config_specs = _device_pc_specs_from_config_text(request.form.get('configuration'))
+    return {
+        'cpu': (request.form.get('cpu') or '').strip() or config_specs.get('cpu') or None,
+        'mainboard': (request.form.get('mainboard') or '').strip() or config_specs.get('mainboard') or None,
+        'ram_gb': _parse_ram_gb(request.form.get('ram_gb')) or config_specs.get('ram_gb'),
+        'ssd': (request.form.get('ssd') or '').strip() or config_specs.get('ssd') or None,
+        'hdd': (request.form.get('hdd') or '').strip() or config_specs.get('hdd') or None,
+        'vga': (request.form.get('vga') or '').strip() or config_specs.get('vga') or None,
+        'wifi_card': (request.form.get('wifi_card') or '').strip() or config_specs.get('wifi_card') or None,
+        'network_card': (request.form.get('network_card') or '').strip() or config_specs.get('network_card') or None,
     }
 
 DEVICE_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
@@ -1069,14 +1099,16 @@ def _delete_handover_condition_images(image_filenames):
             pass
 
 def _device_pc_specs_from_row(row):
+    config_specs = _device_pc_specs_from_config_text(_cell_text(row.get('Cấu hình')))
     return {
-        'cpu': _cell_text(row.get('CPU')) or None,
-        'ram_gb': _parse_ram_gb(row.get('RAM (GB)')),
-        'ssd': _cell_text(row.get('SSD')) or None,
-        'hdd': _cell_text(row.get('HDD')) or None,
-        'vga': _cell_text(row.get('VGA')) or None,
-        'wifi_card': _cell_text(row.get('Card Wi-Fi')) or None,
-        'network_card': _cell_text(row.get('Card mạng')) or None,
+        'cpu': _cell_text(row.get('CPU')) or config_specs.get('cpu') or None,
+        'mainboard': _cell_text(row.get('Main')) or _cell_text(row.get('Mainboard')) or config_specs.get('mainboard') or None,
+        'ram_gb': _parse_ram_gb(row.get('RAM (GB)')) or config_specs.get('ram_gb'),
+        'ssd': _cell_text(row.get('SSD')) or config_specs.get('ssd') or None,
+        'hdd': _cell_text(row.get('HDD')) or config_specs.get('hdd') or None,
+        'vga': _cell_text(row.get('VGA')) or config_specs.get('vga') or None,
+        'wifi_card': _cell_text(row.get('Card Wi-Fi')) or config_specs.get('wifi_card') or None,
+        'network_card': _cell_text(row.get('Card mạng')) or config_specs.get('network_card') or None,
     }
 
 class DeviceMaintenanceLog(db.Model):
@@ -1668,10 +1700,9 @@ def sync_device_type_prefixes():
                 ))
         else:
             for dt in DeviceType.query.all():
-                if not dt.code_prefix:
-                    default_prefix = defaults.get(dt.name)
-                    if default_prefix:
-                        dt.code_prefix = default_prefix
+                default_prefix = defaults.get(dt.name)
+                if default_prefix and (not dt.code_prefix or dt.name in {'Case máy tính', 'Màn hình', 'Màn hình máy tính'}):
+                    dt.code_prefix = default_prefix
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -3345,6 +3376,7 @@ def edit_device(device_id):
             'warranty': device.warranty,
             'configuration': device.configuration,
             'cpu': device.cpu,
+            'mainboard': device.mainboard,
             'ram_gb': device.ram_gb,
             'ssd': device.ssd,
             'hdd': device.hdd,
@@ -3413,6 +3445,7 @@ def edit_device(device_id):
             'warranty': device.warranty,
             'configuration': device.configuration,
             'cpu': device.cpu,
+            'mainboard': device.mainboard,
             'ram_gb': device.ram_gb,
             'ssd': device.ssd,
             'hdd': device.hdd,
@@ -3843,6 +3876,7 @@ def add_handover():
         'configuration': device.configuration or '',
         'specs': {
             'cpu': device.cpu or '',
+            'mainboard': device.mainboard or '',
             'ram_gb': device.ram_gb,
             'ssd': device.ssd or '',
             'hdd': device.hdd or '',
@@ -4604,7 +4638,7 @@ def export_devices_excel():
             'Trạng thái': device.status, 'Người quản lý': device.manager.full_name if device.manager else '',
             'Ngày cấp phát': device.assign_date.strftime('%d-%m-%Y') if device.assign_date else '',
             'Cấu hình': device.configuration or '', 'Ghi chú': device.notes or '',
-            'CPU': device.cpu or '', 'RAM (GB)': device.ram_gb or '', 'SSD': device.ssd or '',
+            'CPU': device.cpu or '', 'Main': device.mainboard or '', 'RAM (GB)': device.ram_gb or '', 'SSD': device.ssd or '',
             'HDD': device.hdd or '', 'VGA': device.vga or '', 'Card Wi-Fi': device.wifi_card or '',
             'Card mạng': device.network_card or '',
             'Người nhập': device.importer or '', 'Thương hiệu': device.brand or '', 'Nhà cung cấp': device.supplier or '',
