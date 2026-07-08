@@ -1093,7 +1093,7 @@ class ConsumableTransaction(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     before_quantity = db.Column(db.Integer, nullable=False, default=0)
     after_quantity = db.Column(db.Integer, nullable=False, default=0)
-    transaction_date = db.Column(db.DateTime, nullable=False, default=get_now)
+    transaction_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     issued_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     actor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     reason = db.Column(db.String(255))
@@ -7324,10 +7324,13 @@ def _format_vietnam_datetime(value, fmt='%d-%m-%Y %H:%M'):
     if not value:
         return ''
     if value.tzinfo is None:
-        value = VIETNAM_TZ.localize(value)
-    else:
-        value = value.astimezone(VIETNAM_TZ)
+        value = pytz.utc.localize(value)
+    value = value.astimezone(VIETNAM_TZ)
     return value.strftime(fmt)
+
+@app.template_filter('vietnam_datetime')
+def vietnam_datetime_filter(value, fmt='%d-%m-%Y %H:%M'):
+    return _format_vietnam_datetime(value, fmt)
 
 CONVERTED_CONSUMABLE_STATUS = 'Đã chuyển tiêu hao'
 
@@ -7372,7 +7375,7 @@ def _record_consumable_transaction(item, transaction_type, quantity, *, issued_t
         quantity=quantity,
         before_quantity=before_quantity,
         after_quantity=after_quantity,
-        transaction_date=get_now(),
+        transaction_date=datetime.utcnow(),
         issued_to_id=issued_to_id,
         actor_id=session.get('user_id'),
         reason=reason,
@@ -7421,6 +7424,8 @@ def consumable_list():
 
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
+    tx_page = request.args.get('tx_page', 1, type=int)
+    tx_per_page = request.args.get('tx_per_page', 20, type=int)
     q = (request.args.get('q') or '').strip()
     category = (request.args.get('category') or '').strip()
     low_stock = request.args.get('low_stock') == '1'
@@ -7434,7 +7439,8 @@ def consumable_list():
         query = query.filter(ConsumableItem.current_quantity <= ConsumableItem.min_quantity)
 
     items = query.order_by(func.lower(ConsumableItem.name)).paginate(page=page, per_page=per_page, error_out=False)
-    transactions = ConsumableTransaction.query.order_by(ConsumableTransaction.transaction_date.desc()).limit(80).all()
+    transactions = ConsumableTransaction.query.order_by(ConsumableTransaction.transaction_date.desc())\
+        .paginate(page=tx_page, per_page=tx_per_page, error_out=False)
     users = User.query.filter(User.status.notin_(['Nghỉ việc', 'Nghỉ không lương']))\
         .order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     stats = {
@@ -7454,6 +7460,8 @@ def consumable_list():
         q=q,
         category=category,
         low_stock=low_stock,
+        tx_page=tx_page,
+        tx_per_page=tx_per_page,
         can_edit=_require_device_permission('devices.edit')
     )
 
@@ -7706,7 +7714,7 @@ def export_consumables_excel():
         pd.DataFrame([{
             'Mã': item.code,
             'Tên thiết bị tiêu hao': item.name,
-            'Nhóm': item.category,
+            'Loại vật tư': item.category,
             'Đơn vị': item.unit,
             'Tồn kho': item.current_quantity,
             'Tồn tối thiểu': item.min_quantity,
