@@ -105,18 +105,11 @@
                                         value="{{ device.vga or '' }}" placeholder="VD: GTX 1660">
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label class="form-label">Card Wi-Fi</label>
-                                    <input type="text" name="wifi_card" class="form-control"
-                                        value="{{ device.wifi_card or '' }}" placeholder="VD: Intel AX200">
-                                </div>
-                            </div>
                             <div class="col-md-12">
                                 <div class="form-group mb-0">
                                     <label class="form-label">Card mạng</label>
                                     <input type="text" name="network_card" class="form-control"
-                                        value="{{ device.network_card or '' }}" placeholder="VD: Realtek 1GbE">
+                                        value="{{ device.network_card or device.wifi_card or '' }}" placeholder="VD: Realtek 1GbE, Intel AX200 Wi-Fi">
                                 </div>
                             </div>
                         </div>

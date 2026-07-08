@@ -361,13 +361,13 @@
                                             <tr><th>SSD</th><td>{{ device.ssd or '' }}</td></tr>
                                             <tr><th>HDD</th><td>{{ device.hdd or '' }}</td></tr>
                                             <tr><th>VGA</th><td>{{ device.vga or '' }}</td></tr>
-                                            <tr><th>Card Wi-Fi</th><td>{{ device.wifi_card or '' }}</td></tr>
-                                            <tr><th>Card mạng</th><td>{{ device.network_card or '' }}</td></tr>
+                                            <tr><th>Card mạng</th><td>{{ device.network_card or device.wifi_card or '' }}</td></tr>
                                         </tbody>
                                     </table>
                                 </div>
                                 {% endif %}
                                 {% if device.configuration %}
+                                <h6>Cấu hình chi tiết / Thông tin khác</h6>
                                 <pre
                                     style="white-space: pre-wrap; word-break: break-all;">{{ device.configuration }}</pre>
                                 {% endif %}

@@ -980,7 +980,6 @@ DEVICE_PC_SPEC_FIELDS = {
     'ssd': 'SSD',
     'hdd': 'HDD',
     'vga': 'VGA',
-    'wifi_card': 'Card Wi-Fi',
     'network_card': 'Card mạng',
 }
 
@@ -1036,8 +1035,8 @@ def _device_pc_specs_from_config_text(config_text):
         'ssd': ssd_value,
         'hdd': hdd_value,
         'vga': _pick_config_value(config_text, ['vga', 'card màn hình', 'card man hinh', 'gpu']),
-        'wifi_card': _pick_config_value(config_text, ['wifi', 'wi-fi']),
-        'network_card': _pick_config_value(config_text, ['card mạng', 'card mang', 'lan', 'network']),
+        'wifi_card': None,
+        'network_card': _pick_config_value(config_text, ['card mạng', 'card mang', 'lan', 'network', 'wifi', 'wi-fi']),
     }
 
 def _device_pc_specs_from_form():
@@ -1049,8 +1048,8 @@ def _device_pc_specs_from_form():
         'ssd': (request.form.get('ssd') or '').strip() or config_specs.get('ssd') or None,
         'hdd': (request.form.get('hdd') or '').strip() or config_specs.get('hdd') or None,
         'vga': (request.form.get('vga') or '').strip() or config_specs.get('vga') or None,
-        'wifi_card': (request.form.get('wifi_card') or '').strip() or config_specs.get('wifi_card') or None,
-        'network_card': (request.form.get('network_card') or '').strip() or config_specs.get('network_card') or None,
+        'wifi_card': None,
+        'network_card': (request.form.get('network_card') or '').strip() or (request.form.get('wifi_card') or '').strip() or config_specs.get('network_card') or None,
     }
 
 DEVICE_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
@@ -1132,8 +1131,8 @@ def _device_pc_specs_from_row(row):
         'ssd': _cell_text(row.get('SSD')) or config_specs.get('ssd') or None,
         'hdd': _cell_text(row.get('HDD')) or config_specs.get('hdd') or None,
         'vga': _cell_text(row.get('VGA')) or config_specs.get('vga') or None,
-        'wifi_card': _cell_text(row.get('Card Wi-Fi')) or config_specs.get('wifi_card') or None,
-        'network_card': _cell_text(row.get('Card mạng')) or config_specs.get('network_card') or None,
+        'wifi_card': None,
+        'network_card': _cell_text(row.get('Card mạng')) or _cell_text(row.get('Card Wi-Fi')) or config_specs.get('network_card') or None,
     }
 
 class DeviceMaintenanceLog(db.Model):
@@ -4664,8 +4663,8 @@ def export_devices_excel():
             'Ngày cấp phát': device.assign_date.strftime('%d-%m-%Y') if device.assign_date else '',
             'Cấu hình': device.configuration or '', 'Ghi chú': device.notes or '',
             'CPU': device.cpu or '', 'Main': device.mainboard or '', 'RAM (GB)': device.ram_gb or '', 'SSD': device.ssd or '',
-            'HDD': device.hdd or '', 'VGA': device.vga or '', 'Card Wi-Fi': device.wifi_card or '',
-            'Card mạng': device.network_card or '',
+            'HDD': device.hdd or '', 'VGA': device.vga or '',
+            'Card mạng': device.network_card or device.wifi_card or '',
             'Người nhập': device.importer or '', 'Thương hiệu': device.brand or '', 'Nhà cung cấp': device.supplier or '',
             'Bảo hành': device.warranty or ''
         })

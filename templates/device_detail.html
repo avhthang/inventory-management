@@ -153,12 +153,8 @@
                         <td>{{ device.vga or 'N/A' }}</td>
                     </tr>
                     <tr>
-                        <td><strong>Card Wi-Fi:</strong></td>
-                        <td>{{ device.wifi_card or 'N/A' }}</td>
-                    </tr>
-                    <tr>
                         <td><strong>Card mạng:</strong></td>
-                        <td>{{ device.network_card or 'N/A' }}</td>
+                        <td>{{ device.network_card or device.wifi_card or 'N/A' }}</td>
                     </tr>
                 </table>
                 {% endif %}

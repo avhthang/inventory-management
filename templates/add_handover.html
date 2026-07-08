@@ -303,8 +303,7 @@ $(document).ready(function() {
             if (!ssd && !hdd) ssd = driveValue;
         }
         const vga = pickConfigValue(configText, ['vga', 'card màn hình', 'card man hinh', 'gpu']) || specs.vga;
-        const networkCard = pickConfigValue(configText, ['card mạng', 'card mang', 'lan', 'network']) || specs.network_card;
-        const wifiCard = pickConfigValue(configText, ['wifi', 'wi-fi']) || specs.wifi_card;
+        const networkCard = pickConfigValue(configText, ['card mạng', 'card mang', 'lan', 'network', 'wifi', 'wi-fi']) || specs.network_card || specs.wifi_card;
         const other = pickConfigValue(configText, ['linh kiện khác', 'linh kien khac', 'khác', 'khac']);
 
         if (cpu) items.push(['CPU', cpu]);
@@ -318,7 +317,6 @@ $(document).ready(function() {
 
         if (vga) items.push(['Card màn hình', vga]);
         if (networkCard) items.push(['Card mạng', networkCard]);
-        if (wifiCard) items.push(['Card Wi-Fi', wifiCard]);
         if (other) items.push(['Linh kiện khác', other]);
 
         if (!items.length && configText.trim()) {
