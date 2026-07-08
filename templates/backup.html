@@ -38,23 +38,27 @@
         <!-- Tab 1: Backup & Management -->
         <div class="tab-pane fade show active" id="backup-management" role="tabpanel">
             <div class="row g-4">
-                <div class="col-lg-4">
+                <div class="col-lg-3">
                     <!-- Create Backup Section -->
                     <div class="card border-0 shadow-sm mb-4">
                         <div class="card-header bg-white border-0 py-3">
                             <h5 class="card-title mb-0 fw-bold">Sao lưu thủ công</h5>
                         </div>
                         <div class="card-body">
-                            <p class="text-muted small mb-4">Tạo một gói sao lưu <code>.bak</code> gồm dữ liệu hệ thống, dữ liệu ứng dụng và cấu hình. File sẽ xuất hiện trong danh sách bên phải để tải về hoặc dùng khôi phục.</p>
+                            <p class="text-muted small mb-4">Tạo một gói sao lưu <code>.bak</code> gồm dữ liệu hệ thống, dữ liệu ứng dụng và cấu hình.</p>
                             <form action="{{ url_for('backup_create') }}" method="POST">
                                 <button type="submit" class="btn btn-primary btn-lg w-100 py-3 shadow-sm rounded-3" {% if backup_task_active %}disabled{% endif %}>
                                     <i class="bi bi-cloud-download-fill me-2 text-white"></i> Tạo sao lưu ngay
                                 </button>
                             </form>
+                            <button class="btn btn-outline-secondary w-100 mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#advancedBackupConfig" aria-expanded="false">
+                                <i class="bi bi-sliders me-1"></i> Chức năng nâng cao
+                            </button>
                         </div>
                     </div>
 
                     <!-- Auto Backup Schedule -->
+                    <div class="collapse" id="advancedBackupConfig">
                     <div class="card border-0 shadow-sm">
                         <div class="card-header bg-white border-0 py-3">
                             <h5 class="card-title mb-0 fw-bold">Cấu hình sao lưu tự động</h5>
@@ -88,9 +92,10 @@
                             </form>
                         </div>
                     </div>
+                    </div>
                 </div>
 
-                <div class="col-lg-8">
+                <div class="col-lg-9">
                     <!-- Backup List -->
                     <div class="card border-0 shadow-sm">
                         <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
@@ -102,10 +107,10 @@
                                 <table class="table table-hover align-middle mb-0">
                                     <thead class="bg-light">
                                         <tr>
-                                            <th class="ps-4">Tên bản sao lưu</th>
-                                            <th>Kích thước</th>
-                                            <th>Thời gian tạo (GMT+7)</th>
-                                            <th class="text-end pe-4">Thao tác</th>
+                                            <th class="ps-4 text-center">Tên bản sao lưu</th>
+                                            <th class="text-center">Kích thước</th>
+                                            <th class="text-center">Thời gian tạo</th>
+                                            <th class="text-center pe-4">Hành động</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -122,13 +127,20 @@
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td>{{ (b.size/1024/1024)|round(2) }} MB</td>
-                                            <td class="text-muted small">{{ b.date }}</td>
-                                            <td class="text-end pe-4">
+                                            <td class="text-center">{{ (b.size/1024/1024)|round(2) }} MB</td>
+                                            <td class="text-muted small text-center text-nowrap">{{ b.date }}</td>
+                                            <td class="text-center pe-4">
                                                 <div class="btn-group">
                                                     <a href="{{ url_for('backup_download', filename=b.name) }}" class="btn btn-sm btn-outline-secondary" title="Tải về">
                                                         <i class="bi bi-download"></i>
                                                     </a>
+                                                    <form action="{{ url_for('backup_restore', filename=b.name) }}" method="POST" class="d-inline">
+                                                        <button type="submit" class="btn btn-sm btn-outline-warning border-start-0"
+                                                                {% if backup_task_active %}disabled{% endif %}
+                                                                onclick="return confirm('Khôi phục hệ thống về bản sao lưu này? Hệ thống sẽ tạo snapshot dự phòng trước khi khôi phục.')" title="Khôi phục">
+                                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                                        </button>
+                                                    </form>
                                                     <form action="{{ url_for('backup_delete', filename=b.name) }}" method="POST" class="d-inline">
                                                         <button type="submit" class="btn btn-sm btn-outline-danger border-start-0" 
                                                                 onclick="return confirm('Xóa vĩnh viễn bản sao lưu này?')" title="Xóa">
@@ -191,25 +203,25 @@
                                 <table class="table table-hover align-middle mb-0 small">
                                     <thead class="bg-light">
                                         <tr>
-                                            <th class="ps-4">Thời gian</th>
-                                            <th>Hành động</th>
-                                            <th>Trạng thái</th>
-                                            <th>Chi tiết</th>
-                                            <th class="pe-4 text-end">Thực hiện</th>
+                                            <th class="ps-4 text-center">Thời gian</th>
+                                            <th class="text-center">Hành động</th>
+                                            <th class="text-center">Trạng thái</th>
+                                            <th class="text-center">Chi tiết</th>
+                                            <th class="pe-4 text-center">Thực hiện</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for log in logs %}
                                         <tr>
-                                            <td class="ps-4 text-muted">{{ log.created_at.strftime('%H:%M %d/%m/%Y') }}</td>
-                                            <td>
+                                            <td class="ps-4 text-muted text-nowrap">{{ log.created_at|vietnam_datetime('%H:%M %d/%m/%Y') }}</td>
+                                            <td class="text-center">
                                                 {% if log.action == 'backup' %}
                                                 <span class="badge bg-primary text-primary bg-opacity-10 border border-primary border-opacity-25 py-1 px-3">Sao lưu</span>
                                                 {% else %}
                                                 <span class="badge bg-warning text-warning-dark bg-opacity-10 border border-warning border-opacity-25 py-1 px-3">Khôi phục</span>
                                                 {% endif %}
                                             </td>
-                                            <td>
+                                            <td class="text-center">
                                                 {% if log.status == 'success' %}
                                                 <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i> Thành công</span>
                                                 {% elif log.status == 'processing' %}
@@ -223,7 +235,7 @@
                                                     {{ log.filename or log.details }}
                                                 </div>
                                             </td>
-                                            <td class="pe-4 text-end">
+                                            <td class="pe-4 text-center">
                                                 <span class="text-dark fw-medium">{{ log.user.username if log.user else 'Hệ thống' }}</span>
                                             </td>
                                         </tr>

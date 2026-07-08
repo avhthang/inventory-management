@@ -1203,7 +1203,7 @@ class BackupLog(db.Model):
     action = db.Column(db.String(50), nullable=False) # 'backup' or 'restore'
     status = db.Column(db.String(20), default='success') # 'success', 'failed', 'processing'
     details = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=get_now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     
     user = db.relationship('User', backref='backup_logs')
@@ -7080,6 +7080,35 @@ def _backup_schedule_enabled():
         pass
     return bool(backup_config_daily_enabled)
 
+def _backup_task_active():
+    lock_path = os.path.join(_lock_dir(), 'backup_task.lock')
+    if not os.path.exists(lock_path):
+        return False
+    if _lock_is_stale(lock_path, 1800):
+        try:
+            os.remove(lock_path)
+        except FileNotFoundError:
+            pass
+        return False
+    return True
+
+def _cleanup_stale_backup_logs():
+    task_active = _backup_task_active()
+    try:
+        stale_cutoff = datetime.utcnow() - timedelta(minutes=30)
+        query = BackupLog.query.filter(BackupLog.status == 'processing')
+        if task_active:
+            query = query.filter(BackupLog.created_at < stale_cutoff)
+        stale_logs = query.all() if not task_active else []
+        for log in stale_logs:
+            log.status = 'failed'
+            log.details = 'Tiến trình backup/restore không còn chạy hoặc đã quá thời gian chờ.'
+        if stale_logs:
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+    return task_active
+
 # Route: backup management page
 @app.route('/backup', methods=['GET'])
 def backup_page():
@@ -7090,22 +7119,7 @@ def backup_page():
         flash('Bạn không có quyền truy cập chức năng này.', 'danger')
         return redirect(url_for('home'))
         
-    try:
-        stale_cutoff = datetime.utcnow() - timedelta(hours=2)
-        stale_logs = BackupLog.query.filter(
-            BackupLog.status == 'processing',
-            BackupLog.created_at < stale_cutoff
-        ).all()
-        for log in stale_logs:
-            log.status = 'failed'
-            log.details = 'Tiến trình backup/restore đã quá thời gian chờ và được đánh dấu dừng.'
-        if stale_logs:
-            db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    backup_task_lock = os.path.join(_lock_dir(), 'backup_task.lock')
-    backup_task_active = os.path.exists(backup_task_lock) and not _lock_is_stale(backup_task_lock, 7200)
+    backup_task_active = _cleanup_stale_backup_logs()
 
     backups = _list_backups()
     logs = BackupLog.query.order_by(BackupLog.created_at.desc()).limit(50).all()
