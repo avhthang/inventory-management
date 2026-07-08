@@ -7023,6 +7023,10 @@ def _lock_is_stale(path, stale_after_seconds):
     pid_start_time = data.get('pid_start_time')
     created_at = data.get('created_at', 0)
     age = time.time() - float(created_at or 0)
+    if os.path.basename(path) == 'backup_task.lock' and (
+        data.get('lock_name') != 'backup_task' or not pid_start_time
+    ):
+        return True
     if age > stale_after_seconds:
         return True
     if pid and not _pid_is_running(int(pid)):
