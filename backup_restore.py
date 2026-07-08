@@ -256,6 +256,8 @@ class DatabaseBackup:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 zipf.extract(dump_file, tmp_dir)
                 extracted_dump = os.path.join(tmp_dir, dump_file)
+                if self.db_info['type'] == 'postgresql':
+                    self._sanitize_postgres_dump(extracted_dump)
 
                 with open(extracted_dump, 'r', encoding='utf-8', errors='replace') as f:
                     result = subprocess.run(
@@ -308,6 +310,22 @@ class DatabaseBackup:
             )
         except Exception as e:
             print(f"  Warning: could not terminate existing PostgreSQL sessions: {e}")
+
+    def _sanitize_postgres_dump(self, dump_path):
+        """Remove pg_dump statements unsupported by older PostgreSQL servers."""
+        try:
+            with open(dump_path, 'r', encoding='utf-8', errors='replace') as f:
+                lines = f.readlines()
+            filtered = [
+                line for line in lines
+                if 'transaction_timeout' not in line.lower()
+            ]
+            if len(filtered) != len(lines):
+                with open(dump_path, 'w', encoding='utf-8') as f:
+                    f.writelines(filtered)
+                print("  Removed unsupported transaction_timeout setting from PostgreSQL dump")
+        except Exception as e:
+            print(f"  Warning: could not sanitize PostgreSQL dump: {e}")
     
     def _restore_config_files(self, zipf):
         """Restore configuration files"""
