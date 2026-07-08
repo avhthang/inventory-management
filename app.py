@@ -7010,12 +7010,26 @@ def _read_lock_file(path):
     except Exception:
         return {}
 
+def _process_start_time(pid):
+    try:
+        with open(f'/proc/{int(pid)}/stat', 'r', encoding='utf-8') as f:
+            return f.read().split()[21]
+    except Exception:
+        return None
+
 def _lock_is_stale(path, stale_after_seconds):
     data = _read_lock_file(path)
     pid = data.get('pid')
+    pid_start_time = data.get('pid_start_time')
     created_at = data.get('created_at', 0)
     age = time.time() - float(created_at or 0)
-    return age > stale_after_seconds or (pid and not _pid_is_running(int(pid)))
+    if age > stale_after_seconds:
+        return True
+    if pid and not _pid_is_running(int(pid)):
+        return True
+    if pid and pid_start_time and _process_start_time(pid) != str(pid_start_time):
+        return True
+    return False
 
 @contextmanager
 def _exclusive_file_lock(lock_name, stale_after_seconds=7200):
@@ -7029,6 +7043,7 @@ def _exclusive_file_lock(lock_name, stale_after_seconds=7200):
                 payload = json.dumps({
                     'pid': os.getpid(),
                     'created_at': time.time(),
+                    'pid_start_time': _process_start_time(os.getpid()),
                     'lock_name': lock_name
                 }).encode('utf-8')
                 os.write(fd, payload)
@@ -7091,7 +7106,7 @@ def _backup_task_active():
     if not os.path.exists(lock_path):
         return False
     lock_data = _read_lock_file(lock_path)
-    if lock_data.get('lock_name') != 'backup_task':
+    if lock_data.get('lock_name') != 'backup_task' or not lock_data.get('pid_start_time'):
         try:
             os.remove(lock_path)
         except FileNotFoundError:
