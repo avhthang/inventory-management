@@ -6568,6 +6568,8 @@ def backup_import():
                 flash('Đang có tiến trình backup/restore khác chạy. Vui lòng chờ hoàn tất rồi thử lại.', 'warning')
                 return redirect(url_for('backup_page'))
             backup = DatabaseBackup()
+            db.session.remove()
+            db.engine.dispose()
             success = backup.restore_backup(temp_path)
         
         # Cleanup
@@ -7204,6 +7206,71 @@ def backup_download(filename):
     backup_dir = _backup_storage_dir()
     return send_from_directory(backup_dir, filename, as_attachment=True)
 
+def _record_restore_result(log_id, filename, user_id, success, details):
+    db.session.remove()
+    log = BackupLog.query.get(log_id) if log_id else None
+    if log is None:
+        log = BackupLog(filename=filename, action='restore', user_id=user_id)
+        db.session.add(log)
+    log.status = 'success' if success else 'failed'
+    log.details = details
+    db.session.commit()
+
+def _start_restore_thread(backup_dir, backup_path, filename, user_id):
+    def run_restore_task():
+        with app.app_context():
+            log_id = None
+            snapshot_filename = None
+            try:
+                with _exclusive_file_lock('backup_task', stale_after_seconds=7200) as lock_acquired:
+                    if not lock_acquired:
+                        _record_restore_result(
+                            None,
+                            filename,
+                            user_id,
+                            False,
+                            'Đang có tiến trình backup/restore khác chạy.'
+                        )
+                        return
+
+                    snapshot_filename = f"pre_restore_snapshot_{get_now().strftime('%Y%m%d_%H%M%S')}.bak"
+                    snapshot_path = os.path.join(backup_dir, snapshot_filename)
+
+                    engine = DatabaseBackup()
+                    engine.create_backup(snapshot_path)
+
+                    log = BackupLog(
+                        filename=filename,
+                        action='restore',
+                        status='processing',
+                        details=f'Đang khôi phục. Snapshot dự phòng: {snapshot_filename}',
+                        user_id=user_id
+                    )
+                    db.session.add(log)
+                    db.session.commit()
+                    log_id = log.id
+
+                    db.session.remove()
+                    db.engine.dispose()
+                    success = engine.restore_backup(backup_path)
+
+                if success:
+                    details = f'Khôi phục thành công. Snapshot dự phòng: {snapshot_filename}'
+                else:
+                    details = 'Khôi phục thất bại. Xem log server để biết chi tiết.'
+                _record_restore_result(log_id, filename, user_id, success, details)
+            except Exception as e:
+                print(f"Background Restore Error: {e}")
+                try:
+                    db.session.rollback()
+                    _record_restore_result(log_id, filename, user_id, False, f'Error: {str(e)}')
+                except Exception as log_error:
+                    print(f"Could not write restore error log: {log_error}")
+
+    thread = threading.Thread(target=run_restore_task, daemon=True)
+    thread.start()
+    return thread
+
 # Route: restore backup
 @app.route('/backup/restore/<filename>', methods=['POST'])
 def backup_restore(filename):
@@ -7224,9 +7291,14 @@ def backup_restore(filename):
         return redirect(url_for('backup_page'))
     
     user_id = session.get('user_id')
+    _start_restore_thread(backup_dir, backup_path, filename, user_id)
+    flash('Tiến trình khôi phục đang chạy nền. Vui lòng kiểm tra Nhật ký để xem kết quả.', 'info')
+    return redirect(url_for('backup_page'))
     
     def run_restore_task(app_context, b_path, b_filename, u_id):
         with app_context:
+            log_id = None
+            snapshot_filename = None
             try:
                 # Log start
                 log = BackupLog(

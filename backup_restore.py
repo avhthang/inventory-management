@@ -19,6 +19,7 @@ class DatabaseBackup:
     def __init__(self):
         self.db_info = get_database_info()
         self.is_external = is_external_database()
+        self.command_timeout = int(os.environ.get('BACKUP_COMMAND_TIMEOUT_SECONDS', '900'))
         
     def create_backup(self, backup_path=None):
         """Create a backup of the database"""
@@ -77,7 +78,9 @@ class DatabaseBackup:
                     f"--dbname={self.db_info['database']}",
                     '--no-password',
                     '--clean',
-                    '--if-exists'
+                    '--if-exists',
+                    '--no-owner',
+                    '--no-privileges'
                 ]
             elif self.db_info['type'] == 'mysql':
                 dump_file = 'database/mysql_dump.sql'
@@ -103,7 +106,13 @@ class DatabaseBackup:
             
             # Run dump command
             with tempfile.NamedTemporaryFile(mode='w', suffix='.sql', delete=False) as tmp_file:
-                result = subprocess.run(cmd, stdout=tmp_file, stderr=subprocess.PIPE, env=env)
+                result = subprocess.run(
+                    cmd,
+                    stdout=tmp_file,
+                    stderr=subprocess.PIPE,
+                    env=env,
+                    timeout=self.command_timeout
+                )
                 
                 if result.returncode == 0:
                     zipf.write(tmp_file.name, dump_file)
@@ -134,16 +143,29 @@ class DatabaseBackup:
         """Backup runtime data files from the instance directory."""
         instance_dir = os.environ.get('INVENTORY_INSTANCE_DIR') or os.path.join(os.getcwd(), 'instance')
         if not os.path.isdir(instance_dir):
-            return
+            instance_dir = None
 
-        for root, _, files in os.walk(instance_dir):
-            for filename in files:
-                abs_path = os.path.join(root, filename)
-                rel_path = os.path.relpath(abs_path, instance_dir)
-                if rel_path.replace('\\', '/') == 'inventory.db':
-                    continue
-                zipf.write(abs_path, f'data/{rel_path}')
-                print(f"  Added data file: {rel_path}")
+        if instance_dir:
+            skip_dirs = {'locks', 'cache', 'sessions', '__pycache__'}
+            skip_files = {'inventory.db'}
+            for root, dirs, files in os.walk(instance_dir):
+                dirs[:] = [d for d in dirs if d not in skip_dirs]
+                for filename in files:
+                    abs_path = os.path.join(root, filename)
+                    rel_path = os.path.relpath(abs_path, instance_dir).replace('\\', '/')
+                    if rel_path in skip_files or rel_path.endswith('.lock'):
+                        continue
+                    zipf.write(abs_path, f'data/{rel_path}')
+                    print(f"  Added data file: {rel_path}")
+
+        uploads_dir = os.path.join(os.getcwd(), 'static', 'uploads')
+        if os.path.isdir(uploads_dir):
+            for root, _, files in os.walk(uploads_dir):
+                for filename in files:
+                    abs_path = os.path.join(root, filename)
+                    rel_path = os.path.relpath(abs_path, uploads_dir).replace('\\', '/')
+                    zipf.write(abs_path, f'static_uploads/{rel_path}')
+                    print(f"  Added upload file: {rel_path}")
     
     def restore_backup(self, backup_path):
         """Restore from backup"""
@@ -209,7 +231,8 @@ class DatabaseBackup:
                     f"--port={self.db_info['port']}",
                     f"--username={self.db_info['username']}",
                     f"--dbname={self.db_info['database']}",
-                    '--no-password'
+                    '--no-password',
+                    '--set=ON_ERROR_STOP=1'
                 ]
             elif self.db_info['type'] == 'mysql':
                 dump_file = 'database/mysql_dump.sql'
@@ -225,32 +248,66 @@ class DatabaseBackup:
                 print(f"  Unsupported database type: {self.db_info['type']}")
                 return
             
-            # Extract dump file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.sql', delete=False) as tmp_file:
-                zipf.extract(dump_file, '/tmp')
-                shutil.copy(f'/tmp/{dump_file}', tmp_file.name)
-                
-                # Set password environment variable
-                env = os.environ.copy()
-                if self.db_info['type'] == 'postgresql':
-                    env['PGPASSWORD'] = self.db_info['password']
-                
-                # Run restore command
-                with open(tmp_file.name, 'r') as f:
-                    result = subprocess.run(cmd, stdin=f, stderr=subprocess.PIPE, env=env)
-                
+            env = os.environ.copy()
+            if self.db_info['type'] == 'postgresql':
+                env['PGPASSWORD'] = self.db_info['password']
+                self._terminate_postgres_sessions(env)
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                zipf.extract(dump_file, tmp_dir)
+                extracted_dump = os.path.join(tmp_dir, dump_file)
+
+                with open(extracted_dump, 'r', encoding='utf-8', errors='replace') as f:
+                    result = subprocess.run(
+                        cmd,
+                        stdin=f,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        env=env,
+                        timeout=self.command_timeout
+                    )
+
                 if result.returncode == 0:
                     print(f"  Restored {self.db_info['type']} database")
                     return True
-                else:
-                    print(f"  Error restoring database: {result.stderr.decode()}")
-                    return False
+
+                stderr = result.stderr.decode(errors='replace')
+                stdout = result.stdout.decode(errors='replace')
+                print(f"  Error restoring database: {stderr or stdout}")
+                return False
                 
-                os.unlink(tmp_file.name)
-                
+        except subprocess.TimeoutExpired:
+            print(f"  Error restoring external database: command timed out after {self.command_timeout} seconds")
+            return False
         except Exception as e:
             print(f"  Error restoring external database: {e}")
             return False
+
+    def _terminate_postgres_sessions(self, env):
+        """Disconnect app sessions that can block DROP/ALTER during restore."""
+        terminate_cmd = [
+            'psql',
+            f"--host={self.db_info['host']}",
+            f"--port={self.db_info['port']}",
+            f"--username={self.db_info['username']}",
+            f"--dbname={self.db_info['database']}",
+            '--no-password',
+            '--quiet',
+            '--tuples-only',
+            '--command',
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE datname = current_database() AND pid <> pg_backend_pid();"
+        ]
+        try:
+            subprocess.run(
+                terminate_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                timeout=30
+            )
+        except Exception as e:
+            print(f"  Warning: could not terminate existing PostgreSQL sessions: {e}")
     
     def _restore_config_files(self, zipf):
         """Restore configuration files"""
@@ -281,6 +338,20 @@ class DatabaseBackup:
             with zipf.open(member) as src, open(target_path, 'wb') as dst:
                 shutil.copyfileobj(src, dst)
             print(f"  Restored data file: {rel_path}")
+
+        uploads_dir = os.path.join(os.getcwd(), 'static', 'uploads')
+        os.makedirs(uploads_dir, exist_ok=True)
+        for member in zipf.namelist():
+            if not member.startswith('static_uploads/') or member.endswith('/'):
+                continue
+            rel_path = member[len('static_uploads/'):]
+            target_path = os.path.abspath(os.path.join(uploads_dir, rel_path))
+            if not target_path.startswith(os.path.abspath(uploads_dir) + os.sep):
+                continue
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            with zipf.open(member) as src, open(target_path, 'wb') as dst:
+                shutil.copyfileobj(src, dst)
+            print(f"  Restored upload file: {rel_path}")
 
 class S3Backup:
     def __init__(self, bucket_name, region='us-east-1'):
