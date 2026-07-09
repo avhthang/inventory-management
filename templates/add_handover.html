@@ -103,6 +103,29 @@
                     <tbody id="device-list-container"></tbody>
                 </table>
             </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+                <h5 class="mb-0">Vật tư / phụ kiện IT xuất kèm</h5>
+                <button type="button" id="add-consumable-btn" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-plus-lg"></i> Thêm vật tư
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light text-center">
+                        <tr>
+                            <th style="width: 48px;">#</th>
+                            <th>Vật tư</th>
+                            <th style="width: 120px;">Tồn</th>
+                            <th style="width: 120px;">Số lượng</th>
+                            <th style="width: 180px;">Kho xuất</th>
+                            <th style="width: 56px;">Xóa</th>
+                        </tr>
+                    </thead>
+                    <tbody id="consumable-list-container"></tbody>
+                </table>
+            </div>
             
             <hr>
             <div class="mb-3">
@@ -137,7 +160,7 @@
             </select>
         </td>
         <td>
-            <select name="device_ids" class="form-select form-select-sm device-select" required></select>
+            <select name="device_ids" class="form-select form-select-sm device-select"></select>
             <div class="device-config-details small text-muted d-none"></div>
         </td>
         <td><input type="text" class="form-control form-control-sm device-code" readonly></td>
@@ -161,6 +184,30 @@
         </td>
     </tr>
 </template>
+
+<template id="consumable-row-template">
+    <tr class="consumable-row">
+        <td class="text-center fw-bold consumable-row-number">1</td>
+        <td>
+            <select name="consumable_ids" class="form-select form-select-sm consumable-select"></select>
+            <div class="small text-muted consumable-meta mt-1"></div>
+        </td>
+        <td class="text-center">
+            <span class="consumable-stock badge bg-light text-dark border">0</span>
+        </td>
+        <td>
+            <input type="number" name="consumable_quantities" class="form-control form-control-sm consumable-quantity" min="1" step="1" value="1">
+        </td>
+        <td>
+            <input type="text" name="consumable_locations" class="form-control form-control-sm consumable-location" placeholder="Kho IT">
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-consumable-btn" title="Xóa dòng này">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    </tr>
+</template>
 {% endblock %}
 
 {% block scripts %}
@@ -169,8 +216,11 @@
 $(document).ready(function() {
     const users = {{ user_options|tojson }};
     const devices = {{ device_options|tojson }};
+    const consumables = {{ consumable_options|tojson }};
     const container = $('#device-list-container');
+    const consumableContainer = $('#consumable-list-container');
     const template = document.getElementById('device-row-template');
+    const consumableTemplate = document.getElementById('consumable-row-template');
     const imageInput = document.getElementById('condition_images');
     const imagePreview = document.getElementById('condition-image-preview');
     let selectedImageFiles = [];
@@ -179,6 +229,7 @@ $(document).ready(function() {
 
     const usersById = new Map(users.map(user => [String(user.id), user]));
     const devicesById = new Map(devices.map(device => [String(device.id), device]));
+    const consumablesById = new Map(consumables.map(item => [String(item.id), item]));
 
     $('#giver_id_select, #receiver_id_select').select2({
         theme: "bootstrap-5",
@@ -245,6 +296,12 @@ $(document).ready(function() {
     function updateRowNumbers() {
         container.find('.device-row').each(function(index) {
             $(this).find('.row-number').text(index + 1);
+        });
+    }
+
+    function updateConsumableRowNumbers() {
+        consumableContainer.find('.consumable-row').each(function(index) {
+            $(this).find('.consumable-row-number').text(index + 1);
         });
     }
 
@@ -413,6 +470,58 @@ $(document).ready(function() {
         updateRowNumbers();
     }
 
+    function fillConsumableSelect(row, keepValue = null) {
+        const select = row.find('.consumable-select');
+        const currentValue = keepValue || select.val();
+        select.empty();
+        select.append(new Option('-- Chọn vật tư / phụ kiện --', ''));
+        consumables.forEach(item => {
+            const labelParts = [`${item.name} (${item.code})`];
+            if (item.category) labelParts.push(item.category);
+            if (item.group) labelParts.push(item.group);
+            const option = new Option(labelParts.join(' · '), item.id, false, String(item.id) === String(currentValue));
+            option.disabled = Number(item.quantity || 0) <= 0;
+            select.append(option);
+        });
+        select.val(currentValue && select.find(`option[value="${currentValue}"]`).length ? currentValue : '');
+        select.trigger('change.select2');
+    }
+
+    function updateConsumableRow(row) {
+        const item = consumablesById.get(String(row.find('.consumable-select').val()));
+        const quantityInput = row.find('.consumable-quantity');
+        if (!item) {
+            row.find('.consumable-stock').text('0');
+            row.find('.consumable-location').val('');
+            row.find('.consumable-meta').empty();
+            quantityInput.attr('max', '');
+            return;
+        }
+        const quantity = Number(item.quantity || 0);
+        row.find('.consumable-stock').text(`${quantity} ${item.unit || ''}`.trim());
+        row.find('.consumable-location').val(item.location || '');
+        row.find('.consumable-meta').text(`${item.category || 'Chưa phân loại'}${item.track_after_handover ? ' · Có theo dõi sau bàn giao' : ''}`);
+        quantityInput.attr('max', quantity);
+        if (Number(quantityInput.val() || 0) > quantity) {
+            quantityInput.val(quantity || 1);
+        }
+    }
+
+    function addConsumableRow(selectedId = null) {
+        const clone = consumableTemplate.content.cloneNode(true);
+        const newRow = $(clone.querySelector('.consumable-row'));
+        consumableContainer.append(newRow);
+        const select = newRow.find('.consumable-select');
+        select.select2({
+            theme: "bootstrap-5",
+            placeholder: "Chọn vật tư / phụ kiện",
+            width: '100%',
+        });
+        fillConsumableSelect(newRow, selectedId);
+        updateConsumableRow(newRow);
+        updateConsumableRowNumbers();
+    }
+
     $('#giver_id_select').on('change', function() {
         renderUserInfo('#giver_id_select', '#giver-info');
     });
@@ -423,6 +532,10 @@ $(document).ready(function() {
 
     $('#add-device-btn').on('click', function() {
         addDeviceRow();
+    });
+
+    $('#add-consumable-btn').on('click', function() {
+        addConsumableRow();
     });
 
     container.on('click', '.remove-device-btn', function() {
@@ -445,6 +558,15 @@ $(document).ready(function() {
 
     container.on('change', '.show-device-config', function() {
         updateDeviceRow($(this).closest('.device-row'));
+    });
+
+    consumableContainer.on('change', '.consumable-select', function() {
+        updateConsumableRow($(this).closest('.consumable-row'));
+    });
+
+    consumableContainer.on('click', '.remove-consumable-btn', function() {
+        $(this).closest('.consumable-row').remove();
+        updateConsumableRowNumbers();
     });
 
     if (preselectedDeviceId) {
@@ -477,6 +599,22 @@ $(document).ready(function() {
         if (hasDuplicate) {
             e.preventDefault();
             alert('Một thiết bị chỉ được chọn một lần trong cùng phiếu bàn giao.');
+            return;
+        }
+
+        let invalidConsumable = false;
+        consumableContainer.find('.consumable-row').each(function() {
+            const row = $(this);
+            const item = consumablesById.get(String(row.find('.consumable-select').val()));
+            if (!item) return;
+            const requested = Number(row.find('.consumable-quantity').val() || 0);
+            if (requested <= 0 || requested > Number(item.quantity || 0)) {
+                invalidConsumable = true;
+            }
+        });
+        if (invalidConsumable) {
+            e.preventDefault();
+            alert('Số lượng vật tư phải lớn hơn 0 và không được vượt tồn kho.');
         }
     });
 

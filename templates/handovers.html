@@ -40,8 +40,12 @@
                     
                     <td>
                         {% set display_items = handover.display_items if handover.display_items is defined else [handover] %}
+                        {% set consumable_items = handover.consumable_items if handover.consumable_items is defined else [] %}
                         {% if display_items|length > 1 %}
                             <span class="badge bg-primary me-1">{{ display_items|length }} thiết bị</span>
+                        {% endif %}
+                        {% if consumable_items %}
+                            <span class="badge bg-success me-1">{{ consumable_items|length }} vật tư</span>
                         {% endif %}
                         <div class="small">
                             {% for item in display_items %}
@@ -49,9 +53,15 @@
                                     {% if item.device %}
                                         <a href="{{ url_for('device_detail', device_id=item.device.id) }}"><strong>{{ item.device.device_code }}</strong></a>
                                         <span class="text-muted">- {{ item.device.name }}</span>
-                                    {% else %}
+                                    {% elif not consumable_items %}
                                         <span class="text-danger">Đã xóa</span>
                                     {% endif %}
+                                </div>
+                            {% endfor %}
+                            {% for row in consumable_items %}
+                                <div>
+                                    <strong>{{ row.item.code if row.item else '' }}</strong>
+                                    <span class="text-muted">- {{ row.item.name if row.item else 'Vật tư' }} x {{ row.quantity }}</span>
                                 </div>
                             {% endfor %}
                         </div>

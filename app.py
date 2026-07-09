@@ -757,6 +757,30 @@ def migrate_missing_columns_v3():
                 # device_handover
                 _add_col_if_missing('device_handover', 'batch_id', 'VARCHAR(64)')
                 _add_col_if_missing('device_handover', 'condition_images', 'TEXT')
+                try:
+                    conn.execute(text('ALTER TABLE device_handover ALTER COLUMN device_id DROP NOT NULL'))
+                    conn.commit()
+                except Exception:
+                    pass
+
+                # consumable_item
+                _add_col_if_missing('consumable_item', 'group_name', 'VARCHAR(100)')
+                _add_col_if_missing('consumable_item', 'manufacturer', 'VARCHAR(120)')
+                _add_col_if_missing('consumable_item', 'model', 'VARCHAR(120)')
+                _add_col_if_missing('consumable_item', 'standard', 'VARCHAR(120)')
+                _add_col_if_missing('consumable_item', 'speed', 'VARCHAR(120)')
+                _add_col_if_missing('consumable_item', 'length', 'VARCHAR(80)')
+                _add_col_if_missing('consumable_item', 'connector_a', 'VARCHAR(80)')
+                _add_col_if_missing('consumable_item', 'connector_b', 'VARCHAR(80)')
+                _add_col_if_missing('consumable_item', 'fiber_type', 'VARCHAR(80)')
+                _add_col_if_missing('consumable_item', 'color', 'VARCHAR(80)')
+                _add_col_if_missing('consumable_item', 'track_after_handover', 'BOOLEAN DEFAULT FALSE')
+                _add_col_if_missing('consumable_item', 'is_active', 'BOOLEAN DEFAULT TRUE')
+                _add_col_if_missing('consumable_item', 'manager_id', 'INTEGER')
+
+                # consumable_transaction
+                _add_col_if_missing('consumable_transaction', 'batch_id', 'VARCHAR(64)')
+                _add_col_if_missing('consumable_transaction', 'location', 'VARCHAR(150)')
 
                 # bug_report
                 _add_col_if_missing('bug_report', 'merged_into', 'INTEGER')
@@ -1240,7 +1264,7 @@ class DeviceHandover(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     batch_id = db.Column(db.String(64))
     handover_date = db.Column(db.Date, nullable=False, default=date.today)
-    device_id = db.Column(db.Integer, db.ForeignKey('device.id'), nullable=False)
+    device_id = db.Column(db.Integer, db.ForeignKey('device.id'))
     device = db.relationship('Device', backref='handovers')
     giver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -1256,14 +1280,28 @@ class ConsumableItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(50), unique=True, nullable=False)
     name = db.Column(db.String(150), nullable=False)
+    group_name = db.Column(db.String(100))
     category = db.Column(db.String(100), default='Thiết bị tiêu hao')
+    manufacturer = db.Column(db.String(120))
+    model = db.Column(db.String(120))
+    standard = db.Column(db.String(120))
+    speed = db.Column(db.String(120))
+    length = db.Column(db.String(80))
+    connector_a = db.Column(db.String(80))
+    connector_b = db.Column(db.String(80))
+    fiber_type = db.Column(db.String(80))
+    color = db.Column(db.String(80))
     unit = db.Column(db.String(30), default='cái')
     current_quantity = db.Column(db.Integer, nullable=False, default=0)
     min_quantity = db.Column(db.Integer, nullable=False, default=0)
     location = db.Column(db.String(150))
+    track_after_handover = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    manager_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    manager = db.relationship('User', foreign_keys=[manager_id])
 
     transactions = db.relationship(
         'ConsumableTransaction',
@@ -1281,12 +1319,31 @@ class ConsumableTransaction(db.Model):
     transaction_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     issued_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     actor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    batch_id = db.Column(db.String(64))
+    location = db.Column(db.String(150))
     reason = db.Column(db.String(255))
     notes = db.Column(db.Text)
 
     item = db.relationship('ConsumableItem', back_populates='transactions')
     issued_to = db.relationship('User', foreign_keys=[issued_to_id])
     actor = db.relationship('User', foreign_keys=[actor_id])
+
+class ConsumableHandoverItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.String(64), nullable=False, index=True)
+    consumable_id = db.Column(db.Integer, db.ForeignKey('consumable_item.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    giver_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    quantity = db.Column(db.Integer, nullable=False)
+    location = db.Column(db.String(150))
+    handover_date = db.Column(db.Date, nullable=False, default=date.today)
+    status = db.Column(db.String(50), default='Đang sử dụng')
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    item = db.relationship('ConsumableItem')
+    receiver = db.relationship('User', foreign_keys=[receiver_id])
+    giver = db.relationship('User', foreign_keys=[giver_id])
 
 # --- (Deleted Device Group Models) ---
 
@@ -3782,7 +3839,7 @@ def handover_list():
     filter_start_date = request.args.get('filter_start_date', '')
     filter_end_date = request.args.get('filter_end_date', '')
     
-    query = DeviceHandover.query.join(Device)
+    query = DeviceHandover.query.outerjoin(Device)
 
     if filter_device_code:
         query = query.filter(Device.device_code.ilike(f'%{filter_device_code}%'))
@@ -3815,6 +3872,16 @@ def handover_list():
             batch_items.setdefault(row.batch_id, []).append(row)
     for handover in handovers_pagination.items:
         handover.display_items = batch_items.get(handover.batch_id, [handover]) if handover.batch_id else [handover]
+    consumable_batch_items = {}
+    if visible_batch_ids:
+        consumable_rows = ConsumableHandoverItem.query\
+            .filter(ConsumableHandoverItem.batch_id.in_(visible_batch_ids))\
+            .order_by(ConsumableHandoverItem.batch_id, ConsumableHandoverItem.id)\
+            .all()
+        for row in consumable_rows:
+            consumable_batch_items.setdefault(row.batch_id, []).append(row)
+    for handover in handovers_pagination.items:
+        handover.consumable_items = consumable_batch_items.get(handover.batch_id, []) if handover.batch_id else []
 
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     device_types = sorted([item[0] for item in db.session.query(Device.device_type).distinct().all()])
@@ -3867,12 +3934,15 @@ def add_handover():
         raw_device_ids = request.form.getlist('device_ids')
         device_ids = [d for d in raw_device_ids if d]
         device_conditions = request.form.getlist('device_conditions')
+        consumable_ids = [value for value in request.form.getlist('consumable_ids') if value]
+        consumable_quantities = request.form.getlist('consumable_quantities')
+        consumable_locations = request.form.getlist('consumable_locations')
         receiver_id = request.form.get('receiver_id')
         handover_date_str = request.form.get('handover_date')
         
         # Validation cơ bản
-        if not device_ids or not any(d_id for d_id in device_ids if d_id) or not receiver_id or not handover_date_str:
-            flash('Vui lòng chọn ít nhất một thiết bị và điền đầy đủ các trường bắt buộc.', 'danger')
+        if (not device_ids and not consumable_ids) or not receiver_id or not handover_date_str:
+            flash('Vui lòng chọn ít nhất một thiết bị hoặc vật tư và điền đầy đủ các trường bắt buộc.', 'danger')
             return redirect(url_for('add_handover'))
         if len(device_ids) != len(set(device_ids)):
             flash('Một thiết bị chỉ được chọn một lần trong cùng phiếu bàn giao.', 'danger')
@@ -3889,6 +3959,7 @@ def add_handover():
         condition_images_json = json.dumps(condition_images, ensure_ascii=False) if condition_images else None
         
         handovers_created_count = 0
+        consumables_created_count = 0
         for index, device_id in enumerate(device_ids):
             if not device_id: continue # Bỏ qua các giá trị rỗng
 
@@ -3924,11 +3995,60 @@ def add_handover():
             
             handovers_created_count += 1
 
-        if handovers_created_count > 0:
+        try:
+            for index, consumable_id in enumerate(consumable_ids):
+                item = ConsumableItem.query.get(consumable_id)
+                if not item or item.is_active is False:
+                    raise ValueError('Vật tư không hợp lệ hoặc đã ngừng sử dụng.')
+                quantity = _parse_positive_int(consumable_quantities[index] if index < len(consumable_quantities) else None)
+                location = (consumable_locations[index] if index < len(consumable_locations) else '').strip() or item.location
+                tx = _record_consumable_transaction(
+                    item,
+                    'Xuất',
+                    quantity,
+                    issued_to_id=int(receiver_id),
+                    reason='Xuất theo phiếu bàn giao',
+                    notes=request.form.get('notes', ''),
+                    batch_id=batch_id,
+                    location=location,
+                )
+                if item.track_after_handover:
+                    db.session.add(ConsumableHandoverItem(
+                        batch_id=batch_id,
+                        consumable_id=item.id,
+                        receiver_id=int(receiver_id),
+                        giver_id=int(request.form['giver_id']) if request.form.get('giver_id') else None,
+                        quantity=quantity,
+                        location=location,
+                        handover_date=handover_date,
+                        notes=f'Tạo từ nhật ký xuất kho #{tx.id}' if tx.id else ''
+                    ))
+                consumables_created_count += 1
+        except ValueError as e:
+            db.session.rollback()
+            _delete_handover_condition_images(condition_images)
+            flash(str(e), 'danger')
+            return redirect(url_for('add_handover'))
+
+        if handovers_created_count == 0 and consumables_created_count > 0:
+            db.session.add(DeviceHandover(
+                batch_id=batch_id,
+                handover_date=handover_date,
+                device_id=None,
+                giver_id=request.form['giver_id'],
+                receiver_id=receiver_id,
+                device_condition='Không áp dụng',
+                reason=request.form.get('reason', ''),
+                location=request.form.get('location', ''),
+                notes=request.form.get('notes', ''),
+                condition_images=condition_images_json
+            ))
+
+        if handovers_created_count > 0 or consumables_created_count > 0:
             db.session.commit()
-            flash(f'Tạo thành công phiếu bàn giao gồm {handovers_created_count} thiết bị!', 'success')
-            notify_user(int(receiver_id), f"Bạn vừa nhận bàn giao {handovers_created_count} thiết bị mới.", url_for('handover_list'))
-            notify_group(f"Thực hiện bàn giao {handovers_created_count} thiết bị thành công.", url_for('handover_list'))
+            flash(f'Tạo thành công phiếu bàn giao gồm {handovers_created_count} thiết bị và {consumables_created_count} vật tư.', 'success')
+            notify_user(int(receiver_id), f"Bạn vừa nhận bàn giao {handovers_created_count} thiết bị và {consumables_created_count} vật tư.", url_for('handover_list'))
+            notify_group(f"Thực hiện bàn giao {handovers_created_count} thiết bị và {consumables_created_count} vật tư thành công.", url_for('handover_list'))
         else:
             db.session.rollback() # Hoàn tác nếu không có phiếu nào được tạo
             _delete_handover_condition_images(condition_images)
@@ -3963,6 +4083,20 @@ def add_handover():
             'network_card': device.network_card or '',
         },
     } for device in devices]
+    consumables = ConsumableItem.query.filter(ConsumableItem.is_active != False)\
+        .order_by(func.lower(ConsumableItem.group_name), func.lower(ConsumableItem.category), func.lower(ConsumableItem.name)).all()
+    consumable_options = [{
+        'id': item.id,
+        'code': item.code,
+        'name': item.name,
+        'group': item.group_name or '',
+        'category': item.category or '',
+        'unit': item.unit or '',
+        'quantity': item.current_quantity or 0,
+        'min_quantity': item.min_quantity or 0,
+        'location': item.location or '',
+        'track_after_handover': bool(item.track_after_handover),
+    } for item in consumables]
     user_options = [{
         'id': user.id,
         'name': user.full_name or user.username,
@@ -3977,6 +4111,7 @@ def add_handover():
                            users=users,
                            device_options=device_options,
                            user_options=user_options,
+                           consumable_options=consumable_options,
                            device_types=device_types,
                            now=datetime.now(VIETNAM_TZ),
                            preselected_device_id=preselected_device_id)
@@ -4075,6 +4210,22 @@ def delete_handover(handover_id):
     handover = DeviceHandover.query.get_or_404(handover_id)
     images_to_delete = _handover_image_list(handover)
     batch_id = handover.batch_id
+    should_restore_consumables = bool(batch_id) and DeviceHandover.query.filter_by(batch_id=batch_id).count() <= 1
+    if should_restore_consumables:
+        consumable_transactions = ConsumableTransaction.query.filter_by(batch_id=batch_id, transaction_type='Xuất').all()
+        for tx in consumable_transactions:
+            if tx.item:
+                _record_consumable_transaction(
+                    tx.item,
+                    'Nhập',
+                    tx.quantity,
+                    issued_to_id=tx.issued_to_id,
+                    reason='Hoàn kho do hủy phiếu bàn giao',
+                    notes=f'Hoàn từ phiếu {batch_id}',
+                    batch_id=batch_id,
+                    location=tx.location,
+                )
+        ConsumableHandoverItem.query.filter_by(batch_id=batch_id).delete()
     db.session.delete(handover)
     db.session.commit()
     if batch_id:
@@ -4094,6 +4245,9 @@ def handover_detail(handover_id):
     handover_items = [handover]
     if handover.batch_id:
         handover_items = DeviceHandover.query.filter_by(batch_id=handover.batch_id).order_by(DeviceHandover.id).all()
+    consumable_items = []
+    if handover.batch_id:
+        consumable_items = ConsumableHandoverItem.query.filter_by(batch_id=handover.batch_id).order_by(ConsumableHandoverItem.id).all()
     device = handover.device
     giver = handover.giver
     receiver = handover.receiver
@@ -4101,6 +4255,7 @@ def handover_detail(handover_id):
         'handover_detail.html',
         handover=handover,
         handover_items=handover_items,
+        consumable_items=consumable_items,
         condition_images=_handover_image_list(handover),
         device=device,
         giver=giver,
@@ -7979,7 +8134,7 @@ def _unique_consumable_code(base_code):
         counter += 1
     return code
 
-def _record_consumable_transaction(item, transaction_type, quantity, *, issued_to_id=None, reason='', notes=''):
+def _record_consumable_transaction(item, transaction_type, quantity, *, issued_to_id=None, reason='', notes='', batch_id=None, location=None):
     before_quantity = item.current_quantity or 0
     if transaction_type == 'Nhập':
         after_quantity = before_quantity + quantity
@@ -8004,6 +8159,8 @@ def _record_consumable_transaction(item, transaction_type, quantity, *, issued_t
         transaction_date=datetime.utcnow(),
         issued_to_id=issued_to_id,
         actor_id=session.get('user_id'),
+        batch_id=batch_id,
+        location=location or item.location,
         reason=reason,
         notes=notes
     )
@@ -8186,6 +8343,7 @@ def add_consumable():
         return redirect(url_for('consumable_list'))
 
     name = (request.form.get('name') or '').strip()
+    group_name = (request.form.get('group_name') or '').strip()
     category = _normalize_consumable_category(request.form.get('category'))
     code = (request.form.get('code') or '').strip().upper()
     if not code and name:
@@ -8208,11 +8366,23 @@ def add_consumable():
         item = ConsumableItem(
             code=code,
             name=name,
+            group_name=group_name,
             category=category,
+            manufacturer=(request.form.get('manufacturer') or '').strip(),
+            model=(request.form.get('model') or '').strip(),
+            standard=(request.form.get('standard') or '').strip(),
+            speed=(request.form.get('speed') or '').strip(),
+            length=(request.form.get('length') or '').strip(),
+            connector_a=(request.form.get('connector_a') or '').strip(),
+            connector_b=(request.form.get('connector_b') or '').strip(),
+            fiber_type=(request.form.get('fiber_type') or '').strip(),
+            color=(request.form.get('color') or '').strip(),
             unit=unit,
             current_quantity=0,
             min_quantity=min_quantity,
             location=location,
+            track_after_handover=request.form.get('track_after_handover') == '1',
+            manager_id=int(request.form.get('manager_id')) if request.form.get('manager_id') else None,
             notes=notes
         )
         db.session.add(item)
@@ -8238,9 +8408,22 @@ def edit_consumable(item_id):
     else:
         item.code = code
         item.name = (request.form.get('name') or '').strip()
+        item.group_name = (request.form.get('group_name') or '').strip()
         item.category = _normalize_consumable_category(request.form.get('category'))
+        item.manufacturer = (request.form.get('manufacturer') or '').strip()
+        item.model = (request.form.get('model') or '').strip()
+        item.standard = (request.form.get('standard') or '').strip()
+        item.speed = (request.form.get('speed') or '').strip()
+        item.length = (request.form.get('length') or '').strip()
+        item.connector_a = (request.form.get('connector_a') or '').strip()
+        item.connector_b = (request.form.get('connector_b') or '').strip()
+        item.fiber_type = (request.form.get('fiber_type') or '').strip()
+        item.color = (request.form.get('color') or '').strip()
         item.unit = (request.form.get('unit') or '').strip() or 'cái'
         item.location = (request.form.get('location') or '').strip()
+        item.track_after_handover = request.form.get('track_after_handover') == '1'
+        item.manager_id = int(request.form.get('manager_id')) if request.form.get('manager_id') else None
+        item.is_active = request.form.get('is_active') == '1'
         item.notes = (request.form.get('notes') or '').strip()
         try:
             item.min_quantity = max(0, int(request.form.get('min_quantity') or 0))

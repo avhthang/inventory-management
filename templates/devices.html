@@ -37,21 +37,25 @@
                 {% set collapse_id = 'collapse-device-category-' ~ loop.index0 %}
 
                 <div class="list-group-item p-0 border-0">
-                    <div class="d-flex justify-content-between align-items-center list-group-item-action {% if is_active_category %}bg-light{% endif %}"
-                        style="border-bottom: 1px solid rgba(0,0,0,.125);">
-                        <a href="{{ url_for('device_list', filter_category=category) }}"
-                            class="text-decoration-none {% if is_active_category %}text-primary fw-bold{% else %}text-dark{% endif %} d-block p-3 flex-grow-1">
+                    <button type="button"
+                        class="btn w-100 p-0 text-start d-flex justify-content-between align-items-center list-group-item-action {% if is_active_category %}bg-light{% endif %}"
+                        style="border: 0; border-bottom: 1px solid rgba(0,0,0,.125);"
+                        data-bs-toggle="collapse" data-bs-target="#{{ collapse_id }}"
+                        aria-expanded="{{ 'true' if is_expanded else 'false' }}" aria-controls="{{ collapse_id }}">
+                        <span class="text-decoration-none {% if is_active_category %}text-primary fw-bold{% else %}text-dark{% endif %} d-block p-3 flex-grow-1">
                             {{ category }}
-                        </a>
-                        <button class="btn btn-link text-dark p-3 text-decoration-none" type="button"
-                            data-bs-toggle="collapse" data-bs-target="#{{ collapse_id }}"
-                            aria-expanded="{{ 'true' if is_expanded else 'false' }}" aria-controls="{{ collapse_id }}">
+                        </span>
+                        <span class="text-dark p-3">
                             <i class="bi bi-chevron-down"></i>
-                        </button>
-                    </div>
+                        </span>
+                    </button>
 
                     <div id="{{ collapse_id }}" class="collapse {% if is_expanded %}show{% endif %} bg-white">
                         <div class="list-group list-group-flush border-bottom">
+                            <a href="{{ url_for('device_list', filter_category=category) }}"
+                                class="list-group-item list-group-item-action ps-4 border-0 small {% if is_active_category and not filter_device_types %}active{% endif %}">
+                                <i class="bi bi-layers"></i> Tất cả trong nhóm
+                            </a>
                             {% for type in types %}
                             <a href="{{ url_for('device_list', filter_category=category, filter_device_type=type) }}"
                                 class="list-group-item list-group-item-action ps-4 border-0 small {% if type in filter_device_types %}active{% endif %}">

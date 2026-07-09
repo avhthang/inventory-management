@@ -63,6 +63,44 @@
     </div>
   </div>
 
+  {% if consumable_items %}
+  <div class="card mb-3">
+    <div class="card-header bg-light">
+      <strong>Vật tư / phụ kiện IT trong phiếu</strong>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Mã vật tư</th>
+              <th>Tên vật tư</th>
+              <th>Loại</th>
+              <th>Số lượng</th>
+              <th>Kho xuất</th>
+              <th>Theo dõi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in consumable_items %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ row.item.code if row.item else '-' }}</td>
+              <td>{{ row.item.name if row.item else '-' }}</td>
+              <td>{{ row.item.category if row.item else '-' }}</td>
+              <td>{{ row.quantity }} {{ row.item.unit if row.item else '' }}</td>
+              <td>{{ row.location or '-' }}</td>
+              <td>{{ row.status }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {% if condition_images %}
   <div class="card mb-3">
     <div class="card-header bg-light">

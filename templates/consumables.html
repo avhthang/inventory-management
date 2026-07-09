@@ -116,6 +116,11 @@
                         <td><strong>{{ item.code }}</strong></td>
                         <td>
                             <div>{{ item.name }}</div>
+                            <div class="small text-muted">
+                                {% if item.group_name %}{{ item.group_name }}{% endif %}
+                                {% if item.manufacturer or item.model %} · {{ item.manufacturer or '' }} {{ item.model or '' }}{% endif %}
+                                {% if item.standard or item.speed or item.length %} · {{ item.standard or '' }} {{ item.speed or '' }} {{ item.length or '' }}{% endif %}
+                            </div>
                             {% if item.notes %}<div class="small text-muted">{{ item.notes }}</div>{% endif %}
                         </td>
                         <td>{{ item.category }}</td>
@@ -291,6 +296,42 @@
                             <label class="form-label">Loại vật tư</label>
                             <input type="text" name="category" class="form-control" value="Dây mạng" list="consumable-category-options" placeholder="VD: Dây mạng, Dây HDMI, USB, Đầu chuyển">
                         </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Nhóm vật tư</label>
+                            <input type="text" name="group_name" class="form-control" placeholder="VD: Cáp mạng, Cáp quang, Module quang">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Hãng / Model</label>
+                            <div class="input-group">
+                                <input type="text" name="manufacturer" class="form-control" placeholder="Hãng">
+                                <input type="text" name="model" class="form-control" placeholder="Model">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Chuẩn / tốc độ</label>
+                            <div class="input-group">
+                                <input type="text" name="standard" class="form-control" placeholder="Cat6, OM3">
+                                <input type="text" name="speed" class="form-control" placeholder="1G, 10G">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Độ dài / màu</label>
+                            <div class="input-group">
+                                <input type="text" name="length" class="form-control" placeholder="3m">
+                                <input type="text" name="color" class="form-control" placeholder="Xanh">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Đầu nối A / B</label>
+                            <div class="input-group">
+                                <input type="text" name="connector_a" class="form-control" placeholder="RJ45">
+                                <input type="text" name="connector_b" class="form-control" placeholder="RJ45">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Loại sợi quang</label>
+                            <input type="text" name="fiber_type" class="form-control" placeholder="SM, MM, OM3, OM4, OS2">
+                        </div>
                         <div class="col-md-2">
                             <label class="form-label">Đơn vị</label>
                             <input type="text" name="unit" class="form-control" value="cái">
@@ -306,6 +347,21 @@
                         <div class="col-md-6">
                             <label class="form-label">Vị trí</label>
                             <input type="text" name="location" class="form-control" placeholder="VD: Kho IT">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Người phụ trách</label>
+                            <select name="manager_id" class="form-select">
+                                <option value="">-- Chọn --</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" name="track_after_handover" value="1" id="trackAfterHandoverAdd">
+                                <label class="form-check-label" for="trackAfterHandoverAdd">Theo dõi sau bàn giao</label>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Ghi chú</label>
