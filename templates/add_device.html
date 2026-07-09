@@ -9,21 +9,40 @@
         grid-template-columns: repeat(4, minmax(150px, 1fr));
         gap: .5rem;
     }
-    .device-entry-grid .wide {
+    .device-entry-grid .wide,
+    .device-image-cell {
         grid-column: 1 / -1;
+    }
+    .device-config-label {
+        align-items: center;
+        display: flex;
+        gap: .5rem;
+        justify-content: space-between;
+    }
+    .device-config-area {
+        align-items: start;
+        display: grid;
+        gap: .5rem;
+        grid-template-columns: minmax(260px, 1fr) minmax(360px, 1fr);
+    }
+    .device-spec-panel {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: .5rem;
     }
     .device-image-preview {
         display: flex;
         flex-wrap: wrap;
-        gap: .25rem;
-        margin-top: .25rem;
+        gap: .375rem;
+        margin-top: .375rem;
     }
     .device-image-preview img {
-        width: 52px;
-        height: 42px;
-        object-fit: cover;
         border: 1px solid #dee2e6;
         border-radius: 4px;
+        height: 56px;
+        object-fit: cover;
+        width: 72px;
     }
     .device-image-cell .form-text {
         font-size: .72rem;
@@ -31,6 +50,9 @@
     @media (max-width: 1200px) {
         .device-entry-grid {
             grid-template-columns: repeat(2, minmax(150px, 1fr));
+        }
+        .device-config-area {
+            grid-template-columns: 1fr;
         }
     }
 </style>
@@ -107,7 +129,7 @@
                                     <th>Thông tin thiết bị</th>
                                     <th style="width: 110px;">Số lượng</th>
                                     <th style="width: 190px;">Ghi chú</th>
-                                    <th style="width: 96px;">Hành động</th>
+                                    <th style="width: 64px;">Xóa</th>
                                 </tr>
                             </thead>
                             <tbody id="device-rows"></tbody>
@@ -166,17 +188,52 @@
                     <label class="form-label small mb-1">Giá mua</label>
                     <input type="number" step="1000" name="purchase_price[]" class="form-control form-control-sm" placeholder="VD: 15000000">
                 </div>
+                <div class="wide">
+                    <div class="device-config-label">
+                        <label class="form-label small mb-1">Cấu hình / thông tin khác</label>
+                        <button type="button" class="btn btn-sm btn-outline-primary toggle-spec-row d-none" title="Mở rộng cấu hình">
+                            <i class="bi bi-sliders"></i>
+                        </button>
+                    </div>
+                    <div class="device-config-area">
+                        <textarea name="configuration[]" class="form-control form-control-sm" rows="3"
+                            placeholder="VD: card mạng, linh kiện khác, thông số bổ sung"></textarea>
+                        <div class="device-spec-panel d-none">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">Chip / CPU</label>
+                                    <input type="text" name="cpu[]" class="form-control form-control-sm" placeholder="Intel Core i5-12400">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">Main</label>
+                                    <input type="text" name="mainboard[]" class="form-control form-control-sm" placeholder="MSI H610">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">RAM</label>
+                                    <input type="text" name="ram_gb[]" class="form-control form-control-sm" placeholder="16GB DDR4">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">SSD</label>
+                                    <input type="text" name="ssd[]" class="form-control form-control-sm" placeholder="500GB NVMe">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">HDD</label>
+                                    <input type="text" name="hdd[]" class="form-control form-control-sm" placeholder="1TB">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">VGA</label>
+                                    <input type="text" name="vga[]" class="form-control form-control-sm" placeholder="RTX 3060">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="hidden" name="condition[]" value="Sử dụng bình thường">
+                </div>
                 <div class="device-image-cell">
                     <label class="form-label small mb-1">Ảnh thiết bị</label>
                     <input type="file" class="form-control form-control-sm device-image-input" accept="image/*" multiple>
                     <div class="form-text">Tối đa 5 ảnh</div>
                     <div class="device-image-preview"></div>
-                </div>
-                <div class="wide">
-                    <label class="form-label small mb-1">Cấu hình / thông tin khác</label>
-                    <textarea name="configuration[]" class="form-control form-control-sm" rows="1"
-                        placeholder="VD: card mạng, linh kiện khác, thông số bổ sung"></textarea>
-                    <input type="hidden" name="condition[]" value="Sử dụng bình thường">
                 </div>
             </div>
         </td>
@@ -185,43 +242,9 @@
         </td>
         <td><textarea name="notes[]" class="form-control form-control-sm" rows="3"></textarea></td>
         <td class="text-center">
-            <button type="button" class="btn btn-sm btn-outline-primary toggle-spec-row d-none mb-1" title="Mở rộng cấu hình">
-                <i class="bi bi-sliders"></i>
-            </button>
             <button type="button" class="btn btn-sm btn-outline-danger remove-device-row" title="Xóa dòng">
                 <i class="bi bi-trash"></i>
             </button>
-        </td>
-    </tr>
-    <tr class="device-row-detail d-none">
-        <td></td>
-        <td colspan="4" class="bg-light">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-3 col-lg-2">
-                    <label class="form-label small mb-1">Chip / CPU</label>
-                    <input type="text" name="cpu[]" class="form-control form-control-sm" placeholder="Intel Core i5-12400">
-                </div>
-                <div class="col-md-3 col-lg-2">
-                    <label class="form-label small mb-1">Main</label>
-                    <input type="text" name="mainboard[]" class="form-control form-control-sm" placeholder="MSI H610">
-                </div>
-                <div class="col-md-3 col-lg-2">
-                    <label class="form-label small mb-1">RAM</label>
-                    <input type="text" name="ram_gb[]" class="form-control form-control-sm" placeholder="16GB DDR4">
-                </div>
-                <div class="col-md-3 col-lg-2">
-                    <label class="form-label small mb-1">SSD</label>
-                    <input type="text" name="ssd[]" class="form-control form-control-sm" placeholder="500GB NVMe">
-                </div>
-                <div class="col-md-3 col-lg-2">
-                    <label class="form-label small mb-1">HDD</label>
-                    <input type="text" name="hdd[]" class="form-control form-control-sm" placeholder="1TB">
-                </div>
-                <div class="col-md-3 col-lg-2">
-                    <label class="form-label small mb-1">VGA</label>
-                    <input type="text" name="vga[]" class="form-control form-control-sm" placeholder="RTX 3060">
-                </div>
-            </div>
         </td>
     </tr>
 </template>
@@ -253,12 +276,12 @@ document.addEventListener('DOMContentLoaded', function () {
     function syncSpecToggle(mainRow) {
         const typeSelect = mainRow.querySelector('[name="device_type[]"]');
         const toggleButton = mainRow.querySelector('.toggle-spec-row');
-        const detailRow = mainRow.nextElementSibling;
+        const specPanel = mainRow.querySelector('.device-spec-panel');
         const canConfigure = isConfigurableType(typeSelect.value);
         toggleButton.classList.toggle('d-none', !canConfigure);
-        if (!canConfigure && detailRow && detailRow.classList.contains('device-row-detail')) {
-            detailRow.classList.add('d-none');
-            detailRow.querySelectorAll('input, textarea').forEach(input => {
+        if (!canConfigure && specPanel) {
+            specPanel.classList.add('d-none');
+            specPanel.querySelectorAll('input').forEach(input => {
                 input.value = '';
             });
         }
@@ -315,9 +338,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const toggleButton = event.target.closest('.toggle-spec-row');
         if (toggleButton) {
             const mainRow = toggleButton.closest('.device-row-main');
-            const detailRow = mainRow.nextElementSibling;
-            if (detailRow && detailRow.classList.contains('device-row-detail')) {
-                detailRow.classList.toggle('d-none');
+            const specPanel = mainRow.querySelector('.device-spec-panel');
+            if (specPanel) {
+                specPanel.classList.toggle('d-none');
             }
             return;
         }
@@ -335,12 +358,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (allRows.length <= 1) {
             return;
         }
-        const mainRow = button.closest('.device-row-main');
-        const detailRow = mainRow.nextElementSibling;
-        if (detailRow && detailRow.classList.contains('device-row-detail')) {
-            detailRow.remove();
-        }
-        mainRow.remove();
+        button.closest('.device-row-main').remove();
         updateRowNumbers();
     });
 
