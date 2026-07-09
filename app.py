@@ -751,6 +751,7 @@ def migrate_missing_columns_v3():
                 _add_col_if_missing('device', 'supplier', 'VARCHAR(150)')
                 _add_col_if_missing('device', 'warranty', 'VARCHAR(50)')
                 _add_col_if_missing('device', 'image_filename', 'VARCHAR(255)')
+                _add_col_if_missing('device', 'image_filenames', 'TEXT')
                 _add_col_if_missing('device', 'mainboard', 'VARCHAR(120)')
 
                 # device_handover
@@ -972,6 +973,7 @@ class Device(db.Model):
     manager = db.relationship('User', foreign_keys=[manager_id])
     purchase_price = db.Column(db.Float)
     image_filename = db.Column(db.String(255))
+    image_filenames = db.Column(db.Text)
 
 DEVICE_PC_SPEC_FIELDS = {
     'cpu': 'CPU',
@@ -1049,7 +1051,7 @@ def _device_pc_specs_from_form():
         'hdd': (request.form.get('hdd') or '').strip() or config_specs.get('hdd') or None,
         'vga': (request.form.get('vga') or '').strip() or config_specs.get('vga') or None,
         'wifi_card': None,
-        'network_card': (request.form.get('network_card') or '').strip() or (request.form.get('wifi_card') or '').strip() or config_specs.get('network_card') or None,
+        'network_card': None,
     }
 
 DEVICE_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
@@ -1071,6 +1073,47 @@ def _save_device_image_file(file_storage, device_id):
     file_storage.save(os.path.join(_device_images_dir(), image_filename))
     return image_filename
 
+def _device_image_list(image_value):
+    if not image_value:
+        return []
+    if isinstance(image_value, list):
+        return [os.path.basename(item) for item in image_value if item]
+    text = str(image_value).strip()
+    if not text:
+        return []
+    if text.startswith('['):
+        try:
+            data = json.loads(text)
+            if isinstance(data, list):
+                return [os.path.basename(item) for item in data if item]
+        except Exception:
+            pass
+    return [os.path.basename(text)]
+
+def _device_image_storage_value(image_filenames):
+    image_filenames = [os.path.basename(name) for name in image_filenames or [] if name]
+    if not image_filenames:
+        return None
+    if len(image_filenames) == 1:
+        return image_filenames[0]
+    return json.dumps(image_filenames[:5], ensure_ascii=False)
+
+def _save_device_image_files(files, device_id, limit=5):
+    saved = []
+    for file_storage in files or []:
+        if not file_storage or not file_storage.filename:
+            continue
+        if len(saved) >= limit:
+            break
+        try:
+            file_storage.stream.seek(0)
+        except Exception:
+            pass
+        saved_name = _save_device_image_file(file_storage, device_id)
+        if saved_name:
+            saved.append(saved_name)
+    return saved
+
 def _delete_device_image_file(image_filename):
     if not image_filename:
         return
@@ -1081,6 +1124,10 @@ def _delete_device_image_file(image_filename):
             os.remove(path)
     except OSError:
         pass
+
+def _delete_device_image_files(image_filenames):
+    for image_filename in _device_image_list(image_filenames):
+        _delete_device_image_file(image_filename)
 
 def _handover_images_dir():
     path = os.path.join(app.root_path, 'static', 'uploads', 'handovers')
@@ -1999,8 +2046,13 @@ def inject_user():
                 except Exception:
                     pass
         unread_notifications = current_user.notifications.filter_by(is_read=False).all() if current_user else []
-        return dict(current_user=current_user, current_permissions=perm_codes, unread_notifications=unread_notifications)
-    return dict(current_user=None, current_permissions=set(), unread_notifications=[])
+        return dict(
+            current_user=current_user,
+            current_permissions=perm_codes,
+            unread_notifications=unread_notifications,
+            device_image_list=_device_image_list,
+        )
+    return dict(current_user=None, current_permissions=set(), unread_notifications=[], device_image_list=_device_image_list)
 
 from werkzeug.exceptions import abort
 
@@ -3358,11 +3410,9 @@ def add_device():
         ssds = request.form.getlist('ssd[]')
         hdds = request.form.getlist('hdd[]')
         vgas = request.form.getlist('vga[]')
-        network_cards = request.form.getlist('network_card[]')
         brands = request.form.getlist('brand[]')
         warranties = request.form.getlist('warranty[]')
         notes_list = request.form.getlist('notes[]')
-        image_files = request.files.getlist('device_image[]')
 
         if not names or not any(name.strip() for name in names):
             flash('Vui lòng nhập ít nhất một thiết bị.', 'danger')
@@ -3414,7 +3464,7 @@ def add_device():
                     'hdd': (hdds[index] if index < len(hdds) else '').strip() or config_specs.get('hdd') or None,
                     'vga': (vgas[index] if index < len(vgas) else '').strip() or config_specs.get('vga') or None,
                     'wifi_card': None,
-                    'network_card': (network_cards[index] if index < len(network_cards) else '').strip() or config_specs.get('network_card') or None,
+                    'network_card': None,
                 }
                 if not ('case' in device_type.lower() or 'laptop' in device_type.lower()):
                     pc_specs = {
@@ -3434,7 +3484,7 @@ def add_device():
                     except ValueError:
                         row_purchase_price = None
                 row_condition = (conditions[index] if index < len(conditions) and conditions[index] else None) or 'Sử dụng bình thường'
-                image_file = image_files[index] if index < len(image_files) else None
+                row_image_files = request.files.getlist(f'device_images_{index}[]')[:5]
 
                 for item_offset in range(quantity):
                     if base_device_code:
@@ -3480,15 +3530,11 @@ def add_device():
                     db.session.add(new_device)
                     db.session.flush()
 
-                    if image_file and image_file.filename:
-                        try:
-                            image_file.stream.seek(0)
-                        except Exception:
-                            pass
-                    image_filename = _save_device_image_file(image_file, new_device.id)
-                    if image_filename:
-                        new_device.image_filename = image_filename
-                        saved_images.append(image_filename)
+                    image_filenames = _save_device_image_files(row_image_files, new_device.id, limit=5)
+                    if image_filenames:
+                        new_device.image_filename = image_filenames[0]
+                        new_device.image_filenames = _device_image_storage_value(image_filenames)
+                        saved_images.extend(image_filenames)
                     created_devices.append(new_device)
 
             if not created_devices:
@@ -3556,6 +3602,7 @@ def edit_device(device_id):
             'assign_date': device.assign_date,
             'notes': device.notes,
             'image_filename': device.image_filename,
+            'image_filenames': device.image_filenames,
         }
         # Cho phép sửa mã thiết bị với kiểm tra trùng lặp
         new_device_code = request.form.get('device_code', '').strip()
@@ -3586,13 +3633,15 @@ def edit_device(device_id):
         device.assign_date = datetime.strptime(request.form['assign_date'], '%Y-%m-%d').date() if request.form.get('assign_date') else None
         device.notes = request.form.get('notes')
         if request.form.get('remove_device_image') == '1':
-            _delete_device_image_file(device.image_filename)
+            _delete_device_image_files(device.image_filenames or device.image_filename)
             device.image_filename = None
+            device.image_filenames = None
         try:
-            image_filename = _save_device_image_file(request.files.get('device_image'), device.id)
-            if image_filename:
-                _delete_device_image_file(device.image_filename)
-                device.image_filename = image_filename
+            image_filenames = _save_device_image_files(request.files.getlist('device_image'), device.id, limit=5)
+            if image_filenames:
+                _delete_device_image_files(device.image_filenames or device.image_filename)
+                device.image_filename = image_filenames[0]
+                device.image_filenames = _device_image_storage_value(image_filenames)
         except ValueError as e:
             flash(str(e), 'danger')
             return redirect(url_for('edit_device', device_id=device_id))
@@ -3625,6 +3674,7 @@ def edit_device(device_id):
             'assign_date': device.assign_date,
             'notes': device.notes,
             'image_filename': device.image_filename,
+            'image_filenames': device.image_filenames,
         }
         _log_audit('device', device.id, old, new)
         flash('Cập nhật thông tin thiết bị thành công!', 'success')
@@ -3651,7 +3701,7 @@ def delete_device(device_id):
         flash('Không thể xóa thiết bị đã có lịch sử bàn giao.', 'danger')
         return redirect(url_for('device_list'))
     # Removed InventoryReceiptItem deletion
-    _delete_device_image_file(device.image_filename)
+    _delete_device_image_files(device.image_filenames or device.image_filename)
     db.session.delete(device)
     db.session.commit()
     flash('Xóa thiết bị thành công!', 'success')
@@ -3678,6 +3728,7 @@ def bulk_delete_devices():
             continue
 
         # Removed InventoryReceiptItem deletion
+        _delete_device_image_files(device.image_filenames or device.image_filename)
 
         db.session.delete(device)
         deleted_count += 1

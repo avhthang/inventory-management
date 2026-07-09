@@ -29,9 +29,14 @@
             <div class="col-md-6">
                 <h5><i class="bi bi-image text-secondary"></i> Ảnh thiết bị</h5>
                 <div class="device-image-panel bg-light rounded border mb-4 d-flex align-items-center justify-content-center">
-                    {% if device.image_filename %}
-                    <img src="{{ url_for('static', filename='uploads/devices/' + device.image_filename) }}"
-                        alt="Ảnh thiết bị {{ device.device_code }}" class="img-fluid rounded">
+                    {% set device_images = device_image_list(device.image_filenames or device.image_filename) %}
+                    {% if device_images %}
+                    <div class="d-flex flex-wrap gap-2 justify-content-center p-2">
+                        {% for image_filename in device_images %}
+                        <img src="{{ url_for('static', filename='uploads/devices/' + image_filename) }}"
+                            alt="Ảnh thiết bị {{ device.device_code }}" class="img-fluid rounded">
+                        {% endfor %}
+                    </div>
                     {% else %}
                     <div class="text-muted text-center py-4">
                         <i class="bi bi-image fs-1 d-block mb-2"></i>
@@ -125,7 +130,7 @@
         <hr>
         <div class="row mt-3">
             <div class="col-md-6">
-                {% if device.cpu or device.mainboard or device.ram_gb or device.ssd or device.hdd or device.vga or device.wifi_card or device.network_card %}
+                {% if device.cpu or device.mainboard or device.ram_gb or device.ssd or device.hdd or device.vga %}
                 <h5><i class="bi bi-pc-display"></i> Cấu hình Case PC</h5>
                 <table class="table table-sm table-borderless table-details mb-4">
                     <tr>
@@ -152,10 +157,6 @@
                         <td><strong>VGA:</strong></td>
                         <td>{{ device.vga or 'N/A' }}</td>
                     </tr>
-                    <tr>
-                        <td><strong>Card mạng:</strong></td>
-                        <td>{{ device.network_card or device.wifi_card or 'N/A' }}</td>
-                    </tr>
                 </table>
                 {% endif %}
                 <h5><i class="bi bi-gear-fill"></i> Cấu hình chi tiết</h5>
@@ -179,6 +180,7 @@
     }
     .device-image-panel img {
         max-height: 360px;
+        max-width: 180px;
         object-fit: contain;
     }
 </style>
