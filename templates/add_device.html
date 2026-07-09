@@ -85,15 +85,12 @@
                             <thead class="table-light text-center">
                                 <tr>
                                     <th style="width: 42px;">#</th>
-                                    <th style="min-width: 180px;">Loại thiết bị</th>
-                                    <th style="min-width: 180px;">Tên thiết bị</th>
-                                    <th style="min-width: 130px;">Mã TB</th>
-                                    <th style="min-width: 130px;">Số serial</th>
-                                    <th style="min-width: 220px;">Cấu hình</th>
-                                    <th style="min-width: 130px;">Thương hiệu</th>
-                                    <th style="min-width: 120px;">Bảo hành</th>
-                                    <th style="min-width: 160px;">Ảnh chi tiết</th>
-                                    <th style="min-width: 160px;">Ghi chú</th>
+                                    <th style="min-width: 190px;">Loại thiết bị</th>
+                                    <th style="min-width: 220px;">Tên thiết bị</th>
+                                    <th style="min-width: 140px;">Mã TB</th>
+                                    <th style="min-width: 150px;">Số serial</th>
+                                    <th style="min-width: 150px;">Thương hiệu</th>
+                                    <th style="min-width: 130px;">Bảo hành</th>
                                     <th style="width: 56px;">Xóa</th>
                                 </tr>
                             </thead>
@@ -112,7 +109,7 @@
 </div>
 
 <template id="device-row-template">
-    <tr class="device-row">
+    <tr class="device-row device-row-main">
         <td class="text-center fw-bold row-number">1</td>
         <td>
             <select name="device_type[]" class="form-select form-select-sm" required>
@@ -131,18 +128,60 @@
             <input type="text" name="device_code[]" class="form-control form-control-sm" placeholder="Để trống tự tạo">
         </td>
         <td><input type="text" name="serial_number[]" class="form-control form-control-sm"></td>
-        <td>
-            <textarea name="configuration[]" class="form-control form-control-sm" rows="2"
-                placeholder="VD: CPU: Intel Core i5-12400; Main: MSI H610; RAM: 16GB; SSD: 500GB"></textarea>
-        </td>
         <td><input type="text" name="brand[]" class="form-control form-control-sm" placeholder="VD: Dell, HP"></td>
         <td><input type="text" name="warranty[]" class="form-control form-control-sm" placeholder="VD: 12 tháng"></td>
-        <td><input type="file" name="device_image[]" class="form-control form-control-sm" accept="image/*"></td>
-        <td><input type="text" name="notes[]" class="form-control form-control-sm"></td>
         <td class="text-center">
             <button type="button" class="btn btn-sm btn-outline-danger remove-device-row" title="Xóa dòng">
                 <i class="bi bi-trash"></i>
             </button>
+        </td>
+    </tr>
+    <tr class="device-row-detail">
+        <td></td>
+        <td colspan="7" class="bg-light">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">CPU</label>
+                    <input type="text" name="cpu[]" class="form-control form-control-sm" placeholder="Intel Core i5-12400">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">RAM</label>
+                    <input type="text" name="ram_gb[]" class="form-control form-control-sm" placeholder="16GB DDR4">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">Main</label>
+                    <input type="text" name="mainboard[]" class="form-control form-control-sm" placeholder="MSI H610">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">SSD</label>
+                    <input type="text" name="ssd[]" class="form-control form-control-sm" placeholder="500GB NVMe">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">HDD</label>
+                    <input type="text" name="hdd[]" class="form-control form-control-sm" placeholder="1TB">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">VGA</label>
+                    <input type="text" name="vga[]" class="form-control form-control-sm" placeholder="RTX 3060">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">Card mạng</label>
+                    <input type="text" name="network_card[]" class="form-control form-control-sm" placeholder="Realtek 1GbE">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">Ảnh chi tiết</label>
+                    <input type="file" name="device_image[]" class="form-control form-control-sm" accept="image/*">
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <label class="form-label small mb-1">Cấu hình / thông tin khác</label>
+                    <textarea name="configuration[]" class="form-control form-control-sm" rows="1"
+                        placeholder="VD: Linh kiện khác, thông số bổ sung"></textarea>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <label class="form-label small mb-1">Ghi chú</label>
+                    <input type="text" name="notes[]" class="form-control form-control-sm">
+                </div>
+            </div>
         </td>
     </tr>
 </template>
@@ -157,7 +196,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const addButton = document.getElementById('add-device-row');
 
     function updateRowNumbers() {
-        rows.querySelectorAll('.device-row').forEach((row, index) => {
+        rows.querySelectorAll('.device-row-main').forEach((row, index) => {
             row.querySelector('.row-number').textContent = index + 1;
         });
     }
@@ -172,11 +211,16 @@ document.addEventListener('DOMContentLoaded', function () {
     rows.addEventListener('click', function (event) {
         const button = event.target.closest('.remove-device-row');
         if (!button) return;
-        const allRows = rows.querySelectorAll('.device-row');
+        const allRows = rows.querySelectorAll('.device-row-main');
         if (allRows.length <= 1) {
             return;
         }
-        button.closest('.device-row').remove();
+        const mainRow = button.closest('.device-row-main');
+        const detailRow = mainRow.nextElementSibling;
+        if (detailRow && detailRow.classList.contains('device-row-detail')) {
+            detailRow.remove();
+        }
+        mainRow.remove();
         updateRowNumbers();
     });
 

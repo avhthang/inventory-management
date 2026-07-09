@@ -3349,6 +3349,13 @@ def add_device():
         device_codes = request.form.getlist('device_code[]')
         serial_numbers = request.form.getlist('serial_number[]')
         configurations = request.form.getlist('configuration[]')
+        cpus = request.form.getlist('cpu[]')
+        mainboards = request.form.getlist('mainboard[]')
+        ram_values = request.form.getlist('ram_gb[]')
+        ssds = request.form.getlist('ssd[]')
+        hdds = request.form.getlist('hdd[]')
+        vgas = request.form.getlist('vga[]')
+        network_cards = request.form.getlist('network_card[]')
         brands = request.form.getlist('brand[]')
         warranties = request.form.getlist('warranty[]')
         notes_list = request.form.getlist('notes[]')
@@ -3391,6 +3398,17 @@ def add_device():
                 reserved_codes.add(device_code)
 
                 configuration = (configurations[index] if index < len(configurations) else '').strip()
+                config_specs = _device_pc_specs_from_config_text(configuration)
+                pc_specs = {
+                    'cpu': (cpus[index] if index < len(cpus) else '').strip() or config_specs.get('cpu') or None,
+                    'mainboard': (mainboards[index] if index < len(mainboards) else '').strip() or config_specs.get('mainboard') or None,
+                    'ram_gb': _parse_ram_gb(ram_values[index] if index < len(ram_values) else None) or config_specs.get('ram_gb'),
+                    'ssd': (ssds[index] if index < len(ssds) else '').strip() or config_specs.get('ssd') or None,
+                    'hdd': (hdds[index] if index < len(hdds) else '').strip() or config_specs.get('hdd') or None,
+                    'vga': (vgas[index] if index < len(vgas) else '').strip() or config_specs.get('vga') or None,
+                    'wifi_card': None,
+                    'network_card': (network_cards[index] if index < len(network_cards) else '').strip() or config_specs.get('network_card') or None,
+                }
                 new_device = Device(
                     device_code=device_code,
                     name=name,
@@ -3409,7 +3427,7 @@ def add_device():
                     manager_id=manager_id,
                     assign_date=assign_date,
                     notes=(notes_list[index] if index < len(notes_list) else None) or None,
-                    **_device_pc_specs_from_config_text(configuration)
+                    **pc_specs
                 )
                 db.session.add(new_device)
                 db.session.flush()
