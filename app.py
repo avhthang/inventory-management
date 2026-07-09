@@ -3349,6 +3349,9 @@ def add_device():
         device_codes = request.form.getlist('device_code[]')
         serial_numbers = request.form.getlist('serial_number[]')
         configurations = request.form.getlist('configuration[]')
+        quantities = request.form.getlist('quantity[]')
+        conditions = request.form.getlist('condition[]')
+        purchase_prices = request.form.getlist('purchase_price[]')
         cpus = request.form.getlist('cpu[]')
         mainboards = request.form.getlist('mainboard[]')
         ram_values = request.form.getlist('ram_gb[]')
@@ -3383,19 +3386,23 @@ def add_device():
                     flash('Vui lòng chọn loại thiết bị cho từng dòng.', 'danger')
                     return redirect(url_for('add_device'))
 
-                device_code = (device_codes[index] if index < len(device_codes) else '').strip()
-                if not device_code:
-                    device_code = generate_device_code_for_type(device_type, reserved_codes)
-                    if not device_code:
-                        db.session.rollback()
-                        flash(f'Vui lòng cấu hình mã loại thiết bị cho "{device_type}" trước khi để trống mã thiết bị.', 'danger')
-                        return redirect(url_for('add_device'))
+                quantity = 1
+                if index < len(quantities) and quantities[index]:
+                    try:
+                        quantity = max(1, int(quantities[index]))
+                    except ValueError:
+                        quantity = 1
 
-                if device_code in reserved_codes or Device.query.filter_by(device_code=device_code).first():
-                    db.session.rollback()
-                    flash(f'Mã thiết bị {device_code} đã tồn tại.', 'danger')
-                    return redirect(url_for('add_device'))
-                reserved_codes.add(device_code)
+                base_device_code = (device_codes[index] if index < len(device_codes) else '').strip()
+                custom_prefix = ''
+                custom_sequence = None
+                custom_width = 0
+                if base_device_code:
+                    match = re.search(r'^(.*?)(\d+)$', base_device_code)
+                    if match:
+                        custom_prefix = match.group(1)
+                        custom_sequence = int(match.group(2))
+                        custom_width = len(match.group(2))
 
                 configuration = (configurations[index] if index < len(configurations) else '').strip()
                 config_specs = _device_pc_specs_from_config_text(configuration)
@@ -3409,35 +3416,80 @@ def add_device():
                     'wifi_card': None,
                     'network_card': (network_cards[index] if index < len(network_cards) else '').strip() or config_specs.get('network_card') or None,
                 }
-                new_device = Device(
-                    device_code=device_code,
-                    name=name,
-                    device_type=device_type,
-                    serial_number=(serial_numbers[index] if index < len(serial_numbers) else None) or None,
-                    brand=(brands[index] if index < len(brands) else None) or None,
-                    supplier=request.form.get('supplier') or None,
-                    warranty=(warranties[index] if index < len(warranties) else None) or None,
-                    configuration=configuration or None,
-                    purchase_date=purchase_date,
-                    import_date=purchase_date,
-                    purchase_price=request.form.get('purchase_price', type=float, default=None),
-                    buyer=request.form.get('buyer') or None,
-                    condition=request.form.get('condition') or 'Sử dụng bình thường',
-                    status=request.form.get('status') or 'Sẵn sàng',
-                    manager_id=manager_id,
-                    assign_date=assign_date,
-                    notes=(notes_list[index] if index < len(notes_list) else None) or None,
-                    **pc_specs
-                )
-                db.session.add(new_device)
-                db.session.flush()
-
+                if not ('case' in device_type.lower() or 'laptop' in device_type.lower()):
+                    pc_specs = {
+                        'cpu': None,
+                        'mainboard': None,
+                        'ram_gb': None,
+                        'ssd': None,
+                        'hdd': None,
+                        'vga': None,
+                        'wifi_card': None,
+                        'network_card': None,
+                    }
+                row_purchase_price = None
+                if index < len(purchase_prices) and purchase_prices[index]:
+                    try:
+                        row_purchase_price = float(str(purchase_prices[index]).replace(',', '').strip())
+                    except ValueError:
+                        row_purchase_price = None
+                row_condition = (conditions[index] if index < len(conditions) and conditions[index] else None) or 'Sử dụng bình thường'
                 image_file = image_files[index] if index < len(image_files) else None
-                image_filename = _save_device_image_file(image_file, new_device.id)
-                if image_filename:
-                    new_device.image_filename = image_filename
-                    saved_images.append(image_filename)
-                created_devices.append(new_device)
+
+                for item_offset in range(quantity):
+                    if base_device_code:
+                        if item_offset == 0:
+                            device_code = base_device_code
+                        elif custom_sequence is not None:
+                            device_code = f'{custom_prefix}{custom_sequence + item_offset:0{custom_width}d}'
+                        else:
+                            device_code = f'{base_device_code}_{item_offset + 1}'
+                    else:
+                        device_code = generate_device_code_for_type(device_type, reserved_codes)
+                        if not device_code:
+                            db.session.rollback()
+                            flash(f'Vui lòng cấu hình mã loại thiết bị cho "{device_type}" trước khi để trống mã thiết bị.', 'danger')
+                            return redirect(url_for('add_device'))
+
+                    if device_code in reserved_codes or Device.query.filter_by(device_code=device_code).first():
+                        db.session.rollback()
+                        flash(f'Mã thiết bị {device_code} đã tồn tại.', 'danger')
+                        return redirect(url_for('add_device'))
+                    reserved_codes.add(device_code)
+
+                    new_device = Device(
+                        device_code=device_code,
+                        name=name,
+                        device_type=device_type,
+                        serial_number=(serial_numbers[index] if index < len(serial_numbers) else None) or None,
+                        brand=(brands[index] if index < len(brands) else None) or None,
+                        supplier=request.form.get('supplier') or None,
+                        warranty=(warranties[index] if index < len(warranties) else None) or None,
+                        configuration=configuration or None,
+                        purchase_date=purchase_date,
+                        import_date=purchase_date,
+                        purchase_price=row_purchase_price,
+                        buyer=request.form.get('buyer') or None,
+                        condition=row_condition,
+                        status=request.form.get('status') or 'Sẵn sàng',
+                        manager_id=manager_id,
+                        assign_date=assign_date,
+                        notes=(notes_list[index] if index < len(notes_list) else None) or None,
+                        **pc_specs
+                    )
+                    db.session.add(new_device)
+                    db.session.flush()
+
+                    if image_file and image_file.filename:
+                        try:
+                            image_file.stream.seek(0)
+                        except Exception:
+                            pass
+                    image_filename = _save_device_image_file(image_file, new_device.id)
+                    if image_filename:
+                        new_device.image_filename = image_filename
+                        saved_images.append(image_filename)
+                    created_devices.append(new_device)
 
             if not created_devices:
                 db.session.rollback()
