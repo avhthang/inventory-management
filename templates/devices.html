@@ -17,20 +17,24 @@
             </button>
             <div id="deviceCategoryPanel">
             <div class="list-group list-group-flush">
-                <a href="{{ url_for('device_list') }}"
-                    class="list-group-item list-group-item-action {% if not filter_category and not filter_device_type %}active{% endif %}">
+                <a href="{{ url_for('device_list', all=1) }}"
+                    class="list-group-item list-group-item-action {% if not filter_category and not filter_device_type and request.args.get('all') == '1' %}active{% endif %}">
                     <strong class="d-block py-1">Tất cả thiết bị</strong>
-                </a>
-                <a href="{{ url_for('consumable_list') }}" class="list-group-item list-group-item-action">
-                    <strong class="d-block py-1">Thiết bị tiêu hao</strong>
-                    <span class="small text-muted">Quản lý tồn kho, nhập xuất theo người nhận</span>
                 </a>
 
                 {% for category, types in device_hierarchy.items() %}
+                {% if category != 'Thiết bị tiêu hao' %}
                 {% set is_active_category = (filter_category == category) %}
-                {% set contains_active_type = (filter_device_type in types) %}
+                {% set active_type_state = namespace(value=(filter_device_type in types)) %}
+                {% for selected_type in filter_device_types %}
+                    {% if selected_type in types %}
+                        {% set active_type_state.value = true %}
+                    {% endif %}
+                {% endfor %}
+                {% set contains_active_type = active_type_state.value %}
                 {% set is_expanded = is_active_category or contains_active_type or (not filter_category and not
                 filter_device_type and category == 'Thiết bị IT') %}
+                {% set collapse_id = 'collapse-device-category-' ~ loop.index0 %}
 
                 <div class="list-group-item p-0 border-0">
                     <div class="d-flex justify-content-between align-items-center list-group-item-action {% if is_active_category %}bg-light{% endif %}"
@@ -40,13 +44,13 @@
                             {{ category }}
                         </a>
                         <button class="btn btn-link text-dark p-3 text-decoration-none" type="button"
-                            data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}"
-                            aria-expanded="{{ 'true' if is_expanded else 'false' }}">
+                            data-bs-toggle="collapse" data-bs-target="#{{ collapse_id }}"
+                            aria-expanded="{{ 'true' if is_expanded else 'false' }}" aria-controls="{{ collapse_id }}">
                             <i class="bi bi-chevron-down"></i>
                         </button>
                     </div>
 
-                    <div id="collapse-{{ loop.index }}" class="collapse {% if is_expanded %}show{% endif %} bg-white">
+                    <div id="{{ collapse_id }}" class="collapse {% if is_expanded %}show{% endif %} bg-white">
                         <div class="list-group list-group-flush border-bottom">
                             {% for type in types %}
                             <a href="{{ url_for('device_list', filter_category=category, filter_device_type=type) }}"
@@ -57,7 +61,12 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 {% endfor %}
+                <a href="{{ url_for('consumable_list') }}" class="list-group-item list-group-item-action">
+                    <span class="d-block py-1">Thiết bị tiêu hao</span>
+                    <span class="small text-muted">Quản lý tồn kho, nhập xuất theo người nhận</span>
+                </a>
             </div>
             </div>
         </div>
@@ -89,9 +98,7 @@
                         {% if current_permissions and 'devices.edit' in current_permissions %}
                         <a href="{{ url_for('add_device') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Thêm
                             mới</a>
-                        <a href="{{ url_for('add_devices_bulk') }}" class="btn btn-secondary">
-                            <i class="fas fa-file-import"></i> Thêm nhiều thiết bị
-                        </a> {% if current_user.role == 'admin' %}
+                        {% if current_user.role == 'admin' %}
                         <a href="{{ url_for('import_devices') }}" class="btn btn-info ms-1"><i class="bi bi-upload"></i>
                             Nhập Excel</a>
                         {% endif %}

@@ -5,210 +5,190 @@
 {% block content %}
 <div class="card">
     <div class="card-body">
-        <h2 class="card-title">Thêm Thiết Bị Mới</h2>
-        <form method="POST" enctype="multipart/form-data">
-            <div class="row">
-                <!-- Cột 1: Thông tin thiết bị (Technical) -->
-                <div class="col-md-6">
-                    <div class="card mb-3">
-                        <div class="card-header bg-light">
-                            <h5 class="mb-0">Thông tin kỹ thuật</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="card-title mb-0">Thêm Thiết Bị Mới</h2>
+            <button type="button" id="add-device-row" class="btn btn-outline-success">
+                <i class="bi bi-plus-lg"></i> Thêm dòng
+            </button>
+        </div>
+
+        <form method="POST" id="add-device-form" enctype="multipart/form-data">
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Thông tin mua sắm và quản lý</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label required">Ngày mua</label>
+                            <input type="date" name="purchase_date" class="form-control" required>
                         </div>
-                        <div class="card-body">
-                            <div class="form-group mb-3">
-                                <label class="form-label">Mã thiết bị</label>
-                                <input type="text" name="device_code" class="form-control"
-                                    placeholder="Để trống để tự tạo theo loại, ví dụ BP-001">
-                                <div class="form-text">Nếu để trống, hệ thống sẽ lấy mã loại thiết bị và tạo số thứ tự tiếp theo.</div>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label required">Tên thiết bị</label>
-                                <input type="text" name="name" class="form-control"
-                                    placeholder="VD: Laptop Dell Vostro 3550" required>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label required">Loại thiết bị</label>
-                                <select name="device_type" class="form-control" required>
-                                    <option value="">-- Chọn loại --</option>
-                                    {% if grouped_device_types %}
-                                    {% for category, types in grouped_device_types.items() %}
-                                    <optgroup label="{{ category }}">
-                                        {% for type in types %}
-                                        <option value="{{ type.name }}">{{ type.name }}</option>
-                                        {% endfor %}
-                                    </optgroup>
-                                    {% endfor %}
-                                    {% else %}
-                                    <!-- Fallback if no types in DB -->
-                                    <option value="Laptop">Laptop</option>
-                                    <option value="Case máy tính">Case máy tính</option>
-                                    <option value="Màn hình">Màn hình</option>
-                                    {% endif %}
-                                </select>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label">Số serial</label>
-                                <input type="text" name="serial_number" class="form-control">
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label">Thương hiệu</label>
-                                <input type="text" name="brand" class="form-control" placeholder="VD: Dell, HP, Apple">
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label">Bảo hành</label>
-                                <input type="text" name="warranty" class="form-control" placeholder="VD: 12 tháng">
-                            </div>
-                            <div id="pc-spec-fields" class="border rounded p-3 mb-3 bg-light" style="display: none;">
-                                <h6 class="mb-3">Cấu hình Case PC</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label class="form-label">CPU</label>
-                                            <input type="text" name="cpu" class="form-control" placeholder="VD: Intel Core i5-12400">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label class="form-label">RAM (GB)</label>
-                                            <input type="number" min="0" step="1" name="ram_gb" class="form-control" placeholder="VD: 16">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label class="form-label">Main</label>
-                                            <input type="text" name="mainboard" class="form-control" placeholder="VD: MSI PRO H610M-E DDR4">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label class="form-label">SSD</label>
-                                            <input type="text" name="ssd" class="form-control" placeholder="VD: 512GB NVMe">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label class="form-label">HDD</label>
-                                            <input type="text" name="hdd" class="form-control" placeholder="VD: 1TB">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label class="form-label">VGA</label>
-                                            <input type="text" name="vga" class="form-control" placeholder="VD: GTX 1660">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-12">
-                                        <div class="form-group mb-0">
-                                            <label class="form-label">Card mạng</label>
-                                            <input type="text" name="network_card" class="form-control" placeholder="VD: Realtek 1GbE, Intel AX200 Wi-Fi">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label">Cấu hình chi tiết</label>
-                                <textarea name="configuration" class="form-control" rows="3"
-                                    placeholder="VD: CPU i5, RAM 8GB, SSD 256GB"></textarea>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label">Ảnh thiết bị</label>
-                                <input type="file" name="device_image" class="form-control" accept="image/*">
-                                <div class="form-text">Không bắt buộc. Hỗ trợ JPG, PNG, WEBP hoặc GIF.</div>
-                            </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Giá mua (VND)</label>
+                            <input type="number" step="1000" name="purchase_price" class="form-control" placeholder="VD: 15000000">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Người mua</label>
+                            <input type="text" name="buyer" class="form-control">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Nhà cung cấp</label>
+                            <input type="text" name="supplier" class="form-control" placeholder="VD: FPT, Phong Vũ">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label required">Tình trạng ban đầu</label>
+                            <select name="condition" class="form-select" required>
+                                <option value="Mới">Mới</option>
+                                <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
+                                <option value="Cần bảo trì">Cần bảo trì</option>
+                                <option value="Hỏng">Hỏng</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label required">Trạng thái</label>
+                            <select name="status" class="form-select" required>
+                                <option value="Sẵn sàng" selected>Sẵn sàng</option>
+                                <option value="Đã cấp phát">Đã cấp phát</option>
+                                <option value="Bảo trì">Bảo trì</option>
+                                <option value="Hỏng">Hỏng</option>
+                                <option value="Thanh lý">Thanh lý</option>
+                                <option value="Test">Test</option>
+                                <option value="Mượn">Mượn</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Người quản lý ban đầu</label>
+                            <select name="manager_id" class="form-select">
+                                <option value="">-- Chọn --</option>
+                                {% for manager in managers %}
+                                <option value="{{ manager.id }}">{{ manager.full_name or manager.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Ngày cấp phát ban đầu</label>
+                            <input type="date" name="assign_date" class="form-control">
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Cột 2: Thông tin mua sắm & Bàn giao -->
-                <div class="col-md-6">
-                    <div class="card mb-3">
-                        <div class="card-header bg-light">
-                            <h5 class="mb-0">Thông tin mua sắm & Quản lý</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label class="form-label required">Ngày mua</label>
-                                        <input type="date" name="purchase_date" class="form-control" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label class="form-label">Giá mua (VND)</label>
-                                        <input type="number" step="1000" name="purchase_price" class="form-control"
-                                            placeholder="VD: 15000000">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label class="form-label">Nhà cung cấp</label>
-                                <input type="text" name="supplier" class="form-control" placeholder="VD: FPT, Phong Vũ">
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="col-md-12">
-                                        <div class="form-group mb-3">
-                                            <label class="form-label">Người mua</label>
-                                            <input type="text" name="buyer" class="form-control">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="form-group mb-3">
-                                    <label class="form-label required">Tình trạng ban đầu</label>
-                                    <select name="condition" class="form-control" required>
-                                        <option value="Mới">Mới</option>
-                                        <option value="Sử dụng bình thường" selected>Sử dụng bình thường</option>
-                                        <option value="Cần bảo trì">Cần bảo trì</option>
-                                        <option value="Hỏng">Hỏng</option>
-                                    </select>
-                                </div>
-
-                                <div class="form-group mb-3">
-                                    <label class="form-label">Người quản lý ban đầu</label>
-                                    <select name="manager_id" class="form-control">
-                                        <option value="">-- Chọn --</option>
-                                        {% for manager in managers %}<option value="{{ manager.id }}">{{
-                                            manager.full_name
-                                            }}
-                                        </option>{% endfor %}
-                                    </select>
-                                </div>
-                                <div class="form-group mb-3">
-                                    <label class="form-label">Ngày cấp phát ban đầu</label>
-                                    <input type="date" name="assign_date" class="form-control">
-                                </div>
-                                <div class="form-group mb-3">
-                                    <label class="form-label">Ghi chú</label>
-                                    <textarea name="notes" class="form-control" rows="2"></textarea>
-                                </div>
-                            </div>
-                        </div>
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Thông tin chi tiết từng thiết bị</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light text-center">
+                                <tr>
+                                    <th style="width: 42px;">#</th>
+                                    <th style="min-width: 180px;">Loại thiết bị</th>
+                                    <th style="min-width: 180px;">Tên thiết bị</th>
+                                    <th style="min-width: 130px;">Mã TB</th>
+                                    <th style="min-width: 130px;">Số serial</th>
+                                    <th style="min-width: 220px;">Cấu hình</th>
+                                    <th style="min-width: 130px;">Thương hiệu</th>
+                                    <th style="min-width: 120px;">Bảo hành</th>
+                                    <th style="min-width: 160px;">Ảnh chi tiết</th>
+                                    <th style="min-width: 160px;">Ghi chú</th>
+                                    <th style="width: 56px;">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="device-rows"></tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="form-group mt-3">
-                    <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Hủy bỏ</a>
-                    <button type="submit" class="btn btn-primary">Thêm thiết bị</button>
-                </div>
+            </div>
+
+            <div class="form-group mt-3">
+                <a href="{{ url_for('device_list') }}" class="btn btn-secondary">Hủy bỏ</a>
+                <button type="submit" class="btn btn-primary">Lưu thiết bị</button>
+            </div>
         </form>
     </div>
 </div>
+
+<template id="device-row-template">
+    <tr class="device-row">
+        <td class="text-center fw-bold row-number">1</td>
+        <td>
+            <select name="device_type[]" class="form-select form-select-sm" required>
+                <option value="">-- Chọn loại --</option>
+                {% for category, types in grouped_device_types.items() %}
+                <optgroup label="{{ category }}">
+                    {% for type in types %}
+                    <option value="{{ type.name }}">{{ type.name }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endfor %}
+            </select>
+        </td>
+        <td><input type="text" name="name[]" class="form-control form-control-sm" required></td>
+        <td>
+            <input type="text" name="device_code[]" class="form-control form-control-sm" placeholder="Để trống tự tạo">
+        </td>
+        <td><input type="text" name="serial_number[]" class="form-control form-control-sm"></td>
+        <td>
+            <textarea name="configuration[]" class="form-control form-control-sm" rows="2"
+                placeholder="VD: CPU: Intel Core i5-12400; Main: MSI H610; RAM: 16GB; SSD: 500GB"></textarea>
+        </td>
+        <td><input type="text" name="brand[]" class="form-control form-control-sm" placeholder="VD: Dell, HP"></td>
+        <td><input type="text" name="warranty[]" class="form-control form-control-sm" placeholder="VD: 12 tháng"></td>
+        <td><input type="file" name="device_image[]" class="form-control form-control-sm" accept="image/*"></td>
+        <td><input type="text" name="notes[]" class="form-control form-control-sm"></td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-device-row" title="Xóa dòng">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    </tr>
+</template>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const typeSelect = document.querySelector('select[name="device_type"]');
-    const pcFields = document.getElementById('pc-spec-fields');
-    const isPcType = function (value) {
-        const text = (value || '').toLowerCase();
-        return text.includes('case') || text.includes('pc') || text.includes('desktop') || text.includes('máy tính');
-    };
-    const togglePcFields = function () {
-        pcFields.style.display = isPcType(typeSelect.value) ? '' : 'none';
-    };
-    typeSelect.addEventListener('change', togglePcFields);
-    togglePcFields();
+    const rows = document.getElementById('device-rows');
+    const template = document.getElementById('device-row-template');
+    const addButton = document.getElementById('add-device-row');
+
+    function updateRowNumbers() {
+        rows.querySelectorAll('.device-row').forEach((row, index) => {
+            row.querySelector('.row-number').textContent = index + 1;
+        });
+    }
+
+    function addRow() {
+        const clone = template.content.cloneNode(true);
+        rows.appendChild(clone);
+        updateRowNumbers();
+    }
+
+    addButton.addEventListener('click', addRow);
+    rows.addEventListener('click', function (event) {
+        const button = event.target.closest('.remove-device-row');
+        if (!button) return;
+        const allRows = rows.querySelectorAll('.device-row');
+        if (allRows.length <= 1) {
+            return;
+        }
+        button.closest('.device-row').remove();
+        updateRowNumbers();
+    });
+
+    document.getElementById('add-device-form').addEventListener('submit', function (event) {
+        const names = Array.from(rows.querySelectorAll('[name="name[]"]')).map(input => input.value.trim()).filter(Boolean);
+        if (!names.length) {
+            event.preventDefault();
+            alert('Vui lòng nhập ít nhất một thiết bị.');
+        }
+    });
+
+    addRow();
 });
 </script>
 {% endblock %}

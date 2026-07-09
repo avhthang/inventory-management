@@ -3095,6 +3095,7 @@ def device_list():
     filter_department = request.args.get('filter_department')
     filter_category = request.args.get('filter_category') # New Category Filter
     filter_q = request.args.get('q', '').strip()
+    show_all_devices = request.args.get('all') == '1'
 
     if filter_device_code is None or filter_device_code == '':
         filter_device_code = saved_filters.get('filter_device_code', '')
@@ -3113,11 +3114,23 @@ def device_list():
         filter_department = saved_filters.get('filter_department', '')
     if filter_category is None or filter_category == '':
         filter_category = saved_filters.get('filter_category', '')
+    if not show_all_devices and not filter_category and not filter_device_types and not filter_device_code and not filter_name and not filter_status and not filter_manager_id and not filter_department and not filter_q:
+        filter_category = 'Thiết bị IT'
     
     query = _visible_devices_query_for(user)
 
     # Apply category filter
     device_hierarchy = _get_device_type_hierarchy()
+    ordered_hierarchy = {}
+    for preferred in ['Thiết bị IT']:
+        if preferred in device_hierarchy:
+            ordered_hierarchy[preferred] = device_hierarchy.pop(preferred)
+    consumable_types = device_hierarchy.pop('Thiết bị tiêu hao', None)
+    for category in sorted(device_hierarchy.keys()):
+        ordered_hierarchy[category] = device_hierarchy[category]
+    if consumable_types is not None:
+        ordered_hierarchy['Thiết bị tiêu hao'] = consumable_types
+    device_hierarchy = ordered_hierarchy
     if filter_category and filter_category in device_hierarchy:
         category_types = device_hierarchy[filter_category]
         if filter_device_types:
@@ -3326,50 +3339,107 @@ def return_device(device_id):
 def add_device():
     if 'user_id' not in session: return redirect(url_for('login'))
     if request.method == 'POST':
-        device_type = request.form.get('device_type', '').strip()
-        device_code = request.form.get('device_code', '').strip()
-        if not device_code:
-            device_code = generate_device_code_for_type(device_type)
-            if not device_code:
-                flash('Vui lòng cấu hình mã loại thiết bị trước khi để trống mã thiết bị.', 'danger')
-                return redirect(url_for('add_device'))
-            
-        if Device.query.filter_by(device_code=device_code).first():
-            flash(f'Mã thiết bị {device_code} đã tồn tại.', 'danger')
+        shared_purchase_date = request.form.get('purchase_date')
+        if not shared_purchase_date:
+            flash('Vui lòng nhập ngày mua.', 'danger')
             return redirect(url_for('add_device'))
-            
-        new_device = Device(
-            device_code=device_code,
-            name=request.form['name'],
-            device_type=device_type,
-            serial_number=request.form.get('serial_number'),
-            brand=request.form.get('brand'),
-            supplier=request.form.get('supplier'),
-            warranty=request.form.get('warranty'),
-            configuration=request.form.get('configuration'),
-            purchase_date=datetime.strptime(request.form['purchase_date'], '%Y-%m-%d').date(),
-            import_date=datetime.strptime(request.form['purchase_date'], '%Y-%m-%d').date(),
-            purchase_price=request.form.get('purchase_price', type=float, default=None),
-            buyer=request.form.get('buyer'),
-            condition=request.form['condition'],
-            manager_id=request.form.get('manager_id') if request.form.get('manager_id') else None,
-            assign_date=datetime.strptime(request.form['assign_date'], '%Y-%m-%d').date() if request.form.get('assign_date') else None,
-            notes=request.form.get('notes'),
-            **_device_pc_specs_from_form()
-        )
-        db.session.add(new_device)
-        db.session.commit()
+
+        names = request.form.getlist('name[]')
+        device_types = request.form.getlist('device_type[]')
+        device_codes = request.form.getlist('device_code[]')
+        serial_numbers = request.form.getlist('serial_number[]')
+        configurations = request.form.getlist('configuration[]')
+        brands = request.form.getlist('brand[]')
+        warranties = request.form.getlist('warranty[]')
+        notes_list = request.form.getlist('notes[]')
+        image_files = request.files.getlist('device_image[]')
+
+        if not names or not any(name.strip() for name in names):
+            flash('Vui lòng nhập ít nhất một thiết bị.', 'danger')
+            return redirect(url_for('add_device'))
+
+        reserved_codes = set()
+        created_devices = []
+        saved_images = []
         try:
-            image_filename = _save_device_image_file(request.files.get('device_image'), new_device.id)
-            if image_filename:
-                new_device.image_filename = image_filename
-                db.session.commit()
-        except ValueError as e:
-            db.session.delete(new_device)
+            purchase_date = datetime.strptime(shared_purchase_date, '%Y-%m-%d').date()
+            assign_date = datetime.strptime(request.form['assign_date'], '%Y-%m-%d').date() if request.form.get('assign_date') else None
+            manager_id = int(request.form.get('manager_id')) if request.form.get('manager_id') else None
+
+            for index, raw_name in enumerate(names):
+                name = (raw_name or '').strip()
+                if not name:
+                    continue
+                device_type = (device_types[index] if index < len(device_types) else '').strip()
+                if not device_type:
+                    db.session.rollback()
+                    flash('Vui lòng chọn loại thiết bị cho từng dòng.', 'danger')
+                    return redirect(url_for('add_device'))
+
+                device_code = (device_codes[index] if index < len(device_codes) else '').strip()
+                if not device_code:
+                    device_code = generate_device_code_for_type(device_type, reserved_codes)
+                    if not device_code:
+                        db.session.rollback()
+                        flash(f'Vui lòng cấu hình mã loại thiết bị cho "{device_type}" trước khi để trống mã thiết bị.', 'danger')
+                        return redirect(url_for('add_device'))
+
+                if device_code in reserved_codes or Device.query.filter_by(device_code=device_code).first():
+                    db.session.rollback()
+                    flash(f'Mã thiết bị {device_code} đã tồn tại.', 'danger')
+                    return redirect(url_for('add_device'))
+                reserved_codes.add(device_code)
+
+                configuration = (configurations[index] if index < len(configurations) else '').strip()
+                new_device = Device(
+                    device_code=device_code,
+                    name=name,
+                    device_type=device_type,
+                    serial_number=(serial_numbers[index] if index < len(serial_numbers) else None) or None,
+                    brand=(brands[index] if index < len(brands) else None) or None,
+                    supplier=request.form.get('supplier') or None,
+                    warranty=(warranties[index] if index < len(warranties) else None) or None,
+                    configuration=configuration or None,
+                    purchase_date=purchase_date,
+                    import_date=purchase_date,
+                    purchase_price=request.form.get('purchase_price', type=float, default=None),
+                    buyer=request.form.get('buyer') or None,
+                    condition=request.form.get('condition') or 'Sử dụng bình thường',
+                    status=request.form.get('status') or 'Sẵn sàng',
+                    manager_id=manager_id,
+                    assign_date=assign_date,
+                    notes=(notes_list[index] if index < len(notes_list) else None) or None,
+                    **_device_pc_specs_from_config_text(configuration)
+                )
+                db.session.add(new_device)
+                db.session.flush()
+
+                image_file = image_files[index] if index < len(image_files) else None
+                image_filename = _save_device_image_file(image_file, new_device.id)
+                if image_filename:
+                    new_device.image_filename = image_filename
+                    saved_images.append(image_filename)
+                created_devices.append(new_device)
+
+            if not created_devices:
+                db.session.rollback()
+                flash('Không có thiết bị hợp lệ để tạo.', 'danger')
+                return redirect(url_for('add_device'))
+
             db.session.commit()
+        except ValueError as e:
+            db.session.rollback()
+            for filename in saved_images:
+                _delete_device_image_file(filename)
             flash(str(e), 'danger')
             return redirect(url_for('add_device'))
-        flash('Thêm thiết bị mới thành công!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            for filename in saved_images:
+                _delete_device_image_file(filename)
+            flash(f'Không thể thêm thiết bị: {str(e)}', 'danger')
+            return redirect(url_for('add_device'))
+        flash(f'Thêm thành công {len(created_devices)} thiết bị!', 'success')
         return redirect(url_for('device_list'))
         
     managers = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
@@ -3566,147 +3636,10 @@ def device_detail(device_id):
 
 @app.route('/add_devices_bulk', methods=['GET', 'POST'])
 def add_devices_bulk():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    if request.method == 'POST':
-        # Trường chung
-        shared_purchase_date = request.form.get('shared_purchase_date')
-        shared_condition = request.form.get('shared_condition')  # deprecated: now per-device, kept for backward compat
-        shared_status = request.form.get('shared_status', 'Sẵn sàng')
-        shared_buyer = request.form.get('shared_buyer')
-        shared_brand = request.form.get('shared_brand')  # deprecated: now per-device, used as fallback
-        shared_supplier = request.form.get('shared_supplier')
-        shared_warranty = request.form.get('shared_warranty_fallback')
-        shared_notes = request.form.get('shared_notes')
-        shared_manager_id = request.form.get('shared_manager_id')
-        shared_assign_date = request.form.get('shared_assign_date')
-
-        # Trường riêng theo từng thiết bị (mảng)
-        names = request.form.getlist('name[]')
-        device_codes = request.form.getlist('device_code[]')
-        serial_numbers = request.form.getlist('serial_number[]')
-        configurations = request.form.getlist('configuration[]')
-        purchase_prices = request.form.getlist('purchase_price[]')
-        notes_list = request.form.getlist('notes[]')
-        device_types = request.form.getlist('device_type[]')
-        quantities = request.form.getlist('quantity[]')
-        brands = request.form.getlist('brand[]')
-        warranties = request.form.getlist('warranty[]')
-        suppliers = request.form.getlist('supplier[]')
-        device_conditions = request.form.getlist('device_condition[]')
-
-        # Validation cơ bản
-        if not shared_purchase_date:
-            flash('Vui lòng nhập đầy đủ các trường chung bắt buộc.', 'danger')
-            return redirect(url_for('add_devices_bulk'))
-        if not names or not any(n.strip() for n in names):
-            flash('Vui lòng nhập ít nhất một thiết bị ở danh sách chi tiết.', 'danger')
-            return redirect(url_for('add_devices_bulk'))
-
-        try:
-            # Removed InventoryReceipt creation
-            # Removed InventoryReceiptItem creation
-
-            created_count = 0
-            reserved_codes = set()
-
-            for idx, name in enumerate(names):
-                if not name or not name.strip():
-                    continue
-                dtype = (device_types[idx] if idx < len(device_types) else '').strip()
-                if not dtype:
-                    db.session.rollback()
-                    flash('Vui lòng chọn loại thiết bị cho từng dòng.', 'danger')
-                    return redirect(url_for('add_devices_bulk'))
-                qty = 1
-                if idx < len(quantities) and quantities[idx]:
-                    try:
-                        qty = max(1, int(quantities[idx]))
-                    except ValueError:
-                        qty = 1
-                base_device_code = device_codes[idx].strip() if idx < len(device_codes) and device_codes[idx] else ''
-                custom_pref = ""
-                custom_seq = None
-                custom_width = 0
-                has_number_suffix = False
-                if base_device_code:
-                    import re
-                    match = re.search(r'^(.*?)(\d+)$', base_device_code)
-                    if match:
-                        custom_pref = match.group(1)
-                        custom_seq = int(match.group(2))
-                        custom_width = len(match.group(2))
-                        has_number_suffix = True
-                    else:
-                        custom_pref = base_device_code
-
-                for k in range(qty):
-                    if base_device_code:
-                        if k == 0:
-                            device_code = base_device_code
-                        else:
-                            if has_number_suffix:
-                                device_code = f"{custom_pref}{custom_seq + k:0{custom_width}d}"
-                            else:
-                                device_code = f"{custom_pref}_{k}"
-                    else:
-                        device_code = ''
-
-                    if not device_code:
-                        device_code = generate_device_code_for_type(dtype, reserved_codes)
-                        if not device_code:
-                            db.session.rollback()
-                            flash(f'Vui lòng cấu hình mã loại thiết bị cho "{dtype}" trước khi để trống mã thiết bị.', 'danger')
-                            return redirect(url_for('add_devices_bulk'))
-
-                    if device_code in reserved_codes or Device.query.filter_by(device_code=device_code).first():
-                        db.session.rollback()
-                        flash(f'Mã thiết bị {device_code} đã tồn tại. Dừng thao tác.', 'danger')
-                        return redirect(url_for('add_devices_bulk'))
-                    reserved_codes.add(device_code)
-
-                    new_device = Device(
-                        device_code=device_code,
-                        name=name.strip(),
-                        device_type=dtype,
-                        serial_number=(serial_numbers[idx] if idx < len(serial_numbers) else None) or None,
-                        brand=((brands[idx] if idx < len(brands) and brands[idx] else shared_brand) or None),
-                        supplier=((suppliers[idx] if idx < len(suppliers) and suppliers[idx] else shared_supplier) or None),
-                        warranty=((warranties[idx] if idx < len(warranties) and warranties[idx] else shared_warranty) or None),
-                        configuration=(configurations[idx] if idx < len(configurations) else None) or None,
-                        purchase_date=datetime.strptime(shared_purchase_date, '%Y-%m-%d').date(),
-                        import_date=datetime.strptime(shared_purchase_date, '%Y-%m-%d').date(),
-                        purchase_price=(float(purchase_prices[idx]) if idx < len(purchase_prices) and purchase_prices[idx] else None),
-                        buyer=(shared_buyer or None),
-                        condition=((device_conditions[idx] if idx < len(device_conditions) and device_conditions[idx] else None) or 'Sử dụng bình thường'),
-                        status=shared_status,
-                        manager_id=(int(shared_manager_id) if shared_manager_id else None),
-                        assign_date=(datetime.strptime(shared_assign_date, '%Y-%m-%d').date() if shared_assign_date else None),
-                        notes=(notes_list[idx] if idx < len(notes_list) else shared_notes)
-                    )
-                    db.session.add(new_device)
-                    db.session.flush()
-
-                    # Removed InventoryReceiptItem addition
-
-                    # Removed InventoryReceiptItem addition
-
-                    created_count += 1
-
-            if created_count == 0:
-                db.session.rollback()
-                flash('Không có thiết bị hợp lệ để tạo.', 'danger')
-                return redirect(url_for('add_devices_bulk'))
-
-            db.session.commit()
-            flash(f'Thêm thành công {created_count} thiết bị!', 'success')
-            return redirect(url_for('device_list')) # Changed redirect to device_list
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Đã xảy ra lỗi khi thêm thiết bị hàng loạt: {str(e)}', 'danger')
-            return redirect(url_for('add_devices_bulk'))
-
-    managers = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
-    return render_template('add_devices_bulk.html', managers=managers)
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    flash('Màn thêm nhiều thiết bị đã được gộp vào trang Thêm thiết bị.', 'info')
+    return redirect(url_for('add_device'))
 
 # --- Handover Routes ---
 @app.route('/handover_report', methods=['GET'])
