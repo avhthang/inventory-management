@@ -8169,8 +8169,25 @@ def _record_consumable_transaction(item, transaction_type, quantity, *, issued_t
 
 def _consumable_categories():
     rows = db.session.query(ConsumableItem.category).filter(ConsumableItem.category != None).distinct().all()
-    categories = sorted([row[0] for row in rows if row[0]])
-    return categories or ['Thiết bị tiêu hao']
+    defaults = [
+        'Dây mạng', 'Dây nhảy quang', 'Dây HDMI', 'Dây VGA', 'Dây DisplayPort',
+        'Dây nguồn', 'Adapter', 'USB lưu trữ', 'Ổ cứng di động',
+        'Đầu chuyển', 'Đầu nối mạng', 'Module quang', 'Phụ kiện mạng khác'
+    ]
+    categories = {row[0] for row in rows if row[0]}
+    categories.update(defaults)
+    return sorted(categories)
+
+def _consumable_groups():
+    rows = db.session.query(ConsumableItem.group_name).filter(ConsumableItem.group_name != None).distinct().all()
+    defaults = [
+        'Cáp mạng', 'Cáp quang', 'Module quang', 'Dây màn hình',
+        'Thiết bị lưu trữ', 'Đầu chuyển / Adapter', 'Dây nguồn',
+        'Phụ kiện mạng', 'Thiết bị USB'
+    ]
+    groups = {row[0] for row in rows if row[0]}
+    groups.update(defaults)
+    return sorted(groups)
 
 def _consumable_convert_candidates():
     rows = db.session.query(
@@ -8239,6 +8256,7 @@ def consumable_list():
         transactions=transactions,
         users=users,
         categories=_consumable_categories(),
+        groups=_consumable_groups(),
         stats=stats,
         q=q,
         category=category,
