@@ -777,6 +777,7 @@ def migrate_missing_columns_v3():
                 _add_col_if_missing('consumable_item', 'track_after_handover', 'BOOLEAN DEFAULT FALSE')
                 _add_col_if_missing('consumable_item', 'is_active', 'BOOLEAN DEFAULT TRUE')
                 _add_col_if_missing('consumable_item', 'manager_id', 'INTEGER')
+                _add_col_if_missing('consumable_item', 'image_filenames', 'TEXT')
 
                 # consumable_transaction
                 _add_col_if_missing('consumable_transaction', 'batch_id', 'VARCHAR(64)')
@@ -1153,6 +1154,54 @@ def _delete_device_image_files(image_filenames):
     for image_filename in _device_image_list(image_filenames):
         _delete_device_image_file(image_filename)
 
+def _consumable_images_dir():
+    path = os.path.join(app.root_path, 'static', 'uploads', 'consumables')
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def _save_consumable_image_file(file_storage, item_id):
+    if not file_storage or not file_storage.filename:
+        return None
+    filename = secure_filename(file_storage.filename)
+    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    if ext not in DEVICE_IMAGE_EXTENSIONS:
+        raise ValueError('Ảnh vật tư phải có định dạng JPG, PNG, WEBP hoặc GIF.')
+    import uuid
+    image_filename = f"{item_id}_{uuid.uuid4().hex}.{ext}"
+    file_storage.save(os.path.join(_consumable_images_dir(), image_filename))
+    return image_filename
+
+def _save_consumable_image_files(files, item_id, limit=5):
+    saved = []
+    for file_storage in files or []:
+        if not file_storage or not file_storage.filename:
+            continue
+        if len(saved) >= limit:
+            break
+        try:
+            file_storage.stream.seek(0)
+        except Exception:
+            pass
+        saved_name = _save_consumable_image_file(file_storage, item_id)
+        if saved_name:
+            saved.append(saved_name)
+    return saved
+
+def _delete_consumable_image_file(image_filename):
+    if not image_filename:
+        return
+    safe_name = os.path.basename(image_filename)
+    path = os.path.join(_consumable_images_dir(), safe_name)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+def _delete_consumable_image_files(image_filenames):
+    for image_filename in _device_image_list(image_filenames):
+        _delete_consumable_image_file(image_filename)
+
 def _handover_images_dir():
     path = os.path.join(app.root_path, 'static', 'uploads', 'handovers')
     os.makedirs(path, exist_ok=True)
@@ -1291,6 +1340,7 @@ class ConsumableItem(db.Model):
     connector_b = db.Column(db.String(80))
     fiber_type = db.Column(db.String(80))
     color = db.Column(db.String(80))
+    image_filenames = db.Column(db.Text)
     unit = db.Column(db.String(30), default='cái')
     current_quantity = db.Column(db.Integer, nullable=False, default=0)
     min_quantity = db.Column(db.Integer, nullable=False, default=0)
@@ -8405,6 +8455,14 @@ def add_consumable():
         )
         db.session.add(item)
         db.session.flush()
+        try:
+            image_filenames = _save_consumable_image_files(request.files.getlist('consumable_images'), item.id, limit=5)
+            if image_filenames:
+                item.image_filenames = _device_image_storage_value(image_filenames)
+        except ValueError as e:
+            db.session.rollback()
+            flash(str(e), 'danger')
+            return redirect(url_for('consumable_list'))
         if initial_quantity > 0:
             _record_consumable_transaction(item, 'Nhập', initial_quantity, reason='Tạo mặt hàng ban đầu')
         db.session.commit()
@@ -8443,6 +8501,21 @@ def edit_consumable(item_id):
         item.manager_id = int(request.form.get('manager_id')) if request.form.get('manager_id') else None
         item.is_active = request.form.get('is_active') == '1'
         item.notes = (request.form.get('notes') or '').strip()
+        new_images = request.files.getlist('consumable_images')
+        has_new_images = any(file_storage and file_storage.filename for file_storage in new_images)
+        try:
+            if request.form.get('remove_consumable_images') == '1':
+                _delete_consumable_image_files(item.image_filenames)
+                item.image_filenames = None
+            if has_new_images:
+                image_filenames = _save_consumable_image_files(new_images, item.id, limit=5)
+                if image_filenames:
+                    _delete_consumable_image_files(item.image_filenames)
+                    item.image_filenames = _device_image_storage_value(image_filenames)
+        except ValueError as e:
+            db.session.rollback()
+            flash(str(e), 'danger')
+            return redirect(url_for('consumable_list'))
         try:
             item.min_quantity = max(0, int(request.form.get('min_quantity') or 0))
         except ValueError:
@@ -8460,6 +8533,7 @@ def delete_consumable(item_id):
     if item.transactions:
         flash('Không thể xóa mặt hàng đã có lịch sử nhập/xuất. Hãy giữ lại để bảo toàn nhật ký.', 'warning')
     else:
+        _delete_consumable_image_files(item.image_filenames)
         db.session.delete(item)
         db.session.commit()
         flash('Đã xóa thiết bị tiêu hao.', 'success')

@@ -4,6 +4,44 @@
 {% block title %}Thiết bị tiêu hao{% endblock %}
 
 {% block content %}
+<style>
+    .consumable-image-preview {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .consumable-image-thumb {
+        position: relative;
+        width: 86px;
+        height: 86px;
+        border: 1px solid rgba(0, 0, 0, .12);
+        border-radius: 6px;
+        overflow: hidden;
+        background: #f8f9fa;
+    }
+    .consumable-image-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .consumable-image-thumb button {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        line-height: 1;
+    }
+    .consumable-table-thumb {
+        width: 42px;
+        height: 42px;
+        object-fit: cover;
+        border-radius: 4px;
+        border: 1px solid rgba(0, 0, 0, .12);
+    }
+</style>
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
     <div>
         <h2 class="mb-1">Thiết bị tiêu hao</h2>
@@ -121,6 +159,14 @@
                                 {% if item.manufacturer or item.model %} · {{ item.manufacturer or '' }} {{ item.model or '' }}{% endif %}
                                 {% if item.standard or item.speed or item.length %} · {{ item.standard or '' }} {{ item.speed or '' }} {{ item.length or '' }}{% endif %}
                             </div>
+                            {% set item_images = device_image_list(item.image_filenames) %}
+                            {% if item_images %}
+                            <div class="d-flex gap-1 flex-wrap mt-1">
+                                {% for image_name in item_images[:5] %}
+                                <img src="{{ url_for('static', filename='uploads/consumables/' ~ image_name) }}" alt="{{ item.name }}" class="consumable-table-thumb">
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                             {% if item.notes %}<div class="small text-muted">{{ item.notes }}</div>{% endif %}
                         </td>
                         <td>{{ item.category }}</td>
@@ -282,7 +328,7 @@
 <div class="modal fade" id="addConsumableModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <form method="POST" action="{{ url_for('add_consumable') }}">
+            <form method="POST" action="{{ url_for('add_consumable') }}" enctype="multipart/form-data">
                 <div class="modal-header">
                     <h5 class="modal-title">Thêm thiết bị tiêu hao</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -303,35 +349,39 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Nhóm vật tư</label>
-                            <input type="text" name="group_name" class="form-control consumable-group-input" list="consumable-group-options" placeholder="VD: Cáp mạng, Cáp quang, Module quang">
+                            <input type="text" name="group_name" class="form-control consumable-group-input" value="Cáp mạng" list="consumable-group-options" placeholder="VD: Cáp mạng, Cáp quang, Module quang">
                         </div>
                         <div class="col-md-4 consumable-spec-field" data-groups="all">
-                            <label class="form-label">Hãng / Model</label>
-                            <div class="input-group">
-                                <input type="text" name="manufacturer" class="form-control" placeholder="Hãng">
-                                <input type="text" name="model" class="form-control" placeholder="Model">
-                            </div>
+                            <label class="form-label">Hãng sản xuất</label>
+                            <input type="text" name="manufacturer" class="form-control" placeholder="VD: Ugreen, Vention">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="all">
+                            <label class="form-label">Model</label>
+                            <input type="text" name="model" class="form-control" placeholder="Model hoặc mã hàng">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,module,display,storage,adapter,power">
+                            <label class="form-label">Chuẩn</label>
+                            <input type="text" name="standard" class="form-control" placeholder="Cat6, OM3, HDMI 2.1">
                         </div>
                         <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,module,display,storage">
-                            <label class="form-label">Chuẩn / tốc độ</label>
-                            <div class="input-group">
-                                <input type="text" name="standard" class="form-control" placeholder="Cat6, OM3">
-                                <input type="text" name="speed" class="form-control" placeholder="1G, 10G">
-                            </div>
+                            <label class="form-label">Tốc độ / dung lượng</label>
+                            <input type="text" name="speed" class="form-control" placeholder="1G, 10G, 64GB">
                         </div>
                         <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,display,power">
-                            <label class="form-label">Độ dài / màu</label>
-                            <div class="input-group">
-                                <input type="text" name="length" class="form-control" placeholder="3m">
-                                <input type="text" name="color" class="form-control" placeholder="Xanh">
-                            </div>
+                            <label class="form-label">Độ dài</label>
+                            <input type="text" name="length" class="form-control" placeholder="1m, 2m, 5m">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,display,power,adapter">
+                            <label class="form-label">Màu sắc</label>
+                            <input type="text" name="color" class="form-control" placeholder="Xanh, đen, trắng">
                         </div>
                         <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,module,display,adapter">
-                            <label class="form-label">Đầu nối A / B</label>
-                            <div class="input-group">
-                                <input type="text" name="connector_a" class="form-control" placeholder="RJ45">
-                                <input type="text" name="connector_b" class="form-control" placeholder="RJ45">
-                            </div>
+                            <label class="form-label">Đầu nối A</label>
+                            <input type="text" name="connector_a" class="form-control" placeholder="RJ45, HDMI, USB-C">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,module,display,adapter">
+                            <label class="form-label">Đầu nối B</label>
+                            <input type="text" name="connector_b" class="form-control" placeholder="RJ45, HDMI, USB-A">
                         </div>
                         <div class="col-md-4 consumable-spec-field" data-groups="fiber,module">
                             <label class="form-label">Loại sợi quang</label>
@@ -371,6 +421,12 @@
                         <div class="col-md-6">
                             <label class="form-label">Ghi chú</label>
                             <input type="text" name="notes" class="form-control">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Ảnh thiết bị</label>
+                            <input type="file" name="consumable_images" class="form-control consumable-image-input" accept="image/*" multiple>
+                            <div class="form-text">Có thể thêm tối đa 5 ảnh. Ảnh được hiển thị dạng thumb để kiểm tra hoặc xóa trước khi lưu.</div>
+                            <div class="consumable-image-preview"></div>
                         </div>
                     </div>
                 </div>
@@ -445,7 +501,7 @@
 <div class="modal fade" id="editModal-{{ item.id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <form method="POST" action="{{ url_for('edit_consumable', item_id=item.id) }}">
+            <form method="POST" action="{{ url_for('edit_consumable', item_id=item.id) }}" enctype="multipart/form-data">
                 <div class="modal-header">
                     <h5 class="modal-title">Sửa mặt hàng</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -464,6 +520,46 @@
                             <label class="form-label">Loại vật tư</label>
                             <input type="text" name="category" class="form-control" value="{{ item.category }}" list="consumable-category-options">
                         </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Nhóm vật tư</label>
+                            <input type="text" name="group_name" class="form-control consumable-group-input" value="{{ item.group_name or '' }}" list="consumable-group-options">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="all">
+                            <label class="form-label">Hãng sản xuất</label>
+                            <input type="text" name="manufacturer" class="form-control" value="{{ item.manufacturer or '' }}" placeholder="VD: Ugreen, Vention">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="all">
+                            <label class="form-label">Model</label>
+                            <input type="text" name="model" class="form-control" value="{{ item.model or '' }}" placeholder="Model hoặc mã hàng">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,module,display,storage,adapter,power">
+                            <label class="form-label">Chuẩn</label>
+                            <input type="text" name="standard" class="form-control" value="{{ item.standard or '' }}" placeholder="Cat6, OM3, HDMI 2.1">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,module,display,storage">
+                            <label class="form-label">Tốc độ / dung lượng</label>
+                            <input type="text" name="speed" class="form-control" value="{{ item.speed or '' }}" placeholder="1G, 10G, 64GB">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,display,power">
+                            <label class="form-label">Độ dài</label>
+                            <input type="text" name="length" class="form-control" value="{{ item.length or '' }}" placeholder="1m, 2m, 5m">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,display,power,adapter">
+                            <label class="form-label">Màu sắc</label>
+                            <input type="text" name="color" class="form-control" value="{{ item.color or '' }}" placeholder="Xanh, đen, trắng">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,module,display,adapter">
+                            <label class="form-label">Đầu nối A</label>
+                            <input type="text" name="connector_a" class="form-control" value="{{ item.connector_a or '' }}" placeholder="RJ45, HDMI, USB-C">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="network,fiber,module,display,adapter">
+                            <label class="form-label">Đầu nối B</label>
+                            <input type="text" name="connector_b" class="form-control" value="{{ item.connector_b or '' }}" placeholder="RJ45, HDMI, USB-A">
+                        </div>
+                        <div class="col-md-4 consumable-spec-field" data-groups="fiber,module">
+                            <label class="form-label">Loại sợi quang</label>
+                            <input type="text" name="fiber_type" class="form-control" value="{{ item.fiber_type or '' }}" placeholder="SM, MM, OM3, OM4, OS2">
+                        </div>
                         <div class="col-md-2">
                             <label class="form-label">Đơn vị</label>
                             <input type="text" name="unit" class="form-control" value="{{ item.unit }}">
@@ -476,9 +572,48 @@
                             <label class="form-label">Vị trí</label>
                             <input type="text" name="location" class="form-control" value="{{ item.location or '' }}">
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Người phụ trách</label>
+                            <select name="manager_id" class="form-select">
+                                <option value="">-- Chọn --</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}" {% if item.manager_id == user.id %}selected{% endif %}>{{ user.full_name or user.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end gap-4">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="track_after_handover" value="1" id="trackAfterHandoverEdit{{ item.id }}" {% if item.track_after_handover %}checked{% endif %}>
+                                <label class="form-check-label" for="trackAfterHandoverEdit{{ item.id }}">Theo dõi sau bàn giao</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="is_active" value="1" id="isActiveEdit{{ item.id }}" {% if item.is_active %}checked{% endif %}>
+                                <label class="form-check-label" for="isActiveEdit{{ item.id }}">Đang sử dụng</label>
+                            </div>
+                        </div>
                         <div class="col-md-12">
                             <label class="form-label">Ghi chú</label>
                             <textarea name="notes" rows="2" class="form-control">{{ item.notes or '' }}</textarea>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Ảnh thiết bị</label>
+                            {% set edit_images = device_image_list(item.image_filenames) %}
+                            {% if edit_images %}
+                            <div class="consumable-image-preview mb-2">
+                                {% for image_name in edit_images[:5] %}
+                                <div class="consumable-image-thumb">
+                                    <img src="{{ url_for('static', filename='uploads/consumables/' ~ image_name) }}" alt="{{ item.name }}">
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="remove_consumable_images" value="1" id="removeConsumableImages{{ item.id }}">
+                                <label class="form-check-label" for="removeConsumableImages{{ item.id }}">Xóa toàn bộ ảnh hiện tại</label>
+                            </div>
+                            {% endif %}
+                            <input type="file" name="consumable_images" class="form-control consumable-image-input" accept="image/*" multiple>
+                            <div class="form-text">Chọn ảnh mới sẽ thay thế bộ ảnh hiện tại. Tối đa 5 ảnh.</div>
+                            <div class="consumable-image-preview"></div>
                         </div>
                     </div>
                 </div>
@@ -569,6 +704,66 @@ document.addEventListener('DOMContentLoaded', function () {
         groupInput.addEventListener('input', () => updateConsumableSpecFields(form));
         groupInput.addEventListener('change', () => updateConsumableSpecFields(form));
         updateConsumableSpecFields(form);
+    });
+
+    function syncInputFiles(input, files) {
+        const dataTransfer = new DataTransfer();
+        files.slice(0, 5).forEach(file => dataTransfer.items.add(file));
+        input.files = dataTransfer.files;
+    }
+
+    function previewContainerFor(input) {
+        let sibling = input.nextElementSibling;
+        while (sibling) {
+            if (sibling.classList && sibling.classList.contains('consumable-image-preview')) {
+                return sibling;
+            }
+            sibling = sibling.nextElementSibling;
+        }
+        return input.closest('div').querySelector('.consumable-image-preview');
+    }
+
+    function renderConsumableImagePreview(input) {
+        const preview = previewContainerFor(input);
+        if (!preview) return;
+        let files = Array.from(input.files || []);
+        if (files.length > 5) {
+            alert('Chỉ được chọn tối đa 5 ảnh cho mỗi mặt hàng.');
+            files = files.slice(0, 5);
+            syncInputFiles(input, files);
+        }
+        preview.innerHTML = '';
+        files.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const thumb = document.createElement('div');
+                thumb.className = 'consumable-image-thumb';
+
+                const image = document.createElement('img');
+                image.src = event.target.result;
+                image.alt = file.name;
+
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'btn btn-sm btn-danger';
+                removeButton.innerHTML = '&times;';
+                removeButton.setAttribute('aria-label', 'Xóa ảnh');
+                removeButton.addEventListener('click', function () {
+                    const remaining = Array.from(input.files || []).filter((_, currentIndex) => currentIndex !== index);
+                    syncInputFiles(input, remaining);
+                    renderConsumableImagePreview(input);
+                });
+
+                thumb.appendChild(image);
+                thumb.appendChild(removeButton);
+                preview.appendChild(thumb);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    document.querySelectorAll('.consumable-image-input').forEach(input => {
+        input.addEventListener('change', () => renderConsumableImagePreview(input));
     });
 });
 </script>
