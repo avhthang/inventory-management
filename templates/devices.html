@@ -465,6 +465,27 @@
     </div>
 </div>
 </div>
+<script>
+(function () {
+    if (window.__deviceCategoryToggleBound) return;
+    window.__deviceCategoryToggleBound = true;
+
+    document.addEventListener('click', function (event) {
+        const button = event.target.closest('.device-category-toggle');
+        if (!button) return;
+        event.preventDefault();
+        event.stopPropagation();
+
+        const target = document.querySelector(button.getAttribute('data-target'));
+        if (!target) return;
+
+        const expanded = !target.classList.contains('show');
+        target.classList.toggle('show', expanded);
+        button.classList.toggle('collapsed', !expanded);
+        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }, true);
+})();
+</script>
 {% endblock %}
 
 {% block styles %}
