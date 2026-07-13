@@ -623,6 +623,7 @@ def migrate_device_type_table():
                     ('Thiết bị cân bằng tải', 'Hạ tầng IT'),
                     ('Camera', 'Hạ tầng IT'),
                     ('Camera IP', 'Hạ tầng IT'),
+                    ('Đầu ghi camera', 'Hạ tầng IT'),
                     ('Camera chấm công', 'Hạ tầng IT'),
                     ('Máy chấm công', 'Hạ tầng IT'),
                     ('Ổ điện', 'Thiết bị dùng chung'),
@@ -1845,6 +1846,7 @@ def _default_device_type_prefixes():
         'Access Point': 'AP',
         'Thiết bị cân bằng tải': 'LB',
         'Camera IP': 'CAM',
+        'Đầu ghi camera': 'NVR',
         'Camera chấm công': 'CAMCC',
     }
 
@@ -1878,6 +1880,7 @@ def _default_device_type_categories():
         'Server': 'Hạ tầng IT',
         'Camera': 'Hạ tầng IT',
         'Camera IP': 'Hạ tầng IT',
+        'Đầu ghi camera': 'Hạ tầng IT',
         'Camera chấm công': 'Hạ tầng IT',
         'Máy chấm công': 'Hạ tầng IT',
         'Dây mạng': 'Thiết bị tiêu hao',
@@ -1913,13 +1916,13 @@ def sync_device_type_prefixes():
                 if default_category and dt.name in {
                     'Thiết bị mạng', 'Server', 'Camera', 'Camera IP', 'Camera chấm công',
                     'Máy chấm công', 'Switch mạng', 'Router', 'Firewall', 'Access Point',
-                    'Thiết bị cân bằng tải'
+                    'Thiết bị cân bằng tải', 'Đầu ghi camera'
                 }:
                     dt.category = default_category
             existing_names = {dt.name for dt in DeviceType.query.all()}
             for name in [
                 'Switch mạng', 'Router', 'Firewall', 'Access Point',
-                'Thiết bị cân bằng tải', 'Camera IP', 'Camera chấm công'
+                'Thiết bị cân bằng tải', 'Camera IP', 'Đầu ghi camera', 'Camera chấm công'
             ]:
                 if name not in existing_names:
                     db.session.add(DeviceType(
