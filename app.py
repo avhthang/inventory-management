@@ -3305,23 +3305,34 @@ def device_list():
     filter_q = request.args.get('q', '').strip()
     show_all_devices = request.args.get('all') == '1'
 
-    if filter_device_code is None or filter_device_code == '':
-        filter_device_code = saved_filters.get('filter_device_code', '')
-    if filter_name is None or filter_name == '':
-        filter_name = saved_filters.get('filter_name', '')
-    if filter_device_type is None:
+    if show_all_devices:
+        filter_device_code = ''
+        filter_name = ''
+        filter_device_types = []
         filter_device_type = ''
-    if not filter_device_types and filter_device_type:
-        filter_device_types = [filter_device_type]
-    filter_device_type = filter_device_types[0] if len(filter_device_types) == 1 else ''
-    if filter_status is None:
         filter_status = ''
-    if filter_manager_id is None or filter_manager_id == '':
-        filter_manager_id = saved_filters.get('filter_manager_id', '')
-    if filter_department is None or filter_department == '':
-        filter_department = saved_filters.get('filter_department', '')
-    if filter_category is None or filter_category == '':
-        filter_category = saved_filters.get('filter_category', '')
+        filter_manager_id = ''
+        filter_department = ''
+        filter_category = ''
+        filter_q = ''
+    else:
+        if filter_device_code is None or filter_device_code == '':
+            filter_device_code = saved_filters.get('filter_device_code', '')
+        if filter_name is None or filter_name == '':
+            filter_name = saved_filters.get('filter_name', '')
+        if filter_device_type is None:
+            filter_device_type = ''
+        if not filter_device_types and filter_device_type:
+            filter_device_types = [filter_device_type]
+        filter_device_type = filter_device_types[0] if len(filter_device_types) == 1 else ''
+        if filter_status is None:
+            filter_status = ''
+        if filter_manager_id is None or filter_manager_id == '':
+            filter_manager_id = saved_filters.get('filter_manager_id', '')
+        if filter_department is None or filter_department == '':
+            filter_department = saved_filters.get('filter_department', '')
+        if filter_category is None or filter_category == '':
+            filter_category = saved_filters.get('filter_category', '')
     if not show_all_devices and not filter_category and not filter_device_types and not filter_device_code and not filter_name and not filter_status and not filter_manager_id and not filter_department and not filter_q:
         filter_category = 'Thiết bị IT'
     
