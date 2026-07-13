@@ -1753,19 +1753,30 @@ def create_initial_admin(username, password, full_name=None, email=None):
     return admin
 
 # --- Device Hierarchy Configuration ---
-# --- Device Hierarchy Configuration ---
+DEVICE_TYPE_CATEGORIES = (
+    'Thiết bị IT',
+    'Hạ tầng IT',
+    'Thiết bị văn phòng',
+    'Thiết bị dùng chung',
+    'Thiết bị tiêu hao',
+    'Khác',
+)
+
 # Helper to return device hierarchy from database dynamically.
 def _get_device_type_hierarchy():
     hierarchy = {}
     
     # 1. Fetch all DeviceType records
     try:
-        all_types = DeviceType.query.all()
+        all_types = DeviceType.query.order_by(DeviceType.name).all()
         for dt in all_types:
-            cat = dt.category
+            cat = (dt.category or '').strip() or 'Khác'
+            name = (dt.name or '').strip()
+            if not name:
+                continue
             if cat not in hierarchy:
                 hierarchy[cat] = []
-            hierarchy[cat].append(dt.name)
+            hierarchy[cat].append(name)
     except Exception:
         pass
         
@@ -1859,7 +1870,7 @@ def _default_device_type_categories():
         'Bàn phím': 'Thiết bị IT',
         'Chuột': 'Thiết bị IT',
         'Ổ cứng': 'Thiết bị IT',
-        'Thiết bị lưu trữ': 'Thiết bị IT',
+        'Thiết bị lưu trữ': 'Thiết bị tiêu hao',
         'Ram': 'Thiết bị IT',
         'Card màn hình': 'Thiết bị IT',
         'Máy in': 'Thiết bị văn phòng',
@@ -1885,8 +1896,8 @@ def _default_device_type_categories():
         'Máy chấm công': 'Hạ tầng IT',
         'Dây mạng': 'Thiết bị tiêu hao',
         'Cáp kết nối': 'Thiết bị tiêu hao',
-        'Linh kiện khác': 'Thiết bị tiêu hao',
-        'Thiết bị khác': 'Khác',
+        'Linh kiện khác': 'Hạ tầng IT',
+        'Thiết bị khác': 'Thiết bị dùng chung',
     }
 
 def _normalize_device_type_prefix(prefix):
@@ -8732,11 +8743,11 @@ def device_type_list():
     types = DeviceType.query.order_by(DeviceType.category, DeviceType.name).all()
     
     # Group by category
-    grouped_types = {}
+    grouped_types = {category: [] for category in DEVICE_TYPE_CATEGORIES}
     for t in types:
-        if t.category not in grouped_types:
-            grouped_types[t.category] = []
-        grouped_types[t.category].append(t)
+        category = (t.category or '').strip() or 'Khác'
+        grouped_types.setdefault(category, []).append(t)
+    grouped_types = {category: rows for category, rows in grouped_types.items() if rows}
         
     return render_template('device_types/list.html', grouped_types=grouped_types)
 
@@ -8755,6 +8766,8 @@ def add_device_type():
         
         if not name or not category:
             flash('Tên và nhóm thiết bị là bắt buộc.', 'danger')
+        elif category not in DEVICE_TYPE_CATEGORIES:
+            flash('Nhóm thiết bị không hợp lệ.', 'danger')
         elif not code_prefix:
             flash('Mã loại thiết bị là bắt buộc.', 'danger')
         elif not _is_valid_device_type_prefix(code_prefix):
@@ -8774,7 +8787,11 @@ def add_device_type():
                 db.session.rollback()
                 flash(f'Lỗi: {str(e)}', 'danger')
                 
-    return render_template('device_types/form.html', device_type=None)
+    return render_template(
+        'device_types/form.html',
+        device_type=None,
+        device_type_categories=DEVICE_TYPE_CATEGORIES,
+    )
 
 @app.route('/device_types/<int:id>/edit', methods=['GET', 'POST'])
 def edit_device_type(id):
@@ -8793,6 +8810,8 @@ def edit_device_type(id):
         
         if not name or not category:
             flash('Tên và nhóm thiết bị là bắt buộc.', 'danger')
+        elif category not in DEVICE_TYPE_CATEGORIES:
+            flash('Nhóm thiết bị không hợp lệ.', 'danger')
         elif not code_prefix:
             flash('Mã loại thiết bị là bắt buộc.', 'danger')
         elif not _is_valid_device_type_prefix(code_prefix):
@@ -8803,6 +8822,12 @@ def edit_device_type(id):
             flash('Mã loại thiết bị đã tồn tại.', 'warning')
         else:
             try:
+                old_name = dt.name
+                if old_name != name:
+                    Device.query.filter_by(device_type=old_name).update(
+                        {'device_type': name},
+                        synchronize_session=False,
+                    )
                 dt.name = name
                 dt.category = category
                 dt.code_prefix = code_prefix
@@ -8814,7 +8839,11 @@ def edit_device_type(id):
                 db.session.rollback()
                 flash(f'Lỗi: {str(e)}', 'danger')
                 
-    return render_template('device_types/form.html', device_type=dt)
+    return render_template(
+        'device_types/form.html',
+        device_type=dt,
+        device_type_categories=DEVICE_TYPE_CATEGORIES,
+    )
 
 @app.route('/device_types/<int:id>/delete', methods=['POST'])
 def delete_device_type(id):
