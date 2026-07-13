@@ -614,11 +614,20 @@ def migrate_device_type_table():
                     ('Máy in', 'Thiết bị văn phòng'),
                     ('Máy chiếu', 'Thiết bị văn phòng'),
                     ('Máy scan', 'Thiết bị văn phòng'),
-                    ('Thiết bị mạng', 'Thiết bị IT'),
-                    ('Server', 'Thiết bị IT'),
+                    ('Thiết bị mạng', 'Hạ tầng IT'),
+                    ('Server', 'Hạ tầng IT'),
+                    ('Switch mạng', 'Hạ tầng IT'),
+                    ('Router', 'Hạ tầng IT'),
+                    ('Firewall', 'Hạ tầng IT'),
+                    ('Access Point', 'Hạ tầng IT'),
+                    ('Thiết bị cân bằng tải', 'Hạ tầng IT'),
+                    ('Camera', 'Hạ tầng IT'),
+                    ('Camera IP', 'Hạ tầng IT'),
+                    ('Camera chấm công', 'Hạ tầng IT'),
+                    ('Máy chấm công', 'Hạ tầng IT'),
                     ('Ổ điện', 'Thiết bị dùng chung'),
-                    ('Dây mạng', 'Thiết bị IT'),
-                    ('Cáp kết nối', 'Thiết bị IT'),
+                    ('Dây mạng', 'Thiết bị tiêu hao'),
+                    ('Cáp kết nối', 'Thiết bị tiêu hao'),
                     ('Thiết bị điện khác', 'Thiết bị dùng chung'),
                     ('Thiết bị khác', 'Khác')
                 ]
@@ -1762,6 +1771,8 @@ def _get_device_type_hierarchy():
     # 2. Ensure "Thiết bị IT" exists even if empty (for default expanding)
     if 'Thiết bị IT' not in hierarchy:
         hierarchy['Thiết bị IT'] = []
+    if 'Hạ tầng IT' not in hierarchy:
+        hierarchy['Hạ tầng IT'] = []
     
     # Sort types within each category
     for cat in hierarchy:
@@ -1828,6 +1839,51 @@ def _default_device_type_prefixes():
         'Thiết bị điện văn phòng': 'TDVP',
         'Thiết bị khác': 'TBK',
         'Thiết bị văn phòng khác': 'TBVP',
+        'Switch mạng': 'SW',
+        'Router': 'RTR',
+        'Firewall': 'FW',
+        'Access Point': 'AP',
+        'Thiết bị cân bằng tải': 'LB',
+        'Camera IP': 'CAM',
+        'Camera chấm công': 'CAMCC',
+    }
+
+def _default_device_type_categories():
+    return {
+        'Laptop': 'Thiết bị IT',
+        'Case máy tính': 'Thiết bị IT',
+        'Màn hình': 'Thiết bị IT',
+        'Màn hình máy tính': 'Thiết bị IT',
+        'Bàn phím': 'Thiết bị IT',
+        'Chuột': 'Thiết bị IT',
+        'Ổ cứng': 'Thiết bị IT',
+        'Thiết bị lưu trữ': 'Thiết bị IT',
+        'Ram': 'Thiết bị IT',
+        'Card màn hình': 'Thiết bị IT',
+        'Máy in': 'Thiết bị văn phòng',
+        'Máy chiếu': 'Thiết bị văn phòng',
+        'Máy scan': 'Thiết bị văn phòng',
+        'Điện thoại': 'Thiết bị văn phòng',
+        'Thiết bị điện văn phòng': 'Thiết bị văn phòng',
+        'Thiết bị văn phòng khác': 'Thiết bị văn phòng',
+        'Ổ điện': 'Thiết bị dùng chung',
+        'Thiết bị dùng chung khác': 'Thiết bị dùng chung',
+        'Thiết bị điện khác': 'Thiết bị dùng chung',
+        'Thiết bị mạng': 'Hạ tầng IT',
+        'Switch mạng': 'Hạ tầng IT',
+        'Router': 'Hạ tầng IT',
+        'Firewall': 'Hạ tầng IT',
+        'Access Point': 'Hạ tầng IT',
+        'Thiết bị cân bằng tải': 'Hạ tầng IT',
+        'Server': 'Hạ tầng IT',
+        'Camera': 'Hạ tầng IT',
+        'Camera IP': 'Hạ tầng IT',
+        'Camera chấm công': 'Hạ tầng IT',
+        'Máy chấm công': 'Hạ tầng IT',
+        'Dây mạng': 'Thiết bị tiêu hao',
+        'Cáp kết nối': 'Thiết bị tiêu hao',
+        'Linh kiện khác': 'Thiết bị tiêu hao',
+        'Thiết bị khác': 'Khác',
     }
 
 def _normalize_device_type_prefix(prefix):
@@ -1840,36 +1896,8 @@ def sync_device_type_prefixes():
     """Seed default device type prefixes for old and fresh databases."""
     try:
         defaults = _default_device_type_prefixes()
+        default_categories = _default_device_type_categories()
         if DeviceType.query.count() == 0:
-            default_categories = {
-                'Laptop': 'Thiết bị IT',
-                'Case máy tính': 'Thiết bị IT',
-                'Màn hình': 'Thiết bị IT',
-                'Màn hình máy tính': 'Thiết bị IT',
-                'Bàn phím': 'Thiết bị IT',
-                'Chuột': 'Thiết bị IT',
-                'Ổ cứng': 'Thiết bị IT',
-                'Thiết bị lưu trữ': 'Thiết bị IT',
-                'Ram': 'Thiết bị IT',
-                'Card màn hình': 'Thiết bị IT',
-                'Máy in': 'Thiết bị văn phòng',
-                'Máy chiếu': 'Thiết bị văn phòng',
-                'Máy scan': 'Thiết bị văn phòng',
-                'Máy chấm công': 'Thiết bị văn phòng',
-                'Thiết bị mạng': 'Thiết bị IT',
-                'Server': 'Thiết bị IT',
-                'Camera': 'Thiết bị văn phòng',
-                'Điện thoại': 'Thiết bị văn phòng',
-                'Ổ điện': 'Thiết bị dùng chung',
-                'Dây mạng': 'Thiết bị IT',
-                'Cáp kết nối': 'Thiết bị IT',
-                'Linh kiện khác': 'Thiết bị IT',
-                'Thiết bị dùng chung khác': 'Thiết bị dùng chung',
-                'Thiết bị điện khác': 'Thiết bị dùng chung',
-                'Thiết bị điện văn phòng': 'Thiết bị văn phòng',
-                'Thiết bị khác': 'Khác',
-                'Thiết bị văn phòng khác': 'Thiết bị văn phòng',
-            }
             for name, prefix in defaults.items():
                 db.session.add(DeviceType(
                     name=name,
@@ -1881,6 +1909,24 @@ def sync_device_type_prefixes():
                 default_prefix = defaults.get(dt.name)
                 if default_prefix and (not dt.code_prefix or dt.name in {'Case máy tính', 'Màn hình', 'Màn hình máy tính'}):
                     dt.code_prefix = default_prefix
+                default_category = default_categories.get(dt.name)
+                if default_category and dt.name in {
+                    'Thiết bị mạng', 'Server', 'Camera', 'Camera IP', 'Camera chấm công',
+                    'Máy chấm công', 'Switch mạng', 'Router', 'Firewall', 'Access Point',
+                    'Thiết bị cân bằng tải'
+                }:
+                    dt.category = default_category
+            existing_names = {dt.name for dt in DeviceType.query.all()}
+            for name in [
+                'Switch mạng', 'Router', 'Firewall', 'Access Point',
+                'Thiết bị cân bằng tải', 'Camera IP', 'Camera chấm công'
+            ]:
+                if name not in existing_names:
+                    db.session.add(DeviceType(
+                        name=name,
+                        category=default_categories[name],
+                        code_prefix=defaults.get(name)
+                    ))
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -3281,7 +3327,7 @@ def device_list():
     # Apply category filter
     device_hierarchy = _get_device_type_hierarchy()
     ordered_hierarchy = {}
-    for preferred in ['Thiết bị IT']:
+    for preferred in ['Thiết bị IT', 'Hạ tầng IT']:
         if preferred in device_hierarchy:
             ordered_hierarchy[preferred] = device_hierarchy.pop(preferred)
     consumable_types = device_hierarchy.pop('Thiết bị tiêu hao', None)
