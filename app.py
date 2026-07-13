@@ -1762,6 +1762,18 @@ DEVICE_TYPE_CATEGORIES = (
     'Khác',
 )
 
+def _get_device_type_category_choices():
+    existing = {
+        (category or '').strip()
+        for category, in db.session.query(DeviceType.category).distinct().all()
+        if (category or '').strip()
+    }
+    if not existing:
+        return list(DEVICE_TYPE_CATEGORIES)
+    ordered = [category for category in DEVICE_TYPE_CATEGORIES if category in existing]
+    ordered.extend(sorted(existing.difference(ordered)))
+    return ordered
+
 # Helper to return device hierarchy from database dynamically.
 def _get_device_type_hierarchy():
     hierarchy = {}
@@ -1780,11 +1792,8 @@ def _get_device_type_hierarchy():
     except Exception:
         pass
         
-    # 2. Ensure "Thiết bị IT" exists even if empty (for default expanding)
-    if 'Thiết bị IT' not in hierarchy:
+    if not hierarchy:
         hierarchy['Thiết bị IT'] = []
-    if 'Hạ tầng IT' not in hierarchy:
-        hierarchy['Hạ tầng IT'] = []
     
     # Sort types within each category
     for cat in hierarchy:
@@ -1924,11 +1933,7 @@ def sync_device_type_prefixes():
                 if default_prefix and (not dt.code_prefix or dt.name in {'Case máy tính', 'Màn hình', 'Màn hình máy tính'}):
                     dt.code_prefix = default_prefix
                 default_category = default_categories.get(dt.name)
-                if default_category and dt.name in {
-                    'Thiết bị mạng', 'Server', 'Camera', 'Camera IP', 'Camera chấm công',
-                    'Máy chấm công', 'Switch mạng', 'Router', 'Firewall', 'Access Point',
-                    'Thiết bị cân bằng tải', 'Đầu ghi camera'
-                }:
+                if default_category and not (dt.category or '').strip():
                     dt.category = default_category
             existing_names = {dt.name for dt in DeviceType.query.all()}
             for name in [
@@ -3344,9 +3349,6 @@ def device_list():
             filter_department = saved_filters.get('filter_department', '')
         if filter_category is None or filter_category == '':
             filter_category = saved_filters.get('filter_category', '')
-    if not show_all_devices and not filter_category and not filter_device_types and not filter_device_code and not filter_name and not filter_status and not filter_manager_id and not filter_department and not filter_q:
-        filter_category = 'Thiết bị IT'
-    
     query = _visible_devices_query_for(user)
 
     # Apply category filter
@@ -3361,6 +3363,14 @@ def device_list():
     if consumable_types is not None:
         ordered_hierarchy['Thiết bị tiêu hao'] = consumable_types
     device_hierarchy = ordered_hierarchy
+    if filter_category and filter_category not in device_hierarchy:
+        filter_category = ''
+    if not show_all_devices and not filter_category and not filter_device_types and not filter_device_code and not filter_name and not filter_status and not filter_manager_id and not filter_department and not filter_q:
+        visible_categories = [category for category in device_hierarchy if category != 'Thiết bị tiêu hao']
+        if 'Thiết bị IT' in visible_categories:
+            filter_category = 'Thiết bị IT'
+        elif visible_categories:
+            filter_category = visible_categories[0]
     if filter_category and filter_category in device_hierarchy:
         category_types = device_hierarchy[filter_category]
         if filter_device_types:
@@ -8758,6 +8768,7 @@ def add_device_type():
         flash('Bạn không có quyền thêm loại thiết bị.', 'danger')
         return redirect(url_for('device_type_list'))
         
+    category_choices = _get_device_type_category_choices()
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         category = request.form.get('category', '').strip()
@@ -8766,7 +8777,7 @@ def add_device_type():
         
         if not name or not category:
             flash('Tên và nhóm thiết bị là bắt buộc.', 'danger')
-        elif category not in DEVICE_TYPE_CATEGORIES:
+        elif category not in category_choices:
             flash('Nhóm thiết bị không hợp lệ.', 'danger')
         elif not code_prefix:
             flash('Mã loại thiết bị là bắt buộc.', 'danger')
@@ -8790,7 +8801,7 @@ def add_device_type():
     return render_template(
         'device_types/form.html',
         device_type=None,
-        device_type_categories=DEVICE_TYPE_CATEGORIES,
+        device_type_categories=category_choices,
     )
 
 @app.route('/device_types/<int:id>/edit', methods=['GET', 'POST'])
@@ -8802,6 +8813,7 @@ def edit_device_type(id):
         
     dt = DeviceType.query.get_or_404(id)
     
+    category_choices = _get_device_type_category_choices()
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         category = request.form.get('category', '').strip()
@@ -8810,7 +8822,7 @@ def edit_device_type(id):
         
         if not name or not category:
             flash('Tên và nhóm thiết bị là bắt buộc.', 'danger')
-        elif category not in DEVICE_TYPE_CATEGORIES:
+        elif category not in category_choices:
             flash('Nhóm thiết bị không hợp lệ.', 'danger')
         elif not code_prefix:
             flash('Mã loại thiết bị là bắt buộc.', 'danger')
@@ -8842,8 +8854,52 @@ def edit_device_type(id):
     return render_template(
         'device_types/form.html',
         device_type=dt,
-        device_type_categories=DEVICE_TYPE_CATEGORIES,
+        device_type_categories=category_choices,
     )
+
+@app.route('/device_types/categories/rename', methods=['POST'])
+def rename_device_type_category():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if (session.get('role') != 'admin') and ('devices.edit' not in _get_current_permissions()):
+        flash('Bạn không có quyền sửa nhóm thiết bị.', 'danger')
+        return redirect(url_for('device_type_list'))
+
+    old_name = request.form.get('old_name', '').strip()
+    new_name = request.form.get('new_name', '').strip()
+    if not old_name or not new_name:
+        flash('Tên nhóm thiết bị không được để trống.', 'danger')
+        return redirect(url_for('device_type_list'))
+    if len(new_name) > 100:
+        flash('Tên nhóm thiết bị không được vượt quá 100 ký tự.', 'danger')
+        return redirect(url_for('device_type_list'))
+
+    categories = _get_device_type_category_choices()
+    if old_name not in categories:
+        flash('Nhóm thiết bị cần sửa không còn tồn tại.', 'warning')
+        return redirect(url_for('device_type_list'))
+    duplicate = next(
+        (category for category in categories if category != old_name and category.casefold() == new_name.casefold()),
+        None,
+    )
+    if duplicate:
+        flash(f'Nhóm thiết bị "{duplicate}" đã tồn tại.', 'warning')
+        return redirect(url_for('device_type_list'))
+    if old_name == new_name:
+        flash('Tên nhóm thiết bị không thay đổi.', 'info')
+        return redirect(url_for('device_type_list'))
+
+    try:
+        updated = DeviceType.query.filter_by(category=old_name).update(
+            {'category': new_name},
+            synchronize_session=False,
+        )
+        db.session.commit()
+        flash(f'Đã đổi tên nhóm "{old_name}" thành "{new_name}" cho {updated} loại thiết bị.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Không thể đổi tên nhóm thiết bị: {exc}', 'danger')
+    return redirect(url_for('device_type_list'))
 
 @app.route('/device_types/<int:id>/delete', methods=['POST'])
 def delete_device_type(id):
