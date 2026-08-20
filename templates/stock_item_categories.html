@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Nhóm vật tư & thông số{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+    <div><h2 class="mb-1">Nhóm vật tư & thông số</h2><div class="text-muted">Mỗi nhóm quyết định các trường thông số xuất hiện khi tạo mặt hàng.</div></div>
+    <div class="d-flex gap-2"><a href="{{ url_for('stock_item_list') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Vật tư & phụ kiện</a><button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal"><i class="bi bi-plus-circle"></i> Thêm nhóm</button></div>
+</div>
+
+<div class="card"><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0">
+    <thead class="table-light"><tr><th class="text-center" style="width:70px">STT</th><th>Nhóm vật tư</th><th style="width:130px">Tiền tố mã</th><th>Thông số riêng</th><th>Mô tả</th><th class="text-center" style="width:130px">Hành động</th></tr></thead>
+    <tbody>{% for category in categories %}<tr><td class="text-center">{{ loop.index }}</td><td class="fw-semibold">{{ category.name }}</td><td><span class="badge bg-secondary">{{ category.code_prefix }}</span></td><td>{% for field in category.spec_fields %}<span class="badge bg-light text-dark border me-1">{{ field }}</span>{% endfor %}</td><td>{{ category.description or '-' }}</td><td class="text-center"><button class="btn btn-sm btn-outline-warning" title="Sửa" data-bs-toggle="modal" data-bs-target="#editCategory{{ category.id }}"><i class="bi bi-pencil"></i></button>{% if can_delete and not category.items %}<form method="POST" class="d-inline" action="{{ url_for('delete_stock_item_category', category_id=category.id) }}" onsubmit="return confirm('Xóa nhóm vật tư này?')"><button class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i class="bi bi-trash"></i></button></form>{% endif %}</td></tr>{% else %}<tr><td colspan="6" class="text-center text-muted py-4">Chưa có nhóm vật tư.</td></tr>{% endfor %}</tbody>
+</table></div></div></div>
+
+{% macro category_form(category, action, modal_id, title) %}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><form method="POST" action="{{ action }}"><div class="modal-header"><h5 class="modal-title">{{ title }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div><div class="modal-body"><div class="row g-3"><div class="col-md-8"><label class="form-label required">Tên nhóm</label><input class="form-control" name="name" value="{{ category.name if category else '' }}" required></div><div class="col-md-4"><label class="form-label required">Tiền tố mã</label><input class="form-control text-uppercase" name="code_prefix" maxlength="20" value="{{ category.code_prefix if category else '' }}" placeholder="VD: CAP" required></div><div class="col-12"><label class="form-label">Thông số riêng</label><textarea class="form-control" name="specification_fields" rows="6" placeholder="Mỗi dòng là một thông số">{% if category %}{{ category.spec_fields|join('\n') }}{% endif %}</textarea><div class="form-text">Ví dụ: Chuẩn / tốc độ, Độ dài, Đầu nối. Mỗi dòng là một ô nhập riêng.</div></div><div class="col-12"><label class="form-label">Mô tả</label><textarea class="form-control" name="description" rows="2">{{ category.description if category else '' }}</textarea></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button><button class="btn btn-primary">Lưu</button></div></form></div></div></div>
+{% endmacro %}
+{{ category_form(none, url_for('stock_item_categories'), 'addCategoryModal', 'Thêm nhóm vật tư') }}
+{% for category in categories %}{{ category_form(category, url_for('edit_stock_item_category', category_id=category.id), 'editCategory' ~ category.id, 'Sửa nhóm vật tư') }}{% endfor %}
+{% endblock %}

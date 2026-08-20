@@ -167,6 +167,10 @@ PERMISSIONS = [
     ('resources.view', 'Xem danh sách tài nguyên'),
     ('resources.edit', 'Thêm/Sửa tài nguyên'),
     ('resources.delete', 'Xóa tài nguyên'),
+    # Vật tư và phụ kiện
+    ('stock_items.view', 'Xem vật tư và phụ kiện'),
+    ('stock_items.edit', 'Thêm/Sửa mặt hàng, nhập/xuất kho'),
+    ('stock_items.delete', 'Xóa mặt hàng và nhóm vật tư'),
 ]
 
 # Register SQLite function last_token for sorting by given name
@@ -1405,6 +1409,59 @@ class ConsumableHandoverItem(db.Model):
     receiver = db.relationship('User', foreign_keys=[receiver_id])
     giver = db.relationship('User', foreign_keys=[giver_id])
 
+class StockItemCategory(db.Model):
+    """A reusable stock category with its own custom specification fields."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    code_prefix = db.Column(db.String(20), nullable=False)
+    specification_fields = db.Column(db.Text, default='[]')
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    items = db.relationship('StockItem', back_populates='category')
+
+class StockItem(db.Model):
+    """Stock-managed accessory/supply item, independent from consumable devices."""
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('stock_item_category.id'), nullable=False)
+    code = db.Column(db.String(50), unique=True, nullable=False)
+    name = db.Column(db.String(180), nullable=False)
+    manufacturer = db.Column(db.String(120))
+    model = db.Column(db.String(120))
+    unit = db.Column(db.String(30), nullable=False, default='cái')
+    current_quantity = db.Column(db.Integer, nullable=False, default=0)
+    min_quantity = db.Column(db.Integer, nullable=False, default=0)
+    location = db.Column(db.String(150))
+    specifications = db.Column(db.Text, default='{}')
+    notes = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    category = db.relationship('StockItemCategory', back_populates='items')
+    movements = db.relationship('StockItemMovement', back_populates='item', cascade='all, delete-orphan')
+
+class StockItemMovement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey('stock_item.id'), nullable=False)
+    movement_type = db.Column(db.String(20), nullable=False)  # Nhập, Xuất, Điều chỉnh
+    quantity = db.Column(db.Integer, nullable=False)
+    before_quantity = db.Column(db.Integer, nullable=False, default=0)
+    after_quantity = db.Column(db.Integer, nullable=False, default=0)
+    movement_date = db.Column(db.Date, nullable=False, default=date.today)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    actor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    supplier = db.Column(db.String(150))
+    reference_code = db.Column(db.String(100))
+    reason = db.Column(db.String(255))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    item = db.relationship('StockItem', back_populates='movements')
+    receiver = db.relationship('User', foreign_keys=[receiver_id])
+    actor = db.relationship('User', foreign_keys=[actor_id])
+
 # --- (Deleted Device Group Models) ---
 
 # --- (Deleted Server Room Extra Info) ---
@@ -1951,6 +2008,116 @@ def sync_device_type_prefixes():
         db.session.rollback()
         print(f"Device type prefix sync error: {e}")
 
+STOCK_CATEGORY_DEFAULTS = [
+    ('Cáp mạng', 'CAP', ['Chuẩn / tốc độ', 'Độ dài', 'Màu sắc', 'Đầu nối']),
+    ('Cáp quang', 'FO', ['Loại sợi quang', 'Số core', 'Độ dài', 'Đầu nối']),
+    ('Cáp màn hình', 'DISP', ['Chuẩn', 'Độ dài', 'Đầu nối A', 'Đầu nối B']),
+    ('Module quang', 'SFP', ['Tốc độ', 'Bước sóng', 'Khoảng cách', 'Chuẩn / đầu nối']),
+    ('Thiết bị lưu trữ', 'STO', ['Dung lượng', 'Chuẩn kết nối', 'Tốc độ đọc/ghi']),
+    ('Nguồn & adapter', 'PWR', ['Công suất', 'Điện áp vào', 'Điện áp ra', 'Đầu nối']),
+    ('Phụ kiện mạng', 'NET', ['Số cổng', 'Tốc độ', 'Chuẩn kết nối']),
+    ('Linh kiện IT', 'COMP', ['Chuẩn tương thích', 'Dung lượng / thông số', 'Bảo hành']),
+]
+
+def _stock_category_fields(category):
+    try:
+        values = json.loads(category.specification_fields or '[]')
+        if not isinstance(values, list):
+            return []
+        return [str(value).strip() for value in values if str(value).strip()][:20]
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+def _stock_item_specifications(item):
+    try:
+        values = json.loads(item.specifications or '{}')
+        if not isinstance(values, dict):
+            return {}
+        return {str(key): str(value) for key, value in values.items() if str(key).strip() and str(value).strip()}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+def _seed_stock_item_categories():
+    try:
+        for name, prefix, fields in STOCK_CATEGORY_DEFAULTS:
+            if not StockItemCategory.query.filter_by(name=name).first():
+                db.session.add(StockItemCategory(
+                    name=name,
+                    code_prefix=prefix,
+                    specification_fields=json.dumps(fields, ensure_ascii=False),
+                ))
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        print(f"Stock category seed error: {exc}")
+
+def _normalize_stock_prefix(prefix):
+    return re.sub(r'[^A-Z0-9]', '', (prefix or '').upper())[:20] or 'VT'
+
+def _generate_stock_item_code(category):
+    prefix = _normalize_stock_prefix(category.code_prefix if category else '')
+    pattern = re.compile(rf'^{re.escape(prefix)}-(\d+)$', re.IGNORECASE)
+    max_number = 0
+    for (code,) in db.session.query(StockItem.code).filter(StockItem.code.ilike(f'{prefix}-%')).all():
+        match = pattern.match(code or '')
+        if match:
+            max_number = max(max_number, int(match.group(1)))
+    for number in range(max_number + 1, max_number + 10000):
+        candidate = f'{prefix}-{number:03d}'
+        if not StockItem.query.filter(func.upper(StockItem.code) == candidate).first():
+            return candidate
+    return f'{prefix}-{datetime.utcnow().strftime("%H%M%S")}'
+
+def _parse_stock_specifications(raw, category):
+    try:
+        values = json.loads(raw or '{}')
+    except (TypeError, ValueError, json.JSONDecodeError):
+        raise ValueError('Thông số riêng không hợp lệ.')
+    if not isinstance(values, dict):
+        raise ValueError('Thông số riêng không hợp lệ.')
+    allowed_fields = set(_stock_category_fields(category))
+    return {
+        field: str(values.get(field) or '').strip()
+        for field in allowed_fields
+        if str(values.get(field) or '').strip()
+    }
+
+def _record_stock_item_movement(item, movement_type, quantity, *, movement_date=None,
+                                receiver_id=None, supplier='', reference_code='', reason='', notes=''):
+    before_quantity = item.current_quantity or 0
+    if movement_type == 'Nhập':
+        after_quantity = before_quantity + quantity
+    elif movement_type == 'Xuất':
+        if quantity > before_quantity:
+            raise ValueError('Số lượng xuất lớn hơn tồn kho hiện tại.')
+        after_quantity = before_quantity - quantity
+    elif movement_type == 'Điều chỉnh':
+        if quantity < 0:
+            raise ValueError('Tồn kho điều chỉnh không được âm.')
+        after_quantity = quantity
+        quantity = abs(after_quantity - before_quantity)
+    else:
+        raise ValueError('Loại phiếu không hợp lệ.')
+
+    item.current_quantity = after_quantity
+    item.updated_at = datetime.utcnow()
+    movement = StockItemMovement(
+        item=item,
+        movement_type=movement_type,
+        quantity=quantity,
+        before_quantity=before_quantity,
+        after_quantity=after_quantity,
+        movement_date=movement_date or date.today(),
+        receiver_id=receiver_id,
+        actor_id=session.get('user_id'),
+        supplier=supplier,
+        reference_code=reference_code,
+        reason=reason,
+        notes=notes,
+    )
+    db.session.add(movement)
+    return movement
+
 def _get_device_type_code_prefix(device_type_name):
     name = (device_type_name or '').strip()
     if not name:
@@ -2048,6 +2215,7 @@ def ensure_tables_once():
             db.create_all()
             ensure_missing_model_columns()
             sync_device_type_prefixes()
+            _seed_stock_item_categories()
             # Skip SQLite-specific migrations when using external DBs (e.g., PostgreSQL)
             if is_external_database():
                 _tables_initialized = True
@@ -8725,6 +8893,280 @@ def export_consumables_excel():
         as_attachment=True,
         download_name=f'consumables_{datetime.now(VIETNAM_TZ).strftime("%Y%m%d")}.xlsx'
     )
+
+
+# --- Stock accessories and supplies (separate from the consumable-device warehouse) ---
+def _require_stock_permission(permission_code='stock_items.view'):
+    if 'user_id' not in session:
+        return False
+    current_user = _get_current_user()
+    current_permissions = _get_current_permissions()
+    return bool((current_user and current_user.role == 'admin') or permission_code in current_permissions)
+
+def _stock_category_payload(categories):
+    return [
+        {
+            'id': category.id,
+            'name': category.name,
+            'code_prefix': category.code_prefix,
+            'fields': _stock_category_fields(category),
+        }
+        for category in categories
+    ]
+
+def _stock_item_redirect():
+    return redirect(request.referrer or url_for('stock_item_list'))
+
+@app.route('/stock-items')
+def stock_item_list():
+    if not _require_stock_permission('stock_items.view'):
+        flash('Bạn không có quyền xem vật tư và phụ kiện.', 'danger')
+        return redirect(url_for('login') if 'user_id' not in session else url_for('home'))
+
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    movement_page = request.args.get('movement_page', 1, type=int)
+    q = (request.args.get('q') or '').strip()
+    category_id = request.args.get('category_id', type=int)
+    low_stock = request.args.get('low_stock') == '1'
+
+    categories = StockItemCategory.query.order_by(func.lower(StockItemCategory.name)).all()
+    query = StockItem.query
+    if q:
+        query = query.filter(or_(StockItem.code.ilike(f'%{q}%'), StockItem.name.ilike(f'%{q}%'),
+                                 StockItem.manufacturer.ilike(f'%{q}%'), StockItem.model.ilike(f'%{q}%')))
+    if category_id:
+        query = query.filter(StockItem.category_id == category_id)
+    if low_stock:
+        query = query.filter(StockItem.current_quantity <= StockItem.min_quantity)
+    items = query.order_by(StockItem.is_active.desc(), func.lower(StockItem.name)).paginate(
+        page=page, per_page=per_page if per_page in (10, 20, 50, 100) else 20, error_out=False)
+    for item in items.items:
+        item.specification_values = _stock_item_specifications(item)
+
+    movements = StockItemMovement.query.order_by(
+        StockItemMovement.movement_date.desc(), StockItemMovement.id.desc()
+    ).paginate(page=movement_page, per_page=15, error_out=False)
+    users = User.query.filter(User.status.notin_(['Nghỉ việc', 'Nghỉ không lương'])).order_by(
+        func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)
+    ).all()
+    stats = {
+        'total_items': StockItem.query.filter_by(is_active=True).count(),
+        'total_quantity': db.session.query(func.coalesce(func.sum(StockItem.current_quantity), 0)).scalar() or 0,
+        'low_stock': StockItem.query.filter(StockItem.is_active.is_(True), StockItem.current_quantity <= StockItem.min_quantity).count(),
+        'issued_this_month': StockItemMovement.query.filter(
+            StockItemMovement.movement_type == 'Xuất',
+            StockItemMovement.movement_date >= date.today().replace(day=1),
+        ).count(),
+    }
+    return render_template(
+        'stock_items.html',
+        items=items,
+        movements=movements,
+        users=users,
+        categories=categories,
+        category_payload=_stock_category_payload(categories),
+        stats=stats,
+        q=q,
+        category_id=category_id,
+        low_stock=low_stock,
+        can_edit=_require_stock_permission('stock_items.edit'),
+        can_delete=_require_stock_permission('stock_items.delete'),
+    )
+
+@app.route('/stock-items/add', methods=['POST'])
+def add_stock_item():
+    if not _require_stock_permission('stock_items.edit'):
+        flash('Bạn không có quyền thêm mặt hàng kho.', 'danger')
+        return _stock_item_redirect()
+    category = StockItemCategory.query.get(request.form.get('category_id', type=int))
+    name = (request.form.get('name') or '').strip()
+    code = (request.form.get('code') or '').strip().upper()
+    try:
+        initial_quantity = max(0, int(request.form.get('initial_quantity') or 0))
+        min_quantity = max(0, int(request.form.get('min_quantity') or 0))
+        if not category or not name:
+            raise ValueError('Vui lòng chọn nhóm vật tư và nhập tên mặt hàng.')
+        if not code:
+            code = _generate_stock_item_code(category)
+        if StockItem.query.filter(func.upper(StockItem.code) == code).first():
+            raise ValueError('Mã mặt hàng đã tồn tại.')
+        item = StockItem(
+            category=category,
+            code=code,
+            name=name,
+            manufacturer=(request.form.get('manufacturer') or '').strip(),
+            model=(request.form.get('model') or '').strip(),
+            unit=(request.form.get('unit') or '').strip() or 'cái',
+            current_quantity=0,
+            min_quantity=min_quantity,
+            location=(request.form.get('location') or '').strip(),
+            specifications=json.dumps(_parse_stock_specifications(request.form.get('specifications_json'), category), ensure_ascii=False),
+            notes=(request.form.get('notes') or '').strip(),
+        )
+        db.session.add(item)
+        db.session.flush()
+        if initial_quantity:
+            _record_stock_item_movement(
+                item, 'Nhập', initial_quantity,
+                movement_date=date.today(),
+                reason='Tạo mặt hàng và nhập tồn ban đầu',
+            )
+        db.session.commit()
+        flash('Đã thêm mặt hàng kho.', 'success')
+    except (TypeError, ValueError) as exc:
+        db.session.rollback()
+        flash(str(exc), 'danger')
+    return _stock_item_redirect()
+
+@app.route('/stock-items/<int:item_id>/edit', methods=['POST'])
+def edit_stock_item(item_id):
+    if not _require_stock_permission('stock_items.edit'):
+        flash('Bạn không có quyền sửa mặt hàng kho.', 'danger')
+        return _stock_item_redirect()
+    item = StockItem.query.get_or_404(item_id)
+    category = StockItemCategory.query.get(request.form.get('category_id', type=int))
+    name = (request.form.get('name') or '').strip()
+    code = (request.form.get('code') or '').strip().upper()
+    try:
+        if not category or not name or not code:
+            raise ValueError('Nhóm vật tư, mã và tên mặt hàng là bắt buộc.')
+        duplicate = StockItem.query.filter(StockItem.id != item.id, func.upper(StockItem.code) == code).first()
+        if duplicate:
+            raise ValueError('Mã mặt hàng đã tồn tại.')
+        item.category = category
+        item.code = code
+        item.name = name
+        item.manufacturer = (request.form.get('manufacturer') or '').strip()
+        item.model = (request.form.get('model') or '').strip()
+        item.unit = (request.form.get('unit') or '').strip() or 'cái'
+        item.min_quantity = max(0, int(request.form.get('min_quantity') or 0))
+        item.location = (request.form.get('location') or '').strip()
+        item.is_active = request.form.get('is_active') == '1'
+        item.specifications = json.dumps(_parse_stock_specifications(request.form.get('specifications_json'), category), ensure_ascii=False)
+        item.notes = (request.form.get('notes') or '').strip()
+        db.session.commit()
+        flash('Đã cập nhật mặt hàng kho.', 'success')
+    except (TypeError, ValueError) as exc:
+        db.session.rollback()
+        flash(str(exc), 'danger')
+    return _stock_item_redirect()
+
+@app.route('/stock-items/<int:item_id>/movement', methods=['POST'])
+def record_stock_item_movement(item_id):
+    if not _require_stock_permission('stock_items.edit'):
+        flash('Bạn không có quyền nhập/xuất kho.', 'danger')
+        return _stock_item_redirect()
+    item = StockItem.query.get_or_404(item_id)
+    movement_type = (request.form.get('movement_type') or '').strip()
+    try:
+        quantity = int(request.form.get('quantity') or 0)
+        if movement_type in ('Nhập', 'Xuất') and quantity <= 0:
+            raise ValueError('Số lượng phải lớn hơn 0.')
+        if movement_type == 'Điều chỉnh' and quantity < 0:
+            raise ValueError('Tồn kho điều chỉnh không được âm.')
+        receiver_id = request.form.get('receiver_id', type=int)
+        if movement_type == 'Xuất' and not User.query.get(receiver_id):
+            raise ValueError('Vui lòng chọn người nhận khi xuất kho.')
+        movement_date_value = request.form.get('movement_date') or ''
+        movement_date = datetime.strptime(movement_date_value, '%Y-%m-%d').date() if movement_date_value else date.today()
+        _record_stock_item_movement(
+            item, movement_type, quantity,
+            movement_date=movement_date,
+            receiver_id=receiver_id if movement_type == 'Xuất' else None,
+            supplier=(request.form.get('supplier') or '').strip() if movement_type == 'Nhập' else '',
+            reference_code=(request.form.get('reference_code') or '').strip(),
+            reason=(request.form.get('reason') or '').strip() or f'{movement_type} kho',
+            notes=(request.form.get('notes') or '').strip(),
+        )
+        db.session.commit()
+        flash(f'Đã ghi nhận {movement_type.lower()} kho.', 'success')
+    except (TypeError, ValueError) as exc:
+        db.session.rollback()
+        flash(str(exc), 'danger')
+    return _stock_item_redirect()
+
+@app.route('/stock-items/<int:item_id>/delete', methods=['POST'])
+def delete_stock_item(item_id):
+    if not _require_stock_permission('stock_items.delete'):
+        flash('Bạn không có quyền xóa mặt hàng kho.', 'danger')
+        return _stock_item_redirect()
+    item = StockItem.query.get_or_404(item_id)
+    if item.movements:
+        flash('Không thể xóa mặt hàng đã có phiếu nhập/xuất. Hãy ngừng sử dụng mặt hàng này.', 'warning')
+        return _stock_item_redirect()
+    db.session.delete(item)
+    db.session.commit()
+    flash('Đã xóa mặt hàng kho.', 'success')
+    return _stock_item_redirect()
+
+@app.route('/stock-items/categories', methods=['GET', 'POST'])
+def stock_item_categories():
+    if not _require_stock_permission('stock_items.edit'):
+        flash('Bạn không có quyền quản lý nhóm vật tư.', 'danger')
+        return redirect(url_for('stock_item_list'))
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
+        prefix = _normalize_stock_prefix(request.form.get('code_prefix'))
+        fields = [field.strip() for field in (request.form.get('specification_fields') or '').splitlines() if field.strip()]
+        if not name:
+            flash('Tên nhóm vật tư là bắt buộc.', 'danger')
+        elif StockItemCategory.query.filter(func.lower(StockItemCategory.name) == name.lower()).first():
+            flash('Nhóm vật tư đã tồn tại.', 'warning')
+        else:
+            db.session.add(StockItemCategory(
+                name=name,
+                code_prefix=prefix,
+                specification_fields=json.dumps(fields[:20], ensure_ascii=False),
+                description=(request.form.get('description') or '').strip(),
+            ))
+            db.session.commit()
+            flash('Đã tạo nhóm vật tư.', 'success')
+        return redirect(url_for('stock_item_categories'))
+    categories = StockItemCategory.query.order_by(func.lower(StockItemCategory.name)).all()
+    for category in categories:
+        category.spec_fields = _stock_category_fields(category)
+    return render_template('stock_item_categories.html', categories=categories, can_delete=_require_stock_permission('stock_items.delete'))
+
+@app.route('/stock-items/categories/<int:category_id>/edit', methods=['POST'])
+def edit_stock_item_category(category_id):
+    if not _require_stock_permission('stock_items.edit'):
+        flash('Bạn không có quyền sửa nhóm vật tư.', 'danger')
+        return redirect(url_for('stock_item_categories'))
+    category = StockItemCategory.query.get_or_404(category_id)
+    name = (request.form.get('name') or '').strip()
+    try:
+        if not name:
+            raise ValueError('Tên nhóm vật tư là bắt buộc.')
+        duplicate = StockItemCategory.query.filter(StockItemCategory.id != category.id, func.lower(StockItemCategory.name) == name.lower()).first()
+        if duplicate:
+            raise ValueError('Nhóm vật tư đã tồn tại.')
+        category.name = name
+        category.code_prefix = _normalize_stock_prefix(request.form.get('code_prefix'))
+        category.specification_fields = json.dumps([
+            field.strip() for field in (request.form.get('specification_fields') or '').splitlines() if field.strip()
+        ][:20], ensure_ascii=False)
+        category.description = (request.form.get('description') or '').strip()
+        db.session.commit()
+        flash('Đã cập nhật nhóm vật tư.', 'success')
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), 'danger')
+    return redirect(url_for('stock_item_categories'))
+
+@app.route('/stock-items/categories/<int:category_id>/delete', methods=['POST'])
+def delete_stock_item_category(category_id):
+    if not _require_stock_permission('stock_items.delete'):
+        flash('Bạn không có quyền xóa nhóm vật tư.', 'danger')
+        return redirect(url_for('stock_item_categories'))
+    category = StockItemCategory.query.get_or_404(category_id)
+    if category.items:
+        flash('Không thể xóa nhóm đang có mặt hàng.', 'warning')
+    else:
+        db.session.delete(category)
+        db.session.commit()
+        flash('Đã xóa nhóm vật tư.', 'success')
+    return redirect(url_for('stock_item_categories'))
 
 @app.route('/resources/delete/<int:id>', methods=['POST'])
 def delete_resource(id):

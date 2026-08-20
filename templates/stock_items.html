@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
+
+{% block title %}Vật tư & phụ kiện{% endblock %}
+
+{% block content %}
+<style>
+    .stock-spec-list { margin: 0; padding-left: 1rem; }
+    .stock-spec-list li { margin-bottom: .15rem; }
+    .stock-metric { min-height: 100%; }
+    .stock-table th { text-align: center; white-space: nowrap; }
+    .stock-table td { vertical-align: middle; }
+</style>
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+    <div>
+        <h2 class="mb-1">Vật tư & phụ kiện</h2>
+        <div class="text-muted">Quản lý độc lập các phụ kiện, linh kiện và vật tư theo phiếu nhập/xuất kho.</div>
+    </div>
+    <div class="d-flex gap-2">
+        {% if can_edit %}
+        <a href="{{ url_for('stock_item_categories') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-tags"></i> Nhóm & thông số
+        </a>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStockItemModal">
+            <i class="bi bi-plus-circle"></i> Thêm mặt hàng
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-3"><div class="card stock-metric"><div class="card-body"><div class="text-muted small">Mặt hàng đang dùng</div><div class="fs-3 fw-bold">{{ stats.total_items }}</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card stock-metric"><div class="card-body"><div class="text-muted small">Tổng tồn</div><div class="fs-3 fw-bold">{{ stats.total_quantity }}</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card stock-metric"><div class="card-body"><div class="text-muted small">Sắp hết</div><div class="fs-3 fw-bold {% if stats.low_stock %}text-danger{% endif %}">{{ stats.low_stock }}</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card stock-metric"><div class="card-body"><div class="text-muted small">Lượt xuất tháng này</div><div class="fs-3 fw-bold">{{ stats.issued_this_month }}</div></div></div></div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+    <form method="GET" class="row g-2 align-items-end">
+        <div class="col-md-5"><label class="form-label">Tìm kiếm nhanh</label><input class="form-control" name="q" value="{{ q }}" placeholder="Mã, tên, hãng hoặc model"></div>
+        <div class="col-md-3"><label class="form-label">Nhóm vật tư</label><select class="form-select" name="category_id"><option value="">Tất cả nhóm</option>{% for category in categories %}<option value="{{ category.id }}" {% if category_id == category.id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="low_stock" value="1" id="stockLow" {% if low_stock %}checked{% endif %}><label class="form-check-label" for="stockLow">Chỉ sắp hết</label></div></div>
+        <div class="col-md-2 d-flex gap-2"><button class="btn btn-primary flex-fill">Lọc</button><a href="{{ url_for('stock_item_list') }}" class="btn btn-outline-secondary" title="Bỏ lọc"><i class="bi bi-arrow-counterclockwise"></i></a></div>
+    </form>
+</div></div>
+
+<div class="card">
+    <div class="card-header"><h5 class="mb-0"><i class="bi bi-boxes"></i> Danh sách mặt hàng</h5></div>
+    <div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover stock-table mb-0">
+            <thead class="table-light"><tr>
+                <th>Mã</th><th class="text-start">Mặt hàng / thông số</th><th>Nhóm</th><th>Tồn</th><th>Tối thiểu</th><th>Vị trí</th><th>Trạng thái</th>{% if can_edit %}<th>Hành động</th>{% endif %}
+            </tr></thead>
+            <tbody>
+            {% for item in items.items %}
+                <tr class="{% if not item.is_active %}table-secondary{% endif %}">
+                    <td><strong>{{ item.code }}</strong></td>
+                    <td>
+                        <div class="fw-semibold">{{ item.name }}</div>
+                        {% if item.manufacturer or item.model %}<div class="small text-muted">{{ item.manufacturer or '' }} {{ item.model or '' }}</div>{% endif %}
+                        {% if item.specification_values %}<ul class="stock-spec-list small text-muted">{% for label, value in item.specification_values.items() %}<li>{{ label }}: {{ value }}</li>{% endfor %}</ul>{% endif %}
+                        {% if item.notes %}<div class="small text-muted">{{ item.notes }}</div>{% endif %}
+                    </td>
+                    <td>{{ item.category.name }}</td>
+                    <td class="text-center fw-bold">{{ item.current_quantity }} {{ item.unit }}</td>
+                    <td class="text-center">{{ item.min_quantity }} {{ item.unit }}</td>
+                    <td>{{ item.location or '-' }}</td>
+                    <td class="text-center">{% if not item.is_active %}<span class="badge bg-secondary">Ngừng dùng</span>{% elif item.current_quantity <= item.min_quantity %}<span class="badge bg-danger">Sắp hết</span>{% else %}<span class="badge bg-success">Đủ tồn</span>{% endif %}</td>
+                    {% if can_edit %}<td class="text-center text-nowrap">
+                        <button class="btn btn-sm btn-outline-success" title="Nhập kho" data-bs-toggle="modal" data-bs-target="#movementModal{{ item.id }}" data-movement="Nhập"><i class="bi bi-box-arrow-in-down"></i></button>
+                        <button class="btn btn-sm btn-outline-primary ms-1" title="Xuất kho" data-bs-toggle="modal" data-bs-target="#movementModal{{ item.id }}" data-movement="Xuất"><i class="bi bi-box-arrow-up"></i></button>
+                        <button class="btn btn-sm btn-outline-warning ms-1" title="Sửa" data-bs-toggle="modal" data-bs-target="#editStockItemModal{{ item.id }}"><i class="bi bi-pencil"></i></button>
+                        {% if can_delete and not item.movements %}<form class="d-inline" method="POST" action="{{ url_for('delete_stock_item', item_id=item.id) }}" onsubmit="return confirm('Xóa mặt hàng này?')"><button class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i class="bi bi-trash"></i></button></form>{% endif %}
+                    </td>{% endif %}
+                </tr>
+            {% else %}<tr><td colspan="{{ 8 if can_edit else 7 }}" class="text-center text-muted py-4">Chưa có mặt hàng nào trong kho vật tư.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div>
+    <div class="card-footer">{{ render_pagination(items, 'stock_item_list', {'q': q, 'category_id': category_id or '', 'low_stock': '1' if low_stock else ''}) }}</div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header"><h5 class="mb-0"><i class="bi bi-clock-history"></i> Nhật ký nhập xuất gần đây</h5></div>
+    <div class="card-body p-0"><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+        <thead class="table-light"><tr><th>Ngày</th><th>Mặt hàng</th><th>Loại</th><th class="text-center">SL</th><th class="text-center">Tồn sau</th><th>Người nhận / NCC</th><th>Mã tham chiếu</th><th>Lý do</th><th>Người thao tác</th></tr></thead>
+        <tbody>{% for movement in movements.items %}<tr>
+            <td class="text-nowrap">{{ movement.movement_date.strftime('%d-%m-%Y') }}</td><td><strong>{{ movement.item.code }}</strong><div class="small text-muted">{{ movement.item.name }}</div></td>
+            <td>{% if movement.movement_type == 'Nhập' %}<span class="badge bg-success">Nhập</span>{% elif movement.movement_type == 'Xuất' %}<span class="badge bg-primary">Xuất</span>{% else %}<span class="badge bg-secondary">Điều chỉnh</span>{% endif %}</td>
+            <td class="text-center">{{ movement.quantity }}</td><td class="text-center">{{ movement.after_quantity }}</td><td>{{ movement.receiver.full_name if movement.receiver else movement.supplier or '-' }}</td><td>{{ movement.reference_code or '-' }}</td><td>{{ movement.reason or '-' }}</td><td>{{ movement.actor.full_name if movement.actor else '-' }}</td>
+        </tr>{% else %}<tr><td colspan="9" class="text-center text-muted py-3">Chưa có phiếu nhập xuất.</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+    <div class="card-footer d-flex justify-content-between align-items-center">
+        <span class="text-muted">Hiển thị {{ movements.items|length }} trong {{ movements.total }} phiếu.</span>
+        <nav><ul class="pagination mb-0">
+            <li class="page-item {% if not movements.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('stock_item_list', q=q, category_id=category_id or '', low_stock='1' if low_stock else '', page=items.page, per_page=items.per_page, movement_page=movements.prev_num) }}">Trước</a></li>
+            <li class="page-item disabled"><span class="page-link">{{ movements.page }}/{{ movements.pages or 1 }}</span></li>
+            <li class="page-item {% if not movements.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('stock_item_list', q=q, category_id=category_id or '', low_stock='1' if low_stock else '', page=items.page, per_page=items.per_page, movement_page=movements.next_num) }}">Sau</a></li>
+        </ul></nav>
+    </div>
+</div>
+
+{% if can_edit %}
+{% macro stock_item_form(item, action, modal_id, title, is_new=False) %}
+<div class="modal fade stock-item-modal" id="{{ modal_id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><form method="POST" action="{{ action }}">
+    <div class="modal-header"><h5 class="modal-title">{{ title }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div>
+    <div class="modal-body"><div class="row g-3">
+        <div class="col-md-7"><label class="form-label required">Tên mặt hàng</label><input class="form-control" name="name" value="{{ item.name if item else '' }}" required></div>
+        <div class="col-md-5"><label class="form-label">Mã mặt hàng</label><input class="form-control text-uppercase" name="code" value="{{ item.code if item else '' }}" placeholder="Để trống để tự tạo" {% if not is_new %}required{% endif %}></div>
+        <div class="col-md-4"><label class="form-label required">Nhóm vật tư</label><select class="form-select stock-category-select" name="category_id" required><option value="">-- Chọn nhóm --</option>{% for category in categories %}<option value="{{ category.id }}" {% if item and item.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><label class="form-label">Hãng sản xuất</label><input class="form-control" name="manufacturer" value="{{ item.manufacturer if item else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">Model / mã hãng</label><input class="form-control" name="model" value="{{ item.model if item else '' }}"></div>
+        <div class="col-md-3"><label class="form-label">Đơn vị</label><input class="form-control" name="unit" value="{{ item.unit if item else 'cái' }}"></div>
+        <div class="col-md-3"><label class="form-label">Tồn tối thiểu</label><input class="form-control" type="number" min="0" name="min_quantity" value="{{ item.min_quantity if item else 0 }}"></div>
+        {% if is_new %}<div class="col-md-3"><label class="form-label">Tồn ban đầu</label><input class="form-control" type="number" min="0" name="initial_quantity" value="0"></div>{% endif %}
+        <div class="col-md-{{ '3' if is_new else '6' }}"><label class="form-label">Vị trí kho</label><input class="form-control" name="location" value="{{ item.location if item else '' }}" placeholder="VD: Kệ A - ngăn 02"></div>
+        {% if not is_new %}<div class="col-md-3"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" name="is_active" value="1" id="active{{ item.id }}" {% if item.is_active %}checked{% endif %}><label class="form-check-label" for="active{{ item.id }}">Đang sử dụng</label></div></div>{% endif %}
+        <div class="col-12"><div class="border rounded p-3 bg-light"><div class="fw-semibold mb-2"><i class="bi bi-sliders"></i> Thông số riêng theo nhóm</div><div class="row g-2 stock-specification-inputs"></div><input type="hidden" name="specifications_json" class="stock-specifications-json" value="{{ item.specifications if item else '{}' }}"></div></div>
+        <div class="col-12"><label class="form-label">Ghi chú</label><textarea class="form-control" name="notes" rows="2">{{ item.notes if item else '' }}</textarea></div>
+    </div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button><button class="btn btn-primary">Lưu</button></div>
+</form></div></div></div>
+{% endmacro %}
+
+{{ stock_item_form(none, url_for('add_stock_item'), 'addStockItemModal', 'Thêm mặt hàng kho', True) }}
+{% for item in items.items %}
+{{ stock_item_form(item, url_for('edit_stock_item', item_id=item.id), 'editStockItemModal' ~ item.id, 'Sửa mặt hàng kho') }}
+<div class="modal fade" id="movementModal{{ item.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="POST" action="{{ url_for('record_stock_item_movement', item_id=item.id) }}">
+    <div class="modal-header"><h5 class="modal-title">Phiếu kho: {{ item.name }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div>
+    <div class="modal-body"><div class="row g-3"><input type="hidden" name="movement_type" class="stock-movement-type">
+        <div class="col-12"><div class="alert alert-light border mb-0">Tồn hiện tại: <strong>{{ item.current_quantity }} {{ item.unit }}</strong></div></div>
+        <div class="col-6"><label class="form-label required">Ngày</label><input class="form-control" type="date" name="movement_date" value="{{ now().strftime('%Y-%m-%d') if now is defined else '' }}" required></div>
+        <div class="col-6"><label class="form-label required stock-movement-quantity-label">Số lượng</label><input class="form-control" type="number" min="0" name="quantity" required></div>
+        <div class="col-12 stock-receiver-field"><label class="form-label required">Xuất cho ai</label><select class="form-select" name="receiver_id"><option value="">-- Chọn người nhận --</option>{% for user in users %}<option value="{{ user.id }}">{{ user.full_name or user.username }}{% if user.department_info %} - {{ user.department_info.name }}{% endif %}</option>{% endfor %}</select></div>
+        <div class="col-12 stock-supplier-field"><label class="form-label">Nhà cung cấp</label><input class="form-control" name="supplier" placeholder="Tên nhà cung cấp"></div>
+        <div class="col-6"><label class="form-label">Mã phiếu / hóa đơn</label><input class="form-control" name="reference_code"></div>
+        <div class="col-6"><label class="form-label">Lý do</label><input class="form-control" name="reason"></div>
+        <div class="col-12"><label class="form-label">Ghi chú</label><textarea class="form-control" name="notes" rows="2"></textarea></div>
+    </div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button><button class="btn btn-primary stock-movement-submit">Lưu phiếu</button></div>
+</form></div></div></div>
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if can_edit %}
+<script>
+(() => {
+    const categories = {{ category_payload|tojson }};
+    const today = new Date().toISOString().slice(0, 10);
+    const categoryById = id => categories.find(category => String(category.id) === String(id));
+    const renderSpecifications = modal => {
+        const select = modal.querySelector('.stock-category-select');
+        const container = modal.querySelector('.stock-specification-inputs');
+        const stored = modal.querySelector('.stock-specifications-json');
+        if (!select || !container || !stored) return;
+        let current = {};
+        try { current = JSON.parse(stored.value || '{}'); } catch (_) { current = {}; }
+        const category = categoryById(select.value);
+        container.innerHTML = '';
+        (category?.fields || []).forEach(field => {
+            const col = document.createElement('div');
+            col.className = 'col-md-6';
+            col.innerHTML = `<label class="form-label small mb-1"></label><input type="text" class="form-control form-control-sm" data-stock-spec-input>`;
+            col.querySelector('label').textContent = field;
+            const input = col.querySelector('input');
+            input.dataset.stockSpecKey = field;
+            input.value = current[field] || '';
+            container.appendChild(col);
+        });
+    };
+    document.querySelectorAll('.stock-item-modal').forEach(modal => {
+        modal.addEventListener('show.bs.modal', () => renderSpecifications(modal));
+        modal.querySelector('.stock-category-select')?.addEventListener('change', () => renderSpecifications(modal));
+        modal.querySelector('form')?.addEventListener('submit', () => {
+            const values = {};
+            modal.querySelectorAll('[data-stock-spec-input]').forEach(input => {
+                if (input.value.trim()) values[input.dataset.stockSpecKey] = input.value.trim();
+            });
+            modal.querySelector('.stock-specifications-json').value = JSON.stringify(values);
+        });
+    });
+    document.querySelectorAll('[id^="movementModal"]').forEach(modal => {
+        modal.addEventListener('show.bs.modal', event => {
+            const button = event.relatedTarget;
+            const type = button?.dataset.movement || 'Nhập';
+            modal.querySelector('.stock-movement-type').value = type;
+            modal.querySelector('[name="movement_date"]').value = today;
+            modal.querySelector('.stock-receiver-field').classList.toggle('d-none', type !== 'Xuất');
+            modal.querySelector('.stock-supplier-field').classList.toggle('d-none', type !== 'Nhập');
+            modal.querySelector('.stock-movement-quantity-label').textContent = type === 'Điều chỉnh' ? 'Tồn kho mới' : 'Số lượng';
+            modal.querySelector('.stock-movement-submit').textContent = `Lưu phiếu ${type.toLowerCase()}`;
+        });
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

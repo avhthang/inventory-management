@@ -49,6 +49,11 @@
                             class="nav-link {% if active_endpoint in ['consumable_list', 'convert_devices_to_consumables'] %}active{% endif %}"
                             href="{{ url_for('consumable_list') }}">Kho thiết bị</a></li>
                     {% endif %}
+                    {% if current_permissions and 'stock_items.view' in current_permissions %}
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint in ['stock_item_list', 'stock_item_categories', 'add_stock_item', 'edit_stock_item'] %}active{% endif %}"
+                            href="{{ url_for('stock_item_list') }}">Vật tư &amp; phụ kiện</a></li>
+                    {% endif %}
                     {% if current_permissions and 'resources.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'resources' %}active{% endif %}"
                             href="{{ url_for('resources') }}">Quản lý tài nguyên</a></li>
