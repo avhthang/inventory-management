@@ -6,8 +6,7 @@ services:
     build:
       context: ${INVENTORY_APP_DIR:-.}
     env_file:
-      - path: ${INVENTORY_ENV_FILE:-/opt/docker/secrets/inventory/inventory.env}
-        required: false
+      - ${INVENTORY_ENV_FILE:-/opt/docker/secrets/inventory/inventory.env}
     environment:
       FLASK_ENV: production
       DATABASE_URL: ${DATABASE_URL:-postgresql://inventory_user:inventory_pass@inventory-postgres:5432/inventory_db}
