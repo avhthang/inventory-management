@@ -32,7 +32,7 @@
 <div class="row g-3 mb-3">
     <div class="col-sm-6 col-xl-3"><div class="card stock-metric"><div class="card-body"><div class="text-muted small">Mặt hàng đang dùng</div><div class="fs-3 fw-bold">{{ stats.total_items }}</div></div></div></div>
     <div class="col-sm-6 col-xl-3"><div class="card stock-metric"><div class="card-body"><div class="text-muted small">Tổng tồn</div><div class="fs-3 fw-bold">{{ stats.total_quantity }}</div></div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="card stock-metric"><div class="card-body"><div class="text-muted small">Sắp hết</div><div class="fs-3 fw-bold {% if stats.low_stock %}text-danger{% endif %}">{{ stats.low_stock }}</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card stock-metric"><div class="card-body"><div class="text-muted small">Sắp hết</div><div class="fs-3 fw-bold {% if stats.low_stock %}text-warning{% endif %}">{{ stats.low_stock }}</div>{% if stats.out_stock %}<div class="small text-danger">Hết: {{ stats.out_stock }}</div>{% endif %}</div></div></div>
     <div class="col-sm-6 col-xl-3"><div class="card stock-metric"><div class="card-body"><div class="text-muted small">Lượt xuất tháng này</div><div class="fs-3 fw-bold">{{ stats.issued_this_month }}</div></div></div></div>
 </div>
 
@@ -66,7 +66,7 @@
                     <td class="text-center fw-bold">{{ item.current_quantity }} {{ item.unit }}</td>
                     <td class="text-center">{{ item.min_quantity }} {{ item.unit }}</td>
                     <td>{{ item.location or '-' }}</td>
-                    <td class="text-center">{% if not item.is_active %}<span class="badge bg-secondary">Ngừng dùng</span>{% elif item.current_quantity <= item.min_quantity %}<span class="badge bg-danger">Sắp hết</span>{% else %}<span class="badge bg-success">Đủ tồn</span>{% endif %}</td>
+                    <td class="text-center">{% if not item.is_active %}<span class="badge bg-secondary">Ngừng dùng</span>{% elif item.current_quantity <= 0 %}<span class="badge bg-danger">Hết</span>{% elif item.current_quantity <= item.min_quantity %}<span class="badge bg-warning text-dark">Sắp hết</span>{% else %}<span class="badge bg-success">Đủ tồn</span>{% endif %}</td>
                     {% if can_edit %}<td class="text-center text-nowrap">
                         <button class="btn btn-sm btn-outline-success" title="Nhập kho" data-bs-toggle="modal" data-bs-target="#movementModal{{ item.id }}" data-movement="Nhập"><i class="bi bi-box-arrow-in-down"></i></button>
                         <button class="btn btn-sm btn-outline-primary ms-1" title="Xuất kho" data-bs-toggle="modal" data-bs-target="#movementModal{{ item.id }}" data-movement="Xuất"><i class="bi bi-box-arrow-up"></i></button>

@@ -8545,7 +8545,11 @@ def consumable_list():
     stats = {
         'total_items': ConsumableItem.query.count(),
         'total_quantity': db.session.query(func.coalesce(func.sum(ConsumableItem.current_quantity), 0)).scalar() or 0,
-        'low_stock': ConsumableItem.query.filter(ConsumableItem.current_quantity <= ConsumableItem.min_quantity).count(),
+        'low_stock': ConsumableItem.query.filter(
+            ConsumableItem.current_quantity > 0,
+            ConsumableItem.current_quantity <= ConsumableItem.min_quantity
+        ).count(),
+        'out_stock': ConsumableItem.query.filter(ConsumableItem.current_quantity <= 0).count(),
         'issued_count': ConsumableTransaction.query.filter_by(transaction_type='Xuất').count(),
     }
 
@@ -8953,7 +8957,15 @@ def stock_item_list():
     stats = {
         'total_items': StockItem.query.filter_by(is_active=True).count(),
         'total_quantity': db.session.query(func.coalesce(func.sum(StockItem.current_quantity), 0)).scalar() or 0,
-        'low_stock': StockItem.query.filter(StockItem.is_active.is_(True), StockItem.current_quantity <= StockItem.min_quantity).count(),
+        'low_stock': StockItem.query.filter(
+            StockItem.is_active.is_(True),
+            StockItem.current_quantity > 0,
+            StockItem.current_quantity <= StockItem.min_quantity
+        ).count(),
+        'out_stock': StockItem.query.filter(
+            StockItem.is_active.is_(True),
+            StockItem.current_quantity <= 0
+        ).count(),
         'issued_this_month': StockItemMovement.query.filter(
             StockItemMovement.movement_type == 'Xuất',
             StockItemMovement.movement_date >= date.today().replace(day=1),

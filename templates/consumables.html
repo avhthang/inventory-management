@@ -85,7 +85,8 @@
         <div class="card h-100">
             <div class="card-body">
                 <div class="text-muted small">Sắp hết</div>
-                <div class="fs-3 fw-bold {% if stats.low_stock %}text-danger{% endif %}">{{ stats.low_stock }}</div>
+                <div class="fs-3 fw-bold {% if stats.low_stock %}text-warning{% endif %}">{{ stats.low_stock }}</div>
+                {% if stats.out_stock %}<div class="small text-danger">Hết: {{ stats.out_stock }}</div>{% endif %}
             </div>
         </div>
     </div>
@@ -174,8 +175,10 @@
                         <td class="text-center">{{ item.min_quantity }} {{ item.unit }}</td>
                         <td>{{ item.location or '' }}</td>
                         <td class="text-center">
-                            {% if item.current_quantity <= item.min_quantity %}
-                            <span class="badge bg-danger">Sắp hết</span>
+                            {% if item.current_quantity <= 0 %}
+                            <span class="badge bg-danger">Hết</span>
+                            {% elif item.current_quantity <= item.min_quantity %}
+                            <span class="badge bg-warning text-dark">Sắp hết</span>
                             {% else %}
                             <span class="badge bg-success">Đủ tồn</span>
                             {% endif %}
