@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Phiếu bàn giao kho {{ movement.reference_code or ('#' ~ movement.id) }}{% endblock %}
+
+{% block content %}
+<style>
+    @media print {
+        body { background: white; font-size: 13pt; }
+        .no-print { display: none !important; }
+        .card { border: none !important; box-shadow: none !important; }
+        .container { max-width: 100% !important; padding: 0 !important; }
+    }
+</style>
+
+<div class="container py-3" style="max-width: 850px;">
+    <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+        <a href="{{ url_for('stock_item_list') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Quay lại</a>
+        <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer"></i> In phiếu bàn giao</button>
+    </div>
+
+    <div class="card p-4 border shadow-sm">
+        <div class="text-center mb-4">
+            <h3 class="fw-bold mb-1">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h3>
+            <div class="fw-semibold">Độc lập - Tự do - Hạnh phúc</div>
+            <hr class="w-25 mx-auto my-3" style="border-top: 2px solid #333;">
+            <h2 class="fw-bold mt-4 text-uppercase">PHIẾU BÀN GIAO VẬT TƯ / THIẾT BỊ</h2>
+            <div class="text-muted small">Ngày {{ movement.movement_date.strftime('%d') }} tháng {{ movement.movement_date.strftime('%m') }} năm {{ movement.movement_date.strftime('%Y') }}</div>
+            {% if movement.reference_code %}
+            <div class="small fw-semibold mt-1">Mã phiếu: {{ movement.reference_code }}</div>
+            {% endif %}
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-6">
+                <div class="border rounded p-3 bg-light">
+                    <div class="fw-bold text-primary mb-2"><i class="bi bi-person-up"></i> BÊN GIAO (BÊN A)</div>
+                    <div><strong>Họ tên:</strong> {{ movement.actor.full_name if movement.actor else 'Quản trị viên' }}</div>
+                    <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.actor.department_info.name if movement.actor and movement.actor.department_info else 'Phòng IT / Kho' }}</div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="border rounded p-3 bg-light">
+                    <div class="fw-bold text-success mb-2"><i class="bi bi-person-down"></i> BÊN NHẬN (BÊN B)</div>
+                    <div><strong>Họ tên:</strong> {{ movement.receiver.full_name if movement.receiver else '-' }}</div>
+                    <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.receiver.department_info.name if movement.receiver and movement.receiver.department_info else '-' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <strong>Nội dung bàn giao:</strong> Xuất kho {{ movement.item.name }} (Mã mặt hàng: <code>{{ movement.item.code }}</code>)
+            {% if movement.reason %}<br><strong>Lý do xuất:</strong> {{ movement.reason }}{% endif %}
+            {% if movement.notes %}<br><strong>Ghi chú:</strong> {{ movement.notes }}{% endif %}
+        </div>
+
+        <div class="table-responsive mb-4">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light text-center">
+                    <tr>
+                        <th style="width: 50px;">STT</th>
+                        <th>Mã QLTB nội bộ</th>
+                        <th>Tên mặt hàng / Thông số</th>
+                        <th>Số serial</th>
+                        <th>Đơn vị</th>
+                        <th style="width: 80px;">Số lượng</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if units %}
+                        {% for unit in units %}
+                        <tr>
+                            <td class="text-center">{{ loop.index }}</td>
+                            <td><strong class="font-monospace">{{ unit.unit_code }}</strong></td>
+                            <td>
+                                <div>{{ movement.item.name }}</div>
+                                <div class="small text-muted">{{ movement.item.manufacturer or '' }} {{ movement.item.model or '' }}</div>
+                            </td>
+                            <td>{{ unit.serial_number or '-' }}</td>
+                            <td class="text-center">{{ movement.item.unit }}</td>
+                            <td class="text-center">1</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td class="text-center">1</td>
+                            <td class="text-center">-</td>
+                            <td>
+                                <div>{{ movement.item.name }}</div>
+                                <div class="small text-muted">{{ movement.item.manufacturer or '' }} {{ movement.item.model or '' }}</div>
+                            </td>
+                            <td class="text-center">-</td>
+                            <td class="text-center">{{ movement.item.unit }}</td>
+                            <td class="text-center fw-bold">{{ movement.quantity }}</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="row text-center mt-5 pt-3">
+            <div class="col-6">
+                <div class="fw-bold"> đại diện BÊN GIAO</div>
+                <div class="small text-muted mb-5">(Ký và ghi rõ họ tên)</div>
+                <div class="mt-4 fw-semibold">{{ movement.actor.full_name if movement.actor else '' }}</div>
+            </div>
+            <div class="col-6">
+                <div class="fw-bold">ĐẠI DIỆN BÊN NHẬN</div>
+                <div class="small text-muted mb-5">(Ký và ghi rõ họ tên)</div>
+                <div class="mt-4 fw-semibold">{{ movement.receiver.full_name if movement.receiver else '' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

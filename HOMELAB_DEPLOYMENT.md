@@ -333,3 +333,133 @@ Khi them dich vu moi, dung cung pattern:
 ```
 
 Khong dung chung DB volume giua cac dich vu. Neu service nao can database rieng, tao folder rieng theo ten service.
+
+## 12. Dong bo database giua 2 server (Logical Replication)
+
+Neu ban chay Inventory tren 2 server noi bo (cung LAN), co the cau hinh dong bo du lieu tu dong tu server chinh (Publisher) sang server phu (Subscriber) bang PostgreSQL Logical Replication.
+
+### 12.1. Kien truc
+
+```text
+Server A (Publisher)                    Server B (Subscriber)
+192.168.110.23:8088                     192.168.143.250:18088
+┌─────────────────────┐                 ┌─────────────────────┐
+│ inventory-app       │                 │ inventory-app       │
+│ inventory-postgres ─┼──── PUBLISH ──►│ inventory-postgres  │
+│   port 5432 (LAN)   │   (realtime)   │                     │
+└─────────────────────┘                 └─────────────────────┘
+
+Du lieu nhap tren Server A tu dong dong bo sang Server B (mot chieu).
+```
+
+### 12.2. Yeu cau
+
+- 2 server cung mang LAN (ping duoc nhau)
+- Ca 2 da chay stack Docker (inventory-app, inventory-postgres)
+- Du lieu 2 server da giong nhau truoc khi bat dau
+- Password PostgreSQL 2 server giong nhau
+
+### 12.3. Buoc 1 — Cap nhat compose va env tren Server A
+
+Sua file env cua Server A (`/opt/docker/secrets/inventory/inventory.env`):
+
+```env
+# Mo port PostgreSQL ra LAN de Server B ket noi
+POSTGRES_BIND=0.0.0.0
+POSTGRES_PORT=5432
+```
+
+Copy compose moi tu source:
+
+```bash
+cp /srv/inventory/app/docker-compose.yml /opt/docker/compose/inventory/compose.yaml
+```
+
+Restart stack:
+
+```bash
+cd /opt/docker/compose/inventory
+docker compose --env-file /opt/docker/secrets/inventory/inventory.env up -d
+```
+
+Kiem tra wal_level:
+
+```bash
+docker exec inventory-postgres psql -U inventory_user -d inventory_db -c "SHOW wal_level;"
+```
+
+Ket qua phai la `logical`.
+
+### 12.4. Buoc 2 — Cap nhat compose tren Server B
+
+Copy compose moi (neu chua co):
+
+```bash
+cp /srv/inventory/app/docker-compose.yml /opt/docker/compose/inventory/compose.yaml
+```
+
+Khong can doi `POSTGRES_BIND` tren Server B (giu mac dinh `127.0.0.1`).
+
+Restart stack:
+
+```bash
+cd /opt/docker/compose/inventory
+docker compose --env-file /opt/docker/secrets/inventory/inventory.env up -d
+```
+
+### 12.5. Buoc 3 — Thiet lap Publisher tren Server A
+
+```bash
+cd /opt/docker/compose/inventory
+bash /srv/inventory/app/setup-replication.sh publisher
+```
+
+Script se tao PUBLICATION cho tat ca bang trong database.
+
+### 12.6. Buoc 4 — Thiet lap Subscriber tren Server B
+
+```bash
+cd /opt/docker/compose/inventory
+POSTGRES_PASSWORD=mat-khau-cua-ban bash /srv/inventory/app/setup-replication.sh subscriber
+```
+
+Script se:
+- Kiem tra ket noi toi Server A
+- Kiem tra publication ton tai tren Server A
+- Tao SUBSCRIPTION tro ve Server A
+- Xac nhan replication dang hoat dong
+
+### 12.7. Kiem tra trang thai
+
+Chay tren bat ky server nao:
+
+```bash
+# Kiem tra co ban
+bash /srv/inventory/app/check-replication.sh
+
+# Kiem tra chi tiet (bao gom so ban ghi)
+bash /srv/inventory/app/check-replication.sh --detail
+
+# Theo doi lien tuc (moi 5 giay)
+bash /srv/inventory/app/check-replication.sh --watch
+```
+
+### 12.8. Go bo replication
+
+```bash
+# Chay tren Server B truoc
+bash /srv/inventory/app/setup-replication.sh teardown
+# Chon: B
+
+# Sau do chay tren Server A
+bash /srv/inventory/app/setup-replication.sh teardown
+# Chon: A
+```
+
+### 12.9. Luu y quan trong
+
+- **Mot chieu**: Du lieu chi dong bo tu Server A sang Server B. Du lieu nhap tren Server B se KHONG dong bo nguoc lai.
+- **Schema changes**: Khi cap nhat code app (them bang, doi cot), can chay migration tren CA 2 server.
+- **Firewall**: Dam bao port 5432 tren Server A mo cho Server B truy cap.
+- **Do tre**: Du lieu thuong dong bo trong 1-3 giay.
+- **Conflict**: Neu ca 2 server cung sua 1 ban ghi cung luc, ban ghi moi nhat se ghi de (last-write-wins).

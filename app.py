@@ -798,13 +798,6 @@ def migrate_missing_columns_v3():
                 _add_col_if_missing('consumable_transaction', 'location', 'VARCHAR(150)')
 
                 # bug_report
-                _add_col_if_missing('bug_report', 'merged_into', 'INTEGER')
-                _add_col_if_missing('bug_report', 'visibility', "VARCHAR(20) DEFAULT 'private'")
-                _add_col_if_missing('bug_report', 'rating', 'INTEGER')
-                _add_col_if_missing('bug_report', 'reopen_requested', 'BOOLEAN DEFAULT FALSE')
-
-                # config_proposal_item
-                _add_col_if_missing('config_proposal_item', 'product_link', 'VARCHAR(255)')
                 _add_col_if_missing('config_proposal_item', 'warranty', 'VARCHAR(120)')
                 _add_col_if_missing('config_proposal_item', 'product_code', 'VARCHAR(100)')
                 
@@ -1436,11 +1429,30 @@ class StockItem(db.Model):
     specifications = db.Column(db.Text, default='{}')
     notes = db.Column(db.Text)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    track_units = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     category = db.relationship('StockItemCategory', back_populates='items')
     movements = db.relationship('StockItemMovement', back_populates='item', cascade='all, delete-orphan')
+    units = db.relationship('StockItemUnit', back_populates='item', cascade='all, delete-orphan')
+
+class StockItemUnit(db.Model):
+    """Individual physical unit of a StockItem when track_units is enabled."""
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey('stock_item.id'), nullable=False)
+    unit_code = db.Column(db.String(80), unique=True, nullable=False)
+    serial_number = db.Column(db.String(120))
+    status = db.Column(db.String(30), nullable=False, default='Trong kho')  # 'Trong kho', 'Đã xuất', 'Hỏng', 'Thanh lý'
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    location = db.Column(db.String(150))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    item = db.relationship('StockItem', back_populates='units')
+    assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
+    unit_movements = db.relationship('StockItemUnitMovement', back_populates='unit', cascade='all, delete-orphan')
 
 class StockItemMovement(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1461,6 +1473,19 @@ class StockItemMovement(db.Model):
     item = db.relationship('StockItem', back_populates='movements')
     receiver = db.relationship('User', foreign_keys=[receiver_id])
     actor = db.relationship('User', foreign_keys=[actor_id])
+    unit_movements = db.relationship('StockItemUnitMovement', back_populates='movement', cascade='all, delete-orphan')
+
+class StockItemUnitMovement(db.Model):
+    """Junction table linking StockItemMovement to StockItemUnit."""
+    id = db.Column(db.Integer, primary_key=True)
+    movement_id = db.Column(db.Integer, db.ForeignKey('stock_item_movement.id'), nullable=False)
+    unit_id = db.Column(db.Integer, db.ForeignKey('stock_item_unit.id'), nullable=False)
+    action = db.Column(db.String(30), nullable=False)  # 'Nhập', 'Xuất'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    movement = db.relationship('StockItemMovement', back_populates='unit_movements')
+    unit = db.relationship('StockItemUnit', back_populates='unit_movements')
+
 
 # --- (Deleted Device Group Models) ---
 
@@ -2082,12 +2107,31 @@ def _parse_stock_specifications(raw, category):
         if str(values.get(field) or '').strip()
     }
 
+def _generate_unit_codes(item, count=1):
+    prefix = f"QLTB-{item.code}"
+    pattern = re.compile(rf'^{re.escape(prefix)}-(\d+)$', re.IGNORECASE)
+    existing_codes = db.session.query(StockItemUnit.unit_code).filter(StockItemUnit.unit_code.ilike(f'{prefix}-%')).all()
+    max_num = 0
+    for (code,) in existing_codes:
+        match = pattern.match(code or '')
+        if match:
+            max_num = max(max_num, int(match.group(1)))
+    
+    codes = []
+    for i in range(1, count + 1):
+        num = max_num + i
+        codes.append(f"{prefix}-{num:03d}")
+    return codes
+
 def _record_stock_item_movement(item, movement_type, quantity, *, movement_date=None,
-                                receiver_id=None, supplier='', reference_code='', reason='', notes=''):
+                                receiver_id=None, supplier='', reference_code='', reason='', notes='',
+                                unit_serials=None, selected_unit_ids=None):
     before_quantity = item.current_quantity or 0
     if movement_type == 'Nhập':
         after_quantity = before_quantity + quantity
     elif movement_type == 'Xuất':
+        if item.track_units and selected_unit_ids:
+            quantity = len(selected_unit_ids)
         if quantity > before_quantity:
             raise ValueError('Số lượng xuất lớn hơn tồn kho hiện tại.')
         after_quantity = before_quantity - quantity
@@ -2116,6 +2160,48 @@ def _record_stock_item_movement(item, movement_type, quantity, *, movement_date=
         notes=notes,
     )
     db.session.add(movement)
+    db.session.flush()
+
+    if item.track_units:
+        if movement_type == 'Nhập':
+            codes = _generate_unit_codes(item, quantity)
+            serials = unit_serials or []
+            for i in range(quantity):
+                sn = serials[i].strip() if i < len(serials) and serials[i] and str(serials[i]).strip() else None
+                unit = StockItemUnit(
+                    item_id=item.id,
+                    unit_code=codes[i],
+                    serial_number=sn,
+                    status='Trong kho',
+                    location=item.location,
+                )
+                db.session.add(unit)
+                db.session.flush()
+                um = StockItemUnitMovement(
+                    movement_id=movement.id,
+                    unit_id=unit.id,
+                    action='Nhập'
+                )
+                db.session.add(um)
+        elif movement_type == 'Xuất':
+            if selected_unit_ids:
+                units = StockItemUnit.query.filter(
+                    StockItemUnit.id.in_(selected_unit_ids),
+                    StockItemUnit.item_id == item.id
+                ).all()
+                for unit in units:
+                    if unit.status != 'Trong kho':
+                        raise ValueError(f'Thiết bị {unit.unit_code} không ở trạng thái Trong kho.')
+                    unit.status = 'Đã xuất'
+                    unit.assigned_to_id = receiver_id
+                    unit.updated_at = datetime.utcnow()
+                    um = StockItemUnitMovement(
+                        movement_id=movement.id,
+                        unit_id=unit.id,
+                        action='Xuất'
+                    )
+                    db.session.add(um)
+
     return movement
 
 def _get_device_type_code_prefix(device_type_name):
@@ -8997,6 +9083,7 @@ def add_stock_item():
     try:
         initial_quantity = max(0, int(request.form.get('initial_quantity') or 0))
         min_quantity = max(0, int(request.form.get('min_quantity') or 0))
+        track_units = request.form.get('track_units') == '1'
         if not category or not name:
             raise ValueError('Vui lòng chọn nhóm vật tư và nhập tên mặt hàng.')
         if not code:
@@ -9013,16 +9100,19 @@ def add_stock_item():
             current_quantity=0,
             min_quantity=min_quantity,
             location=(request.form.get('location') or '').strip(),
+            track_units=track_units,
             specifications=json.dumps(_parse_stock_specifications(request.form.get('specifications_json'), category), ensure_ascii=False),
             notes=(request.form.get('notes') or '').strip(),
         )
         db.session.add(item)
         db.session.flush()
         if initial_quantity:
+            unit_serials = request.form.getlist('initial_unit_serials')
             _record_stock_item_movement(
                 item, 'Nhập', initial_quantity,
                 movement_date=date.today(),
                 reason='Tạo mặt hàng và nhập tồn ban đầu',
+                unit_serials=unit_serials
             )
         db.session.commit()
         flash('Đã thêm mặt hàng kho.', 'success')
@@ -9055,6 +9145,7 @@ def edit_stock_item(item_id):
         item.min_quantity = max(0, int(request.form.get('min_quantity') or 0))
         item.location = (request.form.get('location') or '').strip()
         item.is_active = request.form.get('is_active') == '1'
+        item.track_units = request.form.get('track_units') == '1'
         item.specifications = json.dumps(_parse_stock_specifications(request.form.get('specifications_json'), category), ensure_ascii=False)
         item.notes = (request.form.get('notes') or '').strip()
         db.session.commit()
@@ -9073,6 +9164,14 @@ def record_stock_item_movement(item_id):
     movement_type = (request.form.get('movement_type') or '').strip()
     try:
         quantity = int(request.form.get('quantity') or 0)
+        selected_unit_ids = [int(x) for x in request.form.getlist('selected_unit_ids') if str(x).isdigit()]
+        unit_serials = request.form.getlist('unit_serials')
+
+        if movement_type == 'Xuất' and item.track_units:
+            if not selected_unit_ids:
+                raise ValueError('Vui lòng chọn ít nhất 1 thiết bị cụ thể để xuất kho.')
+            quantity = len(selected_unit_ids)
+
         if movement_type in ('Nhập', 'Xuất') and quantity <= 0:
             raise ValueError('Số lượng phải lớn hơn 0.')
         if movement_type == 'Điều chỉnh' and quantity < 0:
@@ -9090,6 +9189,8 @@ def record_stock_item_movement(item_id):
             reference_code=(request.form.get('reference_code') or '').strip(),
             reason=(request.form.get('reason') or '').strip() or f'{movement_type} kho',
             notes=(request.form.get('notes') or '').strip(),
+            unit_serials=unit_serials,
+            selected_unit_ids=selected_unit_ids,
         )
         db.session.commit()
         flash(f'Đã ghi nhận {movement_type.lower()} kho.', 'success')
@@ -9097,6 +9198,45 @@ def record_stock_item_movement(item_id):
         db.session.rollback()
         flash(str(exc), 'danger')
     return _stock_item_redirect()
+
+@app.route('/stock-items/<int:item_id>/units')
+def stock_item_units_api(item_id):
+    if not _require_stock_permission('stock_items.view'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    item = StockItem.query.get_or_404(item_id)
+    units = StockItemUnit.query.filter_by(item_id=item_id).order_by(StockItemUnit.id.asc()).all()
+    result = []
+    for u in units:
+        result.append({
+            'id': u.id,
+            'unit_code': u.unit_code,
+            'serial_number': u.serial_number or '',
+            'status': u.status,
+            'assigned_to': u.assigned_to.full_name if u.assigned_to else '',
+            'location': u.location or '',
+            'created_at': u.created_at.strftime('%d-%m-%Y %H:%M') if u.created_at else ''
+        })
+    return jsonify({'item_code': item.code, 'item_name': item.name, 'track_units': item.track_units, 'units': result})
+
+@app.route('/stock-items/movements/<int:movement_id>/handover')
+def stock_item_movement_handover(movement_id):
+    if not _require_stock_permission('stock_items.view'):
+        flash('Bạn không có quyền xem phiếu bàn giao.', 'danger')
+        return _stock_item_redirect()
+    movement = StockItemMovement.query.get_or_404(movement_id)
+    if movement.movement_type != 'Xuất':
+        flash('Chỉ phiếu xuất kho mới có phiếu bàn giao.', 'warning')
+        return _stock_item_redirect()
+    
+    unit_movements = StockItemUnitMovement.query.filter_by(movement_id=movement.id).all()
+    units = [um.unit for um in unit_movements]
+    
+    return render_template(
+        'stock_movement_handover.html',
+        movement=movement,
+        units=units,
+        now=get_now()
+    )
 
 @app.route('/stock-items/<int:item_id>/delete', methods=['POST'])
 def delete_stock_item(item_id):
