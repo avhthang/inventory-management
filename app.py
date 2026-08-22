@@ -1434,6 +1434,7 @@ class StockItemCategory(db.Model):
     code_prefix = db.Column(db.String(20), nullable=False)
     specification_fields = db.Column(db.Text, default='[]')
     description = db.Column(db.Text)
+    image_filename = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1455,6 +1456,7 @@ class StockItem(db.Model):
     notes = db.Column(db.Text)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     track_units = db.Column(db.Boolean, nullable=False, default=False)
+    image_filenames = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -2100,6 +2102,36 @@ def _seed_stock_item_categories():
     except Exception as exc:
         db.session.rollback()
         print(f"Stock category seed error: {exc}")
+
+STOCK_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
+
+def _stock_images_dir():
+    path = os.path.join(app.root_path, 'static', 'uploads', 'stock')
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def _save_stock_image_file(file_storage, prefix='stock'):
+    if not file_storage or not getattr(file_storage, 'filename', None):
+        return None
+    ext = file_storage.filename.rsplit('.', 1)[-1].lower() if '.' in file_storage.filename else ''
+    if ext not in STOCK_IMAGE_EXTENSIONS:
+        return None
+    filename = f"{prefix}_{uuid.uuid4().hex[:12]}.{ext}"
+    file_storage.save(os.path.join(_stock_images_dir(), filename))
+    return filename
+
+def _stock_image_list(image_value):
+    if not image_value:
+        return []
+    try:
+        data = json.loads(image_value)
+        if isinstance(data, list):
+            return [str(x) for x in data if str(x).strip()]
+    except Exception:
+        pass
+    if isinstance(image_value, str) and image_value.strip():
+        return [image_value.strip()]
+    return []
 
 def _normalize_stock_prefix(prefix):
     return re.sub(r'[^A-Z0-9]', '', (prefix or '').upper())[:20] or 'VT'
@@ -9058,6 +9090,7 @@ def stock_item_list():
         page=page, per_page=per_page if per_page in (10, 20, 50, 100) else 20, error_out=False)
     for item in items.items:
         item.specification_values = _stock_item_specifications(item)
+        item.images = _stock_image_list(item.image_filenames)
 
     movements = StockItemMovement.query.order_by(
         StockItemMovement.movement_date.desc(), StockItemMovement.id.desc()
@@ -9115,6 +9148,13 @@ def add_stock_item():
             code = _generate_stock_item_code(category)
         if StockItem.query.filter(func.upper(StockItem.code) == code).first():
             raise ValueError('Mã mặt hàng đã tồn tại.')
+
+        uploaded_images = []
+        for file_obj in request.files.getlist('image_files'):
+            saved_name = _save_stock_image_file(file_obj, 'item')
+            if saved_name:
+                uploaded_images.append(saved_name)
+
         item = StockItem(
             category=category,
             code=code,
@@ -9126,6 +9166,7 @@ def add_stock_item():
             min_quantity=min_quantity,
             location=(request.form.get('location') or '').strip(),
             track_units=track_units,
+            image_filenames=json.dumps(uploaded_images, ensure_ascii=False) if uploaded_images else None,
             specifications=json.dumps(_parse_stock_specifications(request.form.get('specifications_json'), category), ensure_ascii=False),
             notes=(request.form.get('notes') or '').strip(),
         )
@@ -9161,6 +9202,17 @@ def edit_stock_item(item_id):
         duplicate = StockItem.query.filter(StockItem.id != item.id, func.upper(StockItem.code) == code).first()
         if duplicate:
             raise ValueError('Mã mặt hàng đã tồn tại.')
+
+        existing_images = _stock_image_list(item.image_filenames)
+        new_uploaded = []
+        for file_obj in request.files.getlist('image_files'):
+            saved_name = _save_stock_image_file(file_obj, 'item')
+            if saved_name:
+                new_uploaded.append(saved_name)
+        if new_uploaded:
+            existing_images.extend(new_uploaded)
+            item.image_filenames = json.dumps(existing_images, ensure_ascii=False)
+
         item.category = category
         item.code = code
         item.name = name
@@ -9380,6 +9432,9 @@ def stock_item_categories():
         name = (request.form.get('name') or '').strip()
         prefix = _normalize_stock_prefix(request.form.get('code_prefix'))
         fields = [field.strip() for field in (request.form.get('specification_fields') or '').splitlines() if field.strip()]
+        image_file = request.files.get('image_file')
+        saved_img = _save_stock_image_file(image_file, 'cat') if image_file else None
+
         if not name:
             flash('Tên nhóm vật tư là bắt buộc.', 'danger')
         elif StockItemCategory.query.filter(func.lower(StockItemCategory.name) == name.lower()).first():
@@ -9390,6 +9445,7 @@ def stock_item_categories():
                 code_prefix=prefix,
                 specification_fields=json.dumps(fields[:20], ensure_ascii=False),
                 description=(request.form.get('description') or '').strip(),
+                image_filename=saved_img,
             ))
             db.session.commit()
             flash('Đã tạo nhóm vật tư.', 'success')
@@ -9406,12 +9462,19 @@ def edit_stock_item_category(category_id):
         return redirect(url_for('stock_item_categories'))
     category = StockItemCategory.query.get_or_404(category_id)
     name = (request.form.get('name') or '').strip()
+    image_file = request.files.get('image_file')
     try:
         if not name:
             raise ValueError('Tên nhóm vật tư là bắt buộc.')
         duplicate = StockItemCategory.query.filter(StockItemCategory.id != category.id, func.lower(StockItemCategory.name) == name.lower()).first()
         if duplicate:
             raise ValueError('Nhóm vật tư đã tồn tại.')
+
+        if image_file and image_file.filename:
+            saved_img = _save_stock_image_file(image_file, 'cat')
+            if saved_img:
+                category.image_filename = saved_img
+
         category.name = name
         category.code_prefix = _normalize_stock_prefix(request.form.get('code_prefix'))
         category.specification_fields = json.dumps([
