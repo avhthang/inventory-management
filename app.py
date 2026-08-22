@@ -1,9 +1,9 @@
 import os
+import uuid
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
 from sqlalchemy import or_, func, event, text, inspect, case, cast, String
-from sqlalchemy.exc import OperationalError
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
@@ -112,9 +112,10 @@ db = SQLAlchemy(app)
 _company_cfg_path = os.path.join(instance_path, 'company_config.json')
 company_config_defaults = {
     'company_name': 'CÔNG TY CỔ PHẦN THIẾT BỊ & CÔNG NGHỆ',
-    'branch_name': 'Chi nhánh / Phòng Quản lý Thiết bị & Vật tư',
+    'branch_name': 'Phòng quản lý thiết bị',
     'company_address': '',
-    'company_phone': ''
+    'company_phone': '',
+    'company_tax_id': ''
 }
 
 def get_company_config():
@@ -9291,11 +9292,13 @@ def company_config_page():
         branch_name = (request.form.get('branch_name') or '').strip()
         company_address = (request.form.get('company_address') or '').strip()
         company_phone = (request.form.get('company_phone') or '').strip()
+        company_tax_id = (request.form.get('company_tax_id') or '').strip()
 
         cfg['company_name'] = company_name or company_config_defaults['company_name']
         cfg['branch_name'] = branch_name or company_config_defaults['branch_name']
         cfg['company_address'] = company_address
         cfg['company_phone'] = company_phone
+        cfg['company_tax_id'] = company_tax_id
 
         try:
             with open(_company_cfg_path, 'w', encoding='utf-8') as f:

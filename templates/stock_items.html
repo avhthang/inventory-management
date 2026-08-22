@@ -12,6 +12,7 @@
     .stock-table td { vertical-align: middle; }
     .units-table th, .units-table td { padding: 0.85rem 1rem !important; vertical-align: middle; }
     .stock-thumb-img { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; border: 1px solid #dee2e6; }
+    .scrollable-serial-list { max-height: 280px; overflow-y: auto; padding-right: 4px; }
 </style>
 
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
@@ -150,7 +151,7 @@
     </div>
 </div>
 
-<!-- Modal rộng & thoáng xem danh sách Units của 1 StockItem (Rộng rãi, lề thoáng) -->
+<!-- Modal xem danh sách Units của 1 StockItem -->
 <div class="modal fade" id="unitsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content shadow-lg border-0" style="border-radius: 14px;">
@@ -201,7 +202,7 @@
                                     <th style="min-width: 160px;">Người đang giữ</th>
                                     <th style="min-width: 140px;">Vị trí kho</th>
                                     <th style="min-width: 120px;">Ghi chú</th>
-                                    {% if can_edit %}<th class="text-center" style="width: 90px;">Hành động</th>{% endif %}
+                                    {% if can_edit %}<th class="text-center" style="width: 60px;">Sửa</th>{% endif %}
                                 </tr>
                             </thead>
                             <tbody id="unitsTableBody">
@@ -327,7 +328,7 @@
                     <h5 class="modal-title">Phiếu kho: {{ item.name }} ({{ item.code }})</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                     <div class="row g-3">
                         <input type="hidden" name="movement_type" class="stock-movement-type">
                         <div class="col-12">
@@ -344,16 +345,16 @@
                             <input class="form-control stock-quantity-input" type="number" min="1" name="quantity" required data-item-id="{{ item.id }}" data-track-units="{{ '1' if item.track_units else '0' }}">
                         </div>
 
-                        <!-- Nhập kho với track_units: hiển thị danh sách ô nhập Serial (tùy chọn) -->
+                        <!-- Nhập kho với track_units: hiển thị danh sách ô nhập Serial (tùy chọn) có thanh cuộn riêng -->
                         {% if item.track_units %}
                         <div class="col-12 stock-unit-serials-container d-none">
                             <div class="card bg-light border">
                                 <div class="card-header bg-white fw-semibold small text-primary d-flex justify-content-between align-items-center">
                                     <span><i class="bi bi-barcode"></i> Nhập Serial number cho từng thiết bị (Tùy chọn - nhấn Enter để nhảy ô tiếp)</span>
-                                    <span class="badge bg-secondary font-monospace" id="unitCodePrefixHint{{ item.id }}">Mã QLTB sẽ tự sinh: QLTB-{{ item.code }}-...</span>
+                                    <span class="badge bg-secondary font-monospace" id="unitCodePrefixHint{{ item.id }}">Mã QLTB tự sinh: QLTB-{{ item.code }}-...</span>
                                 </div>
                                 <div class="card-body p-2">
-                                    <div class="row g-2 stock-serial-inputs-list" id="serialInputsList{{ item.id }}">
+                                    <div class="row g-2 stock-serial-inputs-list scrollable-serial-list" id="serialInputsList{{ item.id }}">
                                         <!-- Rendered via JS -->
                                     </div>
                                 </div>
@@ -366,7 +367,7 @@
                                 <div class="card-header bg-white fw-semibold small text-primary">
                                     <i class="bi bi-check2-square"></i> Chọn thiết bị cụ thể trong kho để xuất (Tick chọn)
                                 </div>
-                                <div class="card-body p-2" style="max-height: 220px; overflow-y: auto;">
+                                <div class="card-body p-2" style="max-height: 250px; overflow-y: auto;">
                                     <div class="list-group stock-available-units-list" id="availableUnitsList{{ item.id }}">
                                         <div class="text-center text-muted py-2 small">Đang tải danh sách thiết bị trong kho...</div>
                                     </div>
@@ -456,7 +457,7 @@ function fetchUnitsPage(page) {
                         <td><span class="small text-muted">${u.notes || '-'}</span></td>
                         {% if can_edit %}
                         <td class="text-center">
-                            <button class="btn btn-sm btn-outline-warning py-1 px-2" onclick="openEditUnitModal(${u.id})" title="Sửa thông tin thiết bị này"><i class="bi bi-pencil me-1"></i>Sửa</button>
+                            <button class="btn btn-sm btn-outline-warning p-1" onclick="openEditUnitModal(${u.id})" title="Sửa thông tin thiết bị"><i class="bi bi-pencil"></i></button>
                         </td>
                         {% endif %}
                     </tr>
@@ -688,7 +689,7 @@ function submitEditUnit(event) {
             modal.querySelector('.stock-receiver-field').classList.toggle('d-none', type !== 'Xuất');
             modal.querySelector('.stock-supplier-field').classList.toggle('d-none', type !== 'Nhập');
             modal.querySelector('.stock-movement-quantity-label').textContent = type === 'Điều chỉnh' ? 'Tồn kho mới' : 'Số lượng';
-            modal.querySelector('.stock-movement-submit').textContent = `Lưu phiếu ${type.toLowerCase()}`;
+            modal.querySelector('.stock-movement-submit').textContent = type === 'Nhập' ? 'Nhập kho' : type === 'Xuất' ? 'Xuất kho' : 'Điều chỉnh kho';
 
             updateUnitFields();
         });

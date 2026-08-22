@@ -27,10 +27,11 @@ Phiếu xuất kho {{ movement.reference_code or ('#' ~ movement.id) }}
     <div class="card p-4 border shadow-sm">
         <div class="text-center mb-4">
             <h3 class="fw-bold mb-1 text-uppercase text-primary">{{ company_cfg.company_name }}</h3>
-            <div class="fw-semibold text-secondary">{{ company_cfg.branch_name }}</div>
-            {% if company_cfg.company_address or company_cfg.company_phone %}
+            <div class="fw-semibold text-secondary">{{ company_cfg.branch_name or 'Phòng quản lý thiết bị' }}</div>
+            {% if company_cfg.company_tax_id or company_cfg.company_address or company_cfg.company_phone %}
             <div class="small text-muted mt-1">
-                {% if company_cfg.company_address %}Đ/C: {{ company_cfg.company_address }}{% endif %}
+                {% if company_cfg.company_tax_id %}MST: {{ company_cfg.company_tax_id }}{% endif %}
+                {% if company_cfg.company_address %} | Đ/C: {{ company_cfg.company_address }}{% endif %}
                 {% if company_cfg.company_phone %} | ĐT: {{ company_cfg.company_phone }}{% endif %}
             </div>
             {% endif %}
@@ -57,7 +58,7 @@ Phiếu xuất kho {{ movement.reference_code or ('#' ~ movement.id) }}
                         <div><strong>Người thực hiện:</strong> {{ movement.actor.full_name if movement.actor else 'Quản trị viên' }}</div>
                     {% else %}
                         <div><strong>Họ tên:</strong> {{ movement.actor.full_name if movement.actor else 'Quản trị viên' }}</div>
-                        <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.actor.department_info.name if movement.actor and movement.actor.department_info else 'Phòng IT / Kho' }}</div>
+                        <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.actor.department_info.name if movement.actor and movement.actor.department_info else (company_cfg.branch_name or 'Phòng quản lý thiết bị') }}</div>
                     {% endif %}
                 </div>
             </div>
@@ -65,7 +66,7 @@ Phiếu xuất kho {{ movement.reference_code or ('#' ~ movement.id) }}
                 <div class="border rounded p-3 bg-light">
                     <div class="fw-bold text-success mb-2"><i class="bi bi-person-down"></i> BÊN NHẬN (BÊN B)</div>
                     {% if movement.movement_type == 'Nhập' %}
-                        <div><strong>Đơn vị nhận:</strong> {{ company_cfg.branch_name }}</div>
+                        <div><strong>Đơn vị nhận:</strong> {{ company_cfg.branch_name or 'Phòng quản lý thiết bị' }}</div>
                         <div><strong>Người tiếp nhận:</strong> {{ movement.actor.full_name if movement.actor else 'Thủ kho / Người quản lý' }}</div>
                     {% else %}
                         <div><strong>Họ tên:</strong> {{ movement.receiver.full_name if movement.receiver else '-' }}</div>

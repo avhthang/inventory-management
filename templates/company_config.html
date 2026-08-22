@@ -19,9 +19,16 @@
                     <input type="text" class="form-control" name="company_name" value="{{ cfg.company_name }}" required placeholder="VD: CÔNG TY CỔ PHẦN THIẾT BỊ & CÔNG NGHỆ">
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label fw-semibold required">Chi nhánh / Phòng ban xuất</label>
-                    <input type="text" class="form-control" name="branch_name" value="{{ cfg.branch_name }}" required placeholder="VD: Chi nhánh TP.HCM - Phòng IT & Vật tư">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Chi nhánh / Phòng ban xuất</label>
+                        <input type="text" class="form-control" name="branch_name" value="{{ cfg.branch_name }}" placeholder="Mặc định: Phòng quản lý thiết bị">
+                        <div class="form-text">Bỏ trống sẽ mặc định là <i>Phòng quản lý thiết bị</i></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Mã số thuế (MST)</label>
+                        <input type="text" class="form-control font-monospace" name="company_tax_id" value="{{ cfg.company_tax_id or '' }}" placeholder="VD: 0101234567">
+                    </div>
                 </div>
 
                 <div class="mb-3">
