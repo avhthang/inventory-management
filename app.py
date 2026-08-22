@@ -9089,9 +9089,19 @@ def stock_item_list():
         query = query.filter(StockItem.current_quantity <= StockItem.min_quantity)
     items = query.order_by(StockItem.is_active.desc(), func.lower(StockItem.name)).paginate(
         page=page, per_page=per_page if per_page in (10, 20, 50, 100) else 20, error_out=False)
+    movement_stats = db.session.query(
+        StockItemMovement.item_id,
+        func.coalesce(func.sum(case((StockItemMovement.movement_type == 'Nhập', StockItemMovement.quantity), else_=0)), 0).label('total_imported'),
+        func.coalesce(func.sum(case((StockItemMovement.movement_type == 'Xuất', StockItemMovement.quantity), else_=0)), 0).label('total_exported')
+    ).group_by(StockItemMovement.item_id).all()
+    stats_map = {item_id: (imp, exp) for item_id, imp, exp in movement_stats}
+
     for item in items.items:
         item.specification_values = _stock_item_specifications(item)
         item.images = _stock_image_list(item.image_filenames)
+        imp, exp = stats_map.get(item.id, (0, 0))
+        item.total_imported = imp
+        item.total_exported = exp
 
     movements = StockItemMovement.query.order_by(
         StockItemMovement.movement_date.desc(), StockItemMovement.id.desc()

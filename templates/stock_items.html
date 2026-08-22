@@ -18,7 +18,7 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
     <div>
         <h2 class="mb-1">Vật tư & phụ kiện</h2>
-        <div class="text-muted">Quản lý độc lập các phụ kiện, linh kiện và vật tư theo phiếu nhập/xuất kho.</div>
+        <div class="text-muted">Quản lý xuất nhập thiết bị, phụ kiện, linh kiện và tồn kho chi tiết.</div>
     </div>
     <div class="d-flex gap-2">
         {% if can_edit %}
@@ -53,7 +53,7 @@
     <div class="card-body p-0"><div class="table-responsive">
         <table class="table table-hover stock-table align-middle mb-0">
             <thead class="table-light"><tr>
-                <th>Mã</th><th class="text-start">Mặt hàng / thông số</th><th>Nhóm</th><th>Tồn</th><th>Tối thiểu</th><th>Vị trí</th><th>Trạng thái</th>{% if can_edit %}<th>Hành động</th>{% endif %}
+                <th>Mã</th><th class="text-start">Mặt hàng / thông số</th><th>Nhóm</th><th>Tổng nhập</th><th>Tổng xuất</th><th>Tồn kho</th><th>Vị trí</th><th>Trạng thái</th>{% if can_edit %}<th>Hành động</th>{% endif %}
             </tr></thead>
             <tbody>
             {% for item in items.items %}
@@ -93,8 +93,9 @@
                         {{ item.category.name }}
                         {% endif %}
                     </td>
-                    <td class="text-center fw-bold">{{ item.current_quantity }} {{ item.unit }}</td>
-                    <td class="text-center">{{ item.min_quantity }} {{ item.unit }}</td>
+                    <td class="text-center text-success fw-semibold">+{{ item.total_imported }} {{ item.unit }}</td>
+                    <td class="text-center text-primary fw-semibold">-{{ item.total_exported }} {{ item.unit }}</td>
+                    <td class="text-center fw-bold fs-6">{{ item.current_quantity }} {{ item.unit }}</td>
                     <td class="text-center">{{ item.location or '-' }}</td>
                     <td class="text-center">
                         {% if not item.is_active %}<span class="badge bg-secondary">Ngừng dùng</span>
@@ -112,7 +113,7 @@
                         {% if can_delete and not item.movements %}<form class="d-inline" method="POST" action="{{ url_for('delete_stock_item', item_id=item.id) }}" onsubmit="return confirm('Xóa mặt hàng này?')"><button class="btn btn-sm btn-outline-danger ms-1" title="Xóa"><i class="bi bi-trash"></i></button></form>{% endif %}
                     </td>{% endif %}
                 </tr>
-            {% else %}<tr><td colspan="{{ 8 if can_edit else 7 }}" class="text-center text-muted py-4">Chưa có mặt hàng nào trong kho vật tư.</td></tr>{% endfor %}
+            {% else %}<tr><td colspan="{{ 9 if can_edit else 8 }}" class="text-center text-muted py-4">Chưa có mặt hàng nào trong kho vật tư.</td></tr>{% endfor %}
             </tbody>
         </table>
     </div></div>
@@ -202,7 +203,7 @@
                                     <th style="min-width: 160px;">Người đang giữ</th>
                                     <th style="min-width: 140px;">Vị trí kho</th>
                                     <th style="min-width: 120px;">Ghi chú</th>
-                                    {% if can_edit %}<th class="text-center" style="width: 60px;">Sửa</th>{% endif %}
+                                    {% if can_edit %}<th class="text-center" style="width: 90px;">Hành động</th>{% endif %}
                                 </tr>
                             </thead>
                             <tbody id="unitsTableBody">
