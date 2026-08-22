@@ -111,6 +111,9 @@
                             <li><a class="dropdown-item {% if active_endpoint in ['device_type_list', 'add_device_type', 'edit_device_type'] %}active{% endif %}"
                                     href="{{ url_for('device_type_list') }}">Loại thiết bị</a></li>
                             {% endif %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item {% if active_endpoint == 'company_config_page' %}active{% endif %}"
+                                    href="{{ url_for('company_config_page') }}"><i class="bi bi-building me-1"></i> Thông tin công ty</a></li>
                         </ul>
                     </li>
                     {% endif %}

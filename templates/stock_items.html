@@ -108,8 +108,8 @@
             <td>{{ movement.reference_code or '-' }}</td>
             <td>{{ movement.reason or '-' }}</td>
             <td>
-                {% if movement.movement_type == 'Xuất' and movement.receiver_id %}
-                <a href="{{ url_for('stock_item_movement_handover', movement_id=movement.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="In phiếu bàn giao"><i class="bi bi-printer"></i> In phiếu</a>
+                {% if movement.movement_type in ['Xuất', 'Nhập'] %}
+                <a href="{{ url_for('stock_item_movement_handover', movement_id=movement.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="In phiếu kho"><i class="bi bi-printer"></i> In phiếu</a>
                 {% else %}
                 <span class="small text-muted">{{ movement.actor.full_name if movement.actor else '-' }}</span>
                 {% endif %}
@@ -126,21 +126,43 @@
     </div>
 </div>
 
-<!-- Modal xem danh sách Units của 1 StockItem -->
+<!-- Modal xem danh sách & phân trang Units của 1 StockItem -->
 <div class="modal fade" id="unitsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-cpu"></i> Danh sách thiết bị riêng lẻ (<span id="unitsModalItemCode"></span>)</h5>
+                <h5 class="modal-title"><i class="bi bi-cpu text-primary"></i> Danh sách thiết bị riêng lẻ (<span id="unitsModalItemCode" class="font-monospace fw-bold"></span>)</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <div class="modal-body p-0">
                 <div class="p-3 bg-light border-bottom">
-                    <h6 class="mb-1" id="unitsModalItemName"></h6>
-                    <div class="text-muted small">Tự sinh mã QLTB nội bộ và lưu Serial number của từng thiết bị vật lý.</div>
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-2">
+                        <h6 class="mb-0 fw-bold" id="unitsModalItemName"></h6>
+                        <span class="badge bg-secondary font-monospace" id="unitsTotalBadge">0 thiết bị</span>
+                    </div>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="unitsSearchInput" placeholder="Tìm theo Mã QLTB, Serial, Vị trí, Người giữ..." onkeyup="debounceUnitsSearch()">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select form-select-sm" id="unitsStatusFilter" onchange="fetchUnitsPage(1)">
+                                <option value="">Tất cả trạng thái</option>
+                                <option value="Trong kho">Trong kho</option>
+                                <option value="Đã xuất">Đã xuất</option>
+                                <option value="Hỏng">Hỏng</option>
+                                <option value="Thanh lý">Thanh lý</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 text-end">
+                            <button class="btn btn-sm btn-outline-secondary w-100" onclick="fetchUnitsPage(1)"><i class="bi bi-arrow-clockwise"></i> Làm mới</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
+                    <table class="table table-sm table-hover mb-0 align-middle">
                         <thead class="table-light">
                             <tr>
                                 <th>#</th>
@@ -149,17 +171,69 @@
                                 <th>Trạng thái</th>
                                 <th>Người đang giữ</th>
                                 <th>Vị trí</th>
+                                <th>Ghi chú</th>
+                                {% if can_edit %}<th class="text-center">Hành động</th>{% endif %}
                             </tr>
                         </thead>
                         <tbody id="unitsTableBody">
-                            <tr><td colspan="6" class="text-center text-muted py-3">Đang tải dữ liệu...</td></tr>
+                            <tr><td colspan="8" class="text-center text-muted py-3">Đang tải dữ liệu...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            <div class="modal-footer d-flex justify-content-between align-items-center">
+                <div class="small text-muted" id="unitsPaginationInfo">Đang tải...</div>
+                <nav><ul class="pagination pagination-sm mb-0" id="unitsPaginationList">
+                    <!-- Dynamic pagination -->
+                </ul></nav>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Chỉnh sửa thông tin 1 Unit cụ thể -->
+<div class="modal fade" id="editUnitModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <form id="editUnitForm" onsubmit="submitEditUnit(event)">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil-square text-primary"></i> Chỉnh sửa thiết bị riêng lẻ</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editUnitId" name="unit_id">
+                    <div class="mb-3">
+                        <label class="form-label required">Mã QLTB nội bộ</label>
+                        <input type="text" class="form-control font-monospace text-uppercase" id="editUnitCode" name="unit_code" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Số Serial (Serial Number)</label>
+                        <input type="text" class="form-control" id="editUnitSerial" name="serial_number" placeholder="Bỏ trống nếu không có">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">Trạng thái</label>
+                        <select class="form-select" id="editUnitStatus" name="status" required>
+                            <option value="Trong kho">Trong kho</option>
+                            <option value="Đã xuất">Đã xuất</option>
+                            <option value="Hỏng">Hỏng</option>
+                            <option value="Thanh lý">Thanh lý</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Vị trí lưu kho</label>
+                        <input type="text" class="form-control" id="editUnitLocation" name="location" placeholder="VD: Kệ B - ngăn 01">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ghi chú</label>
+                        <textarea class="form-control" id="editUnitNotes" name="notes" rows="2"></textarea>
+                    </div>
+                    <div id="editUnitAlert" class="alert alert-danger d-none py-2 small"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Lưu cập nhật</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -275,42 +349,162 @@
 {% block scripts %}
 {{ super() }}
 <script>
-function openUnitsModal(itemId) {
-    const modalEl = document.getElementById('unitsModal');
-    const modal = new bootstrap.Modal(modalEl);
-    const tbody = document.getElementById('unitsTableBody');
-    document.getElementById('unitsModalItemCode').textContent = 'Loading...';
-    document.getElementById('unitsModalItemName').textContent = '';
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm text-primary"></div> Đang tải...</td></tr>';
-    modal.show();
+let currentUnitsItemId = null;
+let currentUnitsPage = 1;
+let unitsSearchTimer = null;
+let loadedUnitsData = [];
 
-    fetch(`/stock-items/${itemId}/units`)
+function openUnitsModal(itemId) {
+    currentUnitsItemId = itemId;
+    currentUnitsPage = 1;
+    document.getElementById('unitsSearchInput').value = '';
+    document.getElementById('unitsStatusFilter').value = '';
+
+    const modal = new bootstrap.Modal(document.getElementById('unitsModal'));
+    modal.show();
+    fetchUnitsPage(1);
+}
+
+function debounceUnitsSearch() {
+    clearTimeout(unitsSearchTimer);
+    unitsSearchTimer = setTimeout(() => fetchUnitsPage(1), 300);
+}
+
+function fetchUnitsPage(page) {
+    if (!currentUnitsItemId) return;
+    currentUnitsPage = page || 1;
+    const tbody = document.getElementById('unitsTableBody');
+    const q = document.getElementById('unitsSearchInput').value.trim();
+    const status = document.getElementById('unitsStatusFilter').value;
+
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm text-primary me-1"></div> Đang tải...</td></tr>';
+
+    const url = `/stock-items/${currentUnitsItemId}/units?page=${currentUnitsPage}&per_page=10&q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}`;
+    fetch(url)
         .then(res => res.json())
         .then(data => {
             document.getElementById('unitsModalItemCode').textContent = data.item_code;
             document.getElementById('unitsModalItemName').textContent = data.item_name;
+            document.getElementById('unitsTotalBadge').textContent = `${data.total} thiết bị`;
+            loadedUnitsData = data.units || [];
+
             if (!data.units || data.units.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Chưa có thiết bị riêng lẻ nào được ghi nhận.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Chưa có thiết bị riêng lẻ nào khớp với tìm kiếm.</td></tr>';
+                renderUnitsPagination(data);
                 return;
             }
-            tbody.innerHTML = data.units.map((u, index) => `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td><strong class="font-monospace text-primary">${u.unit_code}</strong></td>
-                    <td>${u.serial_number ? `<code>${u.serial_number}</code>` : '<span class="text-muted small">Không có</span>'}</td>
-                    <td>
-                        ${u.status === 'Trong kho' ? '<span class="badge bg-success">Trong kho</span>' : 
-                          u.status === 'Đã xuất' ? '<span class="badge bg-primary">Đã xuất</span>' : 
-                          '<span class="badge bg-secondary">' + u.status + '</span>'}
-                    </td>
-                    <td>${u.assigned_to || '-'}</td>
-                    <td>${u.location || '-'}</td>
-                </tr>
-            `).join('');
+
+            tbody.innerHTML = data.units.map((u, index) => {
+                const globalIndex = (data.page - 1) * data.per_page + index + 1;
+                const statusBadge = u.status === 'Trong kho' ? '<span class="badge bg-success">Trong kho</span>' : 
+                                    u.status === 'Đã xuất' ? '<span class="badge bg-primary">Đã xuất</span>' : 
+                                    u.status === 'Hỏng' ? '<span class="badge bg-danger">Hỏng</span>' :
+                                    '<span class="badge bg-secondary">' + u.status + '</span>';
+                return `
+                    <tr>
+                        <td class="text-center">${globalIndex}</td>
+                        <td><strong class="font-monospace text-primary">${u.unit_code}</strong></td>
+                        <td>${u.serial_number ? `<code>${u.serial_number}</code>` : '<span class="text-muted small">Không có</span>'}</td>
+                        <td>${statusBadge}</td>
+                        <td>${u.assigned_to ? `<span class="fw-semibold">${u.assigned_to}</span>` : '-'}</td>
+                        <td>${u.location || '-'}</td>
+                        <td><span class="small text-muted">${u.notes || '-'}</span></td>
+                        {% if can_edit %}
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-warning py-0 px-2" onclick="openEditUnitModal(${u.id})" title="Sửa thông tin thiết bị này"><i class="bi bi-pencil"></i> Sửa</button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                `;
+            }).join('');
+
+            renderUnitsPagination(data);
         })
         .catch(err => {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-3">Lỗi tải dữ liệu đơn vị thiết bị.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-3">Lỗi tải dữ liệu đơn vị thiết bị.</td></tr>';
         });
+}
+
+function renderUnitsPagination(data) {
+    const info = document.getElementById('unitsPaginationInfo');
+    const list = document.getElementById('unitsPaginationList');
+    
+    if (!data.total || data.total === 0) {
+        info.textContent = 'Không có thiết bị nào';
+        list.innerHTML = '';
+        return;
+    }
+
+    const start = (data.page - 1) * data.per_page + 1;
+    const end = Math.min(data.page * data.per_page, data.total);
+    info.textContent = `Hiển thị ${start}-${end} trong tổng ${data.total} thiết bị (Trang ${data.page}/${data.pages})`;
+
+    let html = '';
+    html += `<li class="page-item ${!data.has_prev ? 'disabled' : ''}">
+                <button class="page-link" onclick="fetchUnitsPage(${data.page - 1})">Trước</button>
+             </li>`;
+
+    for (let p = 1; p <= data.pages; p++) {
+        if (p === 1 || p === data.pages || (p >= data.page - 2 && p <= data.page + 2)) {
+            html += `<li class="page-item ${p === data.page ? 'active' : ''}">
+                        <button class="page-link" onclick="fetchUnitsPage(${p})">${p}</button>
+                     </li>`;
+        } else if (p === data.page - 3 || p === data.page + 3) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+
+    html += `<li class="page-item ${!data.has_next ? 'disabled' : ''}">
+                <button class="page-link" onclick="fetchUnitsPage(${data.page + 1})">Sau</button>
+             </li>`;
+
+    list.innerHTML = html;
+}
+
+function openEditUnitModal(unitId) {
+    const unit = loadedUnitsData.find(u => u.id === unitId);
+    if (!unit) return;
+
+    document.getElementById('editUnitId').value = unit.id;
+    document.getElementById('editUnitCode').value = unit.unit_code;
+    document.getElementById('editUnitSerial').value = unit.serial_number || '';
+    document.getElementById('editUnitStatus').value = unit.status || 'Trong kho';
+    document.getElementById('editUnitLocation').value = unit.location || '';
+    document.getElementById('editUnitNotes').value = unit.notes || '';
+    document.getElementById('editUnitAlert').classList.add('d-none');
+
+    const editModal = new bootstrap.Modal(document.getElementById('editUnitModal'));
+    editModal.show();
+}
+
+function submitEditUnit(event) {
+    event.preventDefault();
+    const form = document.getElementById('editUnitForm');
+    const unitId = document.getElementById('editUnitId').value;
+    const alertEl = document.getElementById('editUnitAlert');
+    alertEl.classList.add('d-none');
+
+    const formData = new FormData(form);
+    fetch(`/stock-items/units/${unitId}/edit`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const editModalEl = document.getElementById('editUnitModal');
+            const editModal = bootstrap.Modal.getInstance(editModalEl);
+            if (editModal) editModal.hide();
+            fetchUnitsPage(currentUnitsPage);
+        } else {
+            alertEl.textContent = data.error || 'Có lỗi xảy ra.';
+            alertEl.classList.remove('d-none');
+        }
+    })
+    .catch(err => {
+        alertEl.textContent = 'Lỗi kết nối máy chủ.';
+        alertEl.classList.remove('d-none');
+    });
 }
 
 {% if can_edit %}
@@ -383,7 +577,6 @@ function openUnitsModal(itemId) {
                         list.appendChild(div);
                     }
 
-                    // Auto focus & Enter key barcode scanner support
                     const fields = list.querySelectorAll('.unit-serial-field');
                     if (fields.length > 0) {
                         setTimeout(() => fields[0].focus(), 150);
@@ -405,7 +598,7 @@ function openUnitsModal(itemId) {
                     const list = modal.querySelector('.stock-available-units-list');
                     list.innerHTML = '<div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm text-primary"></div> Đang tải thiết bị trong kho...</div>';
 
-                    fetch(`/stock-items/${itemId}/units`)
+                    fetch(`/stock-items/${itemId}/units?per_page=100&status=${encodeURIComponent('Trong kho')}`)
                         .then(res => res.json())
                         .then(data => {
                             const available = (data.units || []).filter(u => u.status === 'Trong kho');
@@ -424,7 +617,6 @@ function openUnitsModal(itemId) {
                                 </label>
                             `).join('');
 
-                            // Update quantity input based on checked boxes
                             list.querySelectorAll('.unit-select-checkbox').forEach(cb => {
                                 cb.addEventListener('change', () => {
                                     const checkedCount = list.querySelectorAll('.unit-select-checkbox:checked').length;

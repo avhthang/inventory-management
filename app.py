@@ -108,6 +108,31 @@ config[config_name].init_app(app)
 
 db = SQLAlchemy(app)
 
+# Load persisted Company configuration
+_company_cfg_path = os.path.join(instance_path, 'company_config.json')
+company_config_defaults = {
+    'company_name': 'CÔNG TY CỔ PHẦN THIẾT BỊ & CÔNG NGHỆ',
+    'branch_name': 'Chi nhánh / Phòng Quản lý Thiết bị & Vật tư',
+    'company_address': '',
+    'company_phone': ''
+}
+
+def get_company_config():
+    cfg = dict(company_config_defaults)
+    try:
+        if os.path.exists(_company_cfg_path):
+            with open(_company_cfg_path, 'r', encoding='utf-8') as f:
+                saved = json.load(f)
+                if isinstance(saved, dict):
+                    cfg.update({k: v for k, v in saved.items() if v is not None})
+    except Exception:
+        pass
+    return cfg
+
+@app.context_processor
+def inject_company_config():
+    return {'company_config': get_company_config()}
+
 # Permission catalogue
 PERMISSIONS = [
     # Thiết bị
@@ -9199,42 +9224,136 @@ def record_stock_item_movement(item_id):
         flash(str(exc), 'danger')
     return _stock_item_redirect()
 
+@app.route('/config/company', methods=['GET', 'POST'])
+def company_config_page():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    current_permissions = _get_current_permissions()
+    current_user = _get_current_user()
+    if not (current_user and current_user.role == 'admin') and 'rbac.manage' not in current_permissions and 'backup.edit' not in current_permissions:
+        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
+        return redirect(url_for('home'))
+
+    cfg = get_company_config()
+    if request.method == 'POST':
+        company_name = (request.form.get('company_name') or '').strip()
+        branch_name = (request.form.get('branch_name') or '').strip()
+        company_address = (request.form.get('company_address') or '').strip()
+        company_phone = (request.form.get('company_phone') or '').strip()
+
+        cfg['company_name'] = company_name or company_config_defaults['company_name']
+        cfg['branch_name'] = branch_name or company_config_defaults['branch_name']
+        cfg['company_address'] = company_address
+        cfg['company_phone'] = company_phone
+
+        try:
+            with open(_company_cfg_path, 'w', encoding='utf-8') as f:
+                json.dump(cfg, f, ensure_ascii=False, indent=2)
+            flash('Đã cập nhật thông tin công ty / chi nhánh thành công.', 'success')
+        except Exception as e:
+            flash(f'Lỗi khi lưu cấu hình: {str(e)}', 'danger')
+        return redirect(url_for('company_config_page'))
+
+    return render_template('company_config.html', cfg=cfg)
+
 @app.route('/stock-items/<int:item_id>/units')
 def stock_item_units_api(item_id):
     if not _require_stock_permission('stock_items.view'):
         return jsonify({'error': 'Unauthorized'}), 401
     item = StockItem.query.get_or_404(item_id)
-    units = StockItemUnit.query.filter_by(item_id=item_id).order_by(StockItemUnit.id.asc()).all()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    q = (request.args.get('q') or '').strip()
+    status_filter = (request.args.get('status') or '').strip()
+
+    query = StockItemUnit.query.filter_by(item_id=item_id)
+    if q:
+        query = query.outerjoin(User, StockItemUnit.assigned_to_id == User.id).filter(
+            or_(
+                StockItemUnit.unit_code.ilike(f'%{q}%'),
+                StockItemUnit.serial_number.ilike(f'%{q}%'),
+                StockItemUnit.location.ilike(f'%{q}%'),
+                User.full_name.ilike(f'%{q}%'),
+                User.username.ilike(f'%{q}%')
+            )
+        )
+    if status_filter:
+        query = query.filter(StockItemUnit.status == status_filter)
+
+    pagination = query.order_by(StockItemUnit.id.asc()).paginate(page=page, per_page=per_page if per_page in (5, 10, 20, 50, 100) else 10, error_out=False)
+
     result = []
-    for u in units:
+    for u in pagination.items:
         result.append({
             'id': u.id,
             'unit_code': u.unit_code,
             'serial_number': u.serial_number or '',
             'status': u.status,
             'assigned_to': u.assigned_to.full_name if u.assigned_to else '',
+            'assigned_to_id': u.assigned_to_id,
             'location': u.location or '',
+            'notes': u.notes or '',
             'created_at': u.created_at.strftime('%d-%m-%Y %H:%M') if u.created_at else ''
         })
-    return jsonify({'item_code': item.code, 'item_name': item.name, 'track_units': item.track_units, 'units': result})
+    return jsonify({
+        'item_code': item.code,
+        'item_name': item.name,
+        'track_units': item.track_units,
+        'units': result,
+        'total': pagination.total,
+        'page': pagination.page,
+        'pages': pagination.pages or 1,
+        'per_page': pagination.per_page,
+        'has_prev': pagination.has_prev,
+        'has_next': pagination.has_next
+    })
+
+@app.route('/stock-items/units/<int:unit_id>/edit', methods=['POST'])
+def edit_stock_item_unit(unit_id):
+    if not _require_stock_permission('stock_items.edit'):
+        return jsonify({'success': False, 'error': 'Bạn không có quyền sửa thông tin thiết bị.'}), 403
+    unit = StockItemUnit.query.get_or_404(unit_id)
+    unit_code = (request.form.get('unit_code') or '').strip().upper()
+    serial_number = (request.form.get('serial_number') or '').strip()
+    status = (request.form.get('status') or '').strip()
+    location = (request.form.get('location') or '').strip()
+    notes = (request.form.get('notes') or '').strip()
+
+    try:
+        if not unit_code:
+            raise ValueError('Mã QLTB không được để trống.')
+        duplicate = StockItemUnit.query.filter(StockItemUnit.id != unit.id, func.upper(StockItemUnit.unit_code) == unit_code).first()
+        if duplicate:
+            raise ValueError(f'Mã QLTB {unit_code} đã tồn tại trên một thiết bị khác.')
+
+        unit.unit_code = unit_code
+        unit.serial_number = serial_number or None
+        if status in ['Trong kho', 'Đã xuất', 'Hỏng', 'Thanh lý']:
+            unit.status = status
+        unit.location = location or None
+        unit.notes = notes or None
+        unit.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Đã cập nhật thông tin thiết bị.'})
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(exc)}), 400
 
 @app.route('/stock-items/movements/<int:movement_id>/handover')
 def stock_item_movement_handover(movement_id):
     if not _require_stock_permission('stock_items.view'):
-        flash('Bạn không có quyền xem phiếu bàn giao.', 'danger')
+        flash('Bạn không có quyền xem phiếu kho.', 'danger')
         return _stock_item_redirect()
     movement = StockItemMovement.query.get_or_404(movement_id)
-    if movement.movement_type != 'Xuất':
-        flash('Chỉ phiếu xuất kho mới có phiếu bàn giao.', 'warning')
-        return _stock_item_redirect()
     
     unit_movements = StockItemUnitMovement.query.filter_by(movement_id=movement.id).all()
     units = [um.unit for um in unit_movements]
+    company_cfg = get_company_config()
     
     return render_template(
         'stock_movement_handover.html',
         movement=movement,
         units=units,
+        company_cfg=company_cfg,
         now=get_now()
     )
 

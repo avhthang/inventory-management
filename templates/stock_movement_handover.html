@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Phiếu bàn giao kho {{ movement.reference_code or ('#' ~ movement.id) }}{% endblock %}
+{% block title %}
+{% if movement.movement_type == 'Nhập' %}
+Phiếu nhập kho {{ movement.reference_code or ('#' ~ movement.id) }}
+{% else %}
+Phiếu xuất kho {{ movement.reference_code or ('#' ~ movement.id) }}
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <style>
@@ -15,18 +21,30 @@
 <div class="container py-3" style="max-width: 850px;">
     <div class="d-flex justify-content-between align-items-center mb-3 no-print">
         <a href="{{ url_for('stock_item_list') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Quay lại</a>
-        <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer"></i> In phiếu bàn giao</button>
+        <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer"></i> In phiếu</button>
     </div>
 
     <div class="card p-4 border shadow-sm">
         <div class="text-center mb-4">
-            <h3 class="fw-bold mb-1">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h3>
-            <div class="fw-semibold">Độc lập - Tự do - Hạnh phúc</div>
+            <h3 class="fw-bold mb-1 text-uppercase text-primary">{{ company_cfg.company_name }}</h3>
+            <div class="fw-semibold text-secondary">{{ company_cfg.branch_name }}</div>
+            {% if company_cfg.company_address or company_cfg.company_phone %}
+            <div class="small text-muted mt-1">
+                {% if company_cfg.company_address %}Đ/C: {{ company_cfg.company_address }}{% endif %}
+                {% if company_cfg.company_phone %} | ĐT: {{ company_cfg.company_phone }}{% endif %}
+            </div>
+            {% endif %}
             <hr class="w-25 mx-auto my-3" style="border-top: 2px solid #333;">
-            <h2 class="fw-bold mt-4 text-uppercase">PHIẾU BÀN GIAO VẬT TƯ / THIẾT BỊ</h2>
+            <h2 class="fw-bold mt-4 text-uppercase">
+                {% if movement.movement_type == 'Nhập' %}
+                PHIẾU NHẬP KHO VẬT TƯ / THIẾT BỊ
+                {% else %}
+                PHIẾU XUẤT KHO / BÀN GIAO VẬT TƯ
+                {% endif %}
+            </h2>
             <div class="text-muted small">Ngày {{ movement.movement_date.strftime('%d') }} tháng {{ movement.movement_date.strftime('%m') }} năm {{ movement.movement_date.strftime('%Y') }}</div>
             {% if movement.reference_code %}
-            <div class="small fw-semibold mt-1">Mã phiếu: {{ movement.reference_code }}</div>
+            <div class="small fw-semibold mt-1">Mã phiếu/Hóa đơn: {{ movement.reference_code }}</div>
             {% endif %}
         </div>
 
@@ -34,23 +52,34 @@
             <div class="col-6">
                 <div class="border rounded p-3 bg-light">
                     <div class="fw-bold text-primary mb-2"><i class="bi bi-person-up"></i> BÊN GIAO (BÊN A)</div>
-                    <div><strong>Họ tên:</strong> {{ movement.actor.full_name if movement.actor else 'Quản trị viên' }}</div>
-                    <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.actor.department_info.name if movement.actor and movement.actor.department_info else 'Phòng IT / Kho' }}</div>
+                    {% if movement.movement_type == 'Nhập' %}
+                        <div><strong>Đơn vị / NCC:</strong> {{ movement.supplier or 'Nhà cung cấp / Đơn vị giao' }}</div>
+                        <div><strong>Người thực hiện:</strong> {{ movement.actor.full_name if movement.actor else 'Quản trị viên' }}</div>
+                    {% else %}
+                        <div><strong>Họ tên:</strong> {{ movement.actor.full_name if movement.actor else 'Quản trị viên' }}</div>
+                        <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.actor.department_info.name if movement.actor and movement.actor.department_info else 'Phòng IT / Kho' }}</div>
+                    {% endif %}
                 </div>
             </div>
             <div class="col-6">
                 <div class="border rounded p-3 bg-light">
                     <div class="fw-bold text-success mb-2"><i class="bi bi-person-down"></i> BÊN NHẬN (BÊN B)</div>
-                    <div><strong>Họ tên:</strong> {{ movement.receiver.full_name if movement.receiver else '-' }}</div>
-                    <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.receiver.department_info.name if movement.receiver and movement.receiver.department_info else '-' }}</div>
+                    {% if movement.movement_type == 'Nhập' %}
+                        <div><strong>Đơn vị nhận:</strong> {{ company_cfg.branch_name }}</div>
+                        <div><strong>Người tiếp nhận:</strong> {{ movement.actor.full_name if movement.actor else 'Thủ kho / Người quản lý' }}</div>
+                    {% else %}
+                        <div><strong>Họ tên:</strong> {{ movement.receiver.full_name if movement.receiver else '-' }}</div>
+                        <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.receiver.department_info.name if movement.receiver and movement.receiver.department_info else '-' }}</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
         <div class="mb-3">
-            <strong>Nội dung bàn giao:</strong> Xuất kho {{ movement.item.name }} (Mã mặt hàng: <code>{{ movement.item.code }}</code>)
-            {% if movement.reason %}<br><strong>Lý do xuất:</strong> {{ movement.reason }}{% endif %}
-            {% if movement.notes %}<br><strong>Ghi chú:</strong> {{ movement.notes }}{% endif %}
+            <div><strong>Nội dung:</strong> {% if movement.movement_type == 'Nhập' %}Nhập kho{% else %}Xuất kho{% endif %} {{ movement.item.name }} (Mã mặt hàng: <code>{{ movement.item.code }}</code>)</div>
+            {% if movement.reason %}<div><strong>Lý do {% if movement.movement_type == 'Nhập' %}nhập{% else %}xuất{% endif %}:</strong> {{ movement.reason }}</div>{% endif %}
+            <div><strong>Tình trạng thiết bị:</strong> <span class="badge bg-success">Hoạt động tốt / Mới 100%</span></div>
+            {% if movement.notes %}<div><strong>Ghi chú:</strong> {{ movement.notes }}</div>{% endif %}
         </div>
 
         <div class="table-responsive mb-4">
@@ -70,7 +99,7 @@
                         {% for unit in units %}
                         <tr>
                             <td class="text-center">{{ loop.index }}</td>
-                            <td><strong class="font-monospace">{{ unit.unit_code }}</strong></td>
+                            <td><strong class="font-monospace text-primary">{{ unit.unit_code }}</strong></td>
                             <td>
                                 <div>{{ movement.item.name }}</div>
                                 <div class="small text-muted">{{ movement.item.manufacturer or '' }} {{ movement.item.model or '' }}</div>
@@ -99,14 +128,26 @@
 
         <div class="row text-center mt-5 pt-3">
             <div class="col-6">
-                <div class="fw-bold"> đại diện BÊN GIAO</div>
+                <div class="fw-bold text-uppercase">ĐẠI DIỆN BÊN GIAO</div>
                 <div class="small text-muted mb-5">(Ký và ghi rõ họ tên)</div>
-                <div class="mt-4 fw-semibold">{{ movement.actor.full_name if movement.actor else '' }}</div>
+                <div class="mt-4 fw-semibold">
+                    {% if movement.movement_type == 'Nhập' %}
+                        {{ movement.supplier or 'Nhà cung cấp' }}
+                    {% else %}
+                        {{ movement.actor.full_name if movement.actor else '' }}
+                    {% endif %}
+                </div>
             </div>
             <div class="col-6">
-                <div class="fw-bold">ĐẠI DIỆN BÊN NHẬN</div>
+                <div class="fw-bold text-uppercase">ĐẠI DIỆN BÊN NHẬN</div>
                 <div class="small text-muted mb-5">(Ký và ghi rõ họ tên)</div>
-                <div class="mt-4 fw-semibold">{{ movement.receiver.full_name if movement.receiver else '' }}</div>
+                <div class="mt-4 fw-semibold">
+                    {% if movement.movement_type == 'Nhập' %}
+                        {{ movement.actor.full_name if movement.actor else '' }}
+                    {% else %}
+                        {{ movement.receiver.full_name if movement.receiver else '' }}
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
