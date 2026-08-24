@@ -1,3 +1,4 @@
+import xml.etree.ElementTree as ET
 import os
 import uuid
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory
@@ -9773,7 +9774,7 @@ def save_hikvision_config(data):
         json.dump(cfg, f, ensure_ascii=False, indent=2)
     return cfg
 
-def _hikvision_request(endpoint, method='GET', payload=None, timeout=8):
+def _hikvision_request(endpoint, method='GET', payload=None, timeout=8, content_type='application/json'):
     cfg = get_hikvision_config()
     host = (cfg.get('host') or '192.168.11.94').strip()
     port = str(cfg.get('port') or '8000').strip()
@@ -9799,7 +9800,7 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=8):
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-        headers = {'Content-Type': 'application/json'}
+        headers = {'Content-Type': content_type, 'Connection': 'close'}
 
         for base_url in base_urls:
             url = f"{base_url}{endpoint}"
@@ -9807,7 +9808,11 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=8):
                 try:
                     auth = auth_class(username, password)
                     if method.upper() == 'POST':
-                        resp = requests.post(url, json=payload, auth=auth, headers=headers, timeout=timeout, verify=False)
+                        if isinstance(payload, str):
+                            data_arg = payload.encode('utf-8')
+                            resp = requests.post(url, data=data_arg, auth=auth, headers=headers, timeout=timeout, verify=False)
+                        else:
+                            resp = requests.post(url, json=payload, auth=auth, headers=headers, timeout=timeout, verify=False)
                     else:
                         resp = requests.get(url, auth=auth, headers=headers, timeout=timeout, verify=False)
                     
@@ -9847,8 +9852,14 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=8):
             https_handler = urllib.request.HTTPSHandler(context=ssl_ctx)
             opener = urllib.request.build_opener(digest_handler, basic_handler, https_handler)
 
-            data_bytes = json.dumps(payload).encode('utf-8') if payload else None
-            req = urllib.request.Request(url, data=data_bytes, headers={'Content-Type': 'application/json'}, method=method.upper())
+            if isinstance(payload, str):
+                data_bytes = payload.encode('utf-8')
+            elif payload is not None:
+                data_bytes = json.dumps(payload).encode('utf-8')
+            else:
+                data_bytes = None
+
+            req = urllib.request.Request(url, data=data_bytes, headers={'Content-Type': content_type, 'Connection': 'close'}, method=method.upper())
 
             with opener.open(req, timeout=timeout) as resp:
                 body = resp.read().decode('utf-8', errors='ignore')
@@ -9883,13 +9894,40 @@ def _hikvision_test_connection():
         return True, "Kết nối thành công tới dịch vụ AcsEvent của Hikvision."
     return False, data
 
+def _parse_hikvision_events_response(resp_data):
+    events = []
+    if isinstance(resp_data, dict):
+        search_obj = resp_data.get('AcsEvent', {}) or resp_data.get('AcsEventSearch', {})
+        evts = search_obj.get('InfoList', [])
+        if isinstance(evts, dict): evts = [evts]
+        return evts
+
+    if isinstance(resp_data, str) and ('<Info>' in resp_data or '<AcsEvent' in resp_data):
+        try:
+            xml_clean = re.sub(r'xmlns="[^"]+"', '', resp_data)
+            root = ET.fromstring(xml_clean)
+            for info in root.findall('.//Info'):
+                evt = {}
+                for child in info:
+                    evt[child.tag] = child.text
+                events.append(evt)
+            if not events:
+                for info in root.findall('.//AcsEvent'):
+                    evt = {}
+                    for child in info:
+                        evt[child.tag] = child.text
+                    events.append(evt)
+        except Exception as exc:
+            print(f"XML parse error: {exc}")
+    return events
+
 def _hikvision_fetch_users():
     pos = 0
-    max_res = 30
-    total_matches = 1
+    max_res = 10
     all_users = []
+    seen_emp_nos = set()
     
-    while pos < total_matches:
+    while pos < 1000:
         payload = {
             "UserInfoSearchCond": {
                 "searchID": "1",
@@ -9906,17 +9944,23 @@ def _hikvision_fetch_users():
         page_users = []
         if isinstance(data, dict):
             search_obj = data.get('UserInfoSearch', {})
-            total_matches = int(search_obj.get('totalMatches') or search_obj.get('numOfMatches') or (pos + max_res))
             page_users = search_obj.get('UserInfo', [])
             if isinstance(page_users, dict):
                 page_users = [page_users]
-        
+
         if not page_users:
             break
-            
-        all_users.extend(page_users)
+
+        new_added = 0
+        for u in page_users:
+            emp_no = str(u.get('employeeNo') or '').strip()
+            if emp_no and emp_no not in seen_emp_nos:
+                seen_emp_nos.add(emp_no)
+                all_users.append(u)
+                new_added += 1
+        
         pos += len(page_users)
-        if len(page_users) < max_res:
+        if len(page_users) < max_res or new_added == 0:
             break
 
     added = 0
@@ -9956,58 +10000,44 @@ def _hikvision_sync_events(start_date=None, end_date=None):
     start_str = f"{start_date.strftime('%Y-%m-%d')}T00:00:00+07:00"
     end_str = f"{end_date.strftime('%Y-%m-%d')}T23:59:59+07:00"
 
-    endpoints_to_try = [
-        '/ISAPI/AccessControl/AcsEvent?format=json',
-        '/ISAPI/AccessControl/AcsEvent/Search?format=json'
-    ]
-
     all_events = []
     last_error = None
-    successful_endpoint = None
 
-    for ep in endpoints_to_try:
-        pos = 0
-        max_res = 50
-        total_matches = 1
-        ep_events = []
+    xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventSearchCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>0</searchResultPosition><maxResults>30</maxResults><major>5</major><minor>0</minor><startTime>{start_str}</startTime><endTime>{end_str}</endTime></AcsEventSearchCond>'
 
-        while pos < total_matches and pos < 500:
-            payload = {
+    ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml')
+    if ok_xml:
+        parsed = _parse_hikvision_events_response(data_xml)
+        if parsed:
+            all_events = parsed
+    else:
+        last_error = data_xml
+
+    if not all_events:
+        json_endpoints = [
+            '/ISAPI/AccessControl/AcsEvent?format=json',
+            '/ISAPI/AccessControl/AcsEvent/Search?format=json'
+        ]
+        for ep in json_endpoints:
+            json_payload = {
                 "AcsEventSearchCond": {
                     "searchID": "1",
-                    "searchResultPosition": pos,
-                    "maxResults": max_res,
+                    "searchResultPosition": 0,
+                    "maxResults": 20,
                     "major": 5,
                     "minor": 0,
                     "startTime": start_str,
                     "endTime": end_str
                 }
             }
-            ok, data = _hikvision_request(ep, method='POST', payload=payload)
-            if not ok:
-                last_error = data
-                break
-
-            page_evts = []
-            if isinstance(data, dict):
-                search_obj = data.get('AcsEvent', {}) or data.get('AcsEventSearch', {})
-                total_matches = int(search_obj.get('totalMatches') or search_obj.get('numOfMatches') or (pos + max_res))
-                page_evts = search_obj.get('InfoList', [])
-                if isinstance(page_evts, dict):
-                    page_evts = [page_evts]
-
-            if not page_evts:
-                break
-
-            ep_events.extend(page_evts)
-            pos += len(page_evts)
-            if len(page_evts) < max_res:
-                break
-
-        if ep_events:
-            all_events = ep_events
-            successful_endpoint = ep
-            break
+            ok_j, data_j = _hikvision_request(ep, method='POST', payload=json_payload, content_type='application/json')
+            if ok_j:
+                parsed = _parse_hikvision_events_response(data_j)
+                if parsed:
+                    all_events = parsed
+                    break
+            else:
+                last_error = data_j
 
     if not all_events and last_error:
         return False, f"Lỗi lấy nhật ký từ thiết bị: {last_error}"
