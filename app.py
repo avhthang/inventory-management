@@ -9773,33 +9773,43 @@ def save_hikvision_config(data):
         json.dump(cfg, f, ensure_ascii=False, indent=2)
     return cfg
 
-def _hikvision_request(endpoint, method='GET', payload=None, timeout=6):
+def _hikvision_request(endpoint, method='GET', payload=None, timeout=8):
     cfg = get_hikvision_config()
     host = (cfg.get('host') or '192.168.11.94').strip()
     port = str(cfg.get('port') or '8000').strip()
     username = (cfg.get('username') or 'admin').strip()
     password = cfg.get('password') or ''
 
-    ports_to_try = [port]
-    if port != '80': ports_to_try.append('80')
-    if port != '8000': ports_to_try.append('8000')
+    base_urls = []
+    base_urls.append(f"http://{host}:{port}")
+    base_urls.append(f"https://{host}:{port}")
+    if port != '8000':
+        base_urls.append(f"http://{host}:8000")
+        base_urls.append(f"https://{host}:8000")
+    if port != '80':
+        base_urls.append(f"http://{host}:80")
+    if port != '443':
+        base_urls.append(f"https://{host}:443")
+
+    errors_log = []
 
     try:
         import requests
         from requests.auth import HTTPDigestAuth, HTTPBasicAuth
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         headers = {'Content-Type': 'application/json'}
-        last_error = None
 
-        for p in ports_to_try:
-            url = f"http://{host}:{p}{endpoint}"
+        for base_url in base_urls:
+            url = f"{base_url}{endpoint}"
             for auth_class in [HTTPDigestAuth, HTTPBasicAuth]:
                 try:
                     auth = auth_class(username, password)
                     if method.upper() == 'POST':
-                        resp = requests.post(url, json=payload, auth=auth, headers=headers, timeout=timeout)
+                        resp = requests.post(url, json=payload, auth=auth, headers=headers, timeout=timeout, verify=False)
                     else:
-                        resp = requests.get(url, auth=auth, headers=headers, timeout=timeout)
+                        resp = requests.get(url, auth=auth, headers=headers, timeout=timeout, verify=False)
                     
                     if resp.status_code == 200:
                         try:
@@ -9807,28 +9817,35 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=6):
                         except Exception:
                             return True, resp.text
                     elif resp.status_code in (401, 403):
-                        last_error = f"Xác thực thất bại (Mã {resp.status_code}). Vui lòng kiểm tra tài khoản/mật khẩu Hikvision."
+                        errors_log.append(f"[{url}] Sai tài khoản/mật khẩu (Mã {resp.status_code})")
                     else:
-                        last_error = f"Phản hồi từ {url} (Mã {resp.status_code}): {resp.text[:200]}"
+                        errors_log.append(f"[{url}] Lỗi HTTP {resp.status_code}: {resp.text[:100]}")
+                except requests.exceptions.ConnectTimeout:
+                    errors_log.append(f"[{url}] Hết thời gian kết nối ({timeout}s)")
                 except Exception as exc:
-                    last_error = f"Không kết nối được {url}: {exc}"
+                    errors_log.append(f"[{url}] Lỗi: {str(exc)[:100]}")
 
-        return False, last_error or "Không thể kết nối thiết bị Hikvision."
+        return False, "Không thể kết nối Hikvision. Chi tiết thử nghiệm: " + " | ".join(errors_log[:3])
     except ImportError:
         pass
 
     import urllib.request
     import urllib.error
+    import ssl
 
-    last_error = None
-    for p in ports_to_try:
-        url = f"http://{host}:{p}{endpoint}"
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+
+    for base_url in base_urls:
+        url = f"{base_url}{endpoint}"
         try:
             passman = urllib.request.HTTPPasswordMgrWithDefaultRealm()
             passman.add_password(None, url, username, password)
             digest_handler = urllib.request.HTTPDigestAuthHandler(passman)
             basic_handler = urllib.request.HTTPBasicAuthHandler(passman)
-            opener = urllib.request.build_opener(digest_handler, basic_handler)
+            https_handler = urllib.request.HTTPSHandler(context=ssl_ctx)
+            opener = urllib.request.build_opener(digest_handler, basic_handler, https_handler)
 
             data_bytes = json.dumps(payload).encode('utf-8') if payload else None
             req = urllib.request.Request(url, data=data_bytes, headers={'Content-Type': 'application/json'}, method=method.upper())
@@ -9841,13 +9858,13 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=6):
                     return True, body
         except urllib.error.HTTPError as e:
             if e.code in (401, 403):
-                last_error = f"Xác thực thất bại (Mã {e.code}). Vui lòng kiểm tra tài khoản/mật khẩu Hikvision."
+                errors_log.append(f"[{url}] Sai tài khoản/mật khẩu (Mã {e.code})")
             else:
-                last_error = f"Phản hồi từ {url} (Mã {e.code})"
+                errors_log.append(f"[{url}] Lỗi HTTP {e.code}")
         except Exception as e:
-            last_error = f"Không kết nối được {url}: {str(e)}"
+            errors_log.append(f"[{url}] Lỗi: {str(e)[:100]}")
 
-    return False, last_error or "Không thể kết nối thiết bị Hikvision."
+    return False, "Không thể kết nối Hikvision. Chi tiết: " + " | ".join(errors_log[:3])
 
 def _hikvision_test_connection():
     ok, data = _hikvision_request('/ISAPI/System/deviceInfo')
