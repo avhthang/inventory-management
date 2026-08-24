@@ -3,7 +3,7 @@ import uuid
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
-from sqlalchemy import or_, func, event, text, inspect, case, cast, String
+from sqlalchemy import or_, func, event, text, inspect, case, cast, String, Date
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
@@ -10004,58 +10004,69 @@ def attendance_logs():
     page = request.args.get('page', 1, type=int)
 
     today = date.today()
-    start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=7))
-    end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
+    try:
+        start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=7))
+        end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
+    except Exception:
+        start_date = today - timedelta(days=7)
+        end_date = today
 
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
 
-    query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
-
-    if q:
-        query = query.filter(or_(
-            AttendanceRecord.employee_no.ilike(f'%{q}%'),
-            AttendanceRecord.user_name.ilike(f'%{q}%')
-        ))
-
-    if user_type_filter:
-        matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
-        query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
-
-    records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=20, error_out=False)
-    
-    log_date_expr = cast(AttendanceRecord.event_time, Date)
-    summary_raw = db.session.query(
-        AttendanceRecord.employee_no,
-        AttendanceRecord.user_name,
-        log_date_expr.label('log_date'),
-        func.min(AttendanceRecord.event_time).label('first_in'),
-        func.max(AttendanceRecord.event_time).label('last_out'),
-        func.count(AttendanceRecord.id).label('total_scans')
-    ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)\
-     .group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr)\
-     .order_by(log_date_expr.desc(), AttendanceRecord.employee_no).all()
-
-    users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
     summary_list = []
-    for r in summary_raw:
-        u_obj = users_map.get(r.employee_no)
-        summary_list.append({
-            'employee_no': r.employee_no,
-            'user_name': u_obj.name if u_obj else r.user_name,
-            'user_type': u_obj.user_type if u_obj else 'Nhân viên',
-            'department': u_obj.department if u_obj else '-',
-            'log_date': str(r.log_date),
-            'first_in': r.first_in,
-            'last_out': r.last_out if r.last_out != r.first_in else None,
-            'total_scans': r.total_scans
-        })
-
+    records = None
     stats = {
-        'total_records': AttendanceRecord.query.filter(AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count(),
-        'total_users': AttendanceUser.query.filter_by(is_active=True).count(),
+        'total_records': 0,
+        'total_users': 0,
         'hikvision_cfg': get_hikvision_config()
     }
+
+    try:
+        query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+
+        if q:
+            query = query.filter(or_(
+                AttendanceRecord.employee_no.ilike(f'%{q}%'),
+                AttendanceRecord.user_name.ilike(f'%{q}%')
+            ))
+
+        if user_type_filter:
+            matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
+            query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
+
+        records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=20, error_out=False)
+        
+        log_date_expr = cast(AttendanceRecord.event_time, db.Date)
+        summary_raw = db.session.query(
+            AttendanceRecord.employee_no,
+            AttendanceRecord.user_name,
+            log_date_expr.label('log_date'),
+            func.min(AttendanceRecord.event_time).label('first_in'),
+            func.max(AttendanceRecord.event_time).label('last_out'),
+            func.count(AttendanceRecord.id).label('total_scans')
+        ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)\
+         .group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr)\
+         .order_by(log_date_expr.desc(), AttendanceRecord.employee_no).all()
+
+        users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
+        for r in summary_raw:
+            u_obj = users_map.get(r.employee_no)
+            summary_list.append({
+                'employee_no': r.employee_no,
+                'user_name': u_obj.name if u_obj else r.user_name,
+                'user_type': u_obj.user_type if u_obj else 'Nhân viên',
+                'department': u_obj.department if u_obj else '-',
+                'log_date': str(r.log_date) if r.log_date else '',
+                'first_in': r.first_in,
+                'last_out': r.last_out if r.last_out != r.first_in else None,
+                'total_scans': r.total_scans
+            })
+
+        stats['total_records'] = AttendanceRecord.query.filter(AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count()
+        stats['total_users'] = AttendanceUser.query.filter_by(is_active=True).count()
+    except Exception as exc:
+        print(f"Error in attendance_logs query: {exc}")
 
     return render_template(
         'attendance_logs.html',
