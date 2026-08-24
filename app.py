@@ -9740,5 +9740,478 @@ def delete_device_type(id):
         
     return redirect(url_for('device_type_list'))
 
+# ==============================================================================
+# HIKVISION TIMEKEEPING & ATTENDANCE SYSTEM
+# ==============================================================================
+
+_hikvision_cfg_path = os.path.join(instance_path, 'hikvision_config.json')
+hikvision_config_defaults = {
+    'host': '192.168.11.94',
+    'port': '8000',
+    'username': 'admin',
+    'password': '',
+    'auto_sync': False,
+    'sync_interval': 15
+}
+
+def get_hikvision_config():
+    cfg = dict(hikvision_config_defaults)
+    try:
+        if os.path.exists(_hikvision_cfg_path):
+            with open(_hikvision_cfg_path, 'r', encoding='utf-8') as f:
+                saved = json.load(f)
+                if isinstance(saved, dict):
+                    cfg.update({k: v for k, v in saved.items() if v is not None})
+    except Exception:
+        pass
+    return cfg
+
+def save_hikvision_config(data):
+    cfg = get_hikvision_config()
+    cfg.update(data)
+    with open(_hikvision_cfg_path, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    return cfg
+
+def _hikvision_request(endpoint, method='GET', payload=None, timeout=6):
+    cfg = get_hikvision_config()
+    host = (cfg.get('host') or '192.168.11.94').strip()
+    port = str(cfg.get('port') or '8000').strip()
+    username = (cfg.get('username') or 'admin').strip()
+    password = cfg.get('password') or ''
+
+    ports_to_try = [port]
+    if port != '80': ports_to_try.append('80')
+    if port != '8000': ports_to_try.append('8000')
+
+    try:
+        import requests
+        from requests.auth import HTTPDigestAuth, HTTPBasicAuth
+
+        headers = {'Content-Type': 'application/json'}
+        last_error = None
+
+        for p in ports_to_try:
+            url = f"http://{host}:{p}{endpoint}"
+            for auth_class in [HTTPDigestAuth, HTTPBasicAuth]:
+                try:
+                    auth = auth_class(username, password)
+                    if method.upper() == 'POST':
+                        resp = requests.post(url, json=payload, auth=auth, headers=headers, timeout=timeout)
+                    else:
+                        resp = requests.get(url, auth=auth, headers=headers, timeout=timeout)
+                    
+                    if resp.status_code == 200:
+                        try:
+                            return True, resp.json()
+                        except Exception:
+                            return True, resp.text
+                    elif resp.status_code in (401, 403):
+                        last_error = f"Xác thực thất bại (Mã {resp.status_code}). Vui lòng kiểm tra tài khoản/mật khẩu Hikvision."
+                    else:
+                        last_error = f"Phản hồi từ {url} (Mã {resp.status_code}): {resp.text[:200]}"
+                except Exception as exc:
+                    last_error = f"Không kết nối được {url}: {exc}"
+
+        return False, last_error or "Không thể kết nối thiết bị Hikvision."
+    except ImportError:
+        pass
+
+    import urllib.request
+    import urllib.error
+
+    last_error = None
+    for p in ports_to_try:
+        url = f"http://{host}:{p}{endpoint}"
+        try:
+            passman = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+            passman.add_password(None, url, username, password)
+            digest_handler = urllib.request.HTTPDigestAuthHandler(passman)
+            basic_handler = urllib.request.HTTPBasicAuthHandler(passman)
+            opener = urllib.request.build_opener(digest_handler, basic_handler)
+
+            data_bytes = json.dumps(payload).encode('utf-8') if payload else None
+            req = urllib.request.Request(url, data=data_bytes, headers={'Content-Type': 'application/json'}, method=method.upper())
+
+            with opener.open(req, timeout=timeout) as resp:
+                body = resp.read().decode('utf-8', errors='ignore')
+                try:
+                    return True, json.loads(body)
+                except Exception:
+                    return True, body
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                last_error = f"Xác thực thất bại (Mã {e.code}). Vui lòng kiểm tra tài khoản/mật khẩu Hikvision."
+            else:
+                last_error = f"Phản hồi từ {url} (Mã {e.code})"
+        except Exception as e:
+            last_error = f"Không kết nối được {url}: {str(e)}"
+
+    return False, last_error or "Không thể kết nối thiết bị Hikvision."
+
+def _hikvision_test_connection():
+    ok, data = _hikvision_request('/ISAPI/System/deviceInfo')
+    if ok:
+        if isinstance(data, dict):
+            info = data.get('DeviceInfo', {}) or data
+            dev_name = info.get('deviceName') or 'Hikvision Terminal'
+            dev_model = info.get('model') or ''
+            return True, f"Kết nối thành công! Thiết bị: {dev_name} ({dev_model})"
+        return True, "Kết nối thành công tới thiết bị Hikvision."
+    
+    ok_evt, data_evt = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload={
+        "AcsEventSearchCond": {"searchID": "1", "searchResultPosition": 0, "maxResults": 1}
+    })
+    if ok_evt:
+        return True, "Kết nối thành công tới dịch vụ AcsEvent của Hikvision."
+    return False, data
+
+def _hikvision_fetch_users():
+    payload = {
+        "UserInfoSearchCond": {
+            "searchID": "1",
+            "searchResultPosition": 0,
+            "maxResults": 300
+        }
+    }
+    ok, data = _hikvision_request('/ISAPI/AccessControl/UserInfo/Search?format=json', method='POST', payload=payload)
+    if not ok:
+        return False, f"Lỗi lấy danh sách từ thiết bị: {data}"
+    
+    users_list = []
+    if isinstance(data, dict):
+        users_list = data.get('UserInfoSearch', {}).get('UserInfo', [])
+        if isinstance(users_list, dict):
+            users_list = [users_list]
+    
+    added = 0
+    updated = 0
+    for u in users_list:
+        emp_no = str(u.get('employeeNo') or '').strip()
+        name = str(u.get('name') or f"User {emp_no}").strip()
+        card_no = None
+        card_val = u.get('Valid', {}).get('cardNo') or u.get('cardNo')
+        if card_val: card_no = str(card_val).strip()
+        
+        if not emp_no: continue
+        
+        existing = AttendanceUser.query.filter_by(employee_no=emp_no).first()
+        if existing:
+            existing.name = name or existing.name
+            if card_no: existing.card_no = card_no
+            existing.updated_at = datetime.utcnow()
+            updated += 1
+        else:
+            db.session.add(AttendanceUser(
+                employee_no=emp_no,
+                name=name,
+                user_type='Nhân viên',
+                card_no=card_no,
+                is_active=True
+            ))
+            added += 1
+    
+    db.session.commit()
+    return True, f"Đã tải xong {len(users_list)} người dùng từ máy Hikvision (Thêm: {added}, Cập nhật: {updated})."
+
+def _hikvision_sync_events(start_date=None, end_date=None):
+    if not start_date: start_date = date.today() - timedelta(days=7)
+    if not end_date: end_date = date.today()
+
+    start_str = f"{start_date.strftime('%Y-%m-%d')}T00:00:00+07:00"
+    end_str = f"{end_date.strftime('%Y-%m-%d')}T23:59:59+07:00"
+
+    payload = {
+        "AcsEventSearchCond": {
+            "searchID": "1",
+            "searchResultPosition": 0,
+            "maxResults": 500,
+            "startTime": start_str,
+            "endTime": end_str
+        }
+    }
+    
+    ok, data = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=payload)
+    if not ok:
+        return False, f"Lỗi lấy nhật ký từ thiết bị: {data}"
+    
+    events_list = []
+    if isinstance(data, dict):
+        events_list = data.get('AcsEvent', {}).get('InfoList', [])
+        if isinstance(events_list, dict):
+            events_list = [events_list]
+    
+    new_count = 0
+    users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
+
+    for evt in events_list:
+        emp_no = str(evt.get('employeeNoString') or evt.get('employeeNo') or '').strip()
+        time_str = evt.get('time') or evt.get('eventTime')
+        serial_no = str(evt.get('serialNo') or evt.get('serial') or evt.get('eventID') or '')
+        card_no = str(evt.get('cardNo') or '')
+        
+        if not time_str: continue
+
+        try:
+            event_dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+            if event_dt.tzinfo:
+                event_dt = event_dt.astimezone(VIETNAM_TZ).replace(tzinfo=None)
+        except Exception:
+            try:
+                event_dt = datetime.strptime(time_str[:19], '%Y-%m-%dT%H:%M:%S')
+            except Exception:
+                continue
+
+        raw_id = f"HIK_{serial_no}_{emp_no}_{event_dt.strftime('%Y%m%d%H%M%S')}"
+        if not serial_no and not emp_no: continue
+        
+        if AttendanceRecord.query.filter_by(raw_event_id=raw_id).first():
+            continue
+        
+        user_obj = users_map.get(emp_no)
+        user_name = user_obj.name if user_obj else (evt.get('name') or (f"NV #{emp_no}" if emp_no else "Chưa rõ"))
+        
+        verify_mode = 'Vân tay'
+        evt_str = json.dumps(evt).lower()
+        if 'card' in evt_str or card_no: verify_mode = 'Thẻ'
+        elif 'face' in evt_str: verify_mode = 'Khuôn mặt'
+
+        event_type = 'Check-in' if event_dt.hour < 12 else 'Check-out'
+
+        record = AttendanceRecord(
+            employee_no=emp_no or 'UNKNOWN',
+            user_name=user_name,
+            event_time=event_dt,
+            verify_mode=verify_mode,
+            event_type=event_type,
+            device_name='Hikvision 192.168.11.94',
+            raw_event_id=raw_id
+        )
+        db.session.add(record)
+        new_count += 1
+    
+    db.session.commit()
+    return True, f"Đã đồng bộ {new_count} lượt quẹt vân tay/chấm công mới từ thiết bị Hikvision."
+
+@app.route('/attendance')
+def attendance_logs():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    start_date_val = request.args.get('start_date')
+    end_date_val = request.args.get('end_date')
+    q = (request.args.get('q') or '').strip()
+    user_type_filter = (request.args.get('user_type') or '').strip()
+    page = request.args.get('page', 1, type=int)
+
+    today = date.today()
+    start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=7))
+    end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
+
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
+
+    query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+
+    if q:
+        query = query.filter(or_(
+            AttendanceRecord.employee_no.ilike(f'%{q}%'),
+            AttendanceRecord.user_name.ilike(f'%{q}%')
+        ))
+
+    if user_type_filter:
+        matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
+        query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
+
+    records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=20, error_out=False)
+    
+    log_date_expr = cast(AttendanceRecord.event_time, Date)
+    summary_raw = db.session.query(
+        AttendanceRecord.employee_no,
+        AttendanceRecord.user_name,
+        log_date_expr.label('log_date'),
+        func.min(AttendanceRecord.event_time).label('first_in'),
+        func.max(AttendanceRecord.event_time).label('last_out'),
+        func.count(AttendanceRecord.id).label('total_scans')
+    ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)\
+     .group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr)\
+     .order_by(log_date_expr.desc(), AttendanceRecord.employee_no).all()
+
+    users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
+    summary_list = []
+    for r in summary_raw:
+        u_obj = users_map.get(r.employee_no)
+        summary_list.append({
+            'employee_no': r.employee_no,
+            'user_name': u_obj.name if u_obj else r.user_name,
+            'user_type': u_obj.user_type if u_obj else 'Nhân viên',
+            'department': u_obj.department if u_obj else '-',
+            'log_date': str(r.log_date),
+            'first_in': r.first_in,
+            'last_out': r.last_out if r.last_out != r.first_in else None,
+            'total_scans': r.total_scans
+        })
+
+    stats = {
+        'total_records': AttendanceRecord.query.filter(AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count(),
+        'total_users': AttendanceUser.query.filter_by(is_active=True).count(),
+        'hikvision_cfg': get_hikvision_config()
+    }
+
+    return render_template(
+        'attendance_logs.html',
+        records=records,
+        summary_list=summary_list[:50],
+        stats=stats,
+        start_date=start_date.strftime('%Y-%m-%d'),
+        end_date=end_date.strftime('%Y-%m-%d'),
+        q=q,
+        user_type=user_type_filter,
+        user_types=['Nhân viên', 'Bảo vệ', 'Lao công', 'Khách đặc biệt', 'Khác']
+    )
+
+@app.route('/attendance/users', methods=['GET', 'POST'])
+def attendance_users():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        emp_no = (request.form.get('employee_no') or '').strip()
+        name = (request.form.get('name') or '').strip()
+        user_type = (request.form.get('user_type') or 'Nhân viên').strip()
+        department = (request.form.get('department') or '').strip()
+        card_no = (request.form.get('card_no') or '').strip()
+        system_user_id = request.form.get('system_user_id', type=int)
+
+        if not emp_no or not name:
+            flash('Mã chấm công và Họ tên là bắt buộc.', 'danger')
+        elif AttendanceUser.query.filter_by(employee_no=emp_no).first():
+            flash(f'Mã chấm công {emp_no} đã tồn tại.', 'warning')
+        else:
+            db.session.add(AttendanceUser(
+                employee_no=emp_no,
+                name=name,
+                user_type=user_type,
+                department=department,
+                card_no=card_no,
+                system_user_id=system_user_id if system_user_id else None
+            ))
+            db.session.commit()
+            flash('Đã thêm người chấm công mới.', 'success')
+        return redirect(url_for('attendance_users'))
+
+    q = (request.args.get('q') or '').strip()
+    user_type_filter = (request.args.get('user_type') or '').strip()
+
+    query = AttendanceUser.query
+    if q:
+        query = query.filter(or_(AttendanceUser.employee_no.ilike(f'%{q}%'), AttendanceUser.name.ilike(f'%{q}%')))
+    if user_type_filter:
+        query = query.filter_by(user_type=user_type_filter)
+
+    users = query.order_by(AttendanceUser.employee_no).all()
+    system_users = User.query.filter_by(status='Hoạt động').order_by(func.lower(User.full_name)).all()
+
+    return render_template(
+        'attendance_users.html',
+        users=users,
+        system_users=system_users,
+        q=q,
+        user_type=user_type_filter,
+        user_types=['Nhân viên', 'Bảo vệ', 'Lao công', 'Khách đặc biệt', 'Khác']
+    )
+
+@app.route('/attendance/users/<int:user_id>/edit', methods=['POST'])
+def edit_attendance_user(user_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_obj = AttendanceUser.query.get_or_404(user_id)
+    
+    emp_no = (request.form.get('employee_no') or '').strip()
+    name = (request.form.get('name') or '').strip()
+    user_type = (request.form.get('user_type') or 'Nhân viên').strip()
+    department = (request.form.get('department') or '').strip()
+    card_no = (request.form.get('card_no') or '').strip()
+    system_user_id = request.form.get('system_user_id', type=int)
+
+    try:
+        if not emp_no or not name:
+            raise ValueError('Mã chấm công và Họ tên là bắt buộc.')
+        duplicate = AttendanceUser.query.filter(AttendanceUser.id != user_obj.id, AttendanceUser.employee_no == emp_no).first()
+        if duplicate:
+            raise ValueError(f'Mã chấm công {emp_no} đã trùng với người khác.')
+        
+        user_obj.employee_no = emp_no
+        user_obj.name = name
+        user_obj.user_type = user_type
+        user_obj.department = department
+        user_obj.card_no = card_no
+        user_obj.system_user_id = system_user_id if system_user_id else None
+        user_obj.updated_at = datetime.utcnow()
+        db.session.commit()
+        flash('Đã cập nhật thông tin người chấm công.', 'success')
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), 'danger')
+
+    return redirect(url_for('attendance_users'))
+
+@app.route('/attendance/users/<int:user_id>/delete', methods=['POST'])
+def delete_attendance_user(user_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    user_obj = AttendanceUser.query.get_or_404(user_id)
+    db.session.delete(user_obj)
+    db.session.commit()
+    flash('Đã xóa người chấm công.', 'success')
+    return redirect(url_for('attendance_users'))
+
+@app.route('/attendance/config', methods=['GET', 'POST'])
+def attendance_config_page():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    if request.method == 'POST':
+        host = (request.form.get('host') or '192.168.11.94').strip()
+        port = (request.form.get('port') or '8000').strip()
+        username = (request.form.get('username') or 'admin').strip()
+        password = request.form.get('password') or ''
+        
+        save_hikvision_config({
+            'host': host,
+            'port': port,
+            'username': username,
+            'password': password
+        })
+        flash('Đã lưu cấu hình kết nối máy chấm công Hikvision.', 'success')
+        return redirect(url_for('attendance_config_page'))
+
+    cfg = get_hikvision_config()
+    return render_template('attendance_config.html', cfg=cfg)
+
+@app.route('/attendance/test-connection', methods=['POST'])
+def attendance_test_connection():
+    if 'user_id' not in session: return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    host = request.form.get('host')
+    if host:
+        save_hikvision_config({
+            'host': (request.form.get('host') or '').strip(),
+            'port': (request.form.get('port') or '8000').strip(),
+            'username': (request.form.get('username') or 'admin').strip(),
+            'password': request.form.get('password') or ''
+        })
+
+    ok, msg = _hikvision_test_connection()
+    return jsonify({'success': ok, 'message': msg})
+
+@app.route('/attendance/sync', methods=['POST'])
+def attendance_sync_api():
+    if 'user_id' not in session: return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    ok_u, msg_u = _hikvision_fetch_users()
+    ok_e, msg_e = _hikvision_sync_events()
+
+    if ok_e:
+        return jsonify({'success': True, 'message': f"{msg_e} ({msg_u})"})
+    elif ok_u:
+        return jsonify({'success': True, 'message': f"Đồng bộ danh sách user thành công ({msg_u}), nhưng không lấy được log: {msg_e}"})
+    else:
+        return jsonify({'success': False, 'message': f"Đồng bộ thất bại: {msg_e}"})
+
 if __name__ == '__main__':
     app.run(debug=True)
