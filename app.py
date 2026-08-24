@@ -9747,7 +9747,7 @@ def delete_device_type(id):
 
 _hikvision_cfg_path = os.path.join(instance_path, 'hikvision_config.json')
 hikvision_config_defaults = {
-    'host': '192.168.11.94',
+    'host': '192.168.111.94',
     'port': '8000',
     'username': 'admin',
     'password': '',
@@ -9767,8 +9767,8 @@ def get_hikvision_config():
         pass
     
     host_val = str(cfg.get('host') or '').strip()
-    if '192.168.111.94' in host_val:
-        cfg['host'] = '192.168.11.94'
+    if host_val == '192.168.11.94':
+        cfg['host'] = '192.168.111.94'
         try:
             with open(_hikvision_cfg_path, 'w', encoding='utf-8') as f:
                 json.dump(cfg, f, ensure_ascii=False, indent=2)
@@ -9784,34 +9784,33 @@ def save_hikvision_config(data):
     return cfg
 
 _cached_hikvision_base_url = None
+_hikvision_session = None
 
-def _hikvision_request(endpoint, method='GET', payload=None, timeout=3, content_type='application/json'):
+def get_hikvision_session():
+    global _hikvision_session
+    if _hikvision_session is None:
+        import requests
+        _hikvision_session = requests.Session()
+    return _hikvision_session
+
+def _hikvision_request(endpoint, method='GET', payload=None, timeout=4, content_type='application/json'):
     global _cached_hikvision_base_url
     cfg = get_hikvision_config()
-    raw_host = (cfg.get('host') or '192.168.11.94').strip()
+    host = (cfg.get('host') or '192.168.111.94').strip()
     port = str(cfg.get('port') or '8000').strip()
     username = (cfg.get('username') or 'admin').strip()
     password = cfg.get('password') or ''
-
-    hosts_to_try = [raw_host]
-    if '.111.' in raw_host:
-        hosts_to_try.append(raw_host.replace('.111.', '.11.'))
-    elif '.11.' in raw_host:
-        hosts_to_try.append(raw_host.replace('.11.', '.111.'))
 
     base_urls = []
     if _cached_hikvision_base_url:
         base_urls.append(_cached_hikvision_base_url)
 
-    for h in hosts_to_try:
-        u1 = f"http://{h}:{port}"
-        u2 = f"https://{h}:{port}"
-        if u1 not in base_urls: base_urls.append(u1)
-        if u2 not in base_urls: base_urls.append(u2)
-        if port != '8000':
-            base_urls.append(f"http://{h}:8000")
-        if port != '80':
-            base_urls.append(f"http://{h}:80")
+    u1 = f"http://{host}:{port}"
+    u2 = f"http://{host}:80"
+    u3 = f"https://{host}:{port}"
+    u4 = f"https://{host}:443"
+    for u in [u1, u2, u3, u4]:
+        if u not in base_urls: base_urls.append(u)
 
     errors_log = []
 
@@ -9821,21 +9820,30 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=3, content_
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-        headers = {'Content-Type': content_type, 'Connection': 'close'}
+        session = get_hikvision_session()
+        headers = {'Content-Type': content_type, 'Connection': 'keep-alive'}
 
         for base_url in base_urls:
             url = f"{base_url}{endpoint}"
             for auth_class in [HTTPDigestAuth, HTTPBasicAuth]:
                 try:
                     auth = auth_class(username, password)
+                    
+                    if method.upper() == 'POST':
+                        warmup_url = f"{base_url}/ISAPI/System/deviceInfo"
+                        try:
+                            session.get(warmup_url, auth=auth, timeout=2, verify=False)
+                        except Exception:
+                            pass
+
                     if method.upper() == 'POST':
                         if isinstance(payload, str):
                             data_arg = payload.encode('utf-8')
-                            resp = requests.post(url, data=data_arg, auth=auth, headers=headers, timeout=timeout, verify=False)
+                            resp = session.post(url, data=data_arg, auth=auth, headers=headers, timeout=timeout, verify=False)
                         else:
-                            resp = requests.post(url, json=payload, auth=auth, headers=headers, timeout=timeout, verify=False)
+                            resp = session.post(url, json=payload, auth=auth, headers=headers, timeout=timeout, verify=False)
                     else:
-                        resp = requests.get(url, auth=auth, headers=headers, timeout=timeout, verify=False)
+                        resp = session.get(url, auth=auth, headers=headers, timeout=timeout, verify=False)
                     
                     if resp.status_code == 200:
                         _cached_hikvision_base_url = base_url
