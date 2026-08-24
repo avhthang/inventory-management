@@ -9793,7 +9793,7 @@ def get_hikvision_session():
         _hikvision_session = requests.Session()
     return _hikvision_session
 
-def _hikvision_request(endpoint, method='GET', payload=None, timeout=4, content_type='application/json'):
+def _hikvision_request(endpoint, method='GET', payload=None, timeout=2, content_type='application/json'):
     global _cached_hikvision_base_url
     cfg = get_hikvision_config()
     host = (cfg.get('host') or '192.168.111.94').strip()
@@ -9804,13 +9804,13 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=4, content_
     base_urls = []
     if _cached_hikvision_base_url:
         base_urls.append(_cached_hikvision_base_url)
-
-    u1 = f"http://{host}:{port}"
-    u2 = f"http://{host}:80"
-    u3 = f"https://{host}:{port}"
-    u4 = f"https://{host}:443"
-    for u in [u1, u2, u3, u4]:
-        if u not in base_urls: base_urls.append(u)
+    else:
+        # Prioritize Port 80, then 8000
+        u_80 = f"http://{host}:80"
+        u_custom = f"http://{host}:{port}"
+        base_urls.append(u_80)
+        if u_custom not in base_urls: base_urls.append(u_custom)
+        base_urls.append(f"https://{host}:443")
 
     errors_log = []
 
@@ -9832,11 +9832,10 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=4, content_
                     if method.upper() == 'POST':
                         warmup_url = f"{base_url}/ISAPI/System/deviceInfo"
                         try:
-                            session.get(warmup_url, auth=auth, timeout=2, verify=False)
+                            session.get(warmup_url, auth=auth, timeout=1.5, verify=False)
                         except Exception:
                             pass
 
-                    if method.upper() == 'POST':
                         if isinstance(payload, str):
                             data_arg = payload.encode('utf-8')
                             resp = session.post(url, data=data_arg, auth=auth, headers=headers, timeout=timeout, verify=False)
@@ -9854,7 +9853,7 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=4, content_
                     elif resp.status_code in (401, 403):
                         errors_log.append(f"[{url}] Sai tài khoản/mật khẩu (Mã {resp.status_code})")
                     else:
-                        errors_log.append(f"[{url}] Lỗi HTTP {resp.status_code}: {resp.text[:100]}")
+                        errors_log.append(f"[{url}] Lỗi HTTP {resp.status_code}: {resp.text[:120]}")
                 except requests.exceptions.ConnectTimeout:
                     errors_log.append(f"[{url}] Hết thời gian kết nối ({timeout}s)")
                 except Exception as exc:
@@ -9920,7 +9919,6 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
 
     start_str_plain = start_date.strftime('%Y-%m-%dT00:00:00')
     end_str_plain = end_date.strftime('%Y-%m-%dT23:59:59')
-
     start_str_tz = f"{start_str_plain}+07:00"
     end_str_tz = f"{end_str_plain}+07:00"
 
@@ -9932,61 +9930,52 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
     search_pos = 0
     max_pages = 5
 
-    xml_tag_names = ["AcsEventCond", "AcsEventSearchCond"]
-    json_wrapper_names = ["AcsEventCond", "AcsEventSearchCond"]
-    endpoints = [
-        '/ISAPI/AccessControl/AcsEvent?format=json',
-        '/ISAPI/AccessControl/AcsEvent/Search?format=json'
-    ]
-
     for page_idx in range(max_pages):
         page_events = []
 
-        # 1. Try XML formats
-        for tag_name in xml_tag_names:
-            for st_val, et_val in [(start_str_tz, end_str_tz), (start_str_plain, end_str_plain)]:
-                xml_payload = f'<?xml version="1.0" encoding="utf-8"?><{tag_name} version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>30</maxResults><major>0</major><minor>0</minor><startTime>{st_val}</startTime><endTime>{et_val}</endTime></{tag_name}>'
-                ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=4)
-                if ok_xml:
-                    parsed = _parse_hikvision_events_response(data_xml)
-                    if parsed:
-                        page_events = parsed
-                        break
-                else:
-                    last_error = data_xml
-            if page_events: break
+        # Streamlined target payloads (1 XML primary, 1 JSON fallback)
+        xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>30</maxResults><major>5</major><minor>0</minor><startTime>{start_str_tz}</startTime><endTime>{end_str_tz}</endTime></AcsEventCond>'
+        ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=2)
+        if ok_xml:
+            page_events = _parse_hikvision_events_response(data_xml)
+        else:
+            last_error = data_xml
 
-        # 2. Try JSON formats if XML yielded no events
         if not page_events:
-            for ep in endpoints:
-                for wrapper in json_wrapper_names:
-                    for st_val, et_val in [(start_str_tz, end_str_tz), (start_str_plain, end_str_plain)]:
-                        json_payload = {
-                            wrapper: {
-                                "searchID": "1",
-                                "searchResultPosition": search_pos,
-                                "maxResults": 30,
-                                "major": 0,
-                                "minor": 0,
-                                "startTime": st_val,
-                                "endTime": et_val
-                            }
-                        }
-                        ok_j, data_j = _hikvision_request(ep, method='POST', payload=json_payload, content_type='application/json', timeout=4)
-                        if ok_j:
-                            parsed = _parse_hikvision_events_response(data_j)
-                            if parsed:
-                                page_events = parsed
-                                break
-                        else:
-                            last_error = data_j
-                    if page_events: break
-                if page_events: break
+            json_payload = {
+                "AcsEventCond": {
+                    "searchID": "1",
+                    "searchResultPosition": search_pos,
+                    "maxResults": 30,
+                    "major": 5,
+                    "minor": 0,
+                    "startTime": start_str_tz,
+                    "endTime": end_str_tz
+                }
+            }
+            ok_j, data_j = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=json_payload, content_type='application/json', timeout=2)
+            if ok_j:
+                page_events = _parse_hikvision_events_response(data_j)
+            else:
+                last_error = data_j
 
-        # 3. GET Fallbacks
-        if not page_events and search_pos == 0:
-            ok_g1, data_g1 = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='GET', timeout=4)
-            if ok_g1: page_events = _parse_hikvision_events_response(data_g1)
+        if not page_events:
+            json_payload_alt = {
+                "AcsEventSearchCond": {
+                    "searchID": "1",
+                    "searchResultPosition": search_pos,
+                    "maxResults": 30,
+                    "major": 5,
+                    "minor": 0,
+                    "startTime": start_str_tz,
+                    "endTime": end_str_tz
+                }
+            }
+            ok_j2, data_j2 = _hikvision_request('/ISAPI/AccessControl/AcsEvent/Search?format=json', method='POST', payload=json_payload_alt, content_type='application/json', timeout=2)
+            if ok_j2:
+                page_events = _parse_hikvision_events_response(data_j2)
+            else:
+                last_error = data_j2
 
         if not page_events:
             break

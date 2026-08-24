@@ -324,7 +324,11 @@ function submitHikvisionSync() {
         method: 'POST',
         body: formData
     })
-    .then(res => res.json())
+    .then(async res => {
+        let data;
+        try { data = await res.json(); } catch(e) { data = { success: false, message: 'Lỗi HTTP ' + res.status + ': ' + res.statusText }; }
+        return data;
+    })
     .then(data => {
         btn.disabled = false;
         if (data.success) {
@@ -334,14 +338,14 @@ function submitHikvisionSync() {
             setTimeout(() => window.location.reload(), 1500);
         } else {
             alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
-            alertText.textContent = '✖ ' + data.message;
+            alertText.textContent = '✖ ' + (data.message || 'Lỗi không xác định');
             spinner.className = 'd-none';
         }
     })
     .catch(err => {
         btn.disabled = false;
         alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
-        alertText.textContent = '✖ Lỗi kết nối máy chủ.';
+        alertText.textContent = '✖ Lỗi kết nối: ' + (err.message || err);
         spinner.className = 'd-none';
     });
 }
