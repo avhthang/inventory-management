@@ -10003,10 +10003,14 @@ def _hikvision_fetch_users():
     return True, f"Đã đồng bộ danh sách user (Hoạt động: {len(fetched_emp_nos)}, Thêm mới: {added}, Cập nhật: {updated})."
 
 def _hikvision_sync_events(start_date=None, end_date=None, days=7):
-    if not start_date:
-        start_date = date.today() - timedelta(days=days if days and days > 0 else 7)
-    if not end_date:
+    if days == 1:
+        start_date = date.today()
         end_date = date.today()
+    else:
+        if not start_date:
+            start_date = date.today() - timedelta(days=(days - 1) if (days and days > 0) else 6)
+        if not end_date:
+            end_date = date.today()
 
     start_str = f"{start_date.strftime('%Y-%m-%d')}T00:00:00+07:00"
     end_str = f"{end_date.strftime('%Y-%m-%d')}T23:59:59+07:00"
@@ -10014,6 +10018,7 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
     all_events = []
     last_error = None
 
+    # 1. Try XML POST
     xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventSearchCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>0</searchResultPosition><maxResults>30</maxResults><major>5</major><minor>0</minor><startTime>{start_str}</startTime><endTime>{end_str}</endTime></AcsEventSearchCond>'
 
     ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml')
@@ -10024,6 +10029,7 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
     else:
         last_error = data_xml
 
+    # 2. Try JSON POST endpoints
     if not all_events:
         json_endpoints = [
             '/ISAPI/AccessControl/AcsEvent?format=json',
@@ -10049,6 +10055,19 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
                     break
             else:
                 last_error = data_j
+
+    # 3. Try GET endpoints if POST gets connection reset by peer
+    if not all_events:
+        ok_g1, data_g1 = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='GET')
+        if ok_g1:
+            parsed = _parse_hikvision_events_response(data_g1)
+            if parsed: all_events = parsed
+        
+        if not all_events:
+            ok_g2, data_g2 = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='GET', content_type='application/xml')
+            if ok_g2:
+                parsed = _parse_hikvision_events_response(data_g2)
+                if parsed: all_events = parsed
 
     if not all_events and last_error:
         return False, f"Lỗi lấy nhật ký từ thiết bị: {last_error}"
@@ -10148,7 +10167,16 @@ def attendance_logs():
             matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
             query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
 
-        records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=20, error_out=False)
+        if 'per_page' in request.args:
+            try:
+                per_page = int(request.args.get('per_page'))
+                session['per_page_attendance_logs'] = per_page
+            except Exception:
+                per_page = session.get('per_page_attendance_logs', 20)
+        else:
+            per_page = session.get('per_page_attendance_logs', 20)
+
+        records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=per_page, error_out=False)
         
         log_date_expr = cast(AttendanceRecord.event_time, db.Date)
         summary_raw = db.session.query(
@@ -10232,7 +10260,16 @@ def attendance_users():
     if user_type_filter:
         query = query.filter_by(user_type=user_type_filter)
 
-    users_pagination = query.order_by(AttendanceUser.employee_no).paginate(page=page, per_page=20, error_out=False)
+    if 'per_page' in request.args:
+        try:
+            per_page = int(request.args.get('per_page'))
+            session['per_page_attendance_users'] = per_page
+        except Exception:
+            per_page = session.get('per_page_attendance_users', 20)
+    else:
+        per_page = session.get('per_page_attendance_users', 20)
+
+    users_pagination = query.order_by(AttendanceUser.employee_no).paginate(page=page, per_page=per_page, error_out=False)
     system_users = User.query.order_by(func.lower(User.full_name)).all()
 
     return render_template(
