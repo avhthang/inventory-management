@@ -16,7 +16,7 @@
         <a href="{{ url_for('attendance_config_page') }}" class="btn btn-outline-secondary">
             <i class="bi bi-gear"></i> Cấu hình kết nối
         </a>
-        <button class="btn btn-success" id="btnSyncHikvision" onclick="triggerSyncHikvision()">
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#syncHikvisionModal">
             <i class="bi bi-arrow-repeat"></i> Đồng bộ từ máy Hikvision
         </button>
     </div>
@@ -25,7 +25,7 @@
 <!-- Dynamic Alert Bar for Sync Status -->
 <div id="syncAlertBar" class="alert alert-info d-none fade show align-items-center gap-2">
     <div class="spinner-border spinner-border-sm text-info" id="syncSpinner"></div>
-    <span id="syncAlertText">Đang kết nối tới máy chấm công Hikvision (192.168.11.94:8000)...</span>
+    <span id="syncAlertText">Đang gửi yêu cầu đồng bộ tới máy chấm công Hikvision...</span>
 </div>
 
 <!-- Metrics Cards -->
@@ -41,7 +41,7 @@
     <div class="col-sm-6 col-xl-4">
         <div class="card h-100 border-0 shadow-sm bg-success text-white">
             <div class="card-body">
-                <div class="small text-white-50">Tổng số người chấm công</div>
+                <div class="small text-white-50">Tổng số người chấm công (Active)</div>
                 <div class="fs-2 fw-bold">{{ stats.total_users }}</div>
             </div>
         </div>
@@ -210,43 +210,139 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Tùy chọn Đồng bộ Hikvision -->
+<div class="modal fade" id="syncHikvisionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="bi bi-cloud-download text-success me-2"></i> Tùy chọn Đồng bộ từ Máy chấm công</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="formSyncOptions">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">1. Phạm vi đồng bộ</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="sync_type" id="syncScopeAll" value="all" checked onchange="toggleSyncFields()">
+                            <label class="form-check-label fw-semibold" for="syncScopeAll">
+                                Tất cả (Cả Danh sách người dùng & Nhật ký chấm công)
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="sync_type" id="syncScopeLogs" value="logs_only" onchange="toggleSyncFields()">
+                            <label class="form-check-label fw-semibold" for="syncScopeLogs">
+                                Chỉ Nhật ký quẹt vân tay / Chấm công
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="sync_type" id="syncScopeUsers" value="users_only" onchange="toggleSyncFields()">
+                            <label class="form-check-label fw-semibold" for="syncScopeUsers">
+                                Chỉ Danh sách Người dùng
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3" id="logDaysSection">
+                        <label class="form-label fw-bold">2. Khoảng thời gian đồng bộ Nhật ký</label>
+                        <select class="form-select" name="days" id="selectSyncDays" onchange="toggleCustomDates()">
+                            <option value="7" selected>7 ngày gần nhất (Mặc định)</option>
+                            <option value="15">15 ngày gần nhất</option>
+                            <option value="30">30 ngày gần nhất (1 tháng)</option>
+                            <option value="90">90 ngày (3 tháng)</option>
+                            <option value="custom">Khoảng ngày tùy chọn...</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 d-none" id="customDateSection">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Từ ngày</label>
+                            <input type="date" class="form-control" name="start_date" id="syncStartDate" value="{{ start_date }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Đến ngày</label>
+                            <input type="date" class="form-control" name="end_date" id="syncEndDate" value="{{ end_date }}">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-success" onclick="submitHikvisionSync()"><i class="bi bi-cloud-download"></i> Bắt đầu đồng bộ</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
-function triggerSyncHikvision() {
-    const btn = document.getElementById('btnSyncHikvision');
+function toggleSyncFields() {
+    const isUsersOnly = document.getElementById('syncScopeUsers').checked;
+    const logSection = document.getElementById('logDaysSection');
+    const customSection = document.getElementById('customDateSection');
+    if (isUsersOnly) {
+        logSection.classList.add('d-none');
+        customSection.classList.add('d-none');
+    } else {
+        logSection.classList.remove('d-none');
+        toggleCustomDates();
+    }
+}
+
+function toggleCustomDates() {
+    const val = document.getElementById('selectSyncDays').value;
+    const customSection = document.getElementById('customDateSection');
+    if (val === 'custom') {
+        customSection.classList.remove('d-none');
+    } else {
+        customSection.classList.add('d-none');
+    }
+}
+
+function submitHikvisionSync() {
+    const modalEl = document.getElementById('syncHikvisionModal');
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) modalInstance.hide();
+
+    const btn = document.querySelector('button[data-bs-target="#syncHikvisionModal"]');
     const alertBar = document.getElementById('syncAlertBar');
     const alertText = document.getElementById('syncAlertText');
     const spinner = document.getElementById('syncSpinner');
 
+    const form = document.getElementById('formSyncOptions');
+    const formData = new FormData(form);
+
     btn.disabled = true;
     alertBar.className = 'alert alert-info d-flex align-items-center gap-2 show';
-    alertText.textContent = 'Đang gửi yêu cầu đồng bộ tới máy chấm công Hikvision...';
+    alertText.textContent = 'Đang tiến hành đồng bộ theo tùy chọn đã chọn...';
     spinner.className = 'spinner-border spinner-border-sm text-info';
 
-    fetch('/attendance/sync', { method: 'POST' })
-        .then(res => res.json())
-        .then(data => {
-            btn.disabled = false;
-            if (data.success) {
-                alertBar.className = 'alert alert-success d-flex align-items-center gap-2 show';
-                alertText.textContent = '✔ ' + data.message;
-                spinner.className = 'd-none';
-                setTimeout(() => window.location.reload(), 1500);
-            } else {
-                alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
-                alertText.textContent = '✖ ' + data.message;
-                spinner.className = 'd-none';
-            }
-        })
-        .catch(err => {
-            btn.disabled = false;
-            alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
-            alertText.textContent = '✖ Lỗi kết nối tới máy chủ.';
+    fetch('/attendance/sync', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        btn.disabled = false;
+        if (data.success) {
+            alertBar.className = 'alert alert-success d-flex align-items-center gap-2 show';
+            alertText.textContent = '✔ ' + data.message;
             spinner.className = 'd-none';
-        });
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
+            alertText.textContent = '✖ ' + data.message;
+            spinner.className = 'd-none';
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
+        alertText.textContent = '✖ Lỗi kết nối máy chủ.';
+        spinner.className = 'd-none';
+    });
 }
 </script>
 {% endblock %}

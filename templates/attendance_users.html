@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
 
 {% block title %}Danh sách Người chấm công - Hikvision{% endblock %}
 
@@ -12,7 +13,7 @@
         <a href="{{ url_for('attendance_logs') }}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Nhật ký chấm công
         </a>
-        <button class="btn btn-outline-success" onclick="fetchHikvisionUsers()">
+        <button class="btn btn-outline-success" onclick="fetchHikvisionUsersOnly()">
             <i class="bi bi-cloud-download"></i> Tải danh sách từ máy Hikvision
         </button>
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAttendanceUserModal">
@@ -59,40 +60,49 @@
 </div>
 
 <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold"><i class="bi bi-person-lines-fill"></i> Danh sách người chấm công ({{ users|length }})</h5></div>
+    <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold"><i class="bi bi-person-lines-fill"></i> Danh sách người chấm công ({{ users.total if users else 0 }})</h5></div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 50px;">STT</th>
-                        <th>Mã chấm công (Employee No)</th>
+                        <th style="width: 110px;">Mã NV</th>
                         <th>Họ và tên</th>
-                        <th>Phân loại đối tượng</th>
+                        <th>Phân loại</th>
+                        <th>Trạng thái</th>
                         <th>Phòng ban / Đơn vị</th>
-                        <th>Mã thẻ (Card No)</th>
-                        <th>Liên kết User Hệ thống Kho</th>
+                        <th>Mã thẻ</th>
+                        <th>Liên kết User Kho</th>
                         <th class="text-center" style="width: 100px;">Hành động</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for u in users %}
+                    {% if users %}
+                    {% for u in users.items %}
                     <tr>
-                        <td class="text-center text-muted">{{ loop.index }}</td>
-                        <td><strong class="font-monospace text-primary fs-6">{{ u.employee_no }}</strong></td>
+                        <td class="text-center text-muted">{{ loop.index + (users.page - 1) * users.per_page }}</td>
+                        <td><span class="badge bg-secondary font-monospace fs-6 px-2 py-1">{{ u.employee_no }}</span></td>
                         <td class="fw-bold text-dark">{{ u.name }}</td>
                         <td>
-                            {% if u.user_type == 'VIP' %}<span class="badge bg-warning text-dark px-2 py-1 fs-6">VIP</span>
-                            {% elif u.user_type == 'Khách' %}<span class="badge bg-danger px-2 py-1 fs-6">Khách</span>
-                            {% else %}<span class="badge bg-primary px-2 py-1 fs-6">Nhân viên</span>{% endif %}
+                            {% if u.user_type == 'VIP' %}<span class="badge bg-warning text-dark px-2 py-1">VIP</span>
+                            {% elif u.user_type == 'Khách' %}<span class="badge bg-danger px-2 py-1">Khách</span>
+                            {% else %}<span class="badge bg-primary px-2 py-1">Nhân viên</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if u.is_active %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i> Đã xóa/Ngừng</span>
+                            {% endif %}
                         </td>
                         <td>{{ u.department or '-' }}</td>
                         <td>{{ u.card_no or '-' }}</td>
                         <td>
                             {% if u.system_user %}
-                            <span class="badge bg-light text-dark border"><i class="bi bi-link-45deg text-primary"></i> {{ u.system_user.full_name }}</span>
+                            <span class="badge bg-light text-dark border"><i class="bi bi-link-45deg text-primary"></i> {{ u.system_user.full_name or u.system_user.username }}</span>
                             {% else %}
-                            <span class="text-muted small">-</span>
+                            <span class="text-muted small">- Chưa liên kết -</span>
                             {% endif %}
                         </td>
                         <td class="text-center">
@@ -114,7 +124,7 @@
                                     </div>
                                     <div class="modal-body p-4">
                                         <div class="mb-3">
-                                            <label class="form-label required">Mã chấm công trên máy Hikvision (Employee No)</label>
+                                            <label class="form-label required">Mã chấm công (Employee No)</label>
                                             <input type="text" class="form-control font-monospace text-uppercase fw-bold" name="employee_no" value="{{ u.employee_no }}" required>
                                         </div>
                                         <div class="mb-3">
@@ -134,7 +144,7 @@
                                             <input type="text" class="form-control" name="department" value="{{ u.department or '' }}" placeholder="VD: Phòng IT, Ban giám đốc...">
                                         </div>
                                         <div class="mb-3">
-                                            <label class="form-label">Mã thẻ (Số thẻ quẹt nếu có)</label>
+                                            <label class="form-label">Mã thẻ (Nếu có)</label>
                                             <input type="text" class="form-control font-monospace" name="card_no" value="{{ u.card_no or '' }}">
                                         </div>
                                         <div class="mb-3">
@@ -142,7 +152,7 @@
                                             <select class="form-select" name="system_user_id">
                                                 <option value="">-- Không liên kết --</option>
                                                 {% for su in system_users %}
-                                                <option value="{{ su.id }}" {% if u.system_user_id == su.id %}selected{% endif %}>{{ su.full_name }} ({{ su.username }})</option>
+                                                <option value="{{ su.id }}" {% if u.system_user_id == su.id %}selected{% endif %}>{{ su.full_name or su.username }} ({{ su.username }})</option>
                                                 {% endfor %}
                                             </select>
                                         </div>
@@ -156,12 +166,18 @@
                         </div>
                     </div>
                     {% else %}
-                    <tr><td colspan="8" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
                     {% endfor %}
+                    {% else %}
+                    <tr><td colspan="9" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
     </div>
+    {% if users %}
+    <div class="card-footer bg-white">{{ render_pagination(users, 'attendance_users', {'q': q, 'user_type': user_type}) }}</div>
+    {% endif %}
 </div>
 
 <!-- Modal Thêm người chấm công mới -->
@@ -175,7 +191,7 @@
                 </div>
                 <div class="modal-body p-4">
                     <div class="mb-3">
-                        <label class="form-label required">Mã chấm công trên máy Hikvision (Employee No)</label>
+                        <label class="form-label required">Mã chấm công (Employee No)</label>
                         <input type="text" class="form-control font-monospace text-uppercase fw-bold" name="employee_no" placeholder="VD: 001, 1002..." required>
                     </div>
                     <div class="mb-3">
@@ -192,7 +208,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Phòng ban / Đơn vị</label>
-                        <input type="text" class="form-control" name="department" placeholder="VD: Khối Văn phòng, Đối tác...">
+                        <input type="text" class="form-control" name="department" placeholder="VD: Khối Văn phòng...">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Mã thẻ (Nếu có)</label>
@@ -203,7 +219,7 @@
                         <select class="form-select" name="system_user_id">
                             <option value="">-- Không liên kết --</option>
                             {% for su in system_users %}
-                            <option value="{{ su.id }}">{{ su.full_name }} ({{ su.username }})</option>
+                            <option value="{{ su.id }}">{{ su.full_name or su.username }} ({{ su.username }})</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -221,10 +237,13 @@
 {% block scripts %}
 {{ super() }}
 <script>
-function fetchHikvisionUsers() {
-    if (!confirm('Tải danh sách người dùng từ thiết bị Hikvision?')) return;
+function fetchHikvisionUsersOnly() {
+    if (!confirm('Tải danh sách người dùng từ máy chấm công Hikvision?')) return;
     
-    fetch('/attendance/sync', { method: 'POST' })
+    const formData = new FormData();
+    formData.append('sync_type', 'users_only');
+
+    fetch('/attendance/sync', { method: 'POST', body: formData })
         .then(res => res.json())
         .then(data => {
             alert(data.message);

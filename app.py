@@ -9965,6 +9965,8 @@ def _hikvision_fetch_users():
 
     added = 0
     updated = 0
+    fetched_emp_nos = set()
+
     for u in all_users:
         emp_no = str(u.get('employeeNo') or '').strip()
         name = str(u.get('name') or f"User {emp_no}").strip()
@@ -9973,11 +9975,13 @@ def _hikvision_fetch_users():
         if card_val: card_no = str(card_val).strip()
         
         if not emp_no: continue
+        fetched_emp_nos.add(emp_no)
         
         existing = AttendanceUser.query.filter_by(employee_no=emp_no).first()
         if existing:
             existing.name = name or existing.name
             if card_no: existing.card_no = card_no
+            existing.is_active = True
             existing.updated_at = datetime.utcnow()
             updated += 1
         else:
@@ -9989,13 +9993,20 @@ def _hikvision_fetch_users():
                 is_active=True
             ))
             added += 1
+
+    if fetched_emp_nos:
+        missing_users = AttendanceUser.query.filter(AttendanceUser.employee_no.notin_(fetched_emp_nos)).all()
+        for mu in missing_users:
+            mu.is_active = False
     
     db.session.commit()
-    return True, f"Đã tải xong {len(all_users)} người dùng từ máy Hikvision (Thêm: {added}, Cập nhật: {updated})."
+    return True, f"Đã đồng bộ danh sách user (Hoạt động: {len(fetched_emp_nos)}, Thêm mới: {added}, Cập nhật: {updated})."
 
-def _hikvision_sync_events(start_date=None, end_date=None):
-    if not start_date: start_date = date.today() - timedelta(days=7)
-    if not end_date: end_date = date.today()
+def _hikvision_sync_events(start_date=None, end_date=None, days=7):
+    if not start_date:
+        start_date = date.today() - timedelta(days=days if days and days > 0 else 7)
+    if not end_date:
+        end_date = date.today()
 
     start_str = f"{start_date.strftime('%Y-%m-%d')}T00:00:00+07:00"
     end_str = f"{end_date.strftime('%Y-%m-%d')}T23:59:59+07:00"
@@ -10092,7 +10103,8 @@ def _hikvision_sync_events(start_date=None, end_date=None):
         new_count += 1
     
     db.session.commit()
-    return True, f"Đã đồng bộ {new_count} lượt quẹt vân tay/chấm công mới từ thiết bị Hikvision."
+    date_info_str = f"từ {start_date.strftime('%d/%m')} đến {end_date.strftime('%d/%m')}"
+    return True, f"Đã đồng bộ {new_count} lượt quẹt vân tay mới ({date_info_str}) từ thiết bị Hikvision."
 
 @app.route('/attendance')
 def attendance_logs():
@@ -10212,6 +10224,7 @@ def attendance_users():
 
     q = (request.args.get('q') or '').strip()
     user_type_filter = (request.args.get('user_type') or '').strip()
+    page = request.args.get('page', 1, type=int)
 
     query = AttendanceUser.query
     if q:
@@ -10219,12 +10232,12 @@ def attendance_users():
     if user_type_filter:
         query = query.filter_by(user_type=user_type_filter)
 
-    users = query.order_by(AttendanceUser.employee_no).all()
-    system_users = User.query.filter_by(status='Hoạt động').order_by(func.lower(User.full_name)).all()
+    users_pagination = query.order_by(AttendanceUser.employee_no).paginate(page=page, per_page=20, error_out=False)
+    system_users = User.query.order_by(func.lower(User.full_name)).all()
 
     return render_template(
         'attendance_users.html',
-        users=users,
+        users=users_pagination,
         system_users=system_users,
         q=q,
         user_type=user_type_filter,
@@ -10315,15 +10328,38 @@ def attendance_test_connection():
 def attendance_sync_api():
     if 'user_id' not in session: return jsonify({'success': False, 'message': 'Unauthorized'}), 401
     
-    ok_u, msg_u = _hikvision_fetch_users()
-    ok_e, msg_e = _hikvision_sync_events()
+    sync_type = request.form.get('sync_type') or (request.json.get('sync_type') if request.is_json else None) or 'all'
+    days = request.form.get('days', type=int) or (request.json.get('days', 7) if request.is_json else 7)
+    
+    start_date_str = request.form.get('start_date') or (request.json.get('start_date') if request.is_json else None)
+    end_date_str = request.form.get('end_date') or (request.json.get('end_date') if request.is_json else None)
 
-    if ok_e:
-        return jsonify({'success': True, 'message': f"{msg_e} ({msg_u})"})
-    elif ok_u:
-        return jsonify({'success': True, 'message': f"Đồng bộ danh sách user thành công ({msg_u}), nhưng không lấy được log: {msg_e}"})
-    else:
-        return jsonify({'success': False, 'message': f"Đồng bộ thất bại: {msg_e}"})
+    custom_start = None
+    custom_end = None
+    if start_date_str:
+        try: custom_start = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        except Exception: pass
+    if end_date_str:
+        try: custom_end = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except Exception: pass
+
+    res_msgs = []
+    success_all = True
+
+    if sync_type in ('all', 'users_only'):
+        ok_u, msg_u = _hikvision_fetch_users()
+        res_msgs.append(msg_u)
+        if not ok_u: success_all = False
+
+    if sync_type in ('all', 'logs_only'):
+        ok_e, msg_e = _hikvision_sync_events(start_date=custom_start, end_date=custom_end, days=days)
+        res_msgs.append(msg_e)
+        if not ok_e: success_all = False
+
+    return jsonify({
+        'success': success_all,
+        'message': " | ".join(res_msgs)
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)
