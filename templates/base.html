@@ -78,6 +78,9 @@
                             class="nav-link {% if active_endpoint == 'config_proposals' %}active{% endif %}"
                             href="{{ url_for('config_proposals') }}">Đề xuất thiết bị</a></li>
                     {% endif %}
+                    <li class="nav-item"><a
+                            class="nav-link {% if active_endpoint in ['attendance_logs', 'attendance_users', 'attendance_config_page'] %}active{% endif %}"
+                            href="{{ url_for('attendance_logs') }}"><i class="bi bi-fingerprint me-1"></i> Chấm công</a></li>
                     {% if current_permissions and ('users.view' in current_permissions or 'departments.view' in
                     current_permissions or 'backup.view' in current_permissions or 'rbac.view' in current_permissions or
                     'rbac.manage' in current_permissions) %}

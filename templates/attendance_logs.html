@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
+
+{% block title %}Quản lý Chấm công - Hikvision{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+    <div>
+        <h2 class="mb-1"><i class="bi bi-fingerprint text-primary"></i> Quản lý Chấm công Vân tay</h2>
+        <div class="text-muted">Tích hợp thiết bị Hikvision (<code>{{ stats.hikvision_cfg.host }}:{{ stats.hikvision_cfg.port }}</code>) - Xem nhật ký quẹt vân tay & tổng hợp thời gian vào/ra.</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('attendance_users') }}" class="btn btn-outline-primary">
+            <i class="bi bi-people"></i> Người chấm công
+        </a>
+        <a href="{{ url_for('attendance_config_page') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-gear"></i> Cấu hình kết nối
+        </a>
+        <button class="btn btn-success" id="btnSyncHikvision" onclick="triggerSyncHikvision()">
+            <i class="bi bi-arrow-repeat"></i> Đồng bộ từ máy Hikvision
+        </button>
+    </div>
+</div>
+
+<!-- Dynamic Alert Bar for Sync Status -->
+<div id="syncAlertBar" class="alert alert-info d-none fade show align-items-center gap-2">
+    <div class="spinner-border spinner-border-sm text-info" id="syncSpinner"></div>
+    <span id="syncAlertText">Đang kết nối tới máy chấm công Hikvision (192.168.11.94:8000)...</span>
+</div>
+
+<!-- Metrics Cards -->
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-4">
+        <div class="card h-100 border-0 shadow-sm bg-primary text-white">
+            <div class="card-body">
+                <div class="small text-white-50">Lượt quẹt hôm nay</div>
+                <div class="fs-2 fw-bold">{{ stats.total_records }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-4">
+        <div class="card h-100 border-0 shadow-sm bg-success text-white">
+            <div class="card-body">
+                <div class="small text-white-50">Tổng số người chấm công</div>
+                <div class="fs-2 fw-bold">{{ stats.total_users }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-4">
+        <div class="card h-100 border-0 shadow-sm bg-dark text-white">
+            <div class="card-body">
+                <div class="small text-white-50">Máy chấm công</div>
+                <div class="fs-6 fw-bold font-monospace mt-1">{{ stats.hikvision_cfg.host }}:{{ stats.hikvision_cfg.port }}</div>
+                <div class="small text-success mt-1"><i class="bi bi-check-circle-fill"></i> Sẵn sàng kết nối</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Từ ngày</label>
+                <input type="date" class="form-control" name="start_date" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Đến ngày</label>
+                <input type="date" class="form-control" name="end_date" value="{{ end_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Nhóm đối tượng</label>
+                <select class="form-select" name="user_type">
+                    <option value="">Tất cả nhóm (NV, Bảo vệ, Lao công...)</option>
+                    {% for ut in user_types %}
+                    <option value="{{ ut }}" {% if user_type == ut %}selected{% endif %}>{{ ut }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Tìm tên / Mã NV</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Mã hoặc họ tên...">
+                    <button class="btn btn-primary"><i class="bi bi-search"></i> Lọc</button>
+                    <a href="{{ url_for('attendance_logs') }}" class="btn btn-outline-secondary" title="Đặt lại"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" id="attendanceTab" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active fw-bold" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-tab-pane" type="button"><i class="bi bi-calendar-check me-1"></i> Bảng tổng hợp Vào / Ra</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link fw-bold" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-tab-pane" type="button"><i class="bi bi-list-columns-reverse me-1"></i> Chi tiết Nhật ký quẹt vân tay</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="attendanceTabContent">
+    <!-- TAB 1: Summary Daily View -->
+    <div class="tab-pane fade show active" id="summary-tab-pane" role="tabpanel">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold"><i class="bi bi-calendar3"></i> Bảng tổng hợp Giờ Vào sớm nhất & Giờ Ra muộn nhất</h5></div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-center" style="width: 50px;">STT</th>
+                                <th>Ngày</th>
+                                <th>Mã NV</th>
+                                <th>Họ và tên</th>
+                                <th>Đối tượng</th>
+                                <th>Phòng ban / Đơn vị</th>
+                                <th class="text-center">Giờ Vào (Sớm nhất)</th>
+                                <th class="text-center">Giờ Ra (Muộn nhất)</th>
+                                <th class="text-center">Tổng lượt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in summary_list %}
+                            <tr>
+                                <td class="text-center text-muted">{{ loop.index }}</td>
+                                <td><span class="fw-semibold font-monospace">{{ s.log_date }}</span></td>
+                                <td><span class="badge bg-secondary font-monospace">{{ s.employee_no }}</span></td>
+                                <td class="fw-bold text-dark">{{ s.user_name }}</td>
+                                <td>
+                                    {% if s.user_type == 'Bảo vệ' %}<span class="badge bg-warning text-dark">Bảo vệ</span>
+                                    {% elif s.user_type == 'Lao công' %}<span class="badge bg-info text-dark">Lao công</span>
+                                    {% elif s.user_type == 'Khách đặc biệt' %}<span class="badge bg-purple bg-danger">Khách đặc biệt</span>
+                                    {% else %}<span class="badge bg-primary">Nhân viên</span>{% endif %}
+                                </td>
+                                <td>{{ s.department }}</td>
+                                <td class="text-center text-success fw-bold">
+                                    <i class="bi bi-box-arrow-in-right"></i> {{ s.first_in.strftime('%H:%M:%S') }}
+                                </td>
+                                <td class="text-center text-primary fw-bold">
+                                    {% if s.last_out %}
+                                    <i class="bi bi-box-arrow-right"></i> {{ s.last_out.strftime('%H:%M:%S') }}
+                                    {% else %}
+                                    <span class="text-muted small">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center"><span class="badge bg-light text-dark border px-2 py-1">{{ s.total_scans }} lượt</span></td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="9" class="text-center text-muted py-4">Chưa có dữ liệu chấm công tổng hợp trong khoảng thời gian chọn.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: Detailed Logs View -->
+    <div class="tab-pane fade" id="logs-tab-pane" role="tabpanel">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold"><i class="bi bi-clock-history"></i> Chi tiết từng lượt quẹt vân tay</h5></div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-center" style="width: 50px;">STT</th>
+                                <th>Thời gian quẹt</th>
+                                <th>Mã NV</th>
+                                <th>Người chấm công</th>
+                                <th>Phương thức</th>
+                                <th>Sự kiện</th>
+                                <th>Thiết bị</th>
+                                <th>Mã sự kiện gốc</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rec in records.items %}
+                            <tr>
+                                <td class="text-center text-muted">{{ loop.index }}</td>
+                                <td><strong class="font-monospace text-primary fs-6">{{ rec.event_time.strftime('%d-%m-%Y %H:%M:%S') }}</strong></td>
+                                <td><span class="badge bg-secondary font-monospace">{{ rec.employee_no }}</span></td>
+                                <td class="fw-semibold text-dark">{{ rec.user_name }}</td>
+                                <td>
+                                    {% if rec.verify_mode == 'Vân tay' %}<span class="badge bg-success"><i class="bi bi-fingerprint"></i> Vân tay</span>
+                                    {% elif rec.verify_mode == 'Thẻ' %}<span class="badge bg-info text-dark"><i class="bi bi-credit-card"></i> Thẻ</span>
+                                    {% else %}<span class="badge bg-secondary">{{ rec.verify_mode }}</span>{% endif %}
+                                </td>
+                                <td>
+                                    {% if rec.event_type == 'Check-in' %}<span class="badge bg-primary">Vào</span>
+                                    {% else %}<span class="badge bg-dark">Ra</span>{% endif %}
+                                </td>
+                                <td class="small text-muted">{{ rec.device_name }}</td>
+                                <td><code class="small text-muted">{{ rec.raw_event_id }}</code></td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="8" class="text-center text-muted py-4">Chưa có lượt quẹt vân tay nào được ghi nhận. Bấm "Đồng bộ từ máy Hikvision" để tải log mới.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white">{{ render_pagination(records, 'attendance_logs', {'start_date': start_date, 'end_date': end_date, 'q': q, 'user_type': user_type}) }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function triggerSyncHikvision() {
+    const btn = document.getElementById('btnSyncHikvision');
+    const alertBar = document.getElementById('syncAlertBar');
+    const alertText = document.getElementById('syncAlertText');
+    const spinner = document.getElementById('syncSpinner');
+
+    btn.disabled = true;
+    alertBar.className = 'alert alert-info d-flex align-items-center gap-2 show';
+    alertText.textContent = 'Đang gửi yêu cầu đồng bộ tới máy chấm công Hikvision (192.168.11.94:8000)...';
+    spinner.className = 'spinner-border spinner-border-sm text-info';
+
+    fetch('/attendance/sync', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            if (data.success) {
+                alertBar.className = 'alert alert-success d-flex align-items-center gap-2 show';
+                alertText.textContent = '✔ ' + data.message;
+                spinner.className = 'd-none';
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
+                alertText.textContent = '✖ ' + data.message;
+                spinner.className = 'd-none';
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
+            alertText.textContent = '✖ Lỗi kết nối tới máy chủ.';
+            spinner.className = 'd-none';
+        });
+}
+</script>
+{% endblock %}

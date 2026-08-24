@@ -1494,8 +1494,6 @@ class StockItemMovement(db.Model):
     actor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     supplier = db.Column(db.String(150))
     reference_code = db.Column(db.String(100))
-    reason = db.Column(db.String(255))
-    notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     item = db.relationship('StockItem', back_populates='movements')
@@ -1518,6 +1516,34 @@ class StockItemUnitMovement(db.Model):
 # --- (Deleted Device Group Models) ---
 
 # --- (Deleted Server Room Extra Info) ---
+
+# --- Attendance & Hikvision Timekeeping Models ---
+class AttendanceUser(db.Model):
+    """Attendance user catalog, managed independently from warehouse users."""
+    id = db.Column(db.Integer, primary_key=True)
+    employee_no = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    user_type = db.Column(db.String(50), nullable=False, default='Nhân viên')  # 'Nhân viên', 'Bảo vệ', 'Lao công', 'Khách đặc biệt', 'Khác'
+    card_no = db.Column(db.String(50))
+    department = db.Column(db.String(100))
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    system_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    system_user = db.relationship('User', foreign_keys=[system_user_id])
+
+class AttendanceRecord(db.Model):
+    """Access control and timekeeping logs fetched from Hikvision device."""
+    id = db.Column(db.Integer, primary_key=True)
+    employee_no = db.Column(db.String(50), nullable=False, index=True)
+    user_name = db.Column(db.String(120))
+    event_time = db.Column(db.DateTime, nullable=False, index=True)
+    verify_mode = db.Column(db.String(50), default='Vân tay')  # 'Vân tay', 'Thẻ', 'Khuôn mặt', 'Mật khẩu', 'Khác'
+    event_type = db.Column(db.String(50), default='Check-in')  # 'Check-in', 'Check-out', 'Quẹt vân tay'
+    device_name = db.Column(db.String(100), default='Hikvision Device')
+    raw_event_id = db.Column(db.String(100), unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Resource(db.Model):
     id = db.Column(db.Integer, primary_key=True)
