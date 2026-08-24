@@ -72,7 +72,7 @@
             <div class="col-md-3">
                 <label class="form-label fw-semibold">Nhóm đối tượng</label>
                 <select class="form-select" name="user_type">
-                    <option value="">Tất cả nhóm (NV, Bảo vệ, Lao công...)</option>
+                    <option value="">Tất cả nhóm (Nhân viên, VIP, Khách)</option>
                     {% for ut in user_types %}
                     <option value="{{ ut }}" {% if user_type == ut %}selected{% endif %}>{{ ut }}</option>
                     {% endfor %}
@@ -128,9 +128,8 @@
                                 <td><span class="badge bg-secondary font-monospace">{{ s.employee_no }}</span></td>
                                 <td class="fw-bold text-dark">{{ s.user_name }}</td>
                                 <td>
-                                    {% if s.user_type == 'Bảo vệ' %}<span class="badge bg-warning text-dark">Bảo vệ</span>
-                                    {% elif s.user_type == 'Lao công' %}<span class="badge bg-info text-dark">Lao công</span>
-                                    {% elif s.user_type == 'Khách đặc biệt' %}<span class="badge bg-purple bg-danger">Khách đặc biệt</span>
+                                    {% if s.user_type == 'VIP' %}<span class="badge bg-warning text-dark">VIP</span>
+                                    {% elif s.user_type == 'Khách' %}<span class="badge bg-danger">Khách</span>
                                     {% else %}<span class="badge bg-primary">Nhân viên</span>{% endif %}
                                 </td>
                                 <td>{{ s.department }}</td>
@@ -176,6 +175,7 @@
                             </tr>
                         </thead>
                         <tbody>
+                            {% if records %}
                             {% for rec in records.items %}
                             <tr>
                                 <td class="text-center text-muted">{{ loop.index }}</td>
@@ -197,11 +197,16 @@
                             {% else %}
                             <tr><td colspan="8" class="text-center text-muted py-4">Chưa có lượt quẹt vân tay nào được ghi nhận. Bấm "Đồng bộ từ máy Hikvision" để tải log mới.</td></tr>
                             {% endfor %}
+                            {% else %}
+                            <tr><td colspan="8" class="text-center text-muted py-4">Chưa có lượt quẹt vân tay nào được ghi nhận. Bấm "Đồng bộ từ máy Hikvision" để tải log mới.</td></tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
             </div>
+            {% if records %}
             <div class="card-footer bg-white">{{ render_pagination(records, 'attendance_logs', {'start_date': start_date, 'end_date': end_date, 'q': q, 'user_type': user_type}) }}</div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -218,7 +223,7 @@ function triggerSyncHikvision() {
 
     btn.disabled = true;
     alertBar.className = 'alert alert-info d-flex align-items-center gap-2 show';
-    alertText.textContent = 'Đang gửi yêu cầu đồng bộ tới máy chấm công Hikvision (192.168.11.94:8000)...';
+    alertText.textContent = 'Đang gửi yêu cầu đồng bộ tới máy chấm công Hikvision...';
     spinner.className = 'spinner-border spinner-border-sm text-info';
 
     fetch('/attendance/sync', { method: 'POST' })

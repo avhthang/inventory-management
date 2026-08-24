@@ -9884,26 +9884,44 @@ def _hikvision_test_connection():
     return False, data
 
 def _hikvision_fetch_users():
-    payload = {
-        "UserInfoSearchCond": {
-            "searchID": "1",
-            "searchResultPosition": 0,
-            "maxResults": 300
+    pos = 0
+    max_res = 30
+    total_matches = 1
+    all_users = []
+    
+    while pos < total_matches:
+        payload = {
+            "UserInfoSearchCond": {
+                "searchID": "1",
+                "searchResultPosition": pos,
+                "maxResults": max_res
+            }
         }
-    }
-    ok, data = _hikvision_request('/ISAPI/AccessControl/UserInfo/Search?format=json', method='POST', payload=payload)
-    if not ok:
-        return False, f"Lỗi lấy danh sách từ thiết bị: {data}"
-    
-    users_list = []
-    if isinstance(data, dict):
-        users_list = data.get('UserInfoSearch', {}).get('UserInfo', [])
-        if isinstance(users_list, dict):
-            users_list = [users_list]
-    
+        ok, data = _hikvision_request('/ISAPI/AccessControl/UserInfo/Search?format=json', method='POST', payload=payload)
+        if not ok:
+            if pos == 0:
+                return False, f"Lỗi lấy danh sách từ thiết bị: {data}"
+            break
+        
+        page_users = []
+        if isinstance(data, dict):
+            search_obj = data.get('UserInfoSearch', {})
+            total_matches = int(search_obj.get('totalMatches') or search_obj.get('numOfMatches') or (pos + max_res))
+            page_users = search_obj.get('UserInfo', [])
+            if isinstance(page_users, dict):
+                page_users = [page_users]
+        
+        if not page_users:
+            break
+            
+        all_users.extend(page_users)
+        pos += len(page_users)
+        if len(page_users) < max_res:
+            break
+
     added = 0
     updated = 0
-    for u in users_list:
+    for u in all_users:
         emp_no = str(u.get('employeeNo') or '').strip()
         name = str(u.get('name') or f"User {emp_no}").strip()
         card_no = None
@@ -9929,7 +9947,7 @@ def _hikvision_fetch_users():
             added += 1
     
     db.session.commit()
-    return True, f"Đã tải xong {len(users_list)} người dùng từ máy Hikvision (Thêm: {added}, Cập nhật: {updated})."
+    return True, f"Đã tải xong {len(all_users)} người dùng từ máy Hikvision (Thêm: {added}, Cập nhật: {updated})."
 
 def _hikvision_sync_events(start_date=None, end_date=None):
     if not start_date: start_date = date.today() - timedelta(days=7)
@@ -9938,30 +9956,66 @@ def _hikvision_sync_events(start_date=None, end_date=None):
     start_str = f"{start_date.strftime('%Y-%m-%d')}T00:00:00+07:00"
     end_str = f"{end_date.strftime('%Y-%m-%d')}T23:59:59+07:00"
 
-    payload = {
-        "AcsEventSearchCond": {
-            "searchID": "1",
-            "searchResultPosition": 0,
-            "maxResults": 500,
-            "startTime": start_str,
-            "endTime": end_str
-        }
-    }
-    
-    ok, data = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=payload)
-    if not ok:
-        return False, f"Lỗi lấy nhật ký từ thiết bị: {data}"
-    
-    events_list = []
-    if isinstance(data, dict):
-        events_list = data.get('AcsEvent', {}).get('InfoList', [])
-        if isinstance(events_list, dict):
-            events_list = [events_list]
-    
+    endpoints_to_try = [
+        '/ISAPI/AccessControl/AcsEvent?format=json',
+        '/ISAPI/AccessControl/AcsEvent/Search?format=json'
+    ]
+
+    all_events = []
+    last_error = None
+    successful_endpoint = None
+
+    for ep in endpoints_to_try:
+        pos = 0
+        max_res = 50
+        total_matches = 1
+        ep_events = []
+
+        while pos < total_matches and pos < 500:
+            payload = {
+                "AcsEventSearchCond": {
+                    "searchID": "1",
+                    "searchResultPosition": pos,
+                    "maxResults": max_res,
+                    "major": 5,
+                    "minor": 0,
+                    "startTime": start_str,
+                    "endTime": end_str
+                }
+            }
+            ok, data = _hikvision_request(ep, method='POST', payload=payload)
+            if not ok:
+                last_error = data
+                break
+
+            page_evts = []
+            if isinstance(data, dict):
+                search_obj = data.get('AcsEvent', {}) or data.get('AcsEventSearch', {})
+                total_matches = int(search_obj.get('totalMatches') or search_obj.get('numOfMatches') or (pos + max_res))
+                page_evts = search_obj.get('InfoList', [])
+                if isinstance(page_evts, dict):
+                    page_evts = [page_evts]
+
+            if not page_evts:
+                break
+
+            ep_events.extend(page_evts)
+            pos += len(page_evts)
+            if len(page_evts) < max_res:
+                break
+
+        if ep_events:
+            all_events = ep_events
+            successful_endpoint = ep
+            break
+
+    if not all_events and last_error:
+        return False, f"Lỗi lấy nhật ký từ thiết bị: {last_error}"
+
     new_count = 0
     users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
 
-    for evt in events_list:
+    for evt in all_events:
         emp_no = str(evt.get('employeeNoString') or evt.get('employeeNo') or '').strip()
         time_str = evt.get('time') or evt.get('eventTime')
         serial_no = str(evt.get('serialNo') or evt.get('serial') or evt.get('eventID') or '')
@@ -10001,7 +10055,7 @@ def _hikvision_sync_events(start_date=None, end_date=None):
             event_time=event_dt,
             verify_mode=verify_mode,
             event_type=event_type,
-            device_name='Hikvision 192.168.11.94',
+            device_name='Hikvision Terminal',
             raw_event_id=raw_id
         )
         db.session.add(record)
@@ -10094,7 +10148,7 @@ def attendance_logs():
         end_date=end_date.strftime('%Y-%m-%d'),
         q=q,
         user_type=user_type_filter,
-        user_types=['Nhân viên', 'Bảo vệ', 'Lao công', 'Khách đặc biệt', 'Khác']
+        user_types=['Nhân viên', 'VIP', 'Khách']
     )
 
 @app.route('/attendance/users', methods=['GET', 'POST'])
@@ -10144,7 +10198,7 @@ def attendance_users():
         system_users=system_users,
         q=q,
         user_type=user_type_filter,
-        user_types=['Nhân viên', 'Bảo vệ', 'Lao công', 'Khách đặc biệt', 'Khác']
+        user_types=['Nhân viên', 'VIP', 'Khách']
     )
 
 @app.route('/attendance/users/<int:user_id>/edit', methods=['POST'])
