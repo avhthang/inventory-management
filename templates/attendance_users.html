@@ -25,20 +25,28 @@
 <div class="card mb-3 border-0 shadow-sm">
     <div class="card-body">
         <form method="GET" class="row g-2 align-items-end">
-            <div class="col-md-5">
-                <label class="form-label">Tìm kiếm</label>
-                <input class="form-control" name="q" value="{{ q }}" placeholder="Tìm theo Mã chấm công hoặc Họ tên...">
-            </div>
             <div class="col-md-4">
+                <label class="form-label">Tìm kiếm</label>
+                <input class="form-control" name="q" value="{{ q }}" placeholder="Tìm theo Mã NV hoặc Họ tên...">
+            </div>
+            <div class="col-md-3">
                 <label class="form-label">Phân loại đối tượng</label>
                 <select class="form-select" name="user_type">
-                    <option value="">Tất cả nhóm (Nhân viên, VIP, Khách)</option>
+                    <option value="">Tất cả nhóm</option>
                     {% for ut in user_types %}
                     <option value="{{ ut }}" {% if user_type == ut %}selected{% endif %}>{{ ut }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3 d-flex gap-2">
+            <div class="col-md-3">
+                <label class="form-label">Trạng thái trên máy</label>
+                <select class="form-select" name="status">
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active (Đang hoạt động)</option>
+                    <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Đã xóa / Ngừng</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex gap-2">
                 <button class="btn btn-primary flex-fill"><i class="bi bi-search"></i> Lọc</button>
                 <a href="{{ url_for('attendance_users') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></a>
             </div>

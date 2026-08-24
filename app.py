@@ -9776,21 +9776,28 @@ def save_hikvision_config(data):
 
 def _hikvision_request(endpoint, method='GET', payload=None, timeout=8, content_type='application/json'):
     cfg = get_hikvision_config()
-    host = (cfg.get('host') or '192.168.11.94').strip()
+    raw_host = (cfg.get('host') or '192.168.11.94').strip()
     port = str(cfg.get('port') or '8000').strip()
     username = (cfg.get('username') or 'admin').strip()
     password = cfg.get('password') or ''
 
+    hosts_to_try = [raw_host]
+    if '.111.' in raw_host:
+        hosts_to_try.append(raw_host.replace('.111.', '.11.'))
+    elif '.11.' in raw_host:
+        hosts_to_try.append(raw_host.replace('.11.', '.111.'))
+
     base_urls = []
-    base_urls.append(f"http://{host}:{port}")
-    base_urls.append(f"https://{host}:{port}")
-    if port != '8000':
-        base_urls.append(f"http://{host}:8000")
-        base_urls.append(f"https://{host}:8000")
-    if port != '80':
-        base_urls.append(f"http://{host}:80")
-    if port != '443':
-        base_urls.append(f"https://{host}:443")
+    for h in hosts_to_try:
+        base_urls.append(f"http://{h}:{port}")
+        base_urls.append(f"https://{h}:{port}")
+        if port != '8000':
+            base_urls.append(f"http://{h}:8000")
+            base_urls.append(f"https://{h}:8000")
+        if port != '80':
+            base_urls.append(f"http://{h}:80")
+        if port != '443':
+            base_urls.append(f"https://{h}:443")
 
     errors_log = []
 
@@ -10252,6 +10259,7 @@ def attendance_users():
 
     q = (request.args.get('q') or '').strip()
     user_type_filter = (request.args.get('user_type') or '').strip()
+    status_filter = (request.args.get('status') or '').strip()
     page = request.args.get('page', 1, type=int)
 
     query = AttendanceUser.query
@@ -10259,6 +10267,10 @@ def attendance_users():
         query = query.filter(or_(AttendanceUser.employee_no.ilike(f'%{q}%'), AttendanceUser.name.ilike(f'%{q}%')))
     if user_type_filter:
         query = query.filter_by(user_type=user_type_filter)
+    if status_filter == 'active':
+        query = query.filter_by(is_active=True)
+    elif status_filter == 'inactive':
+        query = query.filter_by(is_active=False)
 
     if 'per_page' in request.args:
         try:
@@ -10278,6 +10290,7 @@ def attendance_users():
         system_users=system_users,
         q=q,
         user_type=user_type_filter,
+        status=status_filter,
         user_types=['Nhân viên', 'VIP', 'Khách']
     )
 
