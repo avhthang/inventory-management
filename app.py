@@ -10241,10 +10241,10 @@ def attendance_logs():
     stats = {
         'total_records': 0,
         'total_users': 0,
+        'last_sync_time': 'Chưa có dữ liệu',
         'hikvision_cfg': get_hikvision_config()
     }
 
-    # Role Scoping: Admin sees all, Linked User sees ONLY their own logs
     current_user_id = session.get('user_id')
     user_role = session.get('role')
     user_permissions = session.get('permissions') or []
@@ -10256,25 +10256,13 @@ def attendance_logs():
     try:
         query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
 
-        log_date_expr = cast(AttendanceRecord.event_time, db.Date)
-        summary_query = db.session.query(
-            AttendanceRecord.employee_no,
-            AttendanceRecord.user_name,
-            log_date_expr.label('log_date'),
-            func.min(AttendanceRecord.event_time).label('first_in'),
-            func.max(AttendanceRecord.event_time).label('last_out'),
-            func.count(AttendanceRecord.id).label('total_scans')
-        ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
-
         if not is_admin:
             linked_att_user = AttendanceUser.query.filter_by(system_user_id=current_user_id).first()
             if linked_att_user and linked_att_user.employee_no:
                 query = query.filter(AttendanceRecord.employee_no == linked_att_user.employee_no)
-                summary_query = summary_query.filter(AttendanceRecord.employee_no == linked_att_user.employee_no)
                 permission_notice = f"Đang hiển thị dữ liệu chấm công cá nhân của bạn (Mã NV: {linked_att_user.employee_no})."
             else:
                 query = query.filter(AttendanceRecord.employee_no == '___NO_PERM___')
-                summary_query = summary_query.filter(AttendanceRecord.employee_no == '___NO_PERM___')
                 permission_notice = "Tài khoản của bạn chưa được liên kết với Mã chấm công nào. Vui lòng liên hệ Quản trị viên."
 
         if q:
@@ -10282,15 +10270,10 @@ def attendance_logs():
                 AttendanceRecord.employee_no.ilike(f'%{q}%'),
                 AttendanceRecord.user_name.ilike(f'%{q}%')
             ))
-            summary_query = summary_query.filter(or_(
-                AttendanceRecord.employee_no.ilike(f'%{q}%'),
-                AttendanceRecord.user_name.ilike(f'%{q}%')
-            ))
 
         if user_type_filter:
             matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
             query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
-            summary_query = summary_query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
 
         if 'per_page' in request.args:
             try:
@@ -10301,23 +10284,37 @@ def attendance_logs():
         else:
             per_page = session.get('per_page_attendance_logs', 20)
 
+        # Tab 2 Paginated Records
         records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
-        summary_raw = summary_query.group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr).all()
-
+        # Python-based DB-agnostic Summary Aggregation (Avoids strict SQL GROUP BY errors)
+        all_raw_records = query.order_by(AttendanceRecord.event_time.asc()).all()
         users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
-        for r in summary_raw:
-            u_obj = users_map.get(r.employee_no)
-            summary_list.append({
-                'employee_no': r.employee_no,
-                'user_name': u_obj.name if u_obj else r.user_name,
-                'user_type': u_obj.user_type if u_obj else 'Nhân viên',
-                'department': u_obj.department if u_obj else '-',
-                'log_date': str(r.log_date) if r.log_date else '',
-                'first_in': r.first_in,
-                'last_out': r.last_out if r.last_out != r.first_in else None,
-                'total_scans': r.total_scans
-            })
+        
+        summary_map = {}
+        for rec in all_raw_records:
+            log_date_str = rec.event_time.strftime('%Y-%m-%d')
+            key = (rec.employee_no, log_date_str)
+            if key not in summary_map:
+                u_obj = users_map.get(rec.employee_no)
+                summary_map[key] = {
+                    'employee_no': rec.employee_no,
+                    'user_name': u_obj.name if u_obj else rec.user_name,
+                    'user_type': u_obj.user_type if u_obj else 'Nhân viên',
+                    'department': u_obj.department if u_obj else '-',
+                    'log_date': log_date_str,
+                    'first_in': rec.event_time,
+                    'last_out': rec.event_time,
+                    'total_scans': 1
+                }
+            else:
+                summary_map[key]['last_out'] = rec.event_time
+                summary_map[key]['total_scans'] += 1
+
+        for s in summary_map.values():
+            if s['last_out'] == s['first_in']:
+                s['last_out'] = None
+            summary_list.append(s)
 
         # Apply Numeric & Date Sorting on Summary List
         if sort_by == 'first_in_asc':
@@ -10349,6 +10346,9 @@ def attendance_logs():
         else:
             stats['last_sync_time'] = 'Chưa có dữ liệu'
     except Exception as exc:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
         print(f"Error in attendance_logs query: {exc}")
 
     # Summary List Manual Pagination
@@ -10426,8 +10426,8 @@ def attendance_export():
 
         current_user_id = session.get('user_id')
         user_role = session.get('role')
-        user_permissions = _get_current_permissions()
-        is_admin = (user_role == 'admin') or ('attendance.view_all' in user_permissions)
+        user_permissions = session.get('permissions') or []
+        is_admin = (user_role in ('admin', 'Quản trị viên')) or ('attendance.view_all' in user_permissions) or (session.get('is_admin') == True)
 
         output = io.StringIO()
         writer = csv.writer(output)
@@ -10435,15 +10435,7 @@ def attendance_export():
         if export_type == 'summary':
             writer.writerow(['STT', 'Ngày', 'Mã NV', 'Account', 'Đối tượng', 'Phòng ban', 'Giờ Vào (Sớm nhất)', 'Giờ Ra (Muộn nhất)', 'Tổng lượt'])
             
-            log_date_expr = cast(AttendanceRecord.event_time, db.Date)
-            query = db.session.query(
-                AttendanceRecord.employee_no,
-                AttendanceRecord.user_name,
-                log_date_expr.label('log_date'),
-                func.min(AttendanceRecord.event_time).label('first_in'),
-                func.max(AttendanceRecord.event_time).label('last_out'),
-                func.count(AttendanceRecord.id).label('total_scans')
-            ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+            query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
 
             if not is_admin:
                 linked_att_user = AttendanceUser.query.filter_by(system_user_id=current_user_id).first()
@@ -10458,22 +10450,34 @@ def attendance_export():
                 matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
                 query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
 
-            rows = query.group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr).all()
+            all_raw_records = query.order_by(AttendanceRecord.event_time.asc()).all()
             users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
             
+            summary_map = {}
+            for rec in all_raw_records:
+                log_date_str = rec.event_time.strftime('%Y-%m-%d')
+                key = (rec.employee_no, log_date_str)
+                if key not in summary_map:
+                    u_obj = users_map.get(rec.employee_no)
+                    summary_map[key] = {
+                        'employee_no': rec.employee_no,
+                        'user_name': u_obj.name if u_obj else rec.user_name,
+                        'user_type': u_obj.user_type if u_obj else 'Nhân viên',
+                        'department': u_obj.department if u_obj else '-',
+                        'log_date': log_date_str,
+                        'first_in': rec.event_time,
+                        'last_out': rec.event_time,
+                        'total_scans': 1
+                    }
+                else:
+                    summary_map[key]['last_out'] = rec.event_time
+                    summary_map[key]['total_scans'] += 1
+
             summary_list = []
-            for r in rows:
-                u_obj = users_map.get(r.employee_no)
-                summary_list.append({
-                    'employee_no': r.employee_no,
-                    'user_name': u_obj.name if u_obj else r.user_name,
-                    'user_type': u_obj.user_type if u_obj else 'Nhân viên',
-                    'department': u_obj.department if u_obj else '-',
-                    'log_date': str(r.log_date) if r.log_date else '',
-                    'first_in': r.first_in,
-                    'last_out': r.last_out if r.last_out != r.first_in else None,
-                    'total_scans': r.total_scans
-                })
+            for s in summary_map.values():
+                if s['last_out'] == s['first_in']:
+                    s['last_out'] = None
+                summary_list.append(s)
 
             if sort_by == 'first_in_asc': summary_list.sort(key=lambda x: x['first_in'])
             elif sort_by == 'first_in_desc': summary_list.sort(key=lambda x: x['first_in'], reverse=True)
