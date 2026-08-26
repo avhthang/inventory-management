@@ -9793,7 +9793,7 @@ def get_hikvision_session():
         _hikvision_session = requests.Session()
     return _hikvision_session
 
-def _hikvision_request(endpoint, method='GET', payload=None, timeout=2, content_type='application/json'):
+def _hikvision_request(endpoint, method='GET', payload=None, timeout=3, content_type='application/json'):
     global _cached_hikvision_base_url
     cfg = get_hikvision_config()
     host = (cfg.get('host') or '192.168.111.94').strip()
@@ -9804,13 +9804,13 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=2, content_
     base_urls = []
     if _cached_hikvision_base_url:
         base_urls.append(_cached_hikvision_base_url)
-    else:
-        # Prioritize Port 80, then 8000
-        u_80 = f"http://{host}:80"
-        u_custom = f"http://{host}:{port}"
-        base_urls.append(u_80)
-        if u_custom not in base_urls: base_urls.append(u_custom)
-        base_urls.append(f"https://{host}:443")
+
+    u1 = f"http://{host}:80"
+    u2 = f"http://{host}:{port}"
+    u3 = f"https://{host}:443"
+    u4 = f"https://{host}:{port}"
+    for u in [u1, u2, u3, u4]:
+        if u not in base_urls: base_urls.append(u)
 
     errors_log = []
 
@@ -9907,139 +9907,269 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=2, content_
 
     return False, "Không thể kết nối Hikvision. Chi tiết: " + " | ".join(errors_log[:3])
 
-def _hikvision_sync_events(start_date=None, end_date=None, days=7):
-    if days == 1:
-        start_date = date.today()
-        end_date = date.today()
+def _hikvision_test_connection():
+    ok, data = _hikvision_request('/ISAPI/System/deviceInfo', method='GET', timeout=3)
+    if ok:
+        dev_name = 'Hikvision Terminal'
+        if isinstance(data, dict):
+            dev_name = data.get('DeviceInfo', {}).get('deviceName') or dev_name
+        return True, f"Kết nối thành công tới thiết bị Hikvision ({dev_name})."
     else:
-        if not start_date:
-            start_date = date.today() - timedelta(days=(days - 1) if (days and days > 0) else 6)
-        if not end_date:
-            end_date = date.today()
+        return False, data
 
-    start_str_plain = start_date.strftime('%Y-%m-%dT00:00:00')
-    end_str_plain = end_date.strftime('%Y-%m-%dT23:59:59')
-    start_str_tz = f"{start_str_plain}+07:00"
-    end_str_tz = f"{end_str_plain}+07:00"
+def _parse_hikvision_events_response(resp_data):
+    events = []
+    if isinstance(resp_data, dict):
+        search_obj = resp_data.get('AcsEvent', {}) or resp_data.get('AcsEventSearch', {}) or resp_data.get('AcsEventCond', {})
+        evts = search_obj.get('InfoList', [])
+        if isinstance(evts, dict): evts = [evts]
+        return evts
 
-    all_events = []
-    last_error = None
-    users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
-    new_count = 0
+    if isinstance(resp_data, str) and ('<Info>' in resp_data or '<AcsEvent' in resp_data):
+        try:
+            xml_clean = re.sub(r'xmlns="[^"]+"', '', resp_data)
+            root = ET.fromstring(xml_clean)
+            for info in root.findall('.//Info'):
+                evt = {}
+                for child in info:
+                    evt[child.tag] = child.text
+                events.append(evt)
+            if not events:
+                for info in root.findall('.//AcsEvent'):
+                    evt = {}
+                    for child in info:
+                        evt[child.tag] = child.text
+                    events.append(evt)
+        except Exception as exc:
+            print(f"XML parse error: {exc}")
+    return events
 
-    search_pos = 0
-    max_pages = 5
-
-    for page_idx in range(max_pages):
-        page_events = []
-
-        # Streamlined target payloads (1 XML primary, 1 JSON fallback)
-        xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>30</maxResults><major>5</major><minor>0</minor><startTime>{start_str_tz}</startTime><endTime>{end_str_tz}</endTime></AcsEventCond>'
-        ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=2)
-        if ok_xml:
-            page_events = _parse_hikvision_events_response(data_xml)
-        else:
-            last_error = data_xml
-
-        if not page_events:
-            json_payload = {
-                "AcsEventCond": {
+def _hikvision_fetch_users():
+    try:
+        pos = 0
+        max_res = 10
+        all_users = []
+        seen_emp_nos = set()
+        
+        while pos < 1000:
+            payload = {
+                "UserInfoSearchCond": {
                     "searchID": "1",
-                    "searchResultPosition": search_pos,
-                    "maxResults": 30,
-                    "major": 5,
-                    "minor": 0,
-                    "startTime": start_str_tz,
-                    "endTime": end_str_tz
+                    "searchResultPosition": pos,
+                    "maxResults": max_res
                 }
             }
-            ok_j, data_j = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=json_payload, content_type='application/json', timeout=2)
-            if ok_j:
-                page_events = _parse_hikvision_events_response(data_j)
+            ok, data = _hikvision_request('/ISAPI/AccessControl/UserInfo/Search?format=json', method='POST', payload=payload, timeout=3)
+            if not ok:
+                if pos == 0:
+                    return False, f"Lỗi lấy danh sách người dùng từ thiết bị: {data}"
+                break
+            
+            page_users = []
+            if isinstance(data, dict):
+                search_obj = data.get('UserInfoSearch', {})
+                page_users = search_obj.get('UserInfo', [])
+                if isinstance(page_users, dict):
+                    page_users = [page_users]
+
+            if not page_users:
+                break
+
+            new_added = 0
+            for u in page_users:
+                emp_no = str(u.get('employeeNo') or '').strip()
+                if emp_no and emp_no not in seen_emp_nos:
+                    seen_emp_nos.add(emp_no)
+                    all_users.append(u)
+                    new_added += 1
+            
+            pos += len(page_users)
+            if len(page_users) < max_res or new_added == 0:
+                break
+
+        added = 0
+        updated = 0
+        fetched_emp_nos = set()
+
+        for u in all_users:
+            emp_no = str(u.get('employeeNo') or '').strip()
+            name = str(u.get('name') or f"User {emp_no}").strip()
+            card_no = None
+            card_val = u.get('Valid', {}).get('cardNo') or u.get('cardNo')
+            if card_val: card_no = str(card_val).strip()
+            
+            if not emp_no: continue
+            fetched_emp_nos.add(emp_no)
+            
+            existing = AttendanceUser.query.filter_by(employee_no=emp_no).first()
+            if existing:
+                existing.name = name or existing.name
+                if card_no: existing.card_no = card_no
+                existing.is_active = True
+                existing.updated_at = datetime.utcnow()
+                updated += 1
             else:
-                last_error = data_j
+                db.session.add(AttendanceUser(
+                    employee_no=emp_no,
+                    name=name,
+                    user_type='Nhân viên',
+                    card_no=card_no,
+                    is_active=True
+                ))
+                added += 1
 
-        if not page_events:
-            json_payload_alt = {
-                "AcsEventSearchCond": {
-                    "searchID": "1",
-                    "searchResultPosition": search_pos,
-                    "maxResults": 30,
-                    "major": 5,
-                    "minor": 0,
-                    "startTime": start_str_tz,
-                    "endTime": end_str_tz
-                }
-            }
-            ok_j2, data_j2 = _hikvision_request('/ISAPI/AccessControl/AcsEvent/Search?format=json', method='POST', payload=json_payload_alt, content_type='application/json', timeout=2)
-            if ok_j2:
-                page_events = _parse_hikvision_events_response(data_j2)
-            else:
-                last_error = data_j2
-
-        if not page_events:
-            break
-
-        # Process & save events for current page
-        page_added = 0
-        for evt in page_events:
-            emp_no = str(evt.get('employeeNoString') or evt.get('employeeNo') or '').strip()
-            time_str = evt.get('time') or evt.get('eventTime')
-            serial_no = str(evt.get('serialNo') or evt.get('serial') or evt.get('eventID') or '')
-            card_no = str(evt.get('cardNo') or '')
-            
-            if not time_str: continue
-
-            try:
-                event_dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-                if event_dt.tzinfo:
-                    event_dt = event_dt.astimezone(VIETNAM_TZ).replace(tzinfo=None)
-            except Exception:
-                try:
-                    event_dt = datetime.strptime(time_str[:19], '%Y-%m-%dT%H:%M:%S')
-                except Exception:
-                    continue
-
-            raw_id = f"HIK_{serial_no}_{emp_no}_{event_dt.strftime('%Y%m%d%H%M%S')}"
-            if not serial_no and not emp_no: continue
-            
-            if AttendanceRecord.query.filter_by(raw_event_id=raw_id).first():
-                continue
-            
-            user_obj = users_map.get(emp_no)
-            user_name = user_obj.name if user_obj else (evt.get('name') or (f"NV #{emp_no}" if emp_no else "Chưa rõ"))
-            
-            verify_mode = 'Vân tay'
-            evt_str = json.dumps(evt).lower()
-            if 'card' in evt_str or card_no: verify_mode = 'Thẻ'
-            elif 'face' in evt_str: verify_mode = 'Khuôn mặt'
-
-            event_type = 'Check-in' if event_dt.hour < 12 else 'Check-out'
-
-            record = AttendanceRecord(
-                employee_no=emp_no or 'UNKNOWN',
-                user_name=user_name,
-                event_time=event_dt,
-                verify_mode=verify_mode,
-                event_type=event_type,
-                device_name='Hikvision Terminal',
-                raw_event_id=raw_id
-            )
-            db.session.add(record)
-            new_count += 1
-            page_added += 1
-
+        if fetched_emp_nos:
+            missing_users = AttendanceUser.query.filter(AttendanceUser.employee_no.notin_(fetched_emp_nos)).all()
+            for mu in missing_users:
+                mu.is_active = False
+        
         db.session.commit()
-        search_pos += len(page_events)
+        return True, f"Đã đồng bộ danh sách user (Hoạt động: {len(fetched_emp_nos)}, Thêm mới: {added}, Cập nhật: {updated})."
+    except Exception as exc:
+        db.session.rollback()
+        return False, f"Lỗi xử lý danh sách user: {exc}"
 
-        if len(page_events) < 30:
-            break
+def _hikvision_sync_events(start_date=None, end_date=None, days=7):
+    try:
+        today_date = date.today()
+        if days == 1:
+            start_date = today_date
+            end_date = today_date
+        else:
+            if not start_date:
+                days_int = int(days) if (days and str(days).isdigit()) else 7
+                start_date = today_date - timedelta(days=(days_int - 1) if days_int > 0 else 6)
+            if not end_date:
+                end_date = today_date
 
-    date_info_str = f"từ {start_date.strftime('%d/%m')} đến {end_date.strftime('%d/%m')}"
-    if new_count == 0 and last_error and search_pos == 0:
-        return False, f"Lỗi lấy nhật ký từ thiết bị: {last_error}"
+        start_str_plain = start_date.strftime('%Y-%m-%dT00:00:00')
+        end_str_plain = end_date.strftime('%Y-%m-%dT23:59:59')
+        start_str_tz = f"{start_str_plain}+07:00"
+        end_str_tz = f"{end_str_plain}+07:00"
 
-    return True, f"Đã đồng bộ {new_count} lượt quẹt vân tay mới ({date_info_str}) từ thiết bị Hikvision."
+        all_events = []
+        last_error = None
+        users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
+        new_count = 0
+
+        search_pos = 0
+        max_pages = 5
+
+        for page_idx in range(max_pages):
+            page_events = []
+
+            # 1. XML AcsEventCond
+            xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>30</maxResults><major>5</major><minor>0</minor><startTime>{start_str_tz}</startTime><endTime>{end_str_tz}</endTime></AcsEventCond>'
+            ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=3)
+            if ok_xml:
+                page_events = _parse_hikvision_events_response(data_xml)
+            else:
+                last_error = data_xml
+
+            # 2. JSON AcsEventCond
+            if not page_events:
+                json_payload = {
+                    "AcsEventCond": {
+                        "searchID": "1",
+                        "searchResultPosition": search_pos,
+                        "maxResults": 30,
+                        "major": 5,
+                        "minor": 0,
+                        "startTime": start_str_tz,
+                        "endTime": end_str_tz
+                    }
+                }
+                ok_j, data_j = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=json_payload, content_type='application/json', timeout=3)
+                if ok_j:
+                    page_events = _parse_hikvision_events_response(data_j)
+                else:
+                    last_error = data_j
+
+            # 3. JSON AcsEventSearchCond
+            if not page_events:
+                json_payload_alt = {
+                    "AcsEventSearchCond": {
+                        "searchID": "1",
+                        "searchResultPosition": search_pos,
+                        "maxResults": 30,
+                        "major": 5,
+                        "minor": 0,
+                        "startTime": start_str_tz,
+                        "endTime": end_str_tz
+                    }
+                }
+                ok_j2, data_j2 = _hikvision_request('/ISAPI/AccessControl/AcsEvent/Search?format=json', method='POST', payload=json_payload_alt, content_type='application/json', timeout=3)
+                if ok_j2:
+                    page_events = _parse_hikvision_events_response(data_j2)
+                else:
+                    last_error = data_j2
+
+            if not page_events:
+                break
+
+            # Process & save events for current page
+            page_added = 0
+            for evt in page_events:
+                emp_no = str(evt.get('employeeNoString') or evt.get('employeeNo') or '').strip()
+                time_str = evt.get('time') or evt.get('eventTime')
+                serial_no = str(evt.get('serialNo') or evt.get('serial') or evt.get('eventID') or '')
+                card_no = str(evt.get('cardNo') or '')
+                
+                if not time_str: continue
+
+                try:
+                    event_dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    if event_dt.tzinfo:
+                        event_dt = event_dt.astimezone(VIETNAM_TZ).replace(tzinfo=None)
+                except Exception:
+                    try:
+                        event_dt = datetime.strptime(time_str[:19], '%Y-%m-%dT%H:%M:%S')
+                    except Exception:
+                        continue
+
+                raw_id = f"HIK_{serial_no}_{emp_no}_{event_dt.strftime('%Y%m%d%H%M%S')}"
+                if not serial_no and not emp_no: continue
+                
+                if AttendanceRecord.query.filter_by(raw_event_id=raw_id).first():
+                    continue
+                
+                user_obj = users_map.get(emp_no)
+                user_name = user_obj.name if user_obj else (evt.get('name') or (f"NV #{emp_no}" if emp_no else "Chưa rõ"))
+                
+                verify_mode = 'Vân tay'
+                evt_str = json.dumps(evt).lower()
+                if 'card' in evt_str or card_no: verify_mode = 'Thẻ'
+                elif 'face' in evt_str: verify_mode = 'Khuôn mặt'
+
+                event_type = 'Check-in' if event_dt.hour < 12 else 'Check-out'
+
+                record = AttendanceRecord(
+                    employee_no=emp_no or 'UNKNOWN',
+                    user_name=user_name,
+                    event_time=event_dt,
+                    verify_mode=verify_mode,
+                    event_type=event_type,
+                    device_name='Hikvision Terminal',
+                    raw_event_id=raw_id
+                )
+                db.session.add(record)
+                new_count += 1
+                page_added += 1
+
+            db.session.commit()
+            search_pos += len(page_events)
+
+            if len(page_events) < 30:
+                break
+
+        date_info_str = f"từ {start_date.strftime('%d/%m')} đến {end_date.strftime('%d/%m')}"
+        if new_count == 0 and last_error and search_pos == 0:
+            return False, f"Lỗi lấy nhật ký từ thiết bị: {last_error}"
+
+        return True, f"Đã đồng bộ {new_count} lượt quẹt vân tay mới ({date_info_str}) từ thiết bị Hikvision."
+    except Exception as exc:
+        db.session.rollback()
+        return False, f"Lỗi xử lý nhật ký sự kiện: {exc}"
 
 @app.route('/attendance')
 def attendance_logs():
@@ -10287,38 +10417,48 @@ def attendance_test_connection():
 def attendance_sync_api():
     if 'user_id' not in session: return jsonify({'success': False, 'message': 'Unauthorized'}), 401
     
-    sync_type = request.form.get('sync_type') or (request.json.get('sync_type') if request.is_json else None) or 'all'
-    days = request.form.get('days', type=int) or (request.json.get('days', 7) if request.is_json else 7)
-    
-    start_date_str = request.form.get('start_date') or (request.json.get('start_date') if request.is_json else None)
-    end_date_str = request.form.get('end_date') or (request.json.get('end_date') if request.is_json else None)
+    try:
+        sync_type = request.form.get('sync_type') or (request.json.get('sync_type') if request.is_json else None) or 'all'
+        days_raw = request.form.get('days') or (request.json.get('days') if request.is_json else None) or '7'
+        days = int(days_raw) if str(days_raw).isdigit() else None
 
-    custom_start = None
-    custom_end = None
-    if start_date_str:
-        try: custom_start = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        except Exception: pass
-    if end_date_str:
-        try: custom_end = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        except Exception: pass
+        start_date_str = request.form.get('start_date') or (request.json.get('start_date') if request.is_json else None)
+        end_date_str = request.form.get('end_date') or (request.json.get('end_date') if request.is_json else None)
 
-    res_msgs = []
-    success_all = True
+        custom_start = None
+        custom_end = None
+        if start_date_str and start_date_str.strip():
+            try: custom_start = datetime.strptime(start_date_str.strip(), '%Y-%m-%d').date()
+            except Exception: pass
+        if end_date_str and end_date_str.strip():
+            try: custom_end = datetime.strptime(end_date_str.strip(), '%Y-%m-%d').date()
+            except Exception: pass
 
-    if sync_type in ('all', 'users_only'):
-        ok_u, msg_u = _hikvision_fetch_users()
-        res_msgs.append(msg_u)
-        if not ok_u: success_all = False
+        res_msgs = []
+        success_all = True
 
-    if sync_type in ('all', 'logs_only'):
-        ok_e, msg_e = _hikvision_sync_events(start_date=custom_start, end_date=custom_end, days=days)
-        res_msgs.append(msg_e)
-        if not ok_e: success_all = False
+        if sync_type in ('all', 'users_only'):
+            ok_u, msg_u = _hikvision_fetch_users()
+            res_msgs.append(msg_u)
+            if not ok_u: success_all = False
 
-    return jsonify({
-        'success': success_all,
-        'message': " | ".join(res_msgs)
-    })
+        if sync_type in ('all', 'logs_only'):
+            ok_e, msg_e = _hikvision_sync_events(start_date=custom_start, end_date=custom_end, days=days)
+            res_msgs.append(msg_e)
+            if not ok_e: success_all = False
+
+        return jsonify({
+            'success': success_all,
+            'message': " | ".join(res_msgs)
+        })
+    except Exception as exc:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f"Lỗi máy chủ (500): {str(exc)}"
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
