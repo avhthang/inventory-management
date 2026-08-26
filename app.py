@@ -10755,19 +10755,14 @@ def attendance_sync_api():
             'message': f"Lỗi máy chủ (500): {str(exc)}"
         }), 500
 
-try:
-    with app.app_context():
-        try:
-            updated_records = AttendanceRecord.query.filter_by(verify_mode='Thẻ').update({'verify_mode': 'Vân tay'})
-            db.session.commit()
-        except Exception as exc:
-            db.session.rollback()
-except Exception as exc:
-    print(f"Startup migration info: {exc}")
+_startup_db_initialized = False
 
-def migrate_database_schema():
-    try:
-        with app.app_context():
+@app.before_request
+def _run_lazy_startup_migrations():
+    global _startup_db_initialized
+    if not _startup_db_initialized:
+        _startup_db_initialized = True
+        try:
             with db.engine.connect() as conn:
                 inspector = inspect(db.engine)
                 if inspector.has_table('attendance_user'):
@@ -10789,13 +10784,15 @@ def migrate_database_schema():
                         except Exception: pass
                 
                 conn.commit()
-    except Exception as exc:
-        print(f"Database schema migration info: {exc}")
+        except Exception as exc:
+            print(f"Lazy DB migration info: {exc}")
 
-try:
-    migrate_database_schema()
-except Exception as exc:
-    print(f"Startup schema migration error: {exc}")
+        try:
+            AttendanceRecord.query.filter_by(verify_mode='Thẻ').update({'verify_mode': 'Vân tay'})
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            print(f"Lazy record verify_mode update info: {exc}")
 
 if __name__ == '__main__':
     app.run(debug=True)
