@@ -10380,13 +10380,36 @@ def attendance_logs():
         else: # date_desc
             summary_list.sort(key=lambda x: (x['log_date'], x['first_in']), reverse=True)
 
-        if is_admin:
-            stats['total_records'] = AttendanceRecord.query.filter(AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count()
-        else:
-            emp_no_check = linked_att_user.employee_no if linked_att_user else '___NO_PERM___'
-            stats['total_records'] = AttendanceRecord.query.filter(AttendanceRecord.employee_no == emp_no_check, AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count()
+        today_date = date.today()
+        latest_rec = AttendanceRecord.query.order_by(AttendanceRecord.event_time.desc()).first()
+        if latest_rec and latest_rec.event_time:
+            latest_date = latest_rec.event_time.date()
+            if latest_date == today_date or abs((today_date - latest_date).days) <= 1:
+                today_date = latest_date
 
+        start_today = datetime.combine(today_date, time(0, 0, 0))
+        end_today = datetime.combine(today_date, time(23, 59, 59))
+
+        records_today_query = AttendanceRecord.query.filter(
+            AttendanceRecord.event_time >= start_today,
+            AttendanceRecord.event_time <= end_today
+        )
+        
+        users_today_query = db.session.query(func.count(db.distinct(AttendanceRecord.employee_no))).filter(
+            AttendanceRecord.event_time >= start_today,
+            AttendanceRecord.event_time <= end_today,
+            AttendanceRecord.employee_no != 'UNKNOWN'
+        )
+
+        if not is_admin:
+            emp_no_check = linked_att_user.employee_no if linked_att_user else '___NO_PERM___'
+            records_today_query = records_today_query.filter(AttendanceRecord.employee_no == emp_no_check)
+            users_today_query = users_today_query.filter(AttendanceRecord.employee_no == emp_no_check)
+
+        stats['total_records'] = records_today_query.count()
+        stats['today_users'] = users_today_query.scalar() or 0
         stats['total_users'] = AttendanceUser.query.filter_by(is_active=True).count()
+        stats['today_date_str'] = today_date.strftime('%d/%m/%Y')
         
         last_rec = AttendanceRecord.query.order_by(AttendanceRecord.id.desc()).first()
         if last_rec and last_rec.created_at:

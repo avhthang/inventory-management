@@ -41,16 +41,16 @@
     <div class="col-sm-6 col-xl-4">
         <div class="card h-100 border-0 shadow-sm bg-primary text-white">
             <div class="card-body">
-                <div class="small text-white-50">Lượt quẹt hôm nay</div>
-                <div class="fs-2 fw-bold">{{ stats.total_records }}</div>
+                <div class="small text-white-50">Lượt quẹt hôm nay (00:00:00 - 23:59:59)</div>
+                <div class="fs-2 fw-bold">{{ stats.total_records }} <span class="fs-6 fw-normal text-white-50">lượt</span></div>
             </div>
         </div>
     </div>
     <div class="col-sm-6 col-xl-4">
         <div class="card h-100 border-0 shadow-sm bg-success text-white">
             <div class="card-body">
-                <div class="small text-white-50">Tổng số người chấm công (Active)</div>
-                <div class="fs-2 fw-bold">{{ stats.total_users }}</div>
+                <div class="small text-white-50">Số người đã chấm công hôm nay</div>
+                <div class="fs-2 fw-bold">{{ stats.today_users }} <span class="fs-6 fw-normal text-white-50">/ {{ stats.total_users }} người</span></div>
             </div>
         </div>
     </div>
