@@ -63,27 +63,41 @@
         <form method="GET" class="row g-2 align-items-end" id="filterForm">
             <input type="hidden" name="active_tab" id="activeTabInput" value="{{ active_tab }}">
             <input type="hidden" name="sort" value="{{ sort_by }}">
+            
             <div class="col-md-3">
+                <label class="form-label fw-semibold">Thời gian</label>
+                <select class="form-select" name="quick_range" id="filterQuickRange" onchange="toggleFilterDates()">
+                    <option value="7" {% if quick_range == '7' or not quick_range %}selected{% endif %}>7 ngày gần nhất (Mặc định)</option>
+                    <option value="1" {% if quick_range == '1' %}selected{% endif %}>Hôm nay (1 ngày)</option>
+                    <option value="30" {% if quick_range == '30' %}selected{% endif %}>30 ngày (1 tháng)</option>
+                    <option value="custom" {% if quick_range == 'custom' %}selected{% endif %}>Khoảng ngày tùy chọn...</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 {% if quick_range != 'custom' %}d-none{% endif %}" id="filterStartDateCol">
                 <label class="form-label fw-semibold">Từ ngày</label>
                 <input type="date" class="form-control" name="start_date" value="{{ start_date }}">
             </div>
-            <div class="col-md-3">
+
+            <div class="col-md-2 {% if quick_range != 'custom' %}d-none{% endif %}" id="filterEndDateCol">
                 <label class="form-label fw-semibold">Đến ngày</label>
                 <input type="date" class="form-control" name="end_date" value="{{ end_date }}">
             </div>
-            <div class="col-md-3">
+
+            <div class="col-md-2">
                 <label class="form-label fw-semibold">Nhóm đối tượng</label>
                 <select class="form-select" name="user_type">
-                    <option value="">Tất cả nhóm (Nhân viên, VIP, Khách)</option>
+                    <option value="">Tất cả nhóm đối tượng</option>
                     {% for ut in user_types %}
                     <option value="{{ ut }}" {% if user_type == ut %}selected{% endif %}>{{ ut }}</option>
                     {% endfor %}
                 </select>
             </div>
+
             <div class="col-md-3">
-                <label class="form-label fw-semibold">Tìm tên / Mã NV</label>
+                <label class="form-label fw-semibold">Tìm Account / Mã NV</label>
                 <div class="input-group">
-                    <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Mã hoặc họ tên...">
+                    <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Account hoặc mã NV...">
                     <button class="btn btn-primary"><i class="bi bi-search"></i> Lọc</button>
                     <a href="{{ url_for('attendance_logs') }}" class="btn btn-outline-secondary" title="Đặt lại"><i class="bi bi-arrow-counterclockwise"></i></a>
                 </div>
@@ -107,7 +121,7 @@
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold"><i class="bi bi-calendar3"></i> Bảng tổng hợp Giờ Vào sớm nhất & Giờ Ra muộn nhất</h5>
-                <a href="{{ url_for('attendance_export', type='summary', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort=sort_by) }}" class="btn btn-sm btn-outline-success">
+                <a href="{{ url_for('attendance_export', type='summary', start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by) }}" class="btn btn-sm btn-outline-success">
                     <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel (CSV)
                 </a>
             </div>
@@ -118,25 +132,25 @@
                             <tr>
                                 <th class="text-center" style="width: 50px;">STT</th>
                                 <th>
-                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort='date_asc' if sort_by == 'date_desc' else 'date_desc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
+                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort='date_asc' if sort_by == 'date_desc' else 'date_desc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
                                         Ngày <i class="bi bi-arrow-down-up ms-1 small text-muted"></i>
                                     </a>
                                 </th>
-                                <th>
-                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort='emp_desc' if sort_by == 'emp_asc' else 'emp_asc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
-                                        Mã NV <i class="bi bi-arrow-down-up ms-1 small text-muted"></i>
+                                <th style="width: 100px;">
+                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort='emp_desc' if sort_by == 'emp_asc' else 'emp_asc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
+                                        Mã NV <i class="bi {% if sort_by == 'emp_asc' %}bi-sort-numeric-down text-primary{% elif sort_by == 'emp_desc' %}bi-sort-numeric-down-alt text-primary{% else %}bi-arrow-down-up text-muted{% endif %} ms-1 small"></i>
                                     </a>
                                 </th>
-                                <th>Họ và tên</th>
+                                <th>Account</th>
                                 <th>Đối tượng</th>
                                 <th>Phòng ban / Đơn vị</th>
                                 <th class="text-center">
-                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort='first_in_desc' if sort_by == 'first_in_asc' else 'first_in_asc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
+                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort='first_in_desc' if sort_by == 'first_in_asc' else 'first_in_asc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
                                         Giờ Vào (Sớm nhất) <i class="bi {% if sort_by == 'first_in_asc' %}bi-sort-numeric-down text-primary{% else %}bi-arrow-down-up text-muted{% endif %} ms-1 small"></i>
                                     </a>
                                 </th>
                                 <th class="text-center">
-                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort='last_out_asc' if sort_by == 'last_out_desc' else 'last_out_desc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
+                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort='last_out_asc' if sort_by == 'last_out_desc' else 'last_out_desc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
                                         Giờ Ra (Muộn nhất) <i class="bi {% if sort_by == 'last_out_desc' %}bi-sort-numeric-down-alt text-primary{% else %}bi-arrow-down-up text-muted{% endif %} ms-1 small"></i>
                                     </a>
                                 </th>
@@ -153,7 +167,7 @@
                                 <td>
                                     {% if s.user_type == 'VIP' %}<span class="badge bg-warning text-dark">VIP</span>
                                     {% elif s.user_type == 'Khách' %}<span class="badge bg-danger">Khách</span>
-                                    {% else %}<span class="badge bg-primary">Nhân viên</span>{% endif %}
+                                    {% else %}<span class="badge bg-primary">{{ s.user_type }}</span>{% endif %}
                                 </td>
                                 <td>{{ s.department }}</td>
                                 <td class="text-center text-success fw-bold">
@@ -182,15 +196,15 @@
                 <nav aria-label="Summary pagination">
                     <ul class="pagination pagination-sm mb-0">
                         <li class="page-item {% if not summary_pagination.has_prev %}disabled{% endif %}">
-                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.prev_num, start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">Trước</a>
+                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.prev_num, start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">Trước</a>
                         </li>
                         {% for p in range(1, summary_pagination.pages + 1) %}
                         <li class="page-item {% if p == summary_pagination.page %}active{% endif %}">
-                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=p, start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">{{ p }}</a>
+                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=p, start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">{{ p }}</a>
                         </li>
                         {% endfor %}
                         <li class="page-item {% if not summary_pagination.has_next %}disabled{% endif %}">
-                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.next_num, start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">Sau</a>
+                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.next_num, start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">Sau</a>
                         </li>
                     </ul>
                 </nav>
@@ -204,7 +218,7 @@
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history"></i> Chi tiết từng lượt quẹt vân tay</h5>
-                <a href="{{ url_for('attendance_export', type='logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type) }}" class="btn btn-sm btn-outline-success">
+                <a href="{{ url_for('attendance_export', type='logs', start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type) }}" class="btn btn-sm btn-outline-success">
                     <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel (CSV)
                 </a>
             </div>
@@ -215,8 +229,8 @@
                             <tr>
                                 <th class="text-center" style="width: 50px;">STT</th>
                                 <th>Thời gian quẹt</th>
-                                <th>Mã NV</th>
-                                <th>Người chấm công</th>
+                                <th style="width: 100px;">Mã NV</th>
+                                <th>Account</th>
                                 <th>Phương thức</th>
                                 <th>Sự kiện</th>
                                 <th>Thiết bị</th>
@@ -254,7 +268,7 @@
                 </div>
             </div>
             {% if records %}
-            <div class="card-footer bg-white">{{ render_pagination(records, 'attendance_logs', {'start_date': start_date, 'end_date': end_date, 'q': q, 'user_type': user_type, 'active_tab': 'logs'}) }}</div>
+            <div class="card-footer bg-white">{{ render_pagination(records, 'attendance_logs', {'start_date': start_date, 'end_date': end_date, 'quick_range': quick_range, 'q': q, 'user_type': user_type, 'active_tab': 'logs'}) }}</div>
             {% endif %}
         </div>
     </div>
@@ -329,7 +343,6 @@
 {{ super() }}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    // Preserve Active Tab across pagination & sorting clicks
     const urlParams = new URLSearchParams(window.location.search);
     const activeTabParam = urlParams.get('active_tab');
     const storedTab = sessionStorage.getItem('activeAttendanceTab');
@@ -352,6 +365,19 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 });
+
+function toggleFilterDates() {
+    const val = document.getElementById('filterQuickRange').value;
+    const startCol = document.getElementById('filterStartDateCol');
+    const endCol = document.getElementById('filterEndDateCol');
+    if (val === 'custom') {
+        startCol.classList.remove('d-none');
+        endCol.classList.remove('d-none');
+    } else {
+        startCol.classList.add('d-none');
+        endCol.classList.add('d-none');
+    }
+}
 
 function toggleSyncFields() {
     const isUsersOnly = document.getElementById('syncScopeUsers').checked;

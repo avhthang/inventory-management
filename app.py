@@ -10175,12 +10175,33 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
         db.session.rollback()
         return False, f"Lỗi xử lý nhật ký sự kiện: {exc}"
 
+def emp_sort_key(emp_str):
+    if not emp_str: return (999999999, '')
+    digits = re.findall(r'\d+', str(emp_str))
+    if digits:
+        num = int(digits[0])
+    else:
+        num = 999999999
+    return (num, str(emp_str))
+
+def get_all_attendance_user_types():
+    try:
+        db_types = [u[0] for u in db.session.query(AttendanceUser.user_type).filter(AttendanceUser.user_type.isnot(None)).distinct().all() if u[0]]
+        combined = ['Nhân viên', 'VIP', 'Khách']
+        for t in db_types:
+            if t not in combined:
+                combined.append(t)
+        return combined
+    except Exception:
+        return ['Nhân viên', 'VIP', 'Khách']
+
 @app.route('/attendance')
 def attendance_logs():
     if 'user_id' not in session: return redirect(url_for('login'))
     
     start_date_val = request.args.get('start_date')
     end_date_val = request.args.get('end_date')
+    quick_range = request.args.get('quick_range', '')
     q = (request.args.get('q') or '').strip()
     user_type_filter = (request.args.get('user_type') or '').strip()
     sort_by = (request.args.get('sort') or 'date_desc').strip()
@@ -10190,12 +10211,22 @@ def attendance_logs():
     active_tab = request.args.get('active_tab', 'summary')
 
     today = date.today()
-    try:
-        start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=7))
-        end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
-    except Exception:
-        start_date = today - timedelta(days=7)
+    if quick_range == '1':
+        start_date = today
         end_date = today
+    elif quick_range == '7':
+        start_date = today - timedelta(days=6)
+        end_date = today
+    elif quick_range == '30':
+        start_date = today - timedelta(days=29)
+        end_date = today
+    else:
+        try:
+            start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=6))
+            end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
+        except Exception:
+            start_date = today - timedelta(days=6)
+            end_date = today
 
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
@@ -10233,14 +10264,26 @@ def attendance_logs():
         records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=per_page, error_out=False)
         
         log_date_expr = cast(AttendanceRecord.event_time, db.Date)
-        summary_raw = db.session.query(
+        summary_query = db.session.query(
             AttendanceRecord.employee_no,
             AttendanceRecord.user_name,
             log_date_expr.label('log_date'),
             func.min(AttendanceRecord.event_time).label('first_in'),
             func.max(AttendanceRecord.event_time).label('last_out'),
             func.count(AttendanceRecord.id).label('total_scans')
-        ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)         .group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr).all()
+        ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+
+        if q:
+            summary_query = summary_query.filter(or_(
+                AttendanceRecord.employee_no.ilike(f'%{q}%'),
+                AttendanceRecord.user_name.ilike(f'%{q}%')
+            ))
+
+        if user_type_filter:
+            matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
+            summary_query = summary_query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
+
+        summary_raw = summary_query.group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr).all()
 
         users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
         for r in summary_raw:
@@ -10256,7 +10299,7 @@ def attendance_logs():
                 'total_scans': r.total_scans
             })
 
-        # Apply Sorting on Summary List
+        # Apply Numeric & Date Sorting on Summary List
         if sort_by == 'first_in_asc':
             summary_list.sort(key=lambda x: x['first_in'])
         elif sort_by == 'first_in_desc':
@@ -10266,9 +10309,9 @@ def attendance_logs():
         elif sort_by == 'last_out_asc':
             summary_list.sort(key=lambda x: (x['last_out'] or datetime.max))
         elif sort_by == 'emp_asc':
-            summary_list.sort(key=lambda x: x['employee_no'])
+            summary_list.sort(key=lambda x: emp_sort_key(x['employee_no']))
         elif sort_by == 'emp_desc':
-            summary_list.sort(key=lambda x: x['employee_no'], reverse=True)
+            summary_list.sort(key=lambda x: emp_sort_key(x['employee_no']), reverse=True)
         else: # date_desc
             summary_list.sort(key=lambda x: (x['log_date'], x['first_in']), reverse=True)
 
@@ -10306,11 +10349,12 @@ def attendance_logs():
         stats=stats,
         start_date=start_date.strftime('%Y-%m-%d'),
         end_date=end_date.strftime('%Y-%m-%d'),
+        quick_range=quick_range,
         q=q,
         sort_by=sort_by,
         user_type=user_type_filter,
         active_tab=active_tab,
-        user_types=['Nhân viên', 'VIP', 'Khách']
+        user_types=get_all_attendance_user_types()
     )
 
 @app.route('/attendance/export')
@@ -10320,29 +10364,37 @@ def attendance_export():
     export_type = request.args.get('type', 'summary')
     start_date_val = request.args.get('start_date')
     end_date_val = request.args.get('end_date')
+    quick_range = request.args.get('quick_range', '')
     q = (request.args.get('q') or '').strip()
     user_type_filter = (request.args.get('user_type') or '').strip()
     sort_by = (request.args.get('sort') or 'date_desc').strip()
     
     today = date.today()
-    try:
-        start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=7))
-        end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
-    except Exception:
-        start_date = today - timedelta(days=7)
+    if quick_range == '1':
+        start_date = today
         end_date = today
+    elif quick_range == '7':
+        start_date = today - timedelta(days=6)
+        end_date = today
+    elif quick_range == '30':
+        start_date = today - timedelta(days=29)
+        end_date = today
+    else:
+        try:
+            start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=6))
+            end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
+        except Exception:
+            start_date = today - timedelta(days=6)
+            end_date = today
 
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
 
     output = io.StringIO()
     writer = csv.writer(output)
-    
-    # Write UTF-8 BOM
-    response_data = '\ufeff'
 
     if export_type == 'summary':
-        writer.writerow(['STT', 'Ngày', 'Mã NV', 'Họ và tên', 'Đối tượng', 'Phòng ban', 'Giờ Vào (Sớm nhất)', 'Giờ Ra (Muộn nhất)', 'Tổng lượt'])
+        writer.writerow(['STT', 'Ngày', 'Mã NV', 'Account', 'Đối tượng', 'Phòng ban', 'Giờ Vào (Sớm nhất)', 'Giờ Ra (Muộn nhất)', 'Tổng lượt'])
         
         log_date_expr = cast(AttendanceRecord.event_time, db.Date)
         query = db.session.query(
@@ -10381,8 +10433,8 @@ def attendance_export():
         elif sort_by == 'first_in_desc': summary_list.sort(key=lambda x: x['first_in'], reverse=True)
         elif sort_by == 'last_out_desc': summary_list.sort(key=lambda x: (x['last_out'] or datetime.min), reverse=True)
         elif sort_by == 'last_out_asc': summary_list.sort(key=lambda x: (x['last_out'] or datetime.max))
-        elif sort_by == 'emp_asc': summary_list.sort(key=lambda x: x['employee_no'])
-        elif sort_by == 'emp_desc': summary_list.sort(key=lambda x: x['employee_no'], reverse=True)
+        elif sort_by == 'emp_asc': summary_list.sort(key=lambda x: emp_sort_key(x['employee_no']))
+        elif sort_by == 'emp_desc': summary_list.sort(key=lambda x: emp_sort_key(x['employee_no']), reverse=True)
         else: summary_list.sort(key=lambda x: (x['log_date'], x['first_in']), reverse=True)
 
         for idx, r in enumerate(summary_list, 1):
@@ -10401,7 +10453,7 @@ def attendance_export():
             ])
         filename = f"Tong_hop_cham_cong_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv"
     else:
-        writer.writerow(['STT', 'Thời gian quẹt', 'Mã NV', 'Người chấm công', 'Phương thức', 'Sự kiện', 'Thiết bị', 'Mã sự kiện'])
+        writer.writerow(['STT', 'Thời gian quẹt', 'Mã NV', 'Account', 'Phương thức', 'Sự kiện', 'Thiết bị', 'Mã sự kiện'])
         query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
         if q:
             query = query.filter(or_(AttendanceRecord.employee_no.ilike(f'%{q}%'), AttendanceRecord.user_name.ilike(f'%{q}%')))
@@ -10496,7 +10548,7 @@ def attendance_users():
         q=q,
         user_type=user_type_filter,
         status=status_filter,
-        user_types=['Nhân viên', 'VIP', 'Khách']
+        user_types=get_all_attendance_user_types()
     )
 
 @app.route('/attendance/users/<int:user_id>/edit', methods=['POST'])
