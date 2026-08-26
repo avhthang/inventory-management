@@ -75,9 +75,10 @@
             <div class="col-md-3">
                 <label class="form-label fw-semibold">Thời gian</label>
                 <select class="form-select" name="quick_range" id="filterQuickRange" onchange="toggleFilterDates()">
-                    <option value="7" {% if quick_range == '7' or not quick_range %}selected{% endif %}>7 ngày gần nhất (Mặc định)</option>
+                    <option value="all" {% if quick_range == 'all' %}selected{% endif %}>Tất cả thời gian</option>
+                    <option value="30" {% if quick_range == '30' or not quick_range %}selected{% endif %}>30 ngày gần nhất (Mặc định)</option>
+                    <option value="7" {% if quick_range == '7' %}selected{% endif %}>7 ngày gần nhất</option>
                     <option value="1" {% if quick_range == '1' %}selected{% endif %}>Hôm nay (1 ngày)</option>
-                    <option value="30" {% if quick_range == '30' %}selected{% endif %}>30 ngày (1 tháng)</option>
                     <option value="custom" {% if quick_range == 'custom' %}selected{% endif %}>Khoảng ngày tùy chọn...</option>
                 </select>
             </div>

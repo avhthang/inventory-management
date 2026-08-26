@@ -10229,7 +10229,12 @@ def attendance_logs():
     active_tab = request.args.get('active_tab', 'summary')
 
     today = date.today()
-    if quick_range == '1':
+
+    # Determine date range
+    if quick_range == 'all':
+        start_date = date(2000, 1, 1)
+        end_date = date(2099, 12, 31)
+    elif quick_range == '1':
         start_date = today
         end_date = today
     elif quick_range == '7':
@@ -10238,12 +10243,21 @@ def attendance_logs():
     elif quick_range == '30':
         start_date = today - timedelta(days=29)
         end_date = today
-    else:
+    elif start_date_val or end_date_val:
         try:
-            start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=6))
+            start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=29))
             end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
         except Exception:
-            start_date = today - timedelta(days=6)
+            start_date = today - timedelta(days=29)
+            end_date = today
+    else:
+        # Default: auto-center date range around the latest synced record if available
+        latest_rec = AttendanceRecord.query.order_by(AttendanceRecord.event_time.desc()).first()
+        if latest_rec and latest_rec.event_time:
+            end_date = latest_rec.event_time.date()
+            start_date = end_date - timedelta(days=29)
+        else:
+            start_date = today - timedelta(days=29)
             end_date = today
 
     start_dt = datetime.combine(start_date, datetime.min.time())
@@ -10263,13 +10277,16 @@ def attendance_logs():
     user_permissions = session.get('permissions') or []
     current_user_obj = User.query.get(current_user_id) if current_user_id else None
     db_role = str(getattr(current_user_obj, 'role', '') or '').lower()
+    db_username = str(getattr(current_user_obj, 'username', '') or '').lower()
     
     is_admin = (
         user_role in ('admin', 'quản trị viên', 'administrator') or
         db_role in ('admin', 'quản trị viên', 'administrator') or
+        db_username == 'admin' or
         ('attendance.view_all' in user_permissions) or
         (session.get('is_admin') is True) or
         getattr(current_user_obj, 'is_admin', False) or
+        getattr(current_user_obj, 'is_superuser', False) or
         (current_user_id == 1)
     )
     
@@ -10416,14 +10433,17 @@ def attendance_logs():
     except Exception:
         user_types_list = []
 
+    display_start = start_date.strftime('%Y-%m-%d') if start_date.year > 2001 else ''
+    display_end = end_date.strftime('%Y-%m-%d') if end_date.year < 2090 else ''
+
     return render_template(
         'attendance_logs.html',
         records=records,
         summary_list=summary_paged_list,
         summary_pagination=summary_pagination,
         stats=stats,
-        start_date=start_date.strftime('%Y-%m-%d'),
-        end_date=end_date.strftime('%Y-%m-%d'),
+        start_date=display_start,
+        end_date=display_end,
         quick_range=quick_range,
         q=q,
         sort_by=sort_by,
