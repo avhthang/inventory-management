@@ -10259,9 +10259,19 @@ def attendance_logs():
     }
 
     current_user_id = session.get('user_id')
-    user_role = session.get('role')
+    user_role = str(session.get('role') or '').lower()
     user_permissions = session.get('permissions') or []
-    is_admin = (user_role in ('admin', 'Quản trị viên')) or ('attendance.view_all' in user_permissions) or (session.get('is_admin') == True)
+    current_user_obj = User.query.get(current_user_id) if current_user_id else None
+    db_role = str(getattr(current_user_obj, 'role', '') or '').lower()
+    
+    is_admin = (
+        user_role in ('admin', 'quản trị viên', 'administrator') or
+        db_role in ('admin', 'quản trị viên', 'administrator') or
+        ('attendance.view_all' in user_permissions) or
+        (session.get('is_admin') is True) or
+        getattr(current_user_obj, 'is_admin', False) or
+        (current_user_id == 1)
+    )
     
     linked_att_user = None
     permission_notice = None
@@ -10459,9 +10469,19 @@ def attendance_export():
         end_dt = datetime.combine(end_date, datetime.max.time())
 
         current_user_id = session.get('user_id')
-        user_role = session.get('role')
+        user_role = str(session.get('role') or '').lower()
         user_permissions = session.get('permissions') or []
-        is_admin = (user_role in ('admin', 'Quản trị viên')) or ('attendance.view_all' in user_permissions) or (session.get('is_admin') == True)
+        current_user_obj = User.query.get(current_user_id) if current_user_id else None
+        db_role = str(getattr(current_user_obj, 'role', '') or '').lower()
+        
+        is_admin = (
+            user_role in ('admin', 'quản trị viên', 'administrator') or
+            db_role in ('admin', 'quản trị viên', 'administrator') or
+            ('attendance.view_all' in user_permissions) or
+            (session.get('is_admin') is True) or
+            getattr(current_user_obj, 'is_admin', False) or
+            (current_user_id == 1)
+        )
 
         output = io.StringIO()
         writer = csv.writer(output)
