@@ -10497,6 +10497,10 @@ def attendance_users():
         department = (request.form.get('department') or '').strip()
         card_no = (request.form.get('card_no') or '').strip()
         system_user_id = request.form.get('system_user_id', type=int)
+        
+        page = request.form.get('page', 1, type=int)
+        q = request.form.get('q_filter', '')
+        user_type_f = request.form.get('user_type_filter', '')
 
         if system_user_id:
             sys_user = User.query.get(system_user_id)
@@ -10518,7 +10522,7 @@ def attendance_users():
             ))
             db.session.commit()
             flash('Đã thêm người chấm công mới.', 'success')
-        return redirect(url_for('attendance_users'))
+        return redirect(url_for('attendance_users', page=page, q=q, user_type=user_type_f))
 
     q = (request.args.get('q') or '').strip()
     user_type_filter = (request.args.get('user_type') or '').strip()
@@ -10687,6 +10691,17 @@ def attendance_sync_api():
             'success': False,
             'message': f"Lỗi máy chủ (500): {str(exc)}"
         }), 500
+
+# Update existing attendance records where verify_mode was incorrectly set to 'Thẻ'
+with app.app_context():
+    try:
+        updated_records = AttendanceRecord.query.filter_by(verify_mode='Thẻ').update({'verify_mode': 'Vân tay'})
+        db.session.commit()
+        if updated_records > 0:
+            print(f"Updated {updated_records} records verify_mode to 'Vân tay'.")
+    except Exception as exc:
+        db.session.rollback()
+        print(f"Verify mode update info: {exc}")
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -7,7 +7,7 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
     <div>
         <h2 class="mb-1"><i class="bi bi-people text-primary"></i> Quản lý Danh sách Người chấm công</h2>
-        <div class="text-muted">Danh sách người quẹt vân tay độc lập (Bao gồm Nhân viên, VIP, Khách).</div>
+        <div class="text-muted">Danh sách người quẹt vân tay độc lập (Bao gồm Nhân viên, VIP, Khách và các nhóm tùy chỉnh).</div>
     </div>
     <div class="d-flex gap-2">
         <a href="{{ url_for('attendance_logs') }}" class="btn btn-outline-secondary">
@@ -25,34 +25,33 @@
 <div class="card mb-3 border-0 shadow-sm">
     <div class="card-body">
         <form method="GET" class="row g-2 align-items-end">
-            <div class="col-md-4">
-                <label class="form-label">Tìm kiếm</label>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Tìm kiếm</label>
                 <input class="form-control" name="q" value="{{ q }}" placeholder="Tìm theo Mã NV hoặc Họ tên...">
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Phân loại đối tượng</label>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Phân loại đối tượng</label>
                 <select class="form-select" name="user_type">
-                    <option value="">Tất cả nhóm</option>
+                    <option value="">Tất cả nhóm đối tượng</option>
                     {% for ut in user_types %}
                     <option value="{{ ut }}" {% if user_type == ut %}selected{% endif %}>{{ ut }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Trạng thái trên máy</label>
-                <select class="form-select" name="status">
-                    <option value="">Tất cả trạng thái</option>
-                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active (Đang hoạt động)</option>
-                    <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Đã xóa / Ngừng</option>
-                </select>
-            </div>
             <div class="col-md-2 d-flex gap-2">
                 <button class="btn btn-primary flex-fill"><i class="bi bi-search"></i> Lọc</button>
-                <a href="{{ url_for('attendance_users') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></a>
+                <a href="{{ url_for('attendance_users') }}" class="btn btn-outline-secondary" title="Đặt lại"><i class="bi bi-arrow-counterclockwise"></i></a>
             </div>
         </form>
     </div>
 </div>
+
+<!-- Datalist cho Nhóm đối tượng tùy chỉnh -->
+<datalist id="userTypeList">
+    {% for ut in user_types %}
+    <option value="{{ ut }}">
+    {% endfor %}
+</datalist>
 
 <!-- Instruction Guide for User Linking -->
 <div class="alert alert-light border shadow-sm mb-3">
@@ -61,8 +60,8 @@
         Mỗi người dùng chấm công trên máy Hikvision có <strong>Mã chấm công (Employee No)</strong> riêng. Bạn có thể liên kết người chấm công với tài khoản trong hệ thống quản lý Kho:
         <ol class="mb-0 mt-1 ps-3">
             <li>Bấm vào biểu tượng sửa <i class="bi bi-pencil text-warning"></i> ở cột <strong>Hành động</strong> của người dùng tương ứng.</li>
-            <li>Trong cửa sổ hiện ra, chọn tài khoản tại mục <strong>"Liên kết User Kho (Tùy chọn)"</strong>.</li>
-            <li>Bấm <strong>"Lưu cập nhật"</strong>. Tên tài khoản Kho liên kết sẽ hiển thị ngay tại cột tương ứng.</li>
+            <li>Trong cửa sổ hiện ra, chọn tài khoản tương ứng tại mục <strong>"Liên kết User Kho (Tùy chọn)"</strong>.</li>
+            <li>Bấm <strong>"Lưu cập nhật"</strong>. Hệ thống sẽ giữ nguyên trang hiện tại và hiển thị ngay tên tài khoản Kho liên kết.</li>
         </ol>
     </div>
 </div>
@@ -75,10 +74,9 @@
                 <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 50px;">STT</th>
-                        <th style="width: 110px;">Mã NV</th>
+                        <th style="width: 100px;">Mã NV</th>
                         <th>Họ và tên</th>
-                        <th>Phân loại</th>
-                        <th>Trạng thái</th>
+                        <th>Phân loại đối tượng</th>
                         <th>Phòng ban / Đơn vị</th>
                         <th>Mã thẻ</th>
                         <th>Liên kết User Kho</th>
@@ -95,14 +93,7 @@
                         <td>
                             {% if u.user_type == 'VIP' %}<span class="badge bg-warning text-dark px-2 py-1">VIP</span>
                             {% elif u.user_type == 'Khách' %}<span class="badge bg-danger px-2 py-1">Khách</span>
-                            {% else %}<span class="badge bg-primary px-2 py-1">Nhân viên</span>{% endif %}
-                        </td>
-                        <td>
-                            {% if u.is_active %}
-                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Active</span>
-                            {% else %}
-                            <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i> Đã xóa/Ngừng</span>
-                            {% endif %}
+                            {% else %}<span class="badge bg-primary px-2 py-1">{{ u.user_type }}</span>{% endif %}
                         </td>
                         <td>{{ u.department or '-' }}</td>
                         <td>{{ u.card_no or '-' }}</td>
@@ -126,6 +117,9 @@
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content shadow border-0">
                                 <form method="POST" action="{{ url_for('edit_attendance_user', user_id=u.id) }}">
+                                    <input type="hidden" name="page" value="{{ users.page }}">
+                                    <input type="hidden" name="q_filter" value="{{ q }}">
+                                    <input type="hidden" name="user_type_filter" value="{{ user_type }}">
                                     <div class="modal-header">
                                         <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square text-primary me-1"></i> Chỉnh sửa Người chấm công</h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
@@ -141,11 +135,7 @@
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label required">Phân loại đối tượng</label>
-                                            <select class="form-select" name="user_type" required>
-                                                {% for ut in user_types %}
-                                                <option value="{{ ut }}" {% if u.user_type == ut %}selected{% endif %}>{{ ut }}</option>
-                                                {% endfor %}
-                                            </select>
+                                            <input class="form-control" list="userTypeList" name="user_type" value="{{ u.user_type }}" placeholder="Chọn hoặc nhập nhóm mới..." required>
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label">Phòng ban / Đơn vị</label>
@@ -174,10 +164,10 @@
                         </div>
                     </div>
                     {% else %}
-                    <tr><td colspan="9" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
                     {% endfor %}
                     {% else %}
-                    <tr><td colspan="9" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
                     {% endif %}
                 </tbody>
             </table>
@@ -193,6 +183,9 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow border-0">
             <form method="POST" action="{{ url_for('attendance_users') }}">
+                <input type="hidden" name="page" value="{{ users.page if users else 1 }}">
+                <input type="hidden" name="q_filter" value="{{ q }}">
+                <input type="hidden" name="user_type_filter" value="{{ user_type }}">
                 <div class="modal-header">
                     <h5 class="modal-title fw-bold"><i class="bi bi-person-plus text-primary me-1"></i> Thêm Người chấm công mới</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
@@ -208,11 +201,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label required">Phân loại đối tượng</label>
-                        <select class="form-select" name="user_type" required>
-                            {% for ut in user_types %}
-                            <option value="{{ ut }}">{{ ut }}</option>
-                            {% endfor %}
-                        </select>
+                        <input class="form-control" list="userTypeList" name="user_type" value="Nhân viên" placeholder="Chọn hoặc nhập nhóm mới..." required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Phòng ban / Đơn vị</label>
@@ -248,18 +237,31 @@
 function fetchHikvisionUsersOnly() {
     if (!confirm('Tải danh sách người dùng từ máy chấm công Hikvision?')) return;
     
-    const formData = new FormData();
-    formData.append('sync_type', 'users_only');
+    const alertBar = document.createElement('div');
+    alertBar.className = 'alert alert-info d-flex align-items-center gap-2 mt-2';
+    alertBar.innerHTML = '<div class="spinner-border spinner-border-sm text-info"></div> Đang tải danh sách người dùng...';
+    document.querySelector('.card-body').prepend(alertBar);
 
-    fetch('/attendance/sync', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .then(data => {
-            alert(data.message);
-            if (data.success) {
-                window.location.reload();
-            }
-        })
-        .catch(err => alert('Lỗi kết nối máy chủ.'));
+    fetch('/attendance/sync', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'sync_type=users_only'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alertBar.className = 'alert alert-success mt-2';
+            alertBar.textContent = '✔ ' + data.message;
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            alertBar.className = 'alert alert-danger mt-2';
+            alertBar.textContent = '✖ ' + data.message;
+        }
+    })
+    .catch(err => {
+        alertBar.className = 'alert alert-danger mt-2';
+        alertBar.textContent = '✖ Lỗi kết nối máy chủ.';
+    });
 }
 </script>
 {% endblock %}

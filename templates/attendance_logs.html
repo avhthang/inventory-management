@@ -162,8 +162,20 @@
                             <tr>
                                 <td class="text-center text-muted">{{ loop.index + (summary_pagination.page - 1) * summary_pagination.per_page }}</td>
                                 <td><span class="fw-semibold font-monospace">{{ s.log_date }}</span></td>
-                                <td><span class="badge bg-secondary font-monospace">{{ s.employee_no }}</span></td>
-                                <td class="fw-bold text-dark">{{ s.user_name }}</td>
+                                <td>
+                                    {% if s.employee_no and s.employee_no != 'UNKNOWN' %}
+                                    <span class="badge bg-secondary font-monospace">{{ s.employee_no }}</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Chưa nhận diện</span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-bold text-dark">
+                                    {% if s.user_name and s.user_name not in ('UNKNOWN', 'Chưa rõ', 'NV #UNKNOWN') %}
+                                    {{ s.user_name }}
+                                    {% else %}
+                                    <span class="text-muted fst-italic">Chưa nhận diện</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if s.user_type == 'VIP' %}<span class="badge bg-warning text-dark">VIP</span>
                                     {% elif s.user_type == 'Khách' %}<span class="badge bg-danger">Khách</span>
@@ -243,12 +255,24 @@
                             <tr>
                                 <td class="text-center text-muted">{{ loop.index + (records.page - 1) * records.per_page }}</td>
                                 <td><strong class="font-monospace text-primary fs-6">{{ rec.event_time.strftime('%d-%m-%Y %H:%M:%S') }}</strong></td>
-                                <td><span class="badge bg-secondary font-monospace">{{ rec.employee_no }}</span></td>
-                                <td class="fw-semibold text-dark">{{ rec.user_name }}</td>
+                                <td>
+                                    {% if rec.employee_no and rec.employee_no != 'UNKNOWN' %}
+                                    <span class="badge bg-secondary font-monospace">{{ rec.employee_no }}</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Chưa nhận diện</span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-semibold text-dark">
+                                    {% if rec.user_name and rec.user_name not in ('UNKNOWN', 'Chưa rõ', 'NV #UNKNOWN') %}
+                                    {{ rec.user_name }}
+                                    {% else %}
+                                    <span class="text-muted fst-italic">Chưa nhận diện</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if rec.verify_mode == 'Vân tay' %}<span class="badge bg-success"><i class="bi bi-fingerprint"></i> Vân tay</span>
                                     {% elif rec.verify_mode == 'Thẻ' %}<span class="badge bg-info text-dark"><i class="bi bi-credit-card"></i> Thẻ</span>
-                                    {% else %}<span class="badge bg-secondary">{{ rec.verify_mode }}</span>{% endif %}
+                                    {% else %}<span class="badge bg-success"><i class="bi bi-fingerprint"></i> Vân tay</span>{% endif %}
                                 </td>
                                 <td>
                                     {% if rec.event_type == 'Check-in' %}<span class="badge bg-primary">Vào</span>
@@ -363,6 +387,13 @@ document.addEventListener("DOMContentLoaded", function() {
             const activeInput = document.getElementById('activeTabInput');
             if (activeInput) activeInput.value = tabId;
         });
+    });
+
+    // Append active_tab=logs to Tab 2 pagination links
+    document.querySelectorAll('#logs-tab-pane .page-link').forEach(link => {
+        if (link.href && !link.href.includes('active_tab=')) {
+            link.href += (link.href.includes('?') ? '&' : '?') + 'active_tab=logs';
+        }
     });
 });
 
