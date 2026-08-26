@@ -10053,7 +10053,7 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
         new_count = 0
 
         search_pos = 0
-        max_pages = 5
+        max_pages = 50
 
         for page_idx in range(max_pages):
             page_events = []
@@ -10159,7 +10159,7 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
             db.session.commit()
             search_pos += len(page_events)
 
-            if len(page_events) < 30:
+            if len(page_events) == 0:
                 break
 
         date_info_str = f"từ {start_date.strftime('%d/%m')} đến {end_date.strftime('%d/%m')}"
