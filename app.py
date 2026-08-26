@@ -10,6 +10,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
 import pandas as pd
 import io
+import csv
+import math
 import click
 import json
 import sqlite3
@@ -10278,7 +10280,7 @@ def attendance_logs():
     # Summary List Manual Pagination
     summary_per_page = session.get('per_page_attendance_summary', 20)
     total_summary_items = len(summary_list)
-    summary_total_pages = max(1, math.ceil(total_summary_items / summary_per_page))
+    summary_total_pages = max(1, (total_summary_items + summary_per_page - 1) // summary_per_page)
     summary_page = min(max(1, summary_page), summary_total_pages)
     
     start_idx = (summary_page - 1) * summary_per_page
