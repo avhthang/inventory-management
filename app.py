@@ -10049,63 +10049,80 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
         start_str_tz = f"{start_str_plain}+07:00"
         end_str_tz = f"{end_str_plain}+07:00"
 
+        time_pairs = [
+            (start_str_plain, end_str_plain),
+            (start_str_tz, end_str_tz)
+        ]
+
         all_events = []
         last_error = None
         users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
         new_count = 0
 
         search_pos = 0
-        max_pages = 50
+        max_pages = 200
 
         for page_idx in range(max_pages):
             page_events = []
 
-            xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>30</maxResults><major>5</major><minor>0</minor><startTime>{start_str_tz}</startTime><endTime>{end_str_tz}</endTime></AcsEventCond>'
-            ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=3)
-            if ok_xml:
-                page_events = _parse_hikvision_events_response(data_xml)
-            else:
-                last_error = data_xml
+            # Try plain timestamps first, then tz timestamps
+            for st_val, et_val in time_pairs:
+                for major_val in [5, 0]:
+                    xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>30</maxResults><major>{major_val}</major><minor>0</minor><startTime>{st_val}</startTime><endTime>{et_val}</endTime></AcsEventCond>'
+                    ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=3)
+                    if ok_xml:
+                        page_events = _parse_hikvision_events_response(data_xml)
+                        if page_events: break
+                    else:
+                        last_error = data_xml
+                if page_events: break
 
             if not page_events:
-                json_payload = {
-                    "AcsEventCond": {
-                        "searchID": "1",
-                        "searchResultPosition": search_pos,
-                        "maxResults": 30,
-                        "major": 5,
-                        "minor": 0,
-                        "startTime": start_str_tz,
-                        "endTime": end_str_tz
+                for st_val, et_val in time_pairs:
+                    json_payload = {
+                        "AcsEventCond": {
+                            "searchID": "1",
+                            "searchResultPosition": search_pos,
+                            "maxResults": 30,
+                            "major": 5,
+                            "minor": 0,
+                            "startTime": st_val,
+                            "endTime": et_val
+                        }
                     }
-                }
-                ok_j, data_j = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=json_payload, content_type='application/json', timeout=3)
-                if ok_j:
-                    page_events = _parse_hikvision_events_response(data_j)
-                else:
-                    last_error = data_j
+                    ok_j, data_j = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=json_payload, content_type='application/json', timeout=3)
+                    if ok_j:
+                        page_events = _parse_hikvision_events_response(data_j)
+                        if page_events: break
+                    else:
+                        last_error = data_j
+                    if page_events: break
 
             if not page_events:
-                json_payload_alt = {
-                    "AcsEventSearchCond": {
-                        "searchID": "1",
-                        "searchResultPosition": search_pos,
-                        "maxResults": 30,
-                        "major": 5,
-                        "minor": 0,
-                        "startTime": start_str_tz,
-                        "endTime": end_str_tz
+                for st_val, et_val in time_pairs:
+                    json_payload_alt = {
+                        "AcsEventSearchCond": {
+                            "searchID": "1",
+                            "searchResultPosition": search_pos,
+                            "maxResults": 30,
+                            "major": 5,
+                            "minor": 0,
+                            "startTime": st_val,
+                            "endTime": et_val
+                        }
                     }
-                }
-                ok_j2, data_j2 = _hikvision_request('/ISAPI/AccessControl/AcsEvent/Search?format=json', method='POST', payload=json_payload_alt, content_type='application/json', timeout=3)
-                if ok_j2:
-                    page_events = _parse_hikvision_events_response(data_j2)
-                else:
-                    last_error = data_j2
+                    ok_j2, data_j2 = _hikvision_request('/ISAPI/AccessControl/AcsEvent/Search?format=json', method='POST', payload=json_payload_alt, content_type='application/json', timeout=3)
+                    if ok_j2:
+                        page_events = _parse_hikvision_events_response(data_j2)
+                        if page_events: break
+                    else:
+                        last_error = data_j2
+                    if page_events: break
 
             if not page_events:
                 break
 
+            page_added = 0
             for evt in page_events:
                 emp_no = str(evt.get('employeeNoString') or evt.get('employeeNo') or '').strip()
                 time_str = evt.get('time') or evt.get('eventTime') or evt.get('event_time') or evt.get('Date') or evt.get('Time')
@@ -10143,8 +10160,15 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
                 
                 verify_mode = 'Vân tay'
                 evt_str = json.dumps(evt).lower()
-                if 'card' in evt_str or card_no: verify_mode = 'Thẻ'
-                elif 'face' in evt_str: verify_mode = 'Khuôn mặt'
+                v_mode_val = str(evt.get('verifyMode') or evt.get('currentVerifyMode') or '').lower()
+                if 'face' in v_mode_val or ('face' in evt_str and ('faceid' in evt_str or 'facial' in evt_str)):
+                    verify_mode = 'Khuôn mặt'
+                elif 'card' in v_mode_val or (card_no and card_no.strip() not in ('', '0', 'null', 'None')):
+                    verify_mode = 'Thẻ'
+                elif 'pwd' in v_mode_val or 'password' in v_mode_val:
+                    verify_mode = 'Mật khẩu'
+                else:
+                    verify_mode = 'Vân tay'
 
                 event_type = 'Check-in' if event_dt.hour < 12 else 'Check-out'
 
@@ -10159,6 +10183,7 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
                 )
                 db.session.add(record)
                 new_count += 1
+                page_added += 1
 
             db.session.commit()
             search_pos += len(page_events)
@@ -10174,26 +10199,6 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
     except Exception as exc:
         db.session.rollback()
         return False, f"Lỗi xử lý nhật ký sự kiện: {exc}"
-
-def emp_sort_key(emp_str):
-    if not emp_str: return (999999999, '')
-    digits = re.findall(r'\d+', str(emp_str))
-    if digits:
-        num = int(digits[0])
-    else:
-        num = 999999999
-    return (num, str(emp_str))
-
-def get_all_attendance_user_types():
-    try:
-        db_types = [u[0] for u in db.session.query(AttendanceUser.user_type).filter(AttendanceUser.user_type.isnot(None)).distinct().all() if u[0]]
-        combined = ['Nhân viên', 'VIP', 'Khách']
-        for t in db_types:
-            if t not in combined:
-                combined.append(t)
-        return combined
-    except Exception:
-        return ['Nhân viên', 'VIP', 'Khách']
 
 @app.route('/attendance')
 def attendance_logs():
@@ -10239,11 +10244,45 @@ def attendance_logs():
         'hikvision_cfg': get_hikvision_config()
     }
 
+    # Role Scoping: Admin sees all, Linked User sees ONLY their own logs
+    current_user_id = session.get('user_id')
+    user_role = session.get('role')
+    user_permissions = _get_current_permissions()
+    is_admin = (user_role == 'admin') or ('attendance.view_all' in user_permissions)
+    
+    linked_att_user = None
+    permission_notice = None
+
     try:
         query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
 
+        log_date_expr = cast(AttendanceRecord.event_time, db.Date)
+        summary_query = db.session.query(
+            AttendanceRecord.employee_no,
+            AttendanceRecord.user_name,
+            log_date_expr.label('log_date'),
+            func.min(AttendanceRecord.event_time).label('first_in'),
+            func.max(AttendanceRecord.event_time).label('last_out'),
+            func.count(AttendanceRecord.id).label('total_scans')
+        ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+
+        if not is_admin:
+            linked_att_user = AttendanceUser.query.filter_by(system_user_id=current_user_id).first()
+            if linked_att_user and linked_att_user.employee_no:
+                query = query.filter(AttendanceRecord.employee_no == linked_att_user.employee_no)
+                summary_query = summary_query.filter(AttendanceRecord.employee_no == linked_att_user.employee_no)
+                permission_notice = f"Đang hiển thị dữ liệu chấm công cá nhân của bạn (Mã NV: {linked_att_user.employee_no})."
+            else:
+                query = query.filter(AttendanceRecord.employee_no == '___NO_PERM___')
+                summary_query = summary_query.filter(AttendanceRecord.employee_no == '___NO_PERM___')
+                permission_notice = "Tài khoản của bạn chưa được liên kết với Mã chấm công nào. Vui lòng liên hệ Quản trị viên."
+
         if q:
             query = query.filter(or_(
+                AttendanceRecord.employee_no.ilike(f'%{q}%'),
+                AttendanceRecord.user_name.ilike(f'%{q}%')
+            ))
+            summary_query = summary_query.filter(or_(
                 AttendanceRecord.employee_no.ilike(f'%{q}%'),
                 AttendanceRecord.user_name.ilike(f'%{q}%')
             ))
@@ -10251,6 +10290,7 @@ def attendance_logs():
         if user_type_filter:
             matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
             query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
+            summary_query = summary_query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
 
         if 'per_page' in request.args:
             try:
@@ -10262,26 +10302,6 @@ def attendance_logs():
             per_page = session.get('per_page_attendance_logs', 20)
 
         records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=per_page, error_out=False)
-        
-        log_date_expr = cast(AttendanceRecord.event_time, db.Date)
-        summary_query = db.session.query(
-            AttendanceRecord.employee_no,
-            AttendanceRecord.user_name,
-            log_date_expr.label('log_date'),
-            func.min(AttendanceRecord.event_time).label('first_in'),
-            func.max(AttendanceRecord.event_time).label('last_out'),
-            func.count(AttendanceRecord.id).label('total_scans')
-        ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
-
-        if q:
-            summary_query = summary_query.filter(or_(
-                AttendanceRecord.employee_no.ilike(f'%{q}%'),
-                AttendanceRecord.user_name.ilike(f'%{q}%')
-            ))
-
-        if user_type_filter:
-            matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
-            summary_query = summary_query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
 
         summary_raw = summary_query.group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr).all()
 
@@ -10315,7 +10335,12 @@ def attendance_logs():
         else: # date_desc
             summary_list.sort(key=lambda x: (x['log_date'], x['first_in']), reverse=True)
 
-        stats['total_records'] = AttendanceRecord.query.filter(AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count()
+        if is_admin:
+            stats['total_records'] = AttendanceRecord.query.filter(AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count()
+        else:
+            emp_no_check = linked_att_user.employee_no if linked_att_user else '___NO_PERM___'
+            stats['total_records'] = AttendanceRecord.query.filter(AttendanceRecord.employee_no == emp_no_check, AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count()
+
         stats['total_users'] = AttendanceUser.query.filter_by(is_active=True).count()
     except Exception as exc:
         print(f"Error in attendance_logs query: {exc}")
@@ -10354,6 +10379,8 @@ def attendance_logs():
         sort_by=sort_by,
         user_type=user_type_filter,
         active_tab=active_tab,
+        is_admin=is_admin,
+        permission_notice=permission_notice,
         user_types=get_all_attendance_user_types()
     )
 
@@ -10391,6 +10418,11 @@ def attendance_export():
         start_dt = datetime.combine(start_date, datetime.min.time())
         end_dt = datetime.combine(end_date, datetime.max.time())
 
+        current_user_id = session.get('user_id')
+        user_role = session.get('role')
+        user_permissions = _get_current_permissions()
+        is_admin = (user_role == 'admin') or ('attendance.view_all' in user_permissions)
+
         output = io.StringIO()
         writer = csv.writer(output)
 
@@ -10406,6 +10438,13 @@ def attendance_export():
                 func.max(AttendanceRecord.event_time).label('last_out'),
                 func.count(AttendanceRecord.id).label('total_scans')
             ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+
+            if not is_admin:
+                linked_att_user = AttendanceUser.query.filter_by(system_user_id=current_user_id).first()
+                if linked_att_user and linked_att_user.employee_no:
+                    query = query.filter(AttendanceRecord.employee_no == linked_att_user.employee_no)
+                else:
+                    query = query.filter(AttendanceRecord.employee_no == '___NO_PERM___')
 
             if q:
                 query = query.filter(or_(AttendanceRecord.employee_no.ilike(f'%{q}%'), AttendanceRecord.user_name.ilike(f'%{q}%')))
@@ -10456,6 +10495,13 @@ def attendance_export():
         else:
             writer.writerow(['STT', 'Thời gian quẹt', 'Mã NV', 'Account', 'Phương thức', 'Sự kiện', 'Thiết bị', 'Mã sự kiện'])
             query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+            if not is_admin:
+                linked_att_user = AttendanceUser.query.filter_by(system_user_id=current_user_id).first()
+                if linked_att_user and linked_att_user.employee_no:
+                    query = query.filter(AttendanceRecord.employee_no == linked_att_user.employee_no)
+                else:
+                    query = query.filter(AttendanceRecord.employee_no == '___NO_PERM___')
+
             if q:
                 query = query.filter(or_(AttendanceRecord.employee_no.ilike(f'%{q}%'), AttendanceRecord.user_name.ilike(f'%{q}%')))
             if user_type_filter:

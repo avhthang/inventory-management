@@ -22,6 +22,13 @@
     </div>
 </div>
 
+{% if permission_notice %}
+<div class="alert alert-warning border shadow-sm mb-3 d-flex align-items-center gap-2">
+    <i class="bi bi-shield-lock-fill text-warning fs-5"></i>
+    <div>{{ permission_notice }}</div>
+</div>
+{% endif %}
+
 <!-- Dynamic Alert Bar for Sync Status -->
 <div id="syncAlertBar" class="alert alert-info d-none fade show align-items-center gap-2">
     <div class="spinner-border spinner-border-sm text-info" id="syncSpinner"></div>
