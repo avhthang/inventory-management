@@ -10290,7 +10290,12 @@ def attendance_logs():
 
         # Python-based DB-agnostic Summary Aggregation (Avoids strict SQL GROUP BY errors)
         all_raw_records = query.order_by(AttendanceRecord.event_time.asc()).all()
-        users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
+        users_map = {}
+        try:
+            users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
+        except Exception as u_exc:
+            db.session.rollback()
+            print(f"Users map query info: {u_exc}")
         
         summary_map = {}
         for rec in all_raw_records:
@@ -10298,11 +10303,14 @@ def attendance_logs():
             key = (rec.employee_no, log_date_str)
             if key not in summary_map:
                 u_obj = users_map.get(rec.employee_no)
+                u_name = getattr(u_obj, 'name', None) if u_obj else None
+                u_type = getattr(u_obj, 'user_type', None) if u_obj else None
+                u_dept = getattr(u_obj, 'department', None) if u_obj else None
                 summary_map[key] = {
                     'employee_no': rec.employee_no,
-                    'user_name': u_obj.name if u_obj else rec.user_name,
-                    'user_type': u_obj.user_type if u_obj else 'Nhân viên',
-                    'department': u_obj.department if u_obj else '-',
+                    'user_name': u_name or rec.user_name or 'Chưa rõ',
+                    'user_type': u_type or 'Nhân viên',
+                    'department': u_dept or '-',
                     'log_date': log_date_str,
                     'first_in': rec.event_time,
                     'last_out': rec.event_time,
@@ -10375,6 +10383,7 @@ def attendance_logs():
 
     if records is None:
         try:
+            db.session.rollback()
             records = AttendanceRecord.query.filter_by(id=-1).paginate(page=1, per_page=20, error_out=False)
         except Exception:
             records = None
@@ -10755,6 +10764,22 @@ def attendance_sync_api():
             'message': f"Lỗi máy chủ (500): {str(exc)}"
         }), 500
 
+def _safe_add_column(table_name, col_name, col_type):
+    try:
+        with db.engine.connect() as conn:
+            inspector = inspect(db.engine)
+            if inspector.has_table(table_name):
+                cols = [c['name'] for c in inspector.get_columns(table_name)]
+                if col_name not in cols:
+                    try:
+                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
+                        conn.commit()
+                    except Exception as e1:
+                        conn.rollback()
+                        print(f"Migration {table_name}.{col_name} info: {e1}")
+    except Exception as exc:
+        print(f"Migration helper info: {exc}")
+
 _startup_db_initialized = False
 
 @app.before_request
@@ -10762,34 +10787,15 @@ def _run_lazy_startup_migrations():
     global _startup_db_initialized
     if not _startup_db_initialized:
         _startup_db_initialized = True
-        try:
-            with db.engine.connect() as conn:
-                inspector = inspect(db.engine)
-                if inspector.has_table('attendance_user'):
-                    cols = [c['name'] for c in inspector.get_columns('attendance_user')]
-                    if 'department' not in cols:
-                        try: conn.execute(text("ALTER TABLE attendance_user ADD COLUMN department VARCHAR(100)"))
-                        except Exception: pass
-                    if 'system_user_id' not in cols:
-                        try: conn.execute(text("ALTER TABLE attendance_user ADD COLUMN system_user_id INTEGER"))
-                        except Exception: pass
-                
-                if inspector.has_table('stock_item_movement'):
-                    cols = [c['name'] for c in inspector.get_columns('stock_item_movement')]
-                    if 'reason' not in cols:
-                        try: conn.execute(text("ALTER TABLE stock_item_movement ADD COLUMN reason VARCHAR(255)"))
-                        except Exception: pass
-                    if 'notes' not in cols:
-                        try: conn.execute(text("ALTER TABLE stock_item_movement ADD COLUMN notes TEXT"))
-                        except Exception: pass
-                
-                conn.commit()
-        except Exception as exc:
-            print(f"Lazy DB migration info: {exc}")
+        _safe_add_column('attendance_user', 'department', 'VARCHAR(100)')
+        _safe_add_column('attendance_user', 'system_user_id', 'INTEGER')
+        _safe_add_column('stock_item_movement', 'reason', 'VARCHAR(255)')
+        _safe_add_column('stock_item_movement', 'notes', 'TEXT')
 
         try:
-            AttendanceRecord.query.filter_by(verify_mode='Thẻ').update({'verify_mode': 'Vân tay'})
-            db.session.commit()
+            with app.app_context():
+                AttendanceRecord.query.filter_by(verify_mode='Thẻ').update({'verify_mode': 'Vân tay'})
+                db.session.commit()
         except Exception as exc:
             db.session.rollback()
             print(f"Lazy record verify_mode update info: {exc}")
