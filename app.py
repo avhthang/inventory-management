@@ -10201,6 +10201,18 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
         db.session.rollback()
         return False, f"Lỗi xử lý nhật ký sự kiện: {exc}"
 
+def get_all_attendance_user_types():
+    try:
+        types = [r[0] for r in db.session.query(AttendanceUser.user_type).distinct().all() if r[0]]
+        defaults = ['Nhân viên', 'VIP', 'Khách', 'Bảo vệ', 'Lao công', 'Khác']
+        for d in defaults:
+            if d not in types:
+                types.append(d)
+        return types
+    except Exception as exc:
+        db.session.rollback()
+        return ['Nhân viên', 'VIP', 'Khách', 'Bảo vệ', 'Lao công', 'Khác']
+
 @app.route('/attendance')
 def attendance_logs():
     if 'user_id' not in session: return redirect(url_for('login'))
