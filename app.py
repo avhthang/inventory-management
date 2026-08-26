@@ -1497,6 +1497,8 @@ class StockItemMovement(db.Model):
     actor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     supplier = db.Column(db.String(150))
     reference_code = db.Column(db.String(100))
+    reason = db.Column(db.String(255))
+    notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     item = db.relationship('StockItem', back_populates='movements')
@@ -10758,6 +10760,23 @@ with app.app_context():
     except Exception as exc:
         db.session.rollback()
         print(f"Verify mode update info: {exc}")
+
+def migrate_stock_item_movement():
+    with app.app_context():
+        try:
+            with db.engine.connect() as conn:
+                inspector = inspect(db.engine)
+                if inspector.has_table('stock_item_movement'):
+                    columns = [c['name'] for c in inspector.get_columns('stock_item_movement')]
+                    if 'reason' not in columns:
+                        conn.execute(text("ALTER TABLE stock_item_movement ADD COLUMN reason VARCHAR(255)"))
+                    if 'notes' not in columns:
+                        conn.execute(text("ALTER TABLE stock_item_movement ADD COLUMN notes TEXT"))
+                    conn.commit()
+        except Exception as exc:
+            print(f"Migration stock_item_movement info: {exc}")
+
+migrate_stock_item_movement()
 
 if __name__ == '__main__':
     app.run(debug=True)
