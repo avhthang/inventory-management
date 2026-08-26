@@ -10288,7 +10288,7 @@ def attendance_logs():
         # Tab 2 Paginated Records
         records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
-        # Python-based DB-agnostic Summary Aggregation (Avoids strict SQL GROUP BY errors)
+        # Python-based DB-agnostic Summary Aggregation
         all_raw_records = query.order_by(AttendanceRecord.event_time.asc()).all()
         users_map = {}
         try:
@@ -10357,8 +10357,9 @@ def attendance_logs():
     except Exception as exc:
         db.session.rollback()
         import traceback
-        traceback.print_exc()
-        print(f"Error in attendance_logs query: {exc}")
+        err_stack = traceback.format_exc()
+        print(f"CRITICAL ATTENDANCE_LOGS ERROR:\n{err_stack}")
+        permission_notice = f"⚠️ Phát hiện sự cố dữ liệu: {exc}"
 
     # Summary List Manual Pagination
     summary_per_page = session.get('per_page_attendance_summary', 20)
@@ -10388,6 +10389,11 @@ def attendance_logs():
         except Exception:
             records = None
 
+    try:
+        user_types_list = get_all_attendance_user_types()
+    except Exception:
+        user_types_list = []
+
     return render_template(
         'attendance_logs.html',
         records=records,
@@ -10403,7 +10409,7 @@ def attendance_logs():
         active_tab=active_tab,
         is_admin=is_admin,
         permission_notice=permission_notice,
-        user_types=get_all_attendance_user_types()
+        user_types=user_types_list
     )
 
 @app.route('/attendance/export')
