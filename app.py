@@ -10373,6 +10373,12 @@ def attendance_logs():
         'next_num': summary_page + 1
     }
 
+    if records is None:
+        try:
+            records = AttendanceRecord.query.filter_by(id=-1).paginate(page=1, per_page=20, error_out=False)
+        except Exception:
+            records = None
+
     return render_template(
         'attendance_logs.html',
         records=records,
@@ -10754,26 +10760,42 @@ try:
         try:
             updated_records = AttendanceRecord.query.filter_by(verify_mode='Thẻ').update({'verify_mode': 'Vân tay'})
             db.session.commit()
-            if updated_records > 0:
-                print(f"Updated {updated_records} records verify_mode to 'Vân tay'.")
         except Exception as exc:
             db.session.rollback()
-            print(f"Verify mode update info: {exc}")
-
-        try:
-            with db.engine.connect() as conn:
-                inspector = inspect(db.engine)
-                if inspector.has_table('stock_item_movement'):
-                    columns = [c['name'] for c in inspector.get_columns('stock_item_movement')]
-                    if 'reason' not in columns:
-                        conn.execute(text("ALTER TABLE stock_item_movement ADD COLUMN reason VARCHAR(255)"))
-                    if 'notes' not in columns:
-                        conn.execute(text("ALTER TABLE stock_item_movement ADD COLUMN notes TEXT"))
-                    conn.commit()
-        except Exception as exc:
-            print(f"Migration stock_item_movement info: {exc}")
 except Exception as exc:
     print(f"Startup migration info: {exc}")
+
+def migrate_database_schema():
+    try:
+        with app.app_context():
+            with db.engine.connect() as conn:
+                inspector = inspect(db.engine)
+                if inspector.has_table('attendance_user'):
+                    cols = [c['name'] for c in inspector.get_columns('attendance_user')]
+                    if 'department' not in cols:
+                        try: conn.execute(text("ALTER TABLE attendance_user ADD COLUMN department VARCHAR(100)"))
+                        except Exception: pass
+                    if 'system_user_id' not in cols:
+                        try: conn.execute(text("ALTER TABLE attendance_user ADD COLUMN system_user_id INTEGER"))
+                        except Exception: pass
+                
+                if inspector.has_table('stock_item_movement'):
+                    cols = [c['name'] for c in inspector.get_columns('stock_item_movement')]
+                    if 'reason' not in cols:
+                        try: conn.execute(text("ALTER TABLE stock_item_movement ADD COLUMN reason VARCHAR(255)"))
+                        except Exception: pass
+                    if 'notes' not in cols:
+                        try: conn.execute(text("ALTER TABLE stock_item_movement ADD COLUMN notes TEXT"))
+                        except Exception: pass
+                
+                conn.commit()
+    except Exception as exc:
+        print(f"Database schema migration info: {exc}")
+
+try:
+    migrate_database_schema()
+except Exception as exc:
+    print(f"Startup schema migration error: {exc}")
 
 if __name__ == '__main__':
     app.run(debug=True)
