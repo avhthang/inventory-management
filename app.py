@@ -90,7 +90,6 @@ except Exception:
 # Get configuration based on environment
 config_name = os.environ.get('FLASK_ENV', 'development')
 app = Flask(__name__, instance_path=instance_path)
-app.jinja_env.add_extension('jinja2.ext.do')
 app.config.from_object(config[config_name])
 os.makedirs(os.path.join(app.root_path, 'static', 'uploads', 'devices'), exist_ok=True)
 os.makedirs(os.path.join(app.root_path, 'static', 'uploads', 'handovers'), exist_ok=True)
@@ -10750,19 +10749,17 @@ def attendance_sync_api():
             'message': f"Lỗi máy chủ (500): {str(exc)}"
         }), 500
 
-# Update existing attendance records where verify_mode was incorrectly set to 'Thẻ'
-with app.app_context():
-    try:
-        updated_records = AttendanceRecord.query.filter_by(verify_mode='Thẻ').update({'verify_mode': 'Vân tay'})
-        db.session.commit()
-        if updated_records > 0:
-            print(f"Updated {updated_records} records verify_mode to 'Vân tay'.")
-    except Exception as exc:
-        db.session.rollback()
-        print(f"Verify mode update info: {exc}")
-
-def migrate_stock_item_movement():
+try:
     with app.app_context():
+        try:
+            updated_records = AttendanceRecord.query.filter_by(verify_mode='Thẻ').update({'verify_mode': 'Vân tay'})
+            db.session.commit()
+            if updated_records > 0:
+                print(f"Updated {updated_records} records verify_mode to 'Vân tay'.")
+        except Exception as exc:
+            db.session.rollback()
+            print(f"Verify mode update info: {exc}")
+
         try:
             with db.engine.connect() as conn:
                 inspector = inspect(db.engine)
@@ -10775,8 +10772,8 @@ def migrate_stock_item_movement():
                     conn.commit()
         except Exception as exc:
             print(f"Migration stock_item_movement info: {exc}")
-
-migrate_stock_item_movement()
+except Exception as exc:
+    print(f"Startup migration info: {exc}")
 
 if __name__ == '__main__':
     app.run(debug=True)
