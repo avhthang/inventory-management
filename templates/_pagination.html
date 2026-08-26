@@ -31,7 +31,7 @@
                 {% set args = {} %}
                 {% for key, values in request.args.lists() %}
                     {% if key not in ['page', 'per_page'] %}
-                        {% do args.update({key: values}) %}
+                        {% set _ = args.update({key: values}) %}
                     {% endif %}
                 {% endfor %}
 
