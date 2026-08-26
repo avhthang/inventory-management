@@ -60,7 +60,9 @@
 <!-- Filter Bar -->
 <div class="card mb-4 border-0 shadow-sm">
     <div class="card-body">
-        <form method="GET" class="row g-2 align-items-end">
+        <form method="GET" class="row g-2 align-items-end" id="filterForm">
+            <input type="hidden" name="active_tab" id="activeTabInput" value="{{ active_tab }}">
+            <input type="hidden" name="sort" value="{{ sort_by }}">
             <div class="col-md-3">
                 <label class="form-label fw-semibold">Từ ngày</label>
                 <input type="date" class="form-control" name="start_date" value="{{ start_date }}">
@@ -92,38 +94,59 @@
 
 <ul class="nav nav-tabs mb-3" id="attendanceTab" role="tablist">
     <li class="nav-item">
-        <button class="nav-link active fw-bold" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-tab-pane" type="button"><i class="bi bi-calendar-check me-1"></i> Bảng tổng hợp Vào / Ra</button>
+        <button class="nav-link {% if active_tab != 'logs' %}active{% endif %} fw-bold" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-tab-pane" type="button"><i class="bi bi-calendar-check me-1"></i> Bảng tổng hợp Vào / Ra</button>
     </li>
     <li class="nav-item">
-        <button class="nav-link fw-bold" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-tab-pane" type="button"><i class="bi bi-list-columns-reverse me-1"></i> Chi tiết Nhật ký quẹt vân tay</button>
+        <button class="nav-link {% if active_tab == 'logs' %}active{% endif %} fw-bold" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-tab-pane" type="button"><i class="bi bi-list-columns-reverse me-1"></i> Chi tiết Nhật ký quẹt vân tay</button>
     </li>
 </ul>
 
 <div class="tab-content" id="attendanceTabContent">
     <!-- TAB 1: Summary Daily View -->
-    <div class="tab-pane fade show active" id="summary-tab-pane" role="tabpanel">
+    <div class="tab-pane fade {% if active_tab != 'logs' %}show active{% endif %}" id="summary-tab-pane" role="tabpanel">
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold"><i class="bi bi-calendar3"></i> Bảng tổng hợp Giờ Vào sớm nhất & Giờ Ra muộn nhất</h5></div>
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-calendar3"></i> Bảng tổng hợp Giờ Vào sớm nhất & Giờ Ra muộn nhất</h5>
+                <a href="{{ url_for('attendance_export', type='summary', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort=sort_by) }}" class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel (CSV)
+                </a>
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
                                 <th class="text-center" style="width: 50px;">STT</th>
-                                <th>Ngày</th>
-                                <th>Mã NV</th>
+                                <th>
+                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort='date_asc' if sort_by == 'date_desc' else 'date_desc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
+                                        Ngày <i class="bi bi-arrow-down-up ms-1 small text-muted"></i>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort='emp_desc' if sort_by == 'emp_asc' else 'emp_asc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
+                                        Mã NV <i class="bi bi-arrow-down-up ms-1 small text-muted"></i>
+                                    </a>
+                                </th>
                                 <th>Họ và tên</th>
                                 <th>Đối tượng</th>
                                 <th>Phòng ban / Đơn vị</th>
-                                <th class="text-center">Giờ Vào (Sớm nhất)</th>
-                                <th class="text-center">Giờ Ra (Muộn nhất)</th>
+                                <th class="text-center">
+                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort='first_in_desc' if sort_by == 'first_in_asc' else 'first_in_asc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
+                                        Giờ Vào (Sớm nhất) <i class="bi {% if sort_by == 'first_in_asc' %}bi-sort-numeric-down text-primary{% else %}bi-arrow-down-up text-muted{% endif %} ms-1 small"></i>
+                                    </a>
+                                </th>
+                                <th class="text-center">
+                                    <a href="{{ url_for('attendance_logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort='last_out_asc' if sort_by == 'last_out_desc' else 'last_out_desc', active_tab='summary') }}" class="text-dark text-decoration-none fw-bold">
+                                        Giờ Ra (Muộn nhất) <i class="bi {% if sort_by == 'last_out_desc' %}bi-sort-numeric-down-alt text-primary{% else %}bi-arrow-down-up text-muted{% endif %} ms-1 small"></i>
+                                    </a>
+                                </th>
                                 <th class="text-center">Tổng lượt</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for s in summary_list %}
                             <tr>
-                                <td class="text-center text-muted">{{ loop.index }}</td>
+                                <td class="text-center text-muted">{{ loop.index + (summary_pagination.page - 1) * summary_pagination.per_page }}</td>
                                 <td><span class="fw-semibold font-monospace">{{ s.log_date }}</span></td>
                                 <td><span class="badge bg-secondary font-monospace">{{ s.employee_no }}</span></td>
                                 <td class="fw-bold text-dark">{{ s.user_name }}</td>
@@ -134,11 +157,11 @@
                                 </td>
                                 <td>{{ s.department }}</td>
                                 <td class="text-center text-success fw-bold">
-                                    <i class="bi bi-box-arrow-in-right"></i> {{ s.first_in.strftime('%H:%M:%S') }}
+                                    {{ s.first_in.strftime('%H:%M:%S') }}
                                 </td>
                                 <td class="text-center text-primary fw-bold">
                                     {% if s.last_out %}
-                                    <i class="bi bi-box-arrow-right"></i> {{ s.last_out.strftime('%H:%M:%S') }}
+                                    {{ s.last_out.strftime('%H:%M:%S') }}
                                     {% else %}
                                     <span class="text-muted small">-</span>
                                     {% endif %}
@@ -152,13 +175,39 @@
                     </table>
                 </div>
             </div>
+            <!-- Summary Table Pagination -->
+            {% if summary_pagination and summary_pagination.pages > 1 %}
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2">
+                <div class="small text-muted">Hiển thị {{ summary_list|length }}/{{ summary_pagination.total }} dòng</div>
+                <nav aria-label="Summary pagination">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item {% if not summary_pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.prev_num, start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">Trước</a>
+                        </li>
+                        {% for p in range(1, summary_pagination.pages + 1) %}
+                        <li class="page-item {% if p == summary_pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=p, start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">{{ p }}</a>
+                        </li>
+                        {% endfor %}
+                        <li class="page-item {% if not summary_pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.next_num, start_date=start_date, end_date=end_date, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">Sau</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
         </div>
     </div>
 
     <!-- TAB 2: Detailed Logs View -->
-    <div class="tab-pane fade" id="logs-tab-pane" role="tabpanel">
+    <div class="tab-pane fade {% if active_tab == 'logs' %}show active{% endif %}" id="logs-tab-pane" role="tabpanel">
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold"><i class="bi bi-clock-history"></i> Chi tiết từng lượt quẹt vân tay</h5></div>
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history"></i> Chi tiết từng lượt quẹt vân tay</h5>
+                <a href="{{ url_for('attendance_export', type='logs', start_date=start_date, end_date=end_date, q=q, user_type=user_type) }}" class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel (CSV)
+                </a>
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -178,7 +227,7 @@
                             {% if records %}
                             {% for rec in records.items %}
                             <tr>
-                                <td class="text-center text-muted">{{ loop.index }}</td>
+                                <td class="text-center text-muted">{{ loop.index + (records.page - 1) * records.per_page }}</td>
                                 <td><strong class="font-monospace text-primary fs-6">{{ rec.event_time.strftime('%d-%m-%Y %H:%M:%S') }}</strong></td>
                                 <td><span class="badge bg-secondary font-monospace">{{ rec.employee_no }}</span></td>
                                 <td class="fw-semibold text-dark">{{ rec.user_name }}</td>
@@ -205,7 +254,7 @@
                 </div>
             </div>
             {% if records %}
-            <div class="card-footer bg-white">{{ render_pagination(records, 'attendance_logs', {'start_date': start_date, 'end_date': end_date, 'q': q, 'user_type': user_type}) }}</div>
+            <div class="card-footer bg-white">{{ render_pagination(records, 'attendance_logs', {'start_date': start_date, 'end_date': end_date, 'q': q, 'user_type': user_type, 'active_tab': 'logs'}) }}</div>
             {% endif %}
         </div>
     </div>
@@ -279,6 +328,31 @@
 {% block scripts %}
 {{ super() }}
 <script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Preserve Active Tab across pagination & sorting clicks
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTabParam = urlParams.get('active_tab');
+    const storedTab = sessionStorage.getItem('activeAttendanceTab');
+    
+    let targetTab = activeTabParam || storedTab;
+    if (targetTab === 'logs') {
+        const logsTabBtn = document.getElementById('logs-tab');
+        if (logsTabBtn) {
+            const logsTab = new bootstrap.Tab(logsTabBtn);
+            logsTab.show();
+        }
+    }
+
+    document.querySelectorAll('#attendanceTab button').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', function(e) {
+            const tabId = e.target.id === 'logs-tab' ? 'logs' : 'summary';
+            sessionStorage.setItem('activeAttendanceTab', tabId);
+            const activeInput = document.getElementById('activeTabInput');
+            if (activeInput) activeInput.value = tabId;
+        });
+    });
+});
+
 function toggleSyncFields() {
     const isUsersOnly = document.getElementById('syncScopeUsers').checked;
     const logSection = document.getElementById('logDaysSection');

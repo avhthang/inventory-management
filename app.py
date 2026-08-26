@@ -10058,7 +10058,6 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
         for page_idx in range(max_pages):
             page_events = []
 
-            # 1. XML AcsEventCond
             xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>30</maxResults><major>5</major><minor>0</minor><startTime>{start_str_tz}</startTime><endTime>{end_str_tz}</endTime></AcsEventCond>'
             ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=3)
             if ok_xml:
@@ -10066,7 +10065,6 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
             else:
                 last_error = data_xml
 
-            # 2. JSON AcsEventCond
             if not page_events:
                 json_payload = {
                     "AcsEventCond": {
@@ -10085,7 +10083,6 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
                 else:
                     last_error = data_j
 
-            # 3. JSON AcsEventSearchCond
             if not page_events:
                 json_payload_alt = {
                     "AcsEventSearchCond": {
@@ -10107,25 +10104,31 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
             if not page_events:
                 break
 
-            # Process & save events for current page
-            page_added = 0
             for evt in page_events:
                 emp_no = str(evt.get('employeeNoString') or evt.get('employeeNo') or '').strip()
-                time_str = evt.get('time') or evt.get('eventTime')
+                time_str = evt.get('time') or evt.get('eventTime') or evt.get('event_time') or evt.get('Date') or evt.get('Time')
                 serial_no = str(evt.get('serialNo') or evt.get('serial') or evt.get('eventID') or '')
                 card_no = str(evt.get('cardNo') or '')
                 
                 if not time_str: continue
 
+                event_dt = None
                 try:
-                    event_dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-                    if event_dt.tzinfo:
-                        event_dt = event_dt.astimezone(VIETNAM_TZ).replace(tzinfo=None)
-                except Exception:
-                    try:
-                        event_dt = datetime.strptime(time_str[:19], '%Y-%m-%dT%H:%M:%S')
-                    except Exception:
-                        continue
+                    ts_clean = str(time_str).strip()
+                    if 'T' in ts_clean:
+                        dt_part = ts_clean.split('.')[0]
+                        if '+' in dt_part[10:]:
+                            dt_base = dt_part.rsplit('+', 1)[0]
+                        elif '-' in dt_part[10:]:
+                            dt_base = dt_part.rsplit('-', 1)[0]
+                        else:
+                            dt_base = dt_part.replace('Z', '')
+                        event_dt = datetime.strptime(dt_base, '%Y-%m-%dT%H:%M:%S')
+                    else:
+                        event_dt = datetime.strptime(ts_clean[:19], '%Y-%m-%d %H:%M:%S')
+                except Exception as exc:
+                    print(f"Timestamp parse error on {time_str}: {exc}")
+                    continue
 
                 raw_id = f"HIK_{serial_no}_{emp_no}_{event_dt.strftime('%Y%m%d%H%M%S')}"
                 if not serial_no and not emp_no: continue
@@ -10154,7 +10157,6 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
                 )
                 db.session.add(record)
                 new_count += 1
-                page_added += 1
 
             db.session.commit()
             search_pos += len(page_events)
@@ -10179,7 +10181,11 @@ def attendance_logs():
     end_date_val = request.args.get('end_date')
     q = (request.args.get('q') or '').strip()
     user_type_filter = (request.args.get('user_type') or '').strip()
+    sort_by = (request.args.get('sort') or 'date_desc').strip()
+    
     page = request.args.get('page', 1, type=int)
+    summary_page = request.args.get('summary_page', 1, type=int)
+    active_tab = request.args.get('active_tab', 'summary')
 
     today = date.today()
     try:
@@ -10232,9 +10238,7 @@ def attendance_logs():
             func.min(AttendanceRecord.event_time).label('first_in'),
             func.max(AttendanceRecord.event_time).label('last_out'),
             func.count(AttendanceRecord.id).label('total_scans')
-        ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)\
-         .group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr)\
-         .order_by(log_date_expr.desc(), AttendanceRecord.employee_no).all()
+        ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)         .group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr).all()
 
         users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
         for r in summary_raw:
@@ -10250,22 +10254,177 @@ def attendance_logs():
                 'total_scans': r.total_scans
             })
 
+        # Apply Sorting on Summary List
+        if sort_by == 'first_in_asc':
+            summary_list.sort(key=lambda x: x['first_in'])
+        elif sort_by == 'first_in_desc':
+            summary_list.sort(key=lambda x: x['first_in'], reverse=True)
+        elif sort_by == 'last_out_desc':
+            summary_list.sort(key=lambda x: (x['last_out'] or datetime.min), reverse=True)
+        elif sort_by == 'last_out_asc':
+            summary_list.sort(key=lambda x: (x['last_out'] or datetime.max))
+        elif sort_by == 'emp_asc':
+            summary_list.sort(key=lambda x: x['employee_no'])
+        elif sort_by == 'emp_desc':
+            summary_list.sort(key=lambda x: x['employee_no'], reverse=True)
+        else: # date_desc
+            summary_list.sort(key=lambda x: (x['log_date'], x['first_in']), reverse=True)
+
         stats['total_records'] = AttendanceRecord.query.filter(AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count()
         stats['total_users'] = AttendanceUser.query.filter_by(is_active=True).count()
     except Exception as exc:
         print(f"Error in attendance_logs query: {exc}")
 
+    # Summary List Manual Pagination
+    summary_per_page = session.get('per_page_attendance_summary', 20)
+    total_summary_items = len(summary_list)
+    summary_total_pages = max(1, math.ceil(total_summary_items / summary_per_page))
+    summary_page = min(max(1, summary_page), summary_total_pages)
+    
+    start_idx = (summary_page - 1) * summary_per_page
+    end_idx = start_idx + summary_per_page
+    summary_paged_list = summary_list[start_idx:end_idx]
+
+    summary_pagination = {
+        'page': summary_page,
+        'per_page': summary_per_page,
+        'total': total_summary_items,
+        'pages': summary_total_pages,
+        'has_prev': summary_page > 1,
+        'has_next': summary_page < summary_total_pages,
+        'prev_num': summary_page - 1,
+        'next_num': summary_page + 1
+    }
+
     return render_template(
         'attendance_logs.html',
         records=records,
-        summary_list=summary_list[:50],
+        summary_list=summary_paged_list,
+        summary_pagination=summary_pagination,
         stats=stats,
         start_date=start_date.strftime('%Y-%m-%d'),
         end_date=end_date.strftime('%Y-%m-%d'),
         q=q,
+        sort_by=sort_by,
         user_type=user_type_filter,
+        active_tab=active_tab,
         user_types=['Nhân viên', 'VIP', 'Khách']
     )
+
+@app.route('/attendance/export')
+def attendance_export():
+    if 'user_id' not in session: return redirect(url_for('login')), 401
+    
+    export_type = request.args.get('type', 'summary')
+    start_date_val = request.args.get('start_date')
+    end_date_val = request.args.get('end_date')
+    q = (request.args.get('q') or '').strip()
+    user_type_filter = (request.args.get('user_type') or '').strip()
+    sort_by = (request.args.get('sort') or 'date_desc').strip()
+    
+    today = date.today()
+    try:
+        start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=7))
+        end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
+    except Exception:
+        start_date = today - timedelta(days=7)
+        end_date = today
+
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write UTF-8 BOM
+    response_data = '\ufeff'
+
+    if export_type == 'summary':
+        writer.writerow(['STT', 'Ngày', 'Mã NV', 'Họ và tên', 'Đối tượng', 'Phòng ban', 'Giờ Vào (Sớm nhất)', 'Giờ Ra (Muộn nhất)', 'Tổng lượt'])
+        
+        log_date_expr = cast(AttendanceRecord.event_time, db.Date)
+        query = db.session.query(
+            AttendanceRecord.employee_no,
+            AttendanceRecord.user_name,
+            log_date_expr.label('log_date'),
+            func.min(AttendanceRecord.event_time).label('first_in'),
+            func.max(AttendanceRecord.event_time).label('last_out'),
+            func.count(AttendanceRecord.id).label('total_scans')
+        ).filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+
+        if q:
+            query = query.filter(or_(AttendanceRecord.employee_no.ilike(f'%{q}%'), AttendanceRecord.user_name.ilike(f'%{q}%')))
+        if user_type_filter:
+            matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
+            query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
+
+        rows = query.group_by(AttendanceRecord.employee_no, AttendanceRecord.user_name, log_date_expr).all()
+        users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
+        
+        summary_list = []
+        for r in rows:
+            u_obj = users_map.get(r.employee_no)
+            summary_list.append({
+                'employee_no': r.employee_no,
+                'user_name': u_obj.name if u_obj else r.user_name,
+                'user_type': u_obj.user_type if u_obj else 'Nhân viên',
+                'department': u_obj.department if u_obj else '-',
+                'log_date': str(r.log_date) if r.log_date else '',
+                'first_in': r.first_in,
+                'last_out': r.last_out if r.last_out != r.first_in else None,
+                'total_scans': r.total_scans
+            })
+
+        if sort_by == 'first_in_asc': summary_list.sort(key=lambda x: x['first_in'])
+        elif sort_by == 'first_in_desc': summary_list.sort(key=lambda x: x['first_in'], reverse=True)
+        elif sort_by == 'last_out_desc': summary_list.sort(key=lambda x: (x['last_out'] or datetime.min), reverse=True)
+        elif sort_by == 'last_out_asc': summary_list.sort(key=lambda x: (x['last_out'] or datetime.max))
+        elif sort_by == 'emp_asc': summary_list.sort(key=lambda x: x['employee_no'])
+        elif sort_by == 'emp_desc': summary_list.sort(key=lambda x: x['employee_no'], reverse=True)
+        else: summary_list.sort(key=lambda x: (x['log_date'], x['first_in']), reverse=True)
+
+        for idx, r in enumerate(summary_list, 1):
+            first_in_str = r['first_in'].strftime('%H:%M:%S') if r['first_in'] else ''
+            last_out_str = r['last_out'].strftime('%H:%M:%S') if r['last_out'] else ''
+            writer.writerow([
+                idx,
+                r['log_date'],
+                r['employee_no'],
+                r['user_name'],
+                r['user_type'],
+                r['department'],
+                first_in_str,
+                last_out_str,
+                r['total_scans']
+            ])
+        filename = f"Tong_hop_cham_cong_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv"
+    else:
+        writer.writerow(['STT', 'Thời gian quẹt', 'Mã NV', 'Người chấm công', 'Phương thức', 'Sự kiện', 'Thiết bị', 'Mã sự kiện'])
+        query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+        if q:
+            query = query.filter(or_(AttendanceRecord.employee_no.ilike(f'%{q}%'), AttendanceRecord.user_name.ilike(f'%{q}%')))
+        if user_type_filter:
+            matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
+            query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
+
+        records = query.order_by(AttendanceRecord.event_time.desc()).all()
+        for idx, rec in enumerate(records, 1):
+            writer.writerow([
+                idx,
+                rec.event_time.strftime('%d-%m-%Y %H:%M:%S'),
+                rec.employee_no,
+                rec.user_name,
+                rec.verify_mode,
+                rec.event_type,
+                rec.device_name,
+                rec.raw_event_id
+            ])
+        filename = f"Nhat_ky_cham_cong_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv"
+
+    response = make_response(output.getvalue().encode('utf-8-sig'))
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    response.headers["Content-type"] = "text/csv; charset=utf-8"
+    return response
 
 @app.route('/attendance/users', methods=['GET', 'POST'])
 def attendance_users():
@@ -10278,6 +10437,11 @@ def attendance_users():
         department = (request.form.get('department') or '').strip()
         card_no = (request.form.get('card_no') or '').strip()
         system_user_id = request.form.get('system_user_id', type=int)
+
+        if system_user_id:
+            sys_user = User.query.get(system_user_id)
+            if sys_user and sys_user.department_info:
+                department = sys_user.department_info.name
 
         if not emp_no or not name:
             flash('Mã chấm công và Họ tên là bắt buộc.', 'danger')
@@ -10358,6 +10522,10 @@ def edit_attendance_user(user_id):
         user_obj.department = department
         user_obj.card_no = card_no
         user_obj.system_user_id = system_user_id if system_user_id else None
+        if system_user_id:
+            sys_user = User.query.get(system_user_id)
+            if sys_user and sys_user.department_info:
+                user_obj.department = sys_user.department_info.name
         user_obj.updated_at = datetime.utcnow()
         db.session.commit()
         flash('Đã cập nhật thông tin người chấm công.', 'success')
