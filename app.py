@@ -10247,8 +10247,8 @@ def attendance_logs():
     # Role Scoping: Admin sees all, Linked User sees ONLY their own logs
     current_user_id = session.get('user_id')
     user_role = session.get('role')
-    user_permissions = _get_current_permissions()
-    is_admin = (user_role == 'admin') or ('attendance.view_all' in user_permissions)
+    user_permissions = session.get('permissions') or []
+    is_admin = (user_role in ('admin', 'Quản trị viên')) or ('attendance.view_all' in user_permissions) or (session.get('is_admin') == True)
     
     linked_att_user = None
     permission_notice = None
@@ -10342,6 +10342,12 @@ def attendance_logs():
             stats['total_records'] = AttendanceRecord.query.filter(AttendanceRecord.employee_no == emp_no_check, AttendanceRecord.event_time >= datetime.combine(today, datetime.min.time())).count()
 
         stats['total_users'] = AttendanceUser.query.filter_by(is_active=True).count()
+        
+        last_rec = AttendanceRecord.query.order_by(AttendanceRecord.id.desc()).first()
+        if last_rec and last_rec.created_at:
+            stats['last_sync_time'] = last_rec.created_at.strftime('%H:%M:%S %d/%m/%Y')
+        else:
+            stats['last_sync_time'] = 'Chưa có dữ liệu'
     except Exception as exc:
         print(f"Error in attendance_logs query: {exc}")
 
