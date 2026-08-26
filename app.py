@@ -10387,8 +10387,8 @@ def attendance_logs():
             if latest_date == today_date or abs((today_date - latest_date).days) <= 1:
                 today_date = latest_date
 
-        start_today = datetime.combine(today_date, time(0, 0, 0))
-        end_today = datetime.combine(today_date, time(23, 59, 59))
+        start_today = datetime.combine(today_date, datetime.min.time())
+        end_today = datetime.combine(today_date, datetime.max.time())
 
         records_today_query = AttendanceRecord.query.filter(
             AttendanceRecord.event_time >= start_today,
