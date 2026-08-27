@@ -11163,7 +11163,7 @@ def license_list():
 
         # Master Auxiliary Dropdowns
         devices_list = Device.query.order_by(Device.device_code).all()
-        users_list = User.query.filter_by(is_active=True).order_by(User.full_name).all()
+        users_list = User.query.order_by(User.full_name).all()
         branches_list = [r[0] for r in db.session.query(ITService.branch).distinct().all() if r[0]]
         departments_list = [d.name for d in Department.query.all()]
         suppliers_list = [r[0] for r in db.session.query(SoftwareLicense.supplier).distinct().all() if r[0]]
