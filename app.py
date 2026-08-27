@@ -11030,7 +11030,14 @@ class ITServiceType(db.Model):
 def license_list():
     if 'user_id' not in session: return redirect(url_for('login'))
     
-    active_tab = request.args.get('tab', 'license')
+    # Safe table creation for external PostgreSQL / SQLite
+    try:
+        db.create_all()
+    except Exception as db_err:
+        db.session.rollback()
+        print(f"License table create info: {db_err}")
+
+    active_tab = request.args.get('tab', 'account')
     sub_tab = request.args.get('sub_tab', 'all')
     q = (request.args.get('q') or '').strip()
     status_filter = (request.args.get('status') or '').strip()

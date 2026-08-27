@@ -1,50 +1,56 @@
 {% extends "base.html" %}
 
-{% block title %}Quản lý License, Dịch vụ CNTT & Tài khoản{% endblock %}
+{% block title %}Quản lý Tài khoản & Dịch vụ{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3">
 
     <!-- Top Pill Navigation Tabs -->
-    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
-        <a href="{{ url_for('license_list', tab='license') }}" class="btn {% if active_tab == 'license' %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
-            <i class="bi bi-key-fill text-warning me-1"></i> License - Key
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center border-bottom pb-2">
+        <a href="{{ url_for('license_list', tab='account') }}" class="btn {% if active_tab == 'account' or not active_tab %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
+            <i class="bi bi-person-badge-fill text-primary me-1"></i> Tài khoản làm việc
+        </a>
+        <a href="{{ url_for('license_list', tab='server') }}" class="btn {% if active_tab == 'server' %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
+            <i class="bi bi-hdd-network-fill text-success me-1"></i> Server & Máy chủ
         </a>
         <a href="{{ url_for('license_list', tab='itservice') }}" class="btn {% if active_tab == 'itservice' %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
             <i class="bi bi-globe text-info me-1"></i> Dịch vụ CNTT
         </a>
-        <a href="{{ url_for('license_list', tab='workaccount') }}" class="btn {% if active_tab == 'workaccount' %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
-            <i class="bi bi-person-badge-fill text-primary me-1"></i> Tài khoản làm việc
+        <a href="{{ url_for('license_list', tab='license') }}" class="btn {% if active_tab == 'license' %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
+            <i class="bi bi-key-fill text-warning me-1"></i> License - Key
         </a>
     </div>
 
     <!-- Header Description & Action Buttons -->
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
         <div>
-            {% if active_tab == 'license' %}
-            <h3 class="fw-bold mb-1"><i class="bi bi-key text-warning"></i> License - Key</h3>
-            <div class="text-muted small">Quản lý key bản quyền phần mềm (Windows, Office, phần mềm chuyên dụng...) gán theo từng thiết bị.</div>
+            {% if active_tab == 'account' %}
+            <h3 class="fw-bold mb-1"><i class="bi bi-person-badge text-primary me-1"></i> Tài khoản làm việc</h3>
+            <div class="text-muted small">Quản lý các tài khoản phần mềm/dịch vụ dùng chung (Office 365, Zoom, Email doanh nghiệp...) bàn giao cho nhân viên/thiết bị.</div>
+            {% elif active_tab == 'server' %}
+            <h3 class="fw-bold mb-1"><i class="bi bi-hdd-network text-success me-1"></i> Server & Máy chủ</h3>
+            <div class="text-muted small">Quản lý tài khoản quản trị máy chủ (VPS, Cloud Server, SSH, Root Credentials, Dedicated Server...).</div>
             {% elif active_tab == 'itservice' %}
-            <h3 class="fw-bold mb-1"><i class="bi bi-globe text-info"></i> Dịch vụ CNTT</h3>
+            <h3 class="fw-bold mb-1"><i class="bi bi-globe text-info me-1"></i> Dịch vụ CNTT</h3>
             <div class="text-muted small">Quản lý các dịch vụ viễn thông/CNTT thuê ngoài (đường truyền Internet, thuê chỗ đặt máy chủ...) theo từng chi nhánh.</div>
             {% else %}
-            <h3 class="fw-bold mb-1"><i class="bi bi-person-badge text-primary"></i> Tài khoản làm việc</h3>
-            <div class="text-muted small">Quản lý các tài khoản phần mềm/dịch vụ dùng chung (Office 365, Zoom, Server...) được cấp cho nhân viên/thiết bị.</div>
+            <h3 class="fw-bold mb-1"><i class="bi bi-key text-warning me-1"></i> License - Key</h3>
+            <div class="text-muted small">Quản lý key bản quyền phần mềm (Windows, Office, phần mềm chuyên dụng...) gán theo từng thiết bị.</div>
             {% endif %}
         </div>
 
         <div class="d-flex flex-wrap gap-2">
-            {% if active_tab == 'license' %}
-            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addLicenseModal">
-                <i class="bi bi-plus-lg me-1"></i> Thêm License
+            {% if active_tab in ['account', 'server'] %}
+            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addWorkAccountModal">
+                <i class="bi bi-plus-lg me-1"></i> Thêm Tài khoản
             </button>
             {% elif active_tab == 'itservice' %}
             <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addITServiceModal">
                 <i class="bi bi-plus-lg me-1"></i> Thêm Dịch vụ
             </button>
             {% else %}
-            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addWorkAccountModal">
-                <i class="bi bi-plus-lg me-1"></i> Thêm Tài khoản
+            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addLicenseModal">
+                <i class="bi bi-plus-lg me-1"></i> Thêm License
             </button>
             {% endif %}
         </div>
@@ -52,28 +58,28 @@
 
     <!-- Summary Metric Cards -->
     <div class="row g-3 mb-4">
-        {% if active_tab == 'license' %}
+        {% if active_tab in ['account', 'server'] %}
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-primary">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-key fs-3"></i></div>
+                        <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-person-badge fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold">{{ license_stats.total }}</div>
-                            <div class="small text-muted">Tổng số license</div>
+                            <div class="fs-2 fw-bold">{{ account_stats.total }}</div>
+                            <div class="small text-muted">Tổng số tài khoản</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-warning">
+            <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-success">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-circle"><i class="bi bi-exclamation-triangle fs-3"></i></div>
+                        <div class="p-3 bg-success bg-opacity-10 text-success rounded-circle"><i class="bi bi-check-circle fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold text-warning">{{ license_stats.expiring }}</div>
-                            <div class="small text-muted">Sắp hết hạn / đã hết hạn</div>
+                            <div class="fs-2 fw-bold text-success">{{ account_stats.active }}</div>
+                            <div class="small text-muted">Đang hoạt động</div>
                         </div>
                     </div>
                 </div>
@@ -83,10 +89,10 @@
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-info">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle"><i class="bi bi-laptop fs-3"></i></div>
+                        <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle"><i class="bi bi-person-plus fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold text-info">{{ license_stats.unassigned }}</div>
-                            <div class="small text-muted">Chưa gán thiết bị / Còn chỗ</div>
+                            <div class="fs-2 fw-bold text-info">{{ account_stats.unassigned }}</div>
+                            <div class="small text-muted">Chưa bàn giao / Chưa gán</div>
                         </div>
                     </div>
                 </div>
@@ -137,23 +143,23 @@
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-primary">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-person-badge fs-3"></i></div>
+                        <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-key fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold">{{ account_stats.total }}</div>
-                            <div class="small text-muted">Tổng số tài khoản</div>
+                            <div class="fs-2 fw-bold">{{ license_stats.total }}</div>
+                            <div class="small text-muted">Tổng số license</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-success">
+            <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-warning">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-success bg-opacity-10 text-success rounded-circle"><i class="bi bi-check-circle fs-3"></i></div>
+                        <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-circle"><i class="bi bi-exclamation-triangle fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold text-success">{{ account_stats.active }}</div>
-                            <div class="small text-muted">Đang hoạt động</div>
+                            <div class="fs-2 fw-bold text-warning">{{ license_stats.expiring }}</div>
+                            <div class="small text-muted">Sắp hết hạn / đã hết hạn</div>
                         </div>
                     </div>
                 </div>
@@ -163,10 +169,10 @@
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-info">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle"><i class="bi bi-person-plus fs-3"></i></div>
+                        <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle"><i class="bi bi-laptop fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold text-info">{{ account_stats.unassigned }}</div>
-                            <div class="small text-muted">Chưa bàn giao / Chưa gán</div>
+                            <div class="fs-2 fw-bold text-info">{{ license_stats.unassigned }}</div>
+                            <div class="small text-muted">Chưa gán thiết bị / Còn chỗ</div>
                         </div>
                     </div>
                 </div>
@@ -264,7 +270,231 @@
             </form>
 
             <!-- Table Views -->
-            {% if active_tab == 'license' %}
+            {% if active_tab in ['account', 'server'] %}
+            <!-- Work Accounts / Server Accounts Table -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-dark text-nowrap">
+                        <tr>
+                            <th style="width: 40px;">STT</th>
+                            <th>MÃ TK</th>
+                            <th>TÊN TÀI KHOẢN</th>
+                            <th>NỀN TẢNG / DỊCH VỤ</th>
+                            <th>TÊN ĐĂNG NHẬP / EMAIL</th>
+                            <th>MẬT KHẨU</th>
+                            <th>GẮN VỚI NHÂN VIÊN</th>
+                            <th>GẮN VỚI THIẾT BỊ</th>
+                            <th>TRẠNG THÁI</th>
+                            <th class="text-center">THAO TÁC</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for acc in accounts_paged.items %}
+                        <tr>
+                            <td class="text-center">{{ loop.index }}</td>
+                            <td><code>{{ acc.code }}</code></td>
+                            <td class="fw-bold">{{ acc.account_name }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ acc.platform }}</span></td>
+                            <td><strong class="font-monospace text-primary">{{ acc.username_email }}</strong></td>
+                            <td>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}" data-key="{{ acc.password_text or '' }}">••••••••</span>
+                                    <button type="button" class="btn btn-sm btn-light border px-1" title="Hiện/Ẩn password" onclick="togglePassword('{{ acc.id }}')"><i class="bi bi-eye"></i></button>
+                                    <button type="button" class="btn btn-sm btn-light border px-1" title="Sao chép" onclick="copyPassword('{{ acc.id }}')"><i class="bi bi-clipboard"></i></button>
+                                </div>
+                            </td>
+                            <td>{{ acc.assigned_user.full_name if acc.assigned_user else '-' }}</td>
+                            <td>{{ acc.assigned_device.device_code if acc.assigned_device else '-' }}</td>
+                            <td><span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill">{{ acc.status }}</span></td>
+                            <td class="text-center text-nowrap">
+                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editWorkAccountModal{{ acc.id }}"><i class="bi bi-pencil"></i> Sửa</button>
+                                <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Tài khoản này?')">
+                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+
+                        <!-- Edit Work Account Modal -->
+                        <div class="modal fade" id="editWorkAccountModal{{ acc.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Sửa Tài khoản</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label required">Tên tài khoản / Mô tả</label>
+                                                <input type="text" name="account_name" class="form-control" value="{{ acc.account_name }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label required">Nền tảng / Phần mềm / Server</label>
+                                                <input type="text" name="platform" class="form-control" value="{{ acc.platform }}" required placeholder="VD: Server / Office 365 / Zoom / VPS">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label required">Tên đăng nhập / Email / Root User</label>
+                                                <input type="text" name="username_email" class="form-control" value="{{ acc.username_email }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Mật khẩu (Password)</label>
+                                                <input type="text" name="password_text" class="form-control font-monospace" value="{{ acc.password_text or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Gán cho Nhân viên</label>
+                                                <select name="assigned_to_user_id" class="form-select">
+                                                    <option value="">-- Chưa gán --</option>
+                                                    {% for u in users_list %}
+                                                    <option value="{{ u.id }}" {% if acc.assigned_to_user_id == u.id %}selected{% endif %}>{{ u.full_name }} ({{ u.username }})</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                                            <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% else %}
+                        <tr><td colspan="10" class="text-center text-muted py-4">Chưa có bản ghi Tài khoản nào.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% elif active_tab == 'itservice' %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-dark text-nowrap">
+                        <tr>
+                            <th style="width: 40px;">STT</th>
+                            <th>DỊCH VỤ</th>
+                            <th>CHI NHÁNH</th>
+                            <th>PHÒNG BAN</th>
+                            <th>MÃ HỢP ĐỒNG</th>
+                            <th>NCC / BẰNG THÔNG</th>
+                            <th>THIẾT BỊ ĐẦU NỐI</th>
+                            <th>DẢI IP TĨNH</th>
+                            <th>GIÁ CƯỚC</th>
+                            <th>HẠN HỢP ĐỒNG</th>
+                            <th class="text-center">THAO TÁC</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for srv in services_paged.items %}
+                        <tr>
+                            <td class="text-center">{{ loop.index }}</td>
+                            <td>
+                                <div class="fw-bold">{{ srv.service_name }}</div>
+                                <div class="small text-muted"><code>{{ srv.code }}</code></div>
+                            </td>
+                            <td>{{ srv.branch or '-' }}</td>
+                            <td>{{ srv.department or '-' }}</td>
+                            <td><span class="font-monospace">{{ srv.contract_number or '-' }}</span></td>
+                            <td>
+                                <div>{{ srv.provider or '-' }}</div>
+                                {% if srv.bandwidth %}<div class="small text-muted">{{ srv.bandwidth }}</div>{% endif %}
+                            </td>
+                            <td>{{ srv.endpoint_device or '-' }}</td>
+                            <td><span class="font-monospace small">{{ srv.static_ip_range or '-' }}</span></td>
+                            <td class="fw-semibold">{{ "{:,.0f}".format(srv.monthly_cost) if srv.monthly_cost else '0' }} đ/tháng</td>
+                            <td>
+                                {% if srv.is_perpetual %}
+                                <span class="badge bg-light text-dark border rounded-pill">Vĩnh viễn</span>
+                                {% elif srv.expiration_date %}
+                                {{ srv.expiration_date.strftime('%d/%m/%Y') }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td class="text-center text-nowrap">
+                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editITServiceModal{{ srv.id }}"><i class="bi bi-pencil"></i> Sửa</button>
+                                <form method="POST" action="{{ url_for('delete_it_service', service_id=srv.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Dịch vụ này?')">
+                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+
+                        <!-- Edit IT Service Modal -->
+                        <div class="modal fade" id="editITServiceModal{{ srv.id }}" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <form method="POST" action="{{ url_for('edit_it_service', service_id=srv.id) }}">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Sửa Dịch vụ CNTT</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="row g-3 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label required">Tên Dịch vụ</label>
+                                                    <input type="text" name="service_name" class="form-control" value="{{ srv.service_name }}" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label required">Loại Dịch vụ</label>
+                                                    <select name="service_type" class="form-select">
+                                                        {% for st in service_types %}
+                                                        <option value="{{ st }}" {% if srv.service_type == st %}selected{% endif %}>{{ st }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div class="row g-3 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Chi nhánh</label>
+                                                    <input type="text" name="branch" class="form-control" value="{{ srv.branch or '' }}">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Phòng ban sử dụng</label>
+                                                    <input type="text" name="department" class="form-control" value="{{ srv.department or '' }}">
+                                                </div>
+                                            </div>
+
+                                            <div class="row g-3 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Mã hợp đồng</label>
+                                                    <input type="text" name="contract_number" class="form-control" value="{{ srv.contract_number or '' }}">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Nhà cung cấp</label>
+                                                    <input type="text" name="provider" class="form-control" value="{{ srv.provider or '' }}">
+                                                </div>
+                                            </div>
+
+                                            <div class="row g-3 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Băng thông / Thông số</label>
+                                                    <input type="text" name="bandwidth" class="form-control" value="{{ srv.bandwidth or '' }}">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Giá cước hàng tháng (VNĐ)</label>
+                                                    <input type="number" name="monthly_cost" class="form-control" value="{{ srv.monthly_cost }}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                                            <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% else %}
+                        <tr><td colspan="11" class="text-center text-muted py-4">Chưa có bản ghi Dịch vụ CNTT nào.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% else %}
+            <!-- License Table -->
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
                     <thead class="table-dark text-nowrap">
@@ -441,231 +671,65 @@
                     </tbody>
                 </table>
             </div>
-
-            {% elif active_tab == 'itservice' %}
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-dark text-nowrap">
-                        <tr>
-                            <th style="width: 40px;">STT</th>
-                            <th>DỊCH VỤ</th>
-                            <th>CHI NHÁNH</th>
-                            <th>PHÒNG BAN</th>
-                            <th>MÃ HỢP ĐỒNG</th>
-                            <th>NCC / BẰNG THÔNG</th>
-                            <th>THIẾT BỊ ĐẦU NỐI</th>
-                            <th>DẢI IP TĨNH</th>
-                            <th>GIÁ CƯỚC</th>
-                            <th>HẠN HỢP ĐỒNG</th>
-                            <th class="text-center">THAO TÁC</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for srv in services_paged.items %}
-                        <tr>
-                            <td class="text-center">{{ loop.index }}</td>
-                            <td>
-                                <div class="fw-bold">{{ srv.service_name }}</div>
-                                <div class="small text-muted"><code>{{ srv.code }}</code></div>
-                            </td>
-                            <td>{{ srv.branch or '-' }}</td>
-                            <td>{{ srv.department or '-' }}</td>
-                            <td><span class="font-monospace">{{ srv.contract_number or '-' }}</span></td>
-                            <td>
-                                <div>{{ srv.provider or '-' }}</div>
-                                {% if srv.bandwidth %}<div class="small text-muted">{{ srv.bandwidth }}</div>{% endif %}
-                            </td>
-                            <td>{{ srv.endpoint_device or '-' }}</td>
-                            <td><span class="font-monospace small">{{ srv.static_ip_range or '-' }}</span></td>
-                            <td class="fw-semibold">{{ "{:,.0f}".format(srv.monthly_cost) if srv.monthly_cost else '0' }} đ/tháng</td>
-                            <td>
-                                {% if srv.is_perpetual %}
-                                <span class="badge bg-light text-dark border rounded-pill">Vĩnh viễn</span>
-                                {% elif srv.expiration_date %}
-                                {{ srv.expiration_date.strftime('%d/%m/%Y') }}
-                                {% else %}
-                                -
-                                {% endif %}
-                            </td>
-                            <td class="text-center text-nowrap">
-                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editITServiceModal{{ srv.id }}"><i class="bi bi-pencil"></i> Sửa</button>
-                                <form method="POST" action="{{ url_for('delete_it_service', service_id=srv.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Dịch vụ này?')">
-                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                </form>
-                            </td>
-                        </tr>
-
-                        <!-- Edit IT Service Modal -->
-                        <div class="modal fade" id="editITServiceModal{{ srv.id }}" tabindex="-1">
-                            <div class="modal-dialog modal-lg">
-                                <div class="modal-content">
-                                    <form method="POST" action="{{ url_for('edit_it_service', service_id=srv.id) }}">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Sửa Dịch vụ CNTT</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <div class="row g-3 mb-3">
-                                                <div class="col-md-6">
-                                                    <label class="form-label required">Tên Dịch vụ</label>
-                                                    <input type="text" name="service_name" class="form-control" value="{{ srv.service_name }}" required>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label required">Loại Dịch vụ</label>
-                                                    <select name="service_type" class="form-select">
-                                                        {% for st in service_types %}
-                                                        <option value="{{ st }}" {% if srv.service_type == st %}selected{% endif %}>{{ st }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                </div>
-                                            </div>
-
-                                            <div class="row g-3 mb-3">
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Chi nhánh</label>
-                                                    <input type="text" name="branch" class="form-control" value="{{ srv.branch or '' }}">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Phòng ban sử dụng</label>
-                                                    <input type="text" name="department" class="form-control" value="{{ srv.department or '' }}">
-                                                </div>
-                                            </div>
-
-                                            <div class="row g-3 mb-3">
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Mã hợp đồng</label>
-                                                    <input type="text" name="contract_number" class="form-control" value="{{ srv.contract_number or '' }}">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Nhà cung cấp</label>
-                                                    <input type="text" name="provider" class="form-control" value="{{ srv.provider or '' }}">
-                                                </div>
-                                            </div>
-
-                                            <div class="row g-3 mb-3">
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Băng thông / Thông số</label>
-                                                    <input type="text" name="bandwidth" class="form-control" value="{{ srv.bandwidth or '' }}">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Giá cước hàng tháng (VNĐ)</label>
-                                                    <input type="number" name="monthly_cost" class="form-control" value="{{ srv.monthly_cost }}">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                                            <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                        {% else %}
-                        <tr><td colspan="11" class="text-center text-muted py-4">Chưa có bản ghi Dịch vụ CNTT nào.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            {% else %}
-            <!-- Work Accounts Table -->
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-dark text-nowrap">
-                        <tr>
-                            <th style="width: 40px;">STT</th>
-                            <th>MÃ TK</th>
-                            <th>TÊN TÀI KHOẢN</th>
-                            <th>NỀN TẢNG / DỊCH VỤ</th>
-                            <th>TÊN ĐĂNG NHẬP / EMAIL</th>
-                            <th>MẬT KHẨU</th>
-                            <th>GẮN VỚI NHÂN VIÊN</th>
-                            <th>GẮN VỚI THIẾT BỊ</th>
-                            <th>TRẠNG THÁI</th>
-                            <th class="text-center">THAO TÁC</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for acc in accounts_paged.items %}
-                        <tr>
-                            <td class="text-center">{{ loop.index }}</td>
-                            <td><code>{{ acc.code }}</code></td>
-                            <td class="fw-bold">{{ acc.account_name }}</td>
-                            <td><span class="badge bg-light text-dark border">{{ acc.platform }}</span></td>
-                            <td><strong class="font-monospace text-primary">{{ acc.username_email }}</strong></td>
-                            <td>
-                                <div class="d-flex align-items-center gap-1">
-                                    <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}" data-key="{{ acc.password_text or '' }}">••••••••</span>
-                                    <button type="button" class="btn btn-sm btn-light border px-1" title="Hiện/Ẩn password" onclick="togglePassword('{{ acc.id }}')"><i class="bi bi-eye"></i></button>
-                                    <button type="button" class="btn btn-sm btn-light border px-1" title="Sao chép" onclick="copyPassword('{{ acc.id }}')"><i class="bi bi-clipboard"></i></button>
-                                </div>
-                            </td>
-                            <td>{{ acc.assigned_user.full_name if acc.assigned_user else '-' }}</td>
-                            <td>{{ acc.assigned_device.device_code if acc.assigned_device else '-' }}</td>
-                            <td><span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill">{{ acc.status }}</span></td>
-                            <td class="text-center text-nowrap">
-                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editWorkAccountModal{{ acc.id }}"><i class="bi bi-pencil"></i> Sửa</button>
-                                <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Tài khoản này?')">
-                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                </form>
-                            </td>
-                        </tr>
-
-                        <!-- Edit Work Account Modal -->
-                        <div class="modal fade" id="editWorkAccountModal{{ acc.id }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Sửa Tài khoản làm việc</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <div class="mb-3">
-                                                <label class="form-label required">Tên tài khoản / Mô tả</label>
-                                                <input type="text" name="account_name" class="form-control" value="{{ acc.account_name }}" required>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label required">Nền tảng / Phần mềm</label>
-                                                <input type="text" name="platform" class="form-control" value="{{ acc.platform }}" required>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label required">Tên đăng nhập / Email</label>
-                                                <input type="text" name="username_email" class="form-control" value="{{ acc.username_email }}" required>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Mật khẩu (Password)</label>
-                                                <input type="text" name="password_text" class="form-control font-monospace" value="{{ acc.password_text or '' }}">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Gán cho Nhân viên</label>
-                                                <select name="assigned_to_user_id" class="form-select">
-                                                    <option value="">-- Chưa gán --</option>
-                                                    {% for u in users_list %}
-                                                    <option value="{{ u.id }}" {% if acc.assigned_to_user_id == u.id %}selected{% endif %}>{{ u.full_name }} ({{ u.username }})</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                                            <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                        {% else %}
-                        <tr><td colspan="10" class="text-center text-muted py-4">Chưa có bản ghi Tài khoản làm việc nào.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
             {% endif %}
 
+        </div>
+    </div>
+</div>
+
+<!-- Modal Thêm Work Account / Server Account -->
+<div class="modal fade" id="addWorkAccountModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('add_work_account') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-badge text-primary me-1"></i> Thêm Tài khoản Mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label required">Tên tài khoản / Mô tả</label>
+                        <input type="text" name="account_name" class="form-control" placeholder="{% if active_tab == 'server' %}VD: Server VPS Web Root{% else %}VD: Account Zoom Pro 01 / Office 365{% endif %}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">Nền tảng / Loại tài khoản</label>
+                        <select name="platform" class="form-select" required>
+                            {% if active_tab == 'server' %}
+                            <option value="Server" selected>Server / VPS / Cloud Server</option>
+                            <option value="SSH">Tài khoản SSH / Linux Root</option>
+                            <option value="RDP">Tài khoản RDP / Windows Server</option>
+                            {% else %}
+                            <option value="Office 365">Office 365 / Microsoft</option>
+                            <option value="Zoom">Zoom Pro / Meeting</option>
+                            <option value="Google Workspace">Google Workspace / Gmail</option>
+                            <option value="Email">Email doanh nghiệp</option>
+                            <option value="Khác">Khác</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">Tên đăng nhập / Email / Root User</label>
+                        <input type="text" name="username_email" class="form-control" placeholder="VD: admin / root / account@company.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mật khẩu (Password)</label>
+                        <input type="text" name="password_text" class="form-control font-monospace" placeholder="Mật khẩu tài khoản">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Gán cho Nhân viên</label>
+                        <select name="assigned_to_user_id" class="form-select">
+                            <option value="">-- Chưa gán --</option>
+                            {% for u in users_list %}
+                            <option value="{{ u.id }}">{{ u.full_name }} ({{ u.username }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-teal text-white" style="background-color:#008080;">Thêm Tài khoản</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -796,51 +860,6 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
                     <button type="submit" class="btn btn-teal text-white" style="background-color:#008080;">Thêm Dịch vụ</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Thêm Work Account -->
-<div class="modal fade" id="addWorkAccountModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="POST" action="{{ url_for('add_work_account') }}">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-person-badge text-primary me-1"></i> Thêm Tài khoản làm việc Mới</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label required">Tên tài khoản / Mô tả</label>
-                        <input type="text" name="account_name" class="form-control" placeholder="VD: Account Zoom Pro 01" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label required">Nền tảng / Phần mềm</label>
-                        <input type="text" name="platform" class="form-control" placeholder="VD: Zoom / Office 365 / AWS" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label required">Tên đăng nhập / Email</label>
-                        <input type="text" name="username_email" class="form-control" placeholder="VD: zoom01@company.com" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Mật khẩu (Password)</label>
-                        <input type="text" name="password_text" class="form-control font-monospace" placeholder="Mật khẩu tài khoản">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Gán cho Nhân viên</label>
-                        <select name="assigned_to_user_id" class="form-select">
-                            <option value="">-- Chưa gán --</option>
-                            {% for u in users_list %}
-                            <option value="{{ u.id }}">{{ u.full_name }} ({{ u.username }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-teal text-white" style="background-color:#008080;">Thêm Tài khoản</button>
                 </div>
             </form>
         </div>
