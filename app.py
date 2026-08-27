@@ -114,10 +114,12 @@ db = SQLAlchemy(app)
 _company_cfg_path = os.path.join(instance_path, 'company_config.json')
 company_config_defaults = {
     'company_name': 'CÔNG TY CỔ PHẦN THIẾT BỊ & CÔNG NGHỆ',
-    'branch_name': 'Phòng quản lý thiết bị',
+    'branch_name': 'Phòng Quản lý Thiết bị',
     'company_address': '',
+    'company_tax_id': '',
+    'company_email': '',
     'company_phone': '',
-    'company_tax_id': ''
+    'company_bank_account': ''
 }
 
 def get_company_config():
@@ -9334,35 +9336,43 @@ def record_stock_item_movement(item_id):
 @app.route('/config/company', methods=['GET', 'POST'])
 def company_config_page():
     if 'user_id' not in session: return redirect(url_for('login'))
-    current_permissions = _get_current_permissions()
+    current_user_id = session.get('user_id')
+    user_role = str(session.get('role') or '').lower()
     current_user = _get_current_user()
-    if not (current_user and current_user.role == 'admin') and 'rbac.manage' not in current_permissions and 'backup.edit' not in current_permissions:
-        flash('Bạn không có quyền truy cập chức năng này.', 'danger')
-        return redirect(url_for('home'))
+    db_role = str(getattr(current_user, 'role', '') or '').lower()
+    db_username = str(getattr(current_user, 'username', '') or '').lower()
+    
+    is_admin = (
+        user_role in ('admin', 'quản trị viên', 'administrator') or
+        db_role in ('admin', 'quản trị viên', 'administrator') or
+        db_username == 'admin' or
+        getattr(current_user, 'is_admin', False) or
+        (current_user_id == 1)
+    )
 
     cfg = get_company_config()
     if request.method == 'POST':
-        company_name = (request.form.get('company_name') or '').strip()
-        branch_name = (request.form.get('branch_name') or '').strip()
-        company_address = (request.form.get('company_address') or '').strip()
-        company_phone = (request.form.get('company_phone') or '').strip()
-        company_tax_id = (request.form.get('company_tax_id') or '').strip()
+        if not is_admin:
+            flash('Chỉ có tài khoản Quản trị viên (Admin) mới có quyền chỉnh sửa thông tin công ty.', 'danger')
+            return redirect(url_for('company_config_page'))
 
-        cfg['company_name'] = company_name or company_config_defaults['company_name']
-        cfg['branch_name'] = branch_name or company_config_defaults['branch_name']
-        cfg['company_address'] = company_address
-        cfg['company_phone'] = company_phone
-        cfg['company_tax_id'] = company_tax_id
+        cfg['company_name'] = (request.form.get('company_name') or '').strip() or company_config_defaults['company_name']
+        cfg['branch_name'] = (request.form.get('branch_name') or '').strip() or company_config_defaults['branch_name']
+        cfg['company_address'] = (request.form.get('company_address') or '').strip()
+        cfg['company_tax_id'] = (request.form.get('company_tax_id') or '').strip()
+        cfg['company_email'] = (request.form.get('company_email') or '').strip()
+        cfg['company_phone'] = (request.form.get('company_phone') or '').strip()
+        cfg['company_bank_account'] = (request.form.get('company_bank_account') or '').strip()
 
         try:
             with open(_company_cfg_path, 'w', encoding='utf-8') as f:
                 json.dump(cfg, f, ensure_ascii=False, indent=2)
-            flash('Đã cập nhật thông tin công ty / chi nhánh thành công.', 'success')
+            flash('Đã cập nhật thông tin công ty / đơn vị thành công.', 'success')
         except Exception as e:
             flash(f'Lỗi khi lưu cấu hình: {str(e)}', 'danger')
         return redirect(url_for('company_config_page'))
 
-    return render_template('company_config.html', cfg=cfg)
+    return render_template('company_config.html', cfg=cfg, is_admin=is_admin)
 
 @app.route('/stock-items/<int:item_id>/units')
 def stock_item_units_api(item_id):

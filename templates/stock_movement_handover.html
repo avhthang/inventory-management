@@ -2,9 +2,9 @@
 
 {% block title %}
 {% if movement.movement_type == 'Nhập' %}
-Phiếu nhập kho {{ movement.reference_code or ('#' ~ movement.id) }}
+Phiếu nhập kho thiết bị {{ movement.reference_code or ('#' ~ movement.id) }}
 {% else %}
-Phiếu xuất kho {{ movement.reference_code or ('#' ~ movement.id) }}
+Phiếu xuất kho thiết bị {{ movement.reference_code or ('#' ~ movement.id) }}
 {% endif %}
 {% endblock %}
 
@@ -25,64 +25,75 @@ Phiếu xuất kho {{ movement.reference_code or ('#' ~ movement.id) }}
     </div>
 
     <div class="card p-4 border shadow-sm">
+        <!-- Header -->
         <div class="text-center mb-4">
             <h3 class="fw-bold mb-1 text-uppercase text-primary">{{ company_cfg.company_name }}</h3>
-            <div class="fw-semibold text-secondary">{{ company_cfg.branch_name or 'Phòng quản lý thiết bị' }}</div>
-            {% if company_cfg.company_tax_id or company_cfg.company_address or company_cfg.company_phone %}
+            <div class="fw-semibold text-secondary">{{ company_cfg.branch_name or 'Phòng Quản lý Thiết bị' }}</div>
+            {% if company_cfg.company_tax_id or company_cfg.company_address or company_cfg.company_phone or company_cfg.company_email or company_cfg.company_bank_account %}
             <div class="small text-muted mt-1">
+                {% if company_cfg.company_address %}Địa chỉ: {{ company_cfg.company_address }}<br>{% endif %}
                 {% if company_cfg.company_tax_id %}MST: {{ company_cfg.company_tax_id }}{% endif %}
-                {% if company_cfg.company_address %} | Đ/C: {{ company_cfg.company_address }}{% endif %}
-                {% if company_cfg.company_phone %} | ĐT: {{ company_cfg.company_phone }}{% endif %}
+                {% if company_cfg.company_phone %} | Điện thoại: {{ company_cfg.company_phone }}{% endif %}
+                {% if company_cfg.company_email %} | Email: {{ company_cfg.company_email }}{% endif %}
+                {% if company_cfg.company_bank_account %}<br>Số tài khoản: {{ company_cfg.company_bank_account }}{% endif %}
             </div>
             {% endif %}
             <hr class="w-25 mx-auto my-3" style="border-top: 2px solid #333;">
             <h2 class="fw-bold mt-4 text-uppercase">
                 {% if movement.movement_type == 'Nhập' %}
-                PHIẾU NHẬP KHO VẬT TƯ / THIẾT BỊ
+                PHIẾU NHẬP KHO THIẾT BỊ
                 {% else %}
-                PHIẾU XUẤT KHO / BÀN GIAO VẬT TƯ
+                PHIẾU XUẤT KHO THIẾT BỊ
                 {% endif %}
             </h2>
-            <div class="text-muted small">Ngày {{ movement.movement_date.strftime('%d') }} tháng {{ movement.movement_date.strftime('%m') }} năm {{ movement.movement_date.strftime('%Y') }}</div>
             {% if movement.reference_code %}
-            <div class="small fw-semibold mt-1">Mã phiếu/Hóa đơn: {{ movement.reference_code }}</div>
+            <div class="small fw-semibold text-muted">Mã phiếu / Hóa đơn: {{ movement.reference_code }}</div>
             {% endif %}
         </div>
 
+        <!-- Introductory Wording -->
+        <div class="mb-3 fs-6">
+            Hôm nay ngày <strong>{{ movement.movement_date.strftime('%d') }}</strong> tháng <strong>{{ movement.movement_date.strftime('%m') }}</strong> năm <strong>{{ movement.movement_date.strftime('%Y') }}</strong>, tại {{ company_cfg.company_name }}{% if company_cfg.branch_name %} ({{ company_cfg.branch_name }}){% endif %}, chúng tôi gồm:
+        </div>
+
+        <!-- Bên Giao / Bên Nhận Details -->
         <div class="row mb-4">
             <div class="col-6">
-                <div class="border rounded p-3 bg-light">
-                    <div class="fw-bold text-primary mb-2"><i class="bi bi-person-up"></i> BÊN GIAO (BÊN A)</div>
+                <div class="border rounded p-3 bg-light h-100">
+                    <div class="fw-bold text-primary mb-2 border-bottom pb-1"><i class="bi bi-person-up me-1"></i> BÊN GIAO:</div>
                     {% if movement.movement_type == 'Nhập' %}
-                        <div><strong>Đơn vị / NCC:</strong> {{ movement.supplier or 'Nhà cung cấp / Đơn vị giao' }}</div>
-                        <div><strong>Người thực hiện:</strong> {{ movement.actor.full_name if movement.actor else 'Quản trị viên' }}</div>
+                        <div>- <strong>Đơn vị / NCC:</strong> {{ movement.supplier or 'Nhà cung cấp / Đơn vị giao' }}</div>
+                        <div>- <strong>Ông/bà:</strong> {{ movement.actor.full_name if movement.actor else 'Đại diện bên giao' }}</div>
+                        <div>- <strong>Chức vụ:</strong> {{ movement.actor.position if movement.actor and movement.actor.position else 'Đại diện giao' }}</div>
+                        <div>- <strong>Phòng ban:</strong> {{ movement.actor.department_info.name if movement.actor and movement.actor.department_info else '-' }}</div>
                     {% else %}
-                        <div><strong>Họ tên:</strong> {{ movement.actor.full_name if movement.actor else 'Quản trị viên' }}</div>
-                        <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.actor.department_info.name if movement.actor and movement.actor.department_info else (company_cfg.branch_name or 'Phòng quản lý thiết bị') }}</div>
+                        <div>- <strong>Ông/bà:</strong> {{ movement.actor.full_name if movement.actor else 'Quản trị viên / Thủ kho' }}</div>
+                        <div>- <strong>Chức vụ:</strong> {{ movement.actor.position if movement.actor and movement.actor.position else 'Quản lý thiết bị' }}</div>
+                        <div>- <strong>Phòng ban:</strong> {{ movement.actor.department_info.name if movement.actor and movement.actor.department_info else (company_cfg.branch_name or 'Phòng Quản lý Thiết bị') }}</div>
                     {% endif %}
                 </div>
             </div>
             <div class="col-6">
-                <div class="border rounded p-3 bg-light">
-                    <div class="fw-bold text-success mb-2"><i class="bi bi-person-down"></i> BÊN NHẬN (BÊN B)</div>
+                <div class="border rounded p-3 bg-light h-100">
+                    <div class="fw-bold text-success mb-2 border-bottom pb-1"><i class="bi bi-person-down me-1"></i> BÊN NHẬN:</div>
                     {% if movement.movement_type == 'Nhập' %}
-                        <div><strong>Đơn vị nhận:</strong> {{ company_cfg.branch_name or 'Phòng quản lý thiết bị' }}</div>
-                        <div><strong>Người tiếp nhận:</strong> {{ movement.actor.full_name if movement.actor else 'Thủ kho / Người quản lý' }}</div>
+                        <div>- <strong>Ông/bà:</strong> {{ movement.actor.full_name if movement.actor else 'Người tiếp nhận' }}</div>
+                        <div>- <strong>Chức vụ:</strong> {{ movement.actor.position if movement.actor and movement.actor.position else 'Thủ kho' }}</div>
+                        <div>- <strong>Phòng ban:</strong> {{ company_cfg.branch_name or 'Phòng Quản lý Thiết bị' }}</div>
                     {% else %}
-                        <div><strong>Họ tên:</strong> {{ movement.receiver.full_name if movement.receiver else '-' }}</div>
-                        <div><strong>Chức vụ/Bộ phận:</strong> {{ movement.receiver.department_info.name if movement.receiver and movement.receiver.department_info else '-' }}</div>
+                        <div>- <strong>Ông/bà:</strong> {{ movement.receiver.full_name if movement.receiver else '-' }}</div>
+                        <div>- <strong>Chức vụ:</strong> {{ movement.receiver.position if movement.receiver and movement.receiver.position else '-' }}</div>
+                        <div>- <strong>Phòng ban:</strong> {{ movement.receiver.department_info.name if movement.receiver and movement.receiver.department_info else '-' }}</div>
                     {% endif %}
                 </div>
             </div>
         </div>
 
-        <div class="mb-3">
-            <div><strong>Nội dung:</strong> {% if movement.movement_type == 'Nhập' %}Nhập kho{% else %}Xuất kho{% endif %} {{ movement.item.name }} (Mã mặt hàng: <code>{{ movement.item.code }}</code>)</div>
-            {% if movement.reason %}<div><strong>Lý do {% if movement.movement_type == 'Nhập' %}nhập{% else %}xuất{% endif %}:</strong> {{ movement.reason }}</div>{% endif %}
-            <div><strong>Tình trạng thiết bị:</strong> <span class="badge bg-success">Hoạt động tốt / Mới 100%</span></div>
-            {% if movement.notes %}<div><strong>Ghi chú:</strong> {{ movement.notes }}</div>{% endif %}
+        <div class="mb-3 fs-6">
+            <strong>Cùng bàn giao tài sản, trang thiết bị như sau:</strong>
         </div>
 
+        <!-- Items Table -->
         <div class="table-responsive mb-4">
             <table class="table table-bordered align-middle">
                 <thead class="table-light text-center">
@@ -127,9 +138,16 @@ Phiếu xuất kho {{ movement.reference_code or ('#' ~ movement.id) }}
             </table>
         </div>
 
-        <div class="row text-center mt-5 pt-3">
+        <!-- Concluding Confirmation Text -->
+        <div class="border rounded p-3 bg-white mb-4 small text-secondary">
+            <p class="mb-1"><i class="bi bi-check2-square me-1"></i> Hai bên đã cùng kiểm tra số lượng, chủng loại, số serial, phụ kiện kèm theo và tình trạng thiết bị.</p>
+            <p class="mb-0"><i class="bi bi-check2-square me-1"></i> Bên nhận xác nhận đã nhận đầy đủ thiết bị theo danh sách trên và chịu trách nhiệm quản lý, sử dụng kể từ thời điểm ký biên bản.</p>
+        </div>
+
+        <!-- Signatures -->
+        <div class="row text-center mt-4 pt-2">
             <div class="col-6">
-                <div class="fw-bold text-uppercase">ĐẠI DIỆN BÊN GIAO</div>
+                <div class="fw-bold text-uppercase">BÊN GIAO</div>
                 <div class="small text-muted mb-5">(Ký và ghi rõ họ tên)</div>
                 <div class="mt-4 fw-semibold">
                     {% if movement.movement_type == 'Nhập' %}
@@ -140,7 +158,7 @@ Phiếu xuất kho {{ movement.reference_code or ('#' ~ movement.id) }}
                 </div>
             </div>
             <div class="col-6">
-                <div class="fw-bold text-uppercase">ĐẠI DIỆN BÊN NHẬN</div>
+                <div class="fw-bold text-uppercase">BÊN NHẬN</div>
                 <div class="small text-muted mb-5">(Ký và ghi rõ họ tên)</div>
                 <div class="mt-4 fw-semibold">
                     {% if movement.movement_type == 'Nhập' %}
