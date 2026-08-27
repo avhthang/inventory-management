@@ -103,12 +103,13 @@
                                     class="btn btn-sm btn-outline-warning" title="Sửa"><i class="bi bi-pencil"></i></a>
                                 {% endif %}
 
+                                {% if current_user.role == 'admin' or (current_permissions and ('users.edit' in current_permissions or 'users.delete' in current_permissions)) %}
                                 <div class="dropdown">
                                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Xem thêm">
                                         <i class="bi bi-three-dots"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end shadow">
-                                        {% if current_permissions and 'users.edit' in current_permissions %}
+                                        {% if current_user.role == 'admin' or (current_permissions and 'users.edit' in current_permissions) %}
                                         <li>
                                             <button type="button" class="dropdown-item reset-password-btn"
                                                 data-user-id="{{ user.id }}" data-username="{{ user.username }}">
@@ -124,7 +125,7 @@
                                         </li>
                                         {% endif %}
 
-                                        {% if current_permissions and 'users.delete' in current_permissions %}
+                                        {% if current_user.role == 'admin' or (current_permissions and 'users.delete' in current_permissions) %}
                                         <li><hr class="dropdown-divider"></li>
                                         <li>
                                             <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}"
@@ -137,6 +138,7 @@
                                         {% endif %}
                                     </ul>
                                 </div>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>

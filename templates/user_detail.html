@@ -1,107 +1,184 @@
 {% extends "base.html" %}
-{% block title %}Thông tin Người dùng{% endblock %}
+{% block title %}Chi tiết người dùng: {{ user.full_name }}{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Thông tin người dùng</h3>
   <div>
+    <h2 class="mb-0">{{ user.full_name }}</h2>
+    <div class="text-muted">@{{ user.username }} | {{ user.position or 'Chưa rõ chức vụ' }} - {{ user.department_info.name if user.department_info else 'Chưa rõ phòng ban' }}</div>
+  </div>
+  <div>
+    <a href="{{ url_for('user_list') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Quay lại</a>
     {% if current_permissions and 'users.edit' in current_permissions %}
-    <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-sm btn-primary"><i class="bi bi-pencil"></i> Sửa</a>
+    <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-warning"><i class="bi bi-pencil"></i> Chỉnh sửa</a>
     {% endif %}
-    <a href="{{ url_for('user_list') }}" class="btn btn-sm btn-secondary">Quay lại</a>
   </div>
 </div>
 
-<div class="card mb-3">
-  <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-4"><strong>Họ và tên:</strong> {{ user.full_name or '' }}</div>
-      <div class="col-md-4"><strong>Tên đăng nhập:</strong> {{ user.username }}</div>
-      <div class="col-md-4"><strong>Email:</strong> {{ user.email or '' }}</div>
-      <div class="col-md-4"><strong>Phòng ban:</strong> {{ user.department_info.name if user.department_info else '' }}</div>
-      <div class="col-md-4"><strong>Chức vụ:</strong> {{ user.position or '' }}</div>
-      <div class="col-md-4"><strong>Trạng thái:</strong> {{ user.status or '' }}</div>
-      <div class="col-md-4"><strong>Ngày onboard:</strong> {{ user.onboard_date.strftime('%d-%m-%Y') if user.onboard_date else '' }}</div>
-      <div class="col-md-4"><strong>Ngày offboard:</strong> {{ user.offboard_date.strftime('%d-%m-%Y') if user.offboard_date else '' }}</div>
-      <div class="col-md-4"><strong>SĐT:</strong> {{ user.phone_number or '' }}</div>
-      <div class="col-md-12"><strong>Ghi chú:</strong> {{ user.notes or '' }}</div>
+<div class="row mb-4">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title text-primary"><i class="bi bi-person"></i> Thông tin cá nhân</h5>
+        <hr>
+        <div><strong>Họ tên:</strong> {{ user.full_name }}</div>
+        <div><strong>Tên đăng nhập:</strong> {{ user.username }}</div>
+        <div><strong>Email:</strong> {{ user.email or '-' }}</div>
+        <div><strong>Điện thoại:</strong> {{ user.phone or '-' }}</div>
+        <div><strong>Phòng ban:</strong> {{ user.department_info.name if user.department_info else '-' }}</div>
+        <div><strong>Chức vụ:</strong> {{ user.position or '-' }}</div>
+        <div><strong>Vai trò:</strong> {{ user.role }}</div>
+        <div><strong>Trạng thái:</strong> <span class="badge bg-success">{{ user.status }}</span></div>
+      </div>
     </div>
   </div>
-</div>
-
-<div class="card mb-3">
-  <div class="card-body">
-    <h5 class="mb-3">Thiết bị đang quản lý</h5>
-    <div class="table-responsive">
-      <table class="table table-sm table-striped">
-        <thead>
-          <tr>
-            <th>Mã thiết bị</th><th>Tên</th><th>Loại</th><th>Trạng thái</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for d in devices %}
-          <tr>
-            <td><a href="{{ url_for('device_detail', device_id=d.id) }}">{{ d.device_code }}</a></td>
-            <td>{{ d.name }}</td>
-            <td>{{ d.device_type }}</td>
-            <td>{{ d.status }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="4" class="text-center text-muted">Không có thiết bị.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  
+  <div class="col-md-8">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title text-primary"><i class="bi bi-laptop"></i> Thiết bị đang quản lý</h5>
+        <hr>
+        <div class="table-responsive">
+          <table class="table table-sm table-striped">
+            <thead>
+              <tr>
+                <th>Mã TB</th>
+                <th>Tên thiết bị</th>
+                <th>Loại</th>
+                <th>Serial</th>
+                <th>Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dev in devices %}
+              <tr>
+                <td><a href="{{ url_for('device_detail', device_id=dev.id) }}">{{ dev.device_code }}</a></td>
+                <td>{{ dev.name }}</td>
+                <td>{{ dev.device_type }}</td>
+                <td>{{ dev.serial_number or '-' }}</td>
+                <td><span class="badge bg-info">{{ dev.status }}</span></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-center text-muted">Không có thiết bị đang quản lý.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <div class="row">
   <div class="col-md-6">
-    <div class="card">
+    <div class="card shadow-sm h-100">
       <div class="card-body">
-        <h5 class="mb-3">Lịch sử bàn giao - Người giao</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0 text-primary"><i class="bi bi-box-arrow-up-right me-1"></i> Lịch sử bàn giao - Người giao</h5>
+          {% if given_pagination %}
+          <span class="badge bg-light text-dark border">Tổng {{ given_pagination.total }} bản ghi</span>
+          {% endif %}
+        </div>
         <div class="table-responsive">
-          <table class="table table-sm table-striped">
-            <thead><tr><th>Ngày</th><th>Mã TB</th><th>Người nhận</th></tr></thead>
+          <table class="table table-sm table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Ngày</th>
+                <th>Mã TB</th>
+                <th>Người nhận</th>
+              </tr>
+            </thead>
             <tbody>
               {% for h in given %}
               <tr>
                 <td>{{ h.handover_date.strftime('%d-%m-%Y') }}</td>
-                <td>{{ h.device.device_code if h.device else '' }}</td>
-                <td>{{ h.receiver.full_name if h.receiver else '' }}</td>
+                <td>{{ h.device.device_code if h.device else '-' }}</td>
+                <td>{{ h.receiver.full_name if h.receiver else '-' }}</td>
               </tr>
               {% else %}
-              <tr><td colspan="3" class="text-center text-muted">Không có.</td></tr>
+              <tr><td colspan="3" class="text-center text-muted py-3">Không có lịch sử.</td></tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
+        {% if given_pagination and given_pagination.pages > 1 %}
+        <nav class="mt-2">
+          <ul class="pagination pagination-sm justify-content-center mb-0">
+            <li class="page-item {% if not given_pagination.has_prev %}disabled{% endif %}">
+              <a class="page-link" href="{{ url_for('user_detail', user_id=user.id, page_given=given_pagination.prev_num, page_receiver=received_pagination.page if received_pagination else 1) }}">Trước</a>
+            </li>
+            {% for p_num in given_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+            {% if p_num %}
+            <li class="page-item {% if given_pagination.page == p_num %}active{% endif %}">
+              <a class="page-link" href="{{ url_for('user_detail', user_id=user.id, page_given=p_num, page_receiver=received_pagination.page if received_pagination else 1) }}">{{ p_num }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not given_pagination.has_next %}disabled{% endif %}">
+              <a class="page-link" href="{{ url_for('user_detail', user_id=user.id, page_given=given_pagination.next_num, page_receiver=received_pagination.page if received_pagination else 1) }}">Sau</a>
+            </li>
+          </ul>
+        </nav>
+        {% endif %}
       </div>
     </div>
   </div>
+
   <div class="col-md-6">
-    <div class="card">
+    <div class="card shadow-sm h-100">
       <div class="card-body">
-        <h5 class="mb-3">Lịch sử bàn giao - Người nhận</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0 text-success"><i class="bi bi-box-arrow-in-down-left me-1"></i> Lịch sử bàn giao - Người nhận</h5>
+          {% if received_pagination %}
+          <span class="badge bg-light text-dark border">Tổng {{ received_pagination.total }} bản ghi</span>
+          {% endif %}
+        </div>
         <div class="table-responsive">
-          <table class="table table-sm table-striped">
-            <thead><tr><th>Ngày</th><th>Mã TB</th><th>Người giao</th></tr></thead>
+          <table class="table table-sm table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Ngày</th>
+                <th>Mã TB</th>
+                <th>Người giao</th>
+              </tr>
+            </thead>
             <tbody>
               {% for h in received %}
               <tr>
                 <td>{{ h.handover_date.strftime('%d-%m-%Y') }}</td>
-                <td>{{ h.device.device_code if h.device else '' }}</td>
-                <td>{{ h.giver.full_name if h.giver else '' }}</td>
+                <td>{{ h.device.device_code if h.device else '-' }}</td>
+                <td>{{ h.giver.full_name if h.giver else '-' }}</td>
               </tr>
               {% else %}
-              <tr><td colspan="3" class="text-center text-muted">Không có.</td></tr>
+              <tr><td colspan="3" class="text-center text-muted py-3">Không có lịch sử.</td></tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
+        {% if received_pagination and received_pagination.pages > 1 %}
+        <nav class="mt-2">
+          <ul class="pagination pagination-sm justify-content-center mb-0">
+            <li class="page-item {% if not received_pagination.has_prev %}disabled{% endif %}">
+              <a class="page-link" href="{{ url_for('user_detail', user_id=user.id, page_given=given_pagination.page if given_pagination else 1, page_receiver=received_pagination.prev_num) }}">Trước</a>
+            </li>
+            {% for p_num in received_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+            {% if p_num %}
+            <li class="page-item {% if received_pagination.page == p_num %}active{% endif %}">
+              <a class="page-link" href="{{ url_for('user_detail', user_id=user.id, page_given=given_pagination.page if given_pagination else 1, page_receiver=p_num) }}">{{ p_num }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not received_pagination.has_next %}disabled{% endif %}">
+              <a class="page-link" href="{{ url_for('user_detail', user_id=user.id, page_given=given_pagination.page if given_pagination else 1, page_receiver=received_pagination.next_num) }}">Sau</a>
+            </li>
+          </ul>
+        </nav>
+        {% endif %}
       </div>
     </div>
   </div>
 </div>
 {% endblock %}
-

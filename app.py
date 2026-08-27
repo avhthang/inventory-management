@@ -5205,11 +5205,24 @@ def user_detail(user_id):
     user = User.query.get_or_404(user_id)
     # Thiết bị đang quản lý
     devices = Device.query.filter_by(manager_id=user.id).order_by(Device.device_code).all()
-    # Lịch sử bàn giao liên quan
-    given = DeviceHandover.query.filter_by(giver_id=user.id).order_by(DeviceHandover.handover_date.desc()).all()
-    received = DeviceHandover.query.filter_by(receiver_id=user.id).order_by(DeviceHandover.handover_date.desc()).all()
+    
+    page_given = request.args.get('page_given', 1, type=int)
+    page_receiver = request.args.get('page_receiver', 1, type=int)
+
+    given_pagination = DeviceHandover.query.filter_by(giver_id=user.id).order_by(DeviceHandover.handover_date.desc()).paginate(page=page_given, per_page=10, error_out=False)
+    received_pagination = DeviceHandover.query.filter_by(receiver_id=user.id).order_by(DeviceHandover.handover_date.desc()).paginate(page=page_receiver, per_page=10, error_out=False)
+
     current_permissions = _get_current_permissions()
-    return render_template('user_detail.html', user=user, devices=devices, given=given, received=received, current_permissions=current_permissions)
+    return render_template(
+        'user_detail.html',
+        user=user,
+        devices=devices,
+        given=given_pagination.items,
+        given_pagination=given_pagination,
+        received=received_pagination.items,
+        received_pagination=received_pagination,
+        current_permissions=current_permissions
+    )
 
 # --- CẬP NHẬT API ĐỂ TRẢ VỀ THÊM SERIAL NUMBER ---
 @app.route('/api/device_info/<int:device_id>')

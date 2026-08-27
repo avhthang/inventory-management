@@ -13,6 +13,8 @@
     <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
 
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% if request.endpoint == 'list_departments' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/departments.css') }}">
@@ -25,8 +27,11 @@
         <div class="container-fluid">
             {% set dashboard_allowed = current_user and (current_user.role == 'admin' or (current_permissions and
             'dashboard.view' in current_permissions)) %}
-            <a class="navbar-brand"
-                href="{{ url_for('home') if dashboard_allowed else url_for('device_list') }}">QLTB</a>
+            <a class="navbar-brand d-flex align-items-center gap-2"
+                href="{{ url_for('home') if dashboard_allowed else url_for('device_list') }}">
+                <img src="{{ url_for('static', filename='images/app_logo.png') }}" alt="Logo" width="30" height="30" class="rounded shadow-sm">
+                <span>QLTB</span>
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                 aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
