@@ -10933,6 +10933,10 @@ def _run_lazy_startup_migrations():
     global _startup_db_initialized
     if not _startup_db_initialized:
         _startup_db_initialized = True
+        try:
+            db.create_all()
+        except Exception as e_db:
+            print(f"Lazy startup db.create_all info: {e_db}")
         _safe_add_column('attendance_user', 'department', 'VARCHAR(100)')
         _safe_add_column('attendance_user', 'system_user_id', 'INTEGER')
         _safe_add_column('stock_item_movement', 'reason', 'VARCHAR(255)')
@@ -11030,424 +11034,177 @@ class ITServiceType(db.Model):
 def license_list():
     if 'user_id' not in session: return redirect(url_for('login'))
     
-    # Safe table creation for external PostgreSQL / SQLite
     try:
         db.create_all()
     except Exception as db_err:
         db.session.rollback()
-        print(f"License table create info: {db_err}")
 
-    active_tab = request.args.get('tab', 'account')
-    sub_tab = request.args.get('sub_tab', 'all')
-    q = (request.args.get('q') or '').strip()
-    status_filter = (request.args.get('status') or '').strip()
-    type_filter = (request.args.get('type') or '').strip()
-    supplier_filter = (request.args.get('supplier') or '').strip()
-    device_filter = request.args.get('device_id', type=int)
-    branch_filter = (request.args.get('branch') or '').strip()
-    dept_filter = (request.args.get('department') or '').strip()
-
-    today = date.today()
-    expiring_threshold = today + timedelta(days=30)
-
-    # 1. License Stats & Queries
-    license_query = SoftwareLicense.query
-    if q:
-        license_query = license_query.filter(or_(
-            SoftwareLicense.software_name.ilike(f'%{q}%'),
-            SoftwareLicense.code.ilike(f'%{q}%'),
-            SoftwareLicense.license_key.ilike(f'%{q}%'),
-            SoftwareLicense.supplier.ilike(f'%{q}%')
-        ))
-    if status_filter:
-        license_query = license_query.filter_by(status=status_filter)
-    if type_filter:
-        license_query = license_query.filter_by(license_type=type_filter)
-    if supplier_filter:
-        license_query = license_query.filter_by(supplier=supplier_filter)
-    if device_filter:
-        license_query = license_query.join(LicenseDevice).filter(LicenseDevice.device_id == device_filter)
-
-    # Sub-tabs filtering for Licenses
-    all_licenses_raw = SoftwareLicense.query.all()
-    total_licenses_count = len(all_licenses_raw)
-    expiring_licenses_count = sum(1 for l in all_licenses_raw if not l.is_perpetual and l.expiration_date and l.expiration_date <= expiring_threshold)
-    unassigned_licenses_count = sum(1 for l in all_licenses_raw if len(l.device_assignments) < (l.max_seats or 1))
-
-    if sub_tab == 'available':
-        license_query = license_query.filter(SoftwareLicense.id.in_([l.id for l in all_licenses_raw if len(l.device_assignments) < (l.max_seats or 1)]))
-    elif sub_tab == 'full':
-        license_query = license_query.filter(SoftwareLicense.id.in_([l.id for l in all_licenses_raw if len(l.device_assignments) >= (l.max_seats or 1)]))
-    elif sub_tab == 'expiring':
-        license_query = license_query.filter(and_(SoftwareLicense.is_perpetual == False, SoftwareLicense.expiration_date <= expiring_threshold))
-
-    page = request.args.get('page', 1, type=int)
-    licenses_paged = license_query.order_by(SoftwareLicense.id.desc()).paginate(page=page, per_page=20, error_out=False)
-
-    license_stats = {
-        'total': total_licenses_count,
-        'expiring': expiring_licenses_count,
-        'unassigned': unassigned_licenses_count
-    }
-
-    # 2. IT Services Stats & Queries
-    service_query = ITService.query
-    if q:
-        service_query = service_query.filter(or_(
-            ITService.service_name.ilike(f'%{q}%'),
-            ITService.code.ilike(f'%{q}%'),
-            ITService.contract_number.ilike(f'%{q}%'),
-            ITService.provider.ilike(f'%{q}%'),
-            ITService.static_ip_range.ilike(f'%{q}%')
-        ))
-    if type_filter:
-        service_query = service_query.filter_by(service_type=type_filter)
-    if branch_filter:
-        service_query = service_query.filter_by(branch=branch_filter)
-    if dept_filter:
-        service_query = service_query.filter_by(department=dept_filter)
-    if status_filter:
-        service_query = service_query.filter_by(status=status_filter)
-    if supplier_filter:
-        service_query = service_query.filter_by(provider=supplier_filter)
-
-    all_services_raw = ITService.query.all()
-    total_services_count = len(all_services_raw)
-    expiring_services_count = sum(1 for s in all_services_raw if not s.is_perpetual and s.expiration_date and s.expiration_date <= expiring_threshold)
-    unassigned_branch_services_count = sum(1 for s in all_services_raw if not s.branch)
-
-    services_paged = service_query.order_by(ITService.id.desc()).paginate(page=page, per_page=20, error_out=False)
-
-    service_stats = {
-        'total': total_services_count,
-        'expiring': expiring_services_count,
-        'unassigned': unassigned_branch_services_count
-    }
-
-    # 3. Work Accounts Stats & Queries
-    account_query = WorkAccount.query
-    if q:
-        account_query = account_query.filter(or_(
-            WorkAccount.account_name.ilike(f'%{q}%'),
-            WorkAccount.code.ilike(f'%{q}%'),
-            WorkAccount.username_email.ilike(f'%{q}%'),
-            WorkAccount.platform.ilike(f'%{q}%')
-        ))
-    if status_filter:
-        account_query = account_query.filter_by(status=status_filter)
-
-    all_accounts_raw = WorkAccount.query.all()
-    total_accounts_count = len(all_accounts_raw)
-    active_accounts_count = sum(1 for a in all_accounts_raw if a.status == 'Đang sử dụng')
-    unassigned_accounts_count = sum(1 for a in all_accounts_raw if not a.assigned_to_user_id and not a.assigned_to_device_id)
-
-    accounts_paged = account_query.order_by(WorkAccount.id.desc()).paginate(page=page, per_page=20, error_out=False)
-
-    account_stats = {
-        'total': total_accounts_count,
-        'active': active_accounts_count,
-        'unassigned': unassigned_accounts_count
-    }
-
-    # Master Auxiliary Dropdowns
-    devices_list = Device.query.order_by(Device.device_code).all()
-    users_list = User.query.filter_by(is_active=True).order_by(User.full_name).all()
-    branches_list = [r[0] for r in db.session.query(ITService.branch).distinct().all() if r[0]]
-    departments_list = [d.name for d in Department.query.all()]
-    suppliers_list = [r[0] for r in db.session.query(SoftwareLicense.supplier).distinct().all() if r[0]]
-    service_providers_list = [r[0] for r in db.session.query(ITService.provider).distinct().all() if r[0]]
-    license_types = [t.name for t in SoftwareLicenseType.query.all()] or ['Hệ điều hành', 'Văn phòng', 'Chuyên dụng', 'Bảo mật', 'Khác']
-    service_types = [t.name for t in ITServiceType.query.all()] or ['Internet cáp quang', 'Thuê chỗ đặt máy chủ', 'Tên miền / Hosting', 'Tổng đài IP', 'Khác']
-
-    current_permissions = _get_current_permissions()
-
-    return render_template(
-        'license_management.html',
-        active_tab=active_tab,
-        sub_tab=sub_tab,
-        q=q,
-        status_filter=status_filter,
-        type_filter=type_filter,
-        supplier_filter=supplier_filter,
-        device_filter=device_filter,
-        branch_filter=branch_filter,
-        dept_filter=dept_filter,
-        licenses_paged=licenses_paged,
-        license_stats=license_stats,
-        services_paged=services_paged,
-        service_stats=service_stats,
-        accounts_paged=accounts_paged,
-        account_stats=account_stats,
-        devices_list=devices_list,
-        users_list=users_list,
-        branches_list=branches_list,
-        departments_list=departments_list,
-        suppliers_list=suppliers_list,
-        service_providers_list=service_providers_list,
-        license_types=license_types,
-        service_types=service_types,
-        current_permissions=current_permissions
-    )
-
-@app.route('/licenses/add', methods=['POST'])
-def add_license():
-    if 'user_id' not in session: return redirect(url_for('login'))
     try:
-        code = (request.form.get('code') or '').strip()
-        if not code:
-            code = f"LIC-{datetime.now().strftime('%y%m%d')}-{SoftwareLicense.query.count() + 1:03d}"
-        
-        sw_name = (request.form.get('software_name') or '').strip()
-        l_type = (request.form.get('license_type') or 'Hệ điều hành').strip()
-        l_key = (request.form.get('license_key') or '').strip()
-        max_seats = request.form.get('max_seats', 1, type=int)
-        supplier = (request.form.get('supplier') or '').strip()
-        p_date = datetime.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date() if request.form.get('purchase_date') else None
-        
-        is_perp = bool(request.form.get('is_perpetual'))
-        exp_date = None if is_perp else (datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None)
-        notes = (request.form.get('notes') or '').strip()
+        active_tab = request.args.get('tab', 'account')
+        sub_tab = request.args.get('sub_tab', 'all')
+        q = (request.args.get('q') or '').strip()
+        status_filter = (request.args.get('status') or '').strip()
+        type_filter = (request.args.get('type') or '').strip()
+        supplier_filter = (request.args.get('supplier') or '').strip()
+        device_filter = request.args.get('device_id', type=int)
+        branch_filter = (request.args.get('branch') or '').strip()
+        dept_filter = (request.args.get('department') or '').strip()
 
-        lic = SoftwareLicense(
-            code=code,
-            software_name=sw_name,
-            license_type=l_type,
-            license_key=l_key,
-            max_seats=max_seats,
-            supplier=supplier,
-            purchase_date=p_date,
-            expiration_date=exp_date,
-            is_perpetual=is_perp,
-            notes=notes
+        today = date.today()
+        expiring_threshold = today + timedelta(days=30)
+
+        # 1. License Stats & Queries
+        license_query = SoftwareLicense.query
+        if q:
+            license_query = license_query.filter(or_(
+                SoftwareLicense.software_name.ilike(f'%{q}%'),
+                SoftwareLicense.code.ilike(f'%{q}%'),
+                SoftwareLicense.license_key.ilike(f'%{q}%'),
+                SoftwareLicense.supplier.ilike(f'%{q}%')
+            ))
+        if status_filter:
+            license_query = license_query.filter_by(status=status_filter)
+        if type_filter:
+            license_query = license_query.filter_by(license_type=type_filter)
+        if supplier_filter:
+            license_query = license_query.filter_by(supplier=supplier_filter)
+        if device_filter:
+            license_query = license_query.join(LicenseDevice).filter(LicenseDevice.device_id == device_filter)
+
+        all_licenses_raw = SoftwareLicense.query.all()
+        total_licenses_count = len(all_licenses_raw)
+        expiring_licenses_count = sum(1 for l in all_licenses_raw if not l.is_perpetual and l.expiration_date and l.expiration_date <= expiring_threshold)
+        unassigned_licenses_count = sum(1 for l in all_licenses_raw if len(l.device_assignments) < (l.max_seats or 1))
+
+        if sub_tab == 'available':
+            license_query = license_query.filter(SoftwareLicense.id.in_([l.id for l in all_licenses_raw if len(l.device_assignments) < (l.max_seats or 1)]))
+        elif sub_tab == 'full':
+            license_query = license_query.filter(SoftwareLicense.id.in_([l.id for l in all_licenses_raw if len(l.device_assignments) >= (l.max_seats or 1)]))
+        elif sub_tab == 'expiring':
+            license_query = license_query.filter(and_(SoftwareLicense.is_perpetual == False, SoftwareLicense.expiration_date <= expiring_threshold))
+
+        page = request.args.get('page', 1, type=int)
+        licenses_paged = license_query.order_by(SoftwareLicense.id.desc()).paginate(page=page, per_page=20, error_out=False)
+
+        license_stats = {
+            'total': total_licenses_count,
+            'expiring': expiring_licenses_count,
+            'unassigned': unassigned_licenses_count
+        }
+
+        # 2. IT Services Stats & Queries
+        service_query = ITService.query
+        if q:
+            service_query = service_query.filter(or_(
+                ITService.service_name.ilike(f'%{q}%'),
+                ITService.code.ilike(f'%{q}%'),
+                ITService.contract_number.ilike(f'%{q}%'),
+                ITService.provider.ilike(f'%{q}%'),
+                ITService.static_ip_range.ilike(f'%{q}%')
+            ))
+        if type_filter:
+            service_query = service_query.filter_by(service_type=type_filter)
+        if branch_filter:
+            service_query = service_query.filter_by(branch=branch_filter)
+        if dept_filter:
+            service_query = service_query.filter_by(department=dept_filter)
+        if status_filter:
+            service_query = service_query.filter_by(status=status_filter)
+        if supplier_filter:
+            service_query = service_query.filter_by(provider=supplier_filter)
+
+        all_services_raw = ITService.query.all()
+        total_services_count = len(all_services_raw)
+        expiring_services_count = sum(1 for s in all_services_raw if not s.is_perpetual and s.expiration_date and s.expiration_date <= expiring_threshold)
+        unassigned_branch_services_count = sum(1 for s in all_services_raw if not s.branch)
+
+        services_paged = service_query.order_by(ITService.id.desc()).paginate(page=page, per_page=20, error_out=False)
+
+        service_stats = {
+            'total': total_services_count,
+            'expiring': expiring_services_count,
+            'unassigned': unassigned_branch_services_count
+        }
+
+        # 3. Work Accounts & Server Accounts Queries
+        account_query = WorkAccount.query
+        server_query = WorkAccount.query.filter(or_(WorkAccount.platform == 'Server', WorkAccount.platform.ilike('%server%'), WorkAccount.platform.ilike('%vps%'), WorkAccount.platform.ilike('%ssh%')))
+
+        if active_tab == 'server':
+            account_query = server_query
+        elif active_tab == 'account':
+            account_query = WorkAccount.query.filter(not_(or_(WorkAccount.platform == 'Server', WorkAccount.platform.ilike('%server%'), WorkAccount.platform.ilike('%vps%'), WorkAccount.platform.ilike('%ssh%'))))
+
+        if q:
+            account_query = account_query.filter(or_(
+                WorkAccount.account_name.ilike(f'%{q}%'),
+                WorkAccount.code.ilike(f'%{q}%'),
+                WorkAccount.username_email.ilike(f'%{q}%'),
+                WorkAccount.platform.ilike(f'%{q}%')
+            ))
+        if status_filter:
+            account_query = account_query.filter_by(status=status_filter)
+
+        all_accounts_raw = WorkAccount.query.all()
+        total_accounts_count = len(all_accounts_raw)
+        active_accounts_count = sum(1 for a in all_accounts_raw if a.status == 'Đang sử dụng')
+        unassigned_accounts_count = sum(1 for a in all_accounts_raw if not a.assigned_to_user_id and not a.assigned_to_device_id)
+
+        server_accounts_count = sum(1 for a in all_accounts_raw if 'server' in (a.platform or '').lower() or 'vps' in (a.platform or '').lower() or 'ssh' in (a.platform or '').lower())
+
+        accounts_paged = account_query.order_by(WorkAccount.id.desc()).paginate(page=page, per_page=20, error_out=False)
+
+        account_stats = {
+            'total': total_accounts_count,
+            'active': active_accounts_count,
+            'unassigned': unassigned_accounts_count,
+            'server_count': server_accounts_count
+        }
+
+        # Master Auxiliary Dropdowns
+        devices_list = Device.query.order_by(Device.device_code).all()
+        users_list = User.query.filter_by(is_active=True).order_by(User.full_name).all()
+        branches_list = [r[0] for r in db.session.query(ITService.branch).distinct().all() if r[0]]
+        departments_list = [d.name for d in Department.query.all()]
+        suppliers_list = [r[0] for r in db.session.query(SoftwareLicense.supplier).distinct().all() if r[0]]
+        service_providers_list = [r[0] for r in db.session.query(ITService.provider).distinct().all() if r[0]]
+        license_types = [t.name for t in SoftwareLicenseType.query.all()] or ['Hệ điều hành', 'Văn phòng', 'Chuyên dụng', 'Bảo mật', 'Khác']
+        service_types = [t.name for t in ITServiceType.query.all()] or ['Internet cáp quang', 'Thuê chỗ đặt máy chủ', 'Tên miền / Hosting', 'Tổng đài IP', 'Khác']
+
+        current_permissions = _get_current_permissions()
+
+        return render_template(
+            'license_management.html',
+            active_tab=active_tab,
+            sub_tab=sub_tab,
+            q=q,
+            status_filter=status_filter,
+            type_filter=type_filter,
+            supplier_filter=supplier_filter,
+            device_filter=device_filter,
+            branch_filter=branch_filter,
+            dept_filter=dept_filter,
+            licenses_paged=licenses_paged,
+            license_stats=license_stats,
+            services_paged=services_paged,
+            service_stats=service_stats,
+            accounts_paged=accounts_paged,
+            account_stats=account_stats,
+            devices_list=devices_list,
+            users_list=users_list,
+            branches_list=branches_list,
+            departments_list=departments_list,
+            suppliers_list=suppliers_list,
+            service_providers_list=service_providers_list,
+            license_types=license_types,
+            service_types=service_types,
+            current_permissions=current_permissions
         )
-        db.session.add(lic)
-        db.session.commit()
-        flash(f'Thêm thành công License "{sw_name}".', 'success')
     except Exception as exc:
         db.session.rollback()
-        flash(f'Lỗi thêm License: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='license'))
+        import traceback
+        traceback.print_exc()
+        flash(f'Lỗi khi tải dữ liệu Tài khoản & Dịch vụ: {exc}', 'danger')
+        return redirect(url_for('home'))
 
-@app.route('/licenses/<int:license_id>/edit', methods=['POST'])
-def edit_license(license_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    lic = SoftwareLicense.query.get_or_404(license_id)
-    try:
-        lic.software_name = (request.form.get('software_name') or '').strip()
-        lic.license_type = (request.form.get('license_type') or 'Hệ điều hành').strip()
-        lic.license_key = (request.form.get('license_key') or '').strip()
-        lic.max_seats = request.form.get('max_seats', 1, type=int)
-        lic.supplier = (request.form.get('supplier') or '').strip()
-        lic.purchase_date = datetime.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date() if request.form.get('purchase_date') else None
-        
-        lic.is_perpetual = bool(request.form.get('is_perpetual'))
-        lic.expiration_date = None if lic.is_perpetual else (datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None)
-        lic.status = (request.form.get('status') or 'Đang sử dụng').strip()
-        lic.notes = (request.form.get('notes') or '').strip()
 
-        db.session.commit()
-        flash(f'Đã cập nhật License "{lic.software_name}".', 'success')
-    except Exception as exc:
-        db.session.rollback()
-        flash(f'Lỗi cập nhật License: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='license'))
-
-@app.route('/licenses/<int:license_id>/delete', methods=['POST'])
-def delete_license(license_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    lic = SoftwareLicense.query.get_or_404(license_id)
-    try:
-        db.session.delete(lic)
-        db.session.commit()
-        flash('Đã xóa License thành công.', 'success')
-    except Exception as exc:
-        db.session.rollback()
-        flash(f'Lỗi xóa License: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='license'))
-
-@app.route('/licenses/<int:license_id>/assign-device', methods=['POST'])
-def assign_license_device(license_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    lic = SoftwareLicense.query.get_or_404(license_id)
-    device_id = request.form.get('device_id', type=int)
-    if not device_id:
-        flash('Vui lòng chọn thiết bị để gán.', 'warning')
-        return redirect(url_for('license_list', tab='license'))
-    
-    if len(lic.device_assignments) >= (lic.max_seats or 1):
-        flash(f'License "{lic.software_name}" đã đạt giới hạn số lượng gán tối đa ({lic.max_seats}).', 'danger')
-        return redirect(url_for('license_list', tab='license'))
-
-    exists = LicenseDevice.query.filter_by(license_id=lic.id, device_id=device_id).first()
-    if not exists:
-        ld = LicenseDevice(license_id=lic.id, device_id=device_id)
-        db.session.add(ld)
-        db.session.commit()
-        flash('Đã gán License cho thiết bị thành công.', 'success')
-    return redirect(url_for('license_list', tab='license'))
-
-@app.route('/licenses/<int:license_id>/unassign-device/<int:device_id>', methods=['POST'])
-def unassign_license_device(license_id, device_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    ld = LicenseDevice.query.filter_by(license_id=license_id, device_id=device_id).first()
-    if ld:
-        db.session.delete(ld)
-        db.session.commit()
-        flash('Đã hủy gán thiết bị khỏi License.', 'success')
-    return redirect(url_for('license_list', tab='license'))
-
-@app.route('/it-services/add', methods=['POST'])
-def add_it_service():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    try:
-        code = (request.form.get('code') or '').strip()
-        if not code:
-            code = f"DV-{datetime.now().strftime('%y%m%d')}-{ITService.query.count() + 1:03d}"
-        
-        s_name = (request.form.get('service_name') or '').strip()
-        s_type = (request.form.get('service_type') or 'Internet cáp quang').strip()
-        branch = (request.form.get('branch') or '').strip()
-        dept = (request.form.get('department') or '').strip()
-        contract_no = (request.form.get('contract_number') or '').strip()
-        provider = (request.form.get('provider') or '').strip()
-        bandwidth = (request.form.get('bandwidth') or '').strip()
-        endpoint_device = (request.form.get('endpoint_device') or '').strip()
-        static_ip = (request.form.get('static_ip_range') or '').strip()
-        monthly_cost = request.form.get('monthly_cost', 0.0, type=float)
-        
-        is_perp = bool(request.form.get('is_perpetual'))
-        exp_date = None if is_perp else (datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None)
-        tech_info = (request.form.get('tech_support_info') or '').strip()
-
-        srv = ITService(
-            code=code,
-            service_name=s_name,
-            service_type=s_type,
-            branch=branch,
-            department=dept,
-            contract_number=contract_no,
-            provider=provider,
-            bandwidth=bandwidth,
-            endpoint_device=endpoint_device,
-            static_ip_range=static_ip,
-            monthly_cost=monthly_cost,
-            expiration_date=exp_date,
-            is_perpetual=is_perp,
-            tech_support_info=tech_info
-        )
-        db.session.add(srv)
-        db.session.commit()
-        flash(f'Thêm Dịch vụ CNTT "{s_name}" thành công.', 'success')
-    except Exception as exc:
-        db.session.rollback()
-        flash(f'Lỗi thêm Dịch vụ CNTT: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='itservice'))
-
-@app.route('/it-services/<int:service_id>/edit', methods=['POST'])
-def edit_it_service(service_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    srv = ITService.query.get_or_404(service_id)
-    try:
-        srv.service_name = (request.form.get('service_name') or '').strip()
-        srv.service_type = (request.form.get('service_type') or 'Internet cáp quang').strip()
-        srv.branch = (request.form.get('branch') or '').strip()
-        srv.department = (request.form.get('department') or '').strip()
-        srv.contract_number = (request.form.get('contract_number') or '').strip()
-        srv.provider = (request.form.get('provider') or '').strip()
-        srv.bandwidth = (request.form.get('bandwidth') or '').strip()
-        srv.endpoint_device = (request.form.get('endpoint_device') or '').strip()
-        srv.static_ip_range = (request.form.get('static_ip_range') or '').strip()
-        srv.monthly_cost = request.form.get('monthly_cost', 0.0, type=float)
-        
-        srv.is_perpetual = bool(request.form.get('is_perpetual'))
-        srv.expiration_date = None if srv.is_perpetual else (datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None)
-        srv.status = (request.form.get('status') or 'Đang sử dụng').strip()
-        srv.tech_support_info = (request.form.get('tech_support_info') or '').strip()
-
-        db.session.commit()
-        flash(f'Cập nhật Dịch vụ CNTT "{srv.service_name}" thành công.', 'success')
-    except Exception as exc:
-        db.session.rollback()
-        flash(f'Lỗi cập nhật Dịch vụ CNTT: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='itservice'))
-
-@app.route('/it-services/<int:service_id>/delete', methods=['POST'])
-def delete_it_service(service_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    srv = ITService.query.get_or_404(service_id)
-    try:
-        db.session.delete(srv)
-        db.session.commit()
-        flash('Đã xóa Dịch vụ CNTT thành công.', 'success')
-    except Exception as exc:
-        db.session.rollback()
-        flash(f'Lỗi xóa Dịch vụ CNTT: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='itservice'))
-
-@app.route('/work-accounts/add', methods=['POST'])
-def add_work_account():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    try:
-        code = (request.form.get('code') or '').strip()
-        if not code:
-            code = f"ACC-{datetime.now().strftime('%y%m%d')}-{WorkAccount.query.count() + 1:03d}"
-        
-        acc_name = (request.form.get('account_name') or '').strip()
-        platform = (request.form.get('platform') or 'Office 365').strip()
-        user_email = (request.form.get('username_email') or '').strip()
-        password_text = (request.form.get('password_text') or '').strip()
-        assigned_user = request.form.get('assigned_to_user_id', type=int)
-        assigned_device = request.form.get('assigned_to_device_id', type=int)
-        notes = (request.form.get('notes') or '').strip()
-
-        acc = WorkAccount(
-            code=code,
-            account_name=acc_name,
-            platform=platform,
-            username_email=user_email,
-            password_text=password_text,
-            assigned_to_user_id=assigned_user,
-            assigned_to_device_id=assigned_device,
-            notes=notes
-        )
-        db.session.add(acc)
-        db.session.commit()
-        flash(f'Thêm Tài khoản làm việc "{acc_name}" thành công.', 'success')
-    except Exception as exc:
-        db.session.rollback()
-        flash(f'Lỗi thêm Tài khoản: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='workaccount'))
-
-@app.route('/work-accounts/<int:account_id>/edit', methods=['POST'])
-def edit_work_account(account_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    acc = WorkAccount.query.get_or_404(account_id)
-    try:
-        acc.account_name = (request.form.get('account_name') or '').strip()
-        acc.platform = (request.form.get('platform') or 'Office 365').strip()
-        acc.username_email = (request.form.get('username_email') or '').strip()
-        acc.password_text = (request.form.get('password_text') or '').strip()
-        acc.assigned_to_user_id = request.form.get('assigned_to_user_id', type=int)
-        acc.assigned_to_device_id = request.form.get('assigned_to_device_id', type=int)
-        acc.status = (request.form.get('status') or 'Đang sử dụng').strip()
-        acc.notes = (request.form.get('notes') or '').strip()
-
-        db.session.commit()
-        flash(f'Đã cập nhật Tài khoản "{acc.account_name}".', 'success')
-    except Exception as exc:
-        db.session.rollback()
-        flash(f'Lỗi cập nhật Tài khoản: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='workaccount'))
-
-@app.route('/work-accounts/<int:account_id>/delete', methods=['POST'])
-def delete_work_account(account_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    acc = WorkAccount.query.get_or_404(account_id)
-    try:
-        db.session.delete(acc)
-        db.session.commit()
-        flash('Đã xóa Tài khoản thành công.', 'success')
-    except Exception as exc:
-        db.session.rollback()
-        flash(f'Lỗi xóa Tài khoản: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='workaccount'))
