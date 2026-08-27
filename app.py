@@ -10211,14 +10211,14 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
 def get_all_attendance_user_types():
     try:
         types = [r[0] for r in db.session.query(AttendanceUser.user_type).distinct().all() if r[0]]
-        defaults = ['Nhân viên', 'VIP', 'Khách', 'Bảo vệ', 'Lao công', 'Khác']
+        defaults = ['Nhân viên', 'VIP', 'Khách', 'Khác']
         for d in defaults:
             if d not in types:
                 types.append(d)
         return types
     except Exception as exc:
         db.session.rollback()
-        return ['Nhân viên', 'VIP', 'Khách', 'Bảo vệ', 'Lao công', 'Khác']
+        return ['Nhân viên', 'VIP', 'Khách', 'Khác']
 
 @app.route('/attendance')
 def attendance_logs():
