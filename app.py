@@ -199,6 +199,12 @@ PERMISSIONS = [
     ('stock_items.view', 'Xem vật tư và phụ kiện'),
     ('stock_items.edit', 'Thêm/Sửa mặt hàng, nhập/xuất kho'),
     ('stock_items.delete', 'Xóa mặt hàng và nhóm vật tư'),
+    # Chấm công & Máy chấm công Hikvision
+    ('attendance.view', 'Xem nhật ký & tổng hợp chấm công cá nhân'),
+    ('attendance.view_all', 'Xem toàn bộ dữ liệu chấm công tất cả nhân viên'),
+    ('attendance.sync', 'Thực hiện đồng bộ dữ liệu từ máy chấm công Hikvision'),
+    ('attendance.manage_users', 'Quản lý danh sách người chấm công (Thêm/Sửa/Xóa/Liên kết)'),
+    ('attendance.config', 'Cấu hình kết nối thiết bị Hikvision'),
 ]
 
 # Register SQLite function last_token for sorting by given name
@@ -2709,6 +2715,7 @@ def roles_permissions():
         'Bảo trì': ['maintenance.view', 'maintenance.add', 'maintenance.edit', 'maintenance.delete', 'maintenance.upload', 'maintenance.download'],
         'Bảo trì': ['maintenance.view', 'maintenance.add', 'maintenance.edit', 'maintenance.delete', 'maintenance.upload', 'maintenance.download'],
         'Báo lỗi nâng cao': ['bug_reports.manage_advanced'],
+        'Chấm công & Hikvision': ['attendance.view', 'attendance.view_all', 'attendance.sync', 'attendance.manage_users', 'attendance.config'],
         'Quy trình mua sắm': ['config_proposals.create', 'config_proposals.approve_team', 'config_proposals.consult_it', 'config_proposals.review_finance', 'config_proposals.approve_director', 'config_proposals.execute_purchase', 'config_proposals.execute_accounting', 'config_proposals.confirm_delivery']
     }
     
@@ -10642,6 +10649,13 @@ def attendance_export():
 @app.route('/attendance/users', methods=['GET', 'POST'])
 def attendance_users():
     if 'user_id' not in session: return redirect(url_for('login'))
+    user_permissions = session.get('permissions') or []
+    current_user_id = session.get('user_id')
+    user_role = str(session.get('role') or '').lower()
+    is_admin = (user_role in ('admin', 'quản trị viên', 'administrator')) or ('attendance.view_all' in user_permissions) or (session.get('is_admin') is True) or (current_user_id == 1)
+    if not is_admin and 'attendance.manage_users' not in user_permissions:
+        flash('Bạn không có quyền quản lý người chấm công.', 'danger')
+        return redirect(url_for('attendance_logs'))
     
     if request.method == 'POST':
         emp_no = (request.form.get('employee_no') or '').strip()
@@ -10717,6 +10731,13 @@ def attendance_users():
 @app.route('/attendance/users/<int:user_id>/edit', methods=['POST'])
 def edit_attendance_user(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    user_permissions = session.get('permissions') or []
+    current_user_id = session.get('user_id')
+    user_role = str(session.get('role') or '').lower()
+    is_admin = (user_role in ('admin', 'quản trị viên', 'administrator')) or ('attendance.view_all' in user_permissions) or (session.get('is_admin') is True) or (current_user_id == 1)
+    if not is_admin and 'attendance.manage_users' not in user_permissions:
+        flash('Bạn không có quyền chỉnh sửa người chấm công.', 'danger')
+        return redirect(url_for('attendance_logs'))
     user_obj = AttendanceUser.query.get_or_404(user_id)
     
     emp_no = (request.form.get('employee_no') or '').strip()
@@ -10755,6 +10776,13 @@ def edit_attendance_user(user_id):
 @app.route('/attendance/users/<int:user_id>/delete', methods=['POST'])
 def delete_attendance_user(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    user_permissions = session.get('permissions') or []
+    current_user_id = session.get('user_id')
+    user_role = str(session.get('role') or '').lower()
+    is_admin = (user_role in ('admin', 'quản trị viên', 'administrator')) or ('attendance.view_all' in user_permissions) or (session.get('is_admin') is True) or (current_user_id == 1)
+    if not is_admin and 'attendance.manage_users' not in user_permissions:
+        flash('Bạn không có quyền xóa người chấm công.', 'danger')
+        return redirect(url_for('attendance_logs'))
     user_obj = AttendanceUser.query.get_or_404(user_id)
     db.session.delete(user_obj)
     db.session.commit()
@@ -10764,6 +10792,13 @@ def delete_attendance_user(user_id):
 @app.route('/attendance/config', methods=['GET', 'POST'])
 def attendance_config_page():
     if 'user_id' not in session: return redirect(url_for('login'))
+    user_permissions = session.get('permissions') or []
+    current_user_id = session.get('user_id')
+    user_role = str(session.get('role') or '').lower()
+    is_admin = (user_role in ('admin', 'quản trị viên', 'administrator')) or ('attendance.view_all' in user_permissions) or (session.get('is_admin') is True) or (current_user_id == 1)
+    if not is_admin and 'attendance.config' not in user_permissions:
+        flash('Bạn không có quyền truy cập cấu hình máy chấm công.', 'danger')
+        return redirect(url_for('attendance_logs'))
     if request.method == 'POST':
         host = (request.form.get('host') or '192.168.11.94').strip()
         port = (request.form.get('port') or '8000').strip()

@@ -10,17 +10,25 @@
         <div class="text-muted">Tích hợp thiết bị Hikvision - Xem nhật ký quẹt vân tay & tổng hợp thời gian vào/ra.</div>
         <div class="small text-secondary mt-1"><i class="bi bi-clock-history me-1"></i> Cập nhật lần cuối: <strong class="text-dark">{{ stats.last_sync_time }}</strong></div>
     </div>
+    {% if is_admin or ('attendance.manage_users' in session.get('permissions', [])) or ('attendance.config' in session.get('permissions', [])) or ('attendance.sync' in session.get('permissions', [])) %}
     <div class="d-flex gap-2">
+        {% if is_admin or ('attendance.manage_users' in session.get('permissions', [])) %}
         <a href="{{ url_for('attendance_users') }}" class="btn btn-outline-primary">
             <i class="bi bi-people"></i> Người chấm công
         </a>
+        {% endif %}
+        {% if is_admin or ('attendance.config' in session.get('permissions', [])) %}
         <a href="{{ url_for('attendance_config_page') }}" class="btn btn-outline-secondary">
             <i class="bi bi-gear"></i> Cấu hình kết nối
         </a>
+        {% endif %}
+        {% if is_admin or ('attendance.sync' in session.get('permissions', [])) %}
         <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#syncHikvisionModal">
             <i class="bi bi-arrow-repeat"></i> Đồng bộ từ máy Hikvision
         </button>
+        {% endif %}
     </div>
+    {% endif %}
 </div>
 
 {% if permission_notice %}
