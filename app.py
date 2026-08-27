@@ -4,7 +4,7 @@ import uuid
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory, make_response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
-from sqlalchemy import or_, func, event, text, inspect, case, cast, String, Date
+from sqlalchemy import or_, and_, not_, func, event, text, inspect, case, cast, String, Date
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
