@@ -10950,8 +10950,6 @@ def _run_lazy_startup_migrations():
             db.session.rollback()
             print(f"Lazy record verify_mode update info: {exc}")
 
-if __name__ == '__main__':
-    app.run(debug=True)
 
 
 # --- License, IT Services & Work Accounts Models ---
@@ -11207,4 +11205,269 @@ def license_list():
         flash(f'Lỗi khi tải dữ liệu Tài khoản & Dịch vụ: {exc}', 'danger')
         return redirect(url_for('home'))
 
+@app.route('/licenses/add', methods=['POST'])
+def add_license():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    try:
+        code = (request.form.get('code') or '').strip()
+        if not code:
+            code = f"LIC-{datetime.now().strftime('%y%m%d')}-{SoftwareLicense.query.count() + 1:03d}"
+        
+        sw_name = (request.form.get('software_name') or '').strip()
+        l_type = (request.form.get('license_type') or 'Hệ điều hành').strip()
+        l_key = (request.form.get('license_key') or '').strip()
+        max_seats = request.form.get('max_seats', 1, type=int)
+        supplier = (request.form.get('supplier') or '').strip()
+        p_date = datetime.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date() if request.form.get('purchase_date') else None
+        
+        is_perp = bool(request.form.get('is_perpetual'))
+        exp_date = None if is_perp else (datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None)
+        notes = (request.form.get('notes') or '').strip()
 
+        lic = SoftwareLicense(
+            code=code,
+            software_name=sw_name,
+            license_type=l_type,
+            license_key=l_key,
+            max_seats=max_seats,
+            supplier=supplier,
+            purchase_date=p_date,
+            expiration_date=exp_date,
+            is_perpetual=is_perp,
+            notes=notes
+        )
+        db.session.add(lic)
+        db.session.commit()
+        flash(f'Thêm thành công License "{sw_name}".', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Lỗi thêm License: {exc}', 'danger')
+    return redirect(url_for('license_list', tab='license'))
+
+@app.route('/licenses/<int:license_id>/edit', methods=['POST'])
+def edit_license(license_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    lic = SoftwareLicense.query.get_or_404(license_id)
+    try:
+        lic.software_name = (request.form.get('software_name') or '').strip()
+        lic.license_type = (request.form.get('license_type') or 'Hệ điều hành').strip()
+        lic.license_key = (request.form.get('license_key') or '').strip()
+        lic.max_seats = request.form.get('max_seats', 1, type=int)
+        lic.supplier = (request.form.get('supplier') or '').strip()
+        lic.purchase_date = datetime.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date() if request.form.get('purchase_date') else None
+        
+        lic.is_perpetual = bool(request.form.get('is_perpetual'))
+        lic.expiration_date = None if lic.is_perpetual else (datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None)
+        lic.status = (request.form.get('status') or 'Đang sử dụng').strip()
+        lic.notes = (request.form.get('notes') or '').strip()
+
+        db.session.commit()
+        flash(f'Đã cập nhật License "{lic.software_name}".', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Lỗi cập nhật License: {exc}', 'danger')
+    return redirect(url_for('license_list', tab='license'))
+
+@app.route('/licenses/<int:license_id>/delete', methods=['POST'])
+def delete_license(license_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    lic = SoftwareLicense.query.get_or_404(license_id)
+    try:
+        db.session.delete(lic)
+        db.session.commit()
+        flash('Đã xóa License thành công.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Lỗi xóa License: {exc}', 'danger')
+    return redirect(url_for('license_list', tab='license'))
+
+@app.route('/licenses/<int:license_id>/assign-device', methods=['POST'])
+def assign_license_device(license_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    lic = SoftwareLicense.query.get_or_404(license_id)
+    device_id = request.form.get('device_id', type=int)
+    if not device_id:
+        flash('Vui lòng chọn thiết bị để gán.', 'warning')
+        return redirect(url_for('license_list', tab='license'))
+    
+    if len(lic.device_assignments) >= (lic.max_seats or 1):
+        flash(f'License "{lic.software_name}" đã đạt giới hạn số lượng gán tối đa ({lic.max_seats}).', 'danger')
+        return redirect(url_for('license_list', tab='license'))
+
+    exists = LicenseDevice.query.filter_by(license_id=lic.id, device_id=device_id).first()
+    if not exists:
+        ld = LicenseDevice(license_id=lic.id, device_id=device_id)
+        db.session.add(ld)
+        db.session.commit()
+        flash('Đã gán License cho thiết bị thành công.', 'success')
+    return redirect(url_for('license_list', tab='license'))
+
+@app.route('/licenses/<int:license_id>/unassign-device/<int:device_id>', methods=['POST'])
+def unassign_license_device(license_id, device_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    ld = LicenseDevice.query.filter_by(license_id=license_id, device_id=device_id).first()
+    if ld:
+        db.session.delete(ld)
+        db.session.commit()
+        flash('Đã hủy gán thiết bị khỏi License.', 'success')
+    return redirect(url_for('license_list', tab='license'))
+
+@app.route('/it-services/add', methods=['POST'])
+def add_it_service():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    try:
+        code = (request.form.get('code') or '').strip()
+        if not code:
+            code = f"DV-{datetime.now().strftime('%y%m%d')}-{ITService.query.count() + 1:03d}"
+        
+        s_name = (request.form.get('service_name') or '').strip()
+        s_type = (request.form.get('service_type') or 'Internet cáp quang').strip()
+        branch = (request.form.get('branch') or '').strip()
+        dept = (request.form.get('department') or '').strip()
+        contract_no = (request.form.get('contract_number') or '').strip()
+        provider = (request.form.get('provider') or '').strip()
+        bandwidth = (request.form.get('bandwidth') or '').strip()
+        endpoint_device = (request.form.get('endpoint_device') or '').strip()
+        static_ip = (request.form.get('static_ip_range') or '').strip()
+        monthly_cost = request.form.get('monthly_cost', 0.0, type=float)
+        
+        is_perp = bool(request.form.get('is_perpetual'))
+        exp_date = None if is_perp else (datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None)
+        tech_info = (request.form.get('tech_support_info') or '').strip()
+
+        srv = ITService(
+            code=code,
+            service_name=s_name,
+            service_type=s_type,
+            branch=branch,
+            department=dept,
+            contract_number=contract_no,
+            provider=provider,
+            bandwidth=bandwidth,
+            endpoint_device=endpoint_device,
+            static_ip_range=static_ip,
+            monthly_cost=monthly_cost,
+            expiration_date=exp_date,
+            is_perpetual=is_perp,
+            tech_support_info=tech_info
+        )
+        db.session.add(srv)
+        db.session.commit()
+        flash(f'Thêm Dịch vụ CNTT "{s_name}" thành công.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Lỗi thêm Dịch vụ CNTT: {exc}', 'danger')
+    return redirect(url_for('license_list', tab='itservice'))
+
+@app.route('/it-services/<int:service_id>/edit', methods=['POST'])
+def edit_it_service(service_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    srv = ITService.query.get_or_404(service_id)
+    try:
+        srv.service_name = (request.form.get('service_name') or '').strip()
+        srv.service_type = (request.form.get('service_type') or 'Internet cáp quang').strip()
+        srv.branch = (request.form.get('branch') or '').strip()
+        srv.department = (request.form.get('department') or '').strip()
+        srv.contract_number = (request.form.get('contract_number') or '').strip()
+        srv.provider = (request.form.get('provider') or '').strip()
+        srv.bandwidth = (request.form.get('bandwidth') or '').strip()
+        srv.endpoint_device = (request.form.get('endpoint_device') or '').strip()
+        srv.static_ip_range = (request.form.get('static_ip_range') or '').strip()
+        srv.monthly_cost = request.form.get('monthly_cost', 0.0, type=float)
+        
+        srv.is_perpetual = bool(request.form.get('is_perpetual'))
+        srv.expiration_date = None if srv.is_perpetual else (datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None)
+        srv.status = (request.form.get('status') or 'Đang sử dụng').strip()
+        srv.tech_support_info = (request.form.get('tech_support_info') or '').strip()
+
+        db.session.commit()
+        flash(f'Cập nhật Dịch vụ CNTT "{srv.service_name}" thành công.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Lỗi cập nhật Dịch vụ CNTT: {exc}', 'danger')
+    return redirect(url_for('license_list', tab='itservice'))
+
+@app.route('/it-services/<int:service_id>/delete', methods=['POST'])
+def delete_it_service(service_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    srv = ITService.query.get_or_404(service_id)
+    try:
+        db.session.delete(srv)
+        db.session.commit()
+        flash('Đã xóa Dịch vụ CNTT thành công.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Lỗi xóa Dịch vụ CNTT: {exc}', 'danger')
+    return redirect(url_for('license_list', tab='itservice'))
+
+@app.route('/work-accounts/add', methods=['POST'])
+def add_work_account():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    try:
+        code = (request.form.get('code') or '').strip()
+        if not code:
+            code = f"ACC-{datetime.now().strftime('%y%m%d')}-{WorkAccount.query.count() + 1:03d}"
+        
+        acc_name = (request.form.get('account_name') or '').strip()
+        platform = (request.form.get('platform') or 'Office 365').strip()
+        user_email = (request.form.get('username_email') or '').strip()
+        password_text = (request.form.get('password_text') or '').strip()
+        assigned_user = request.form.get('assigned_to_user_id', type=int)
+        assigned_device = request.form.get('assigned_to_device_id', type=int)
+        notes = (request.form.get('notes') or '').strip()
+
+        acc = WorkAccount(
+            code=code,
+            account_name=acc_name,
+            platform=platform,
+            username_email=user_email,
+            password_text=password_text,
+            assigned_to_user_id=assigned_user,
+            assigned_to_device_id=assigned_device,
+            notes=notes
+        )
+        db.session.add(acc)
+        db.session.commit()
+        flash(f'Thêm Tài khoản làm việc "{acc_name}" thành công.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Lỗi thêm Tài khoản: {exc}', 'danger')
+    return redirect(url_for('license_list', tab='account'))
+
+@app.route('/work-accounts/<int:account_id>/edit', methods=['POST'])
+def edit_work_account(account_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    acc = WorkAccount.query.get_or_404(account_id)
+    try:
+        acc.account_name = (request.form.get('account_name') or '').strip()
+        acc.platform = (request.form.get('platform') or 'Office 365').strip()
+        acc.username_email = (request.form.get('username_email') or '').strip()
+        acc.password_text = (request.form.get('password_text') or '').strip()
+        acc.assigned_to_user_id = request.form.get('assigned_to_user_id', type=int)
+        acc.assigned_to_device_id = request.form.get('assigned_to_device_id', type=int)
+        acc.status = (request.form.get('status') or 'Đang sử dụng').strip()
+        acc.notes = (request.form.get('notes') or '').strip()
+
+        db.session.commit()
+        flash(f'Đã cập nhật Tài khoản "{acc.account_name}".', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Lỗi cập nhật Tài khoản: {exc}', 'danger')
+    return redirect(url_for('license_list', tab='account'))
+
+@app.route('/work-accounts/<int:account_id>/delete', methods=['POST'])
+def delete_work_account(account_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    acc = WorkAccount.query.get_or_404(account_id)
+    try:
+        db.session.delete(acc)
+        db.session.commit()
+        flash('Đã xóa Tài khoản thành công.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Lỗi xóa Tài khoản: {exc}', 'danger')
+    return redirect(url_for('license_list', tab='account'))
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
