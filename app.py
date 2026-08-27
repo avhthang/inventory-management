@@ -133,8 +133,15 @@ def get_company_config():
     return cfg
 
 @app.context_processor
-def inject_company_config():
-    return {'company_config': get_company_config()}
+def inject_global_template_context():
+    perms = _get_current_permissions()
+    if 'user_id' in session:
+        session['permissions'] = list(perms)
+    return {
+        'company_config': get_company_config(),
+        'current_permissions': perms,
+        'user_permissions': perms
+    }
 
 # Permission catalogue
 PERMISSIONS = [
