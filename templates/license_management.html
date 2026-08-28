@@ -8,6 +8,11 @@
         padding: 0.45rem 0.5rem;
         font-size: 0.85rem;
     }
+    .table-compact th {
+        text-align: center !important;
+        vertical-align: middle !important;
+        white-space: nowrap !important;
+    }
     .badge-soft-primary { background-color: rgba(13, 110, 253, 0.1); color: #0d6efd; border: 1px solid rgba(13, 110, 253, 0.2); }
     .badge-soft-success { background-color: rgba(25, 135, 84, 0.1); color: #198754; border: 1px solid rgba(25, 135, 84, 0.2); }
     .badge-soft-warning { background-color: rgba(255, 193, 7, 0.15); color: #856404; border: 1px solid rgba(255, 193, 7, 0.3); }
@@ -271,14 +276,14 @@
                     <thead class="table-dark text-nowrap">
                         <tr>
                             <th style="width: 35px;">STT</th>
-                            <th>MÁY CHỦ / LOẠI</th>
+                            <th>MÁY CHỦ</th>
                             <th>CẤU HÌNH</th>
                             <th>ĐƠN VỊ CUNG CẤP</th>
-                            <th>IP / DOMAIN<br>TRUY CẬP</th>
-                            <th>IP QUẢN LÝ<br>(iDRAC / ILO / HDM)</th>
-                            <th>TÀI KHOẢN /<br>MẬT KHẨU</th>
-                            <th>HẠN GIA HẠN</th>
-                            <th class="text-center" style="width: 70px;">THAO TÁC</th>
+                            <th>IP TRUY CẬP</th>
+                            <th>IP QUẢN LÝ</th>
+                            <th>TÀI KHOẢN</th>
+                            <th>THỜI HẠN</th>
+                            <th style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -294,7 +299,7 @@
                                 {% endif %}
                                 <span class="badge bg-light text-dark border">{{ acc.platform or 'Server' }}</span>
                             </td>
-                            <td>
+                            <td class="text-center">
                                 <button class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" data-bs-toggle="modal" data-bs-target="#specModal{{ acc.id }}" title="Xem chi tiết cấu hình">
                                     <i class="bi bi-cpu-fill me-1"></i> Cấu hình
                                 </button>
@@ -337,14 +342,14 @@
                                 <strong class="text-dark">{{ acc.provider or '-' }}</strong>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="text-center">
                                 {% if acc.access_ip %}
                                 <span class="font-monospace text-primary fw-semibold clickable-ip" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP: {{ acc.access_ip }}')" title="Click để sao chép IP">{{ acc.access_ip }}</span>
                                 {% else %}
                                 -
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="text-center">
                                 {% if acc.mgmt_ip %}
                                 <span class="font-monospace text-danger fw-semibold clickable-ip" onclick="navigator.clipboard.writeText('{{ acc.mgmt_ip }}'); alert('Đã sao chép IP Mgmt: {{ acc.mgmt_ip }}')" title="Click để sao chép IP Mgmt">{{ acc.mgmt_ip }}</span>
                                 {% else %}
@@ -359,7 +364,7 @@
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Sao chép" onclick="copyPassword('{{ acc.id }}')"><i class="bi bi-clipboard"></i></button>
                                 </div>
                             </td>
-                            <td>
+                            <td class="text-center">
                                 {% if acc.server_type == 'Server offline' %}
                                 <span class="badge bg-light text-dark border">Vĩnh viễn (Nội bộ)</span>
                                 {% elif acc.expiration_date %}
@@ -480,12 +485,12 @@
                     <thead class="table-dark text-nowrap">
                         <tr>
                             <th style="width: 35px;">STT</th>
-                            <th>TÀI KHOẢN /<br>NỀN TẢNG</th>
-                            <th>TÊN ĐĂNG NHẬP /<br>MẬT KHẨU</th>
-                            <th>GÁN CHO<br>NHÂN VIÊN / TB</th>
-                            <th>CHU KỲ &<br>HẠN GIA HẠN</th>
-                            <th>TRẠNG THÁI<br>GIA HẠN</th>
-                            <th class="text-center" style="width: 70px;">THAO TÁC</th>
+                            <th>DỊCH VỤ</th>
+                            <th>USER / ACCOUNT</th>
+                            <th>NGƯỜI QUẢN LÝ</th>
+                            <th>THỜI HẠN</th>
+                            <th>TRẠNG THÁI</th>
+                            <th style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -515,7 +520,7 @@
                                 <span class="text-muted small">Chưa gán</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="text-center">
                                 {% if acc.expiration_date %}
                                 <div class="fw-semibold">{{ acc.expiration_date.strftime('%d/%m/%Y') }}</div>
                                 <span class="badge bg-light text-dark border small">{{ acc.billing_cycle or 'Theo năm' }}</span>
@@ -523,7 +528,7 @@
                                 <span class="badge bg-light text-dark border">Vĩnh viễn</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="text-center">
                                 {% if not acc.expiration_date or acc.billing_cycle == 'Vĩnh viễn' %}
                                 <span class="badge badge-soft-success rounded-pill"><i class="bi bi-check-circle me-1"></i>Đang hoạt động</span>
                                 {% else %}
@@ -565,7 +570,7 @@
                                             </div>
                                             <div class="row g-2 mb-3">
                                                 <div class="col-md-6">
-                                                    <label class="form-label required">Tên đăng nhập / Email</label>
+                                                    <label class="form-label required">User / Email</label>
                                                     <input type="text" name="username_email" class="form-control" value="{{ acc.username_email }}" required>
                                                 </div>
                                                 <div class="col-md-6">
@@ -588,7 +593,7 @@
                                                 </div>
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label">Gán cho Nhân viên</label>
+                                                <label class="form-label">Người quản lý (Gán cho Nhân viên)</label>
                                                 <input type="text" class="form-control form-control-sm mb-2 text-muted-placeholder" placeholder="🔍 Nhập tên nhân viên để tìm..." onkeyup="filterSelectOptions(this, 'userEditSelect{{ acc.id }}')">
                                                 <select name="assigned_to_user_id" id="userEditSelect{{ acc.id }}" class="form-select" size="5">
                                                     <option value="">-- Chưa gán --</option>
@@ -628,8 +633,8 @@
                             <th>DỊCH VỤ</th>
                             <th>MÃ HỢP ĐỒNG</th>
                             <th>GIÁ CƯỚC</th>
-                            <th>HẠN HỢP ĐỒNG</th>
-                            <th class="text-center" style="width: 70px;">THAO TÁC</th>
+                            <th>THỜI HẠN</th>
+                            <th style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -640,9 +645,9 @@
                                 <div class="fw-bold">{{ srv.service_name }}</div>
                                 <div class="small text-muted">{{ srv.service_type }} · <code>{{ srv.code }}</code></div>
                             </td>
-                            <td><span class="font-monospace fw-semibold text-primary">{{ srv.contract_number or '-' }}</span></td>
-                            <td class="fw-semibold">{{ "{:,.0f}".format(srv.monthly_cost) if srv.monthly_cost else '0' }} đ/tháng</td>
-                            <td>
+                            <td class="text-center"><span class="font-monospace fw-semibold text-primary">{{ srv.contract_number or '-' }}</span></td>
+                            <td class="fw-semibold text-center">{{ "{:,.0f}".format(srv.monthly_cost) if srv.monthly_cost else '0' }} đ/tháng</td>
+                            <td class="text-center">
                                 {% if srv.is_perpetual %}
                                 <span class="badge bg-light text-dark border rounded-pill">Vĩnh viễn</span>
                                 {% elif srv.expiration_date %}
@@ -739,9 +744,9 @@
                             <th>GẮN VỚI THIẾT BỊ</th>
                             <th>NHÀ CUNG CẤP</th>
                             <th>NGÀY MUA</th>
-                            <th>HẠN DÙNG</th>
+                            <th>THỜI HẠN</th>
                             <th>TRẠNG THÁI</th>
-                            <th class="text-center" style="width: 70px;">THAO TÁC</th>
+                            <th style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -773,9 +778,9 @@
                                     <button class="btn btn-xs btn-outline-primary btn-sm rounded-pill py-0 px-2 mt-1" data-bs-toggle="modal" data-bs-target="#assignDeviceModal{{ lic.id }}">+ Gán thiết bị</button>
                                 {% endif %}
                             </td>
-                            <td>{{ lic.supplier or '-' }}</td>
-                            <td>{{ lic.purchase_date.strftime('%d/%m/%Y') if lic.purchase_date else '-' }}</td>
-                            <td>
+                            <td class="text-center">{{ lic.supplier or '-' }}</td>
+                            <td class="text-center">{{ lic.purchase_date.strftime('%d/%m/%Y') if lic.purchase_date else '-' }}</td>
+                            <td class="text-center">
                                 {% if lic.is_perpetual %}
                                 <span class="badge bg-light text-dark border rounded-pill">Vĩnh viễn</span>
                                 {% elif lic.expiration_date %}
@@ -784,7 +789,7 @@
                                 -
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="text-center">
                                 {% if lic.status == 'Đang sử dụng' %}
                                 <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill">Đang sử dụng</span>
                                 {% else %}
@@ -965,7 +970,7 @@
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label required">Root User / Account</label>
+                            <label class="form-label required">User / Account (Root User)</label>
                             <input type="text" name="username_email" class="form-control text-muted-placeholder" placeholder="VD: root / administrator" required>
                         </div>
                         <div class="col-md-6">
@@ -1021,7 +1026,7 @@
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label required">Tên đăng nhập / Email</label>
+                            <label class="form-label required">User / Email</label>
                             <input type="text" name="username_email" class="form-control text-muted-placeholder" placeholder="VD: account@company.com" required>
                         </div>
                         <div class="col-md-6">
@@ -1044,7 +1049,7 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Gán cho Nhân viên</label>
+                        <label class="form-label">Người quản lý (Gán cho Nhân viên)</label>
                         <input type="text" class="form-control form-control-sm mb-2 text-muted-placeholder" placeholder="🔍 Nhập tên nhân viên để tìm..." onkeyup="filterSelectOptions(this, 'userAddSelect')">
                         <select name="assigned_to_user_id" id="userAddSelect" class="form-select" size="5">
                             <option value="">-- Chưa gán --</option>
