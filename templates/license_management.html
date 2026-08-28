@@ -12,6 +12,7 @@
     .badge-soft-success { background-color: rgba(25, 135, 84, 0.1); color: #198754; border: 1px solid rgba(25, 135, 84, 0.2); }
     .badge-soft-warning { background-color: rgba(255, 193, 7, 0.15); color: #856404; border: 1px solid rgba(255, 193, 7, 0.3); }
     .badge-soft-danger { background-color: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.2); }
+    .text-muted-placeholder::placeholder { color: #aaa !important; font-style: italic; }
 </style>
 
 <div class="container-fluid py-3">
@@ -40,7 +41,7 @@
             <div class="text-muted small">Quản lý các tài khoản phần mềm/dịch vụ dùng chung (Figma, Adobe, AI, Office 365, Zoom...) thuê theo tháng/năm kèm cảnh báo gia hạn.</div>
             {% elif active_tab == 'server' %}
             <h3 class="fw-bold mb-1"><i class="bi bi-hdd-network text-success me-1"></i> Server & Máy chủ</h3>
-            <div class="text-muted small">Quản lý máy chủ thuê (Cloud/VPS/AWS) hoặc Máy chủ offline (iDRAC, ILO, HDM, IPMI management IP...).</div>
+            <div class="text-muted small">Quản lý máy chủ thuê (Cloud/VPS/AWS) hoặc Máy chủ offline nội bộ (iDRAC, ILO, HDM, IPMI...).</div>
             {% elif active_tab == 'itservice' %}
             <h3 class="fw-bold mb-1"><i class="bi bi-globe text-info me-1"></i> Dịch vụ CNTT</h3>
             <div class="text-muted small">Quản lý các dịch vụ viễn thông/CNTT thuê ngoài (đường truyền Internet, thuê chỗ đặt máy chủ...) theo từng chi nhánh.</div>
@@ -223,7 +224,7 @@
                 <div class="col-md-5">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-                        <input type="text" name="q" class="form-control" placeholder="{% if active_tab == 'server' %}Tìm tên Server, IP, nhà cung cấp, loại...{% elif active_tab == 'account' %}Tìm tên tài khoản (Figma, Adobe, Zoom...), email, loại...{% elif active_tab == 'itservice' %}Tìm loại dịch vụ, mã, mã HĐ, IP...{% else %}Tìm tên phần mềm, mã, key, NCC...{% endif %}" value="{{ q }}">
+                        <input type="text" name="q" class="form-control text-muted-placeholder" placeholder="{% if active_tab == 'server' %}Tìm tên Server, IP, nhà cung cấp, loại...{% elif active_tab == 'account' %}Tìm tên tài khoản (Figma, Adobe, Zoom...), email, loại...{% elif active_tab == 'itservice' %}Tìm loại dịch vụ, mã, mã HĐ, IP...{% else %}Tìm tên phần mềm, mã, key, NCC...{% endif %}" value="{{ q }}">
                     </div>
                 </div>
 
@@ -292,14 +293,14 @@
                             <td class="text-center">{{ loop.index }}</td>
                             <td>
                                 <div class="fw-bold">{{ acc.account_name }}</div>
-                                {% if acc.server_type == 'Server thuê' %}
-                                <span class="badge badge-soft-primary"><i class="bi bi-cloud me-1"></i>Server Thuê</span>
-                                {% else %}
+                                {% if acc.server_type == 'Server offline' %}
                                 <span class="badge badge-soft-success"><i class="bi bi-cpu me-1"></i>Server Offline</span>
+                                {% else %}
+                                <span class="badge badge-soft-primary"><i class="bi bi-cloud me-1"></i>Server Thuê</span>
                                 {% endif %}
                                 <span class="badge bg-light text-dark border">{{ acc.platform or 'Server' }}</span>
                             </td>
-                            <td><strong class="text-dark">{{ acc.provider or '-' }}</strong></td>
+                            <td><strong class="text-dark">{{ acc.provider if acc.server_type != 'Server offline' else '-' }}</strong></td>
                             <td>
                                 {% if acc.access_ip %}
                                 <span class="font-monospace text-primary fw-semibold me-1"><i class="bi bi-box-arrow-in-right me-1"></i>{{ acc.access_ip }}</span>
@@ -325,7 +326,9 @@
                                 </div>
                             </td>
                             <td>
-                                {% if acc.expiration_date %}
+                                {% if acc.server_type == 'Server offline' %}
+                                <span class="badge bg-light text-dark border">Vĩnh viễn (Nội bộ)</span>
+                                {% elif acc.expiration_date %}
                                 <div>{{ acc.expiration_date.strftime('%d/%m/%Y') }}</div>
                                 <span class="badge bg-light text-dark border small">{{ acc.billing_cycle or 'Theo năm' }}</span>
                                 {% else %}
@@ -346,6 +349,7 @@
                             <div class="modal-dialog">
                                 <div class="modal-content">
                                     <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}">
+                                        <input type="hidden" name="platform" value="Server">
                                         <div class="modal-header">
                                             <h5 class="modal-title">Sửa Thông tin Server</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -357,27 +361,28 @@
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label required">Loại Server</label>
-                                                <select name="server_type" class="form-select" onchange="toggleServerFieldsEdit(this, '{{ acc.id }}')">
+                                                <select name="server_type" class="form-select" onchange="toggleServerOfflineFields(this, 'edit{{ acc.id }}')">
                                                     <option value="Server thuê" {% if acc.server_type == 'Server thuê' %}selected{% endif %}>Server thuê (Cloud / VPS / AWS)</option>
-                                                    <option value="Server offline" {% if acc.server_type == 'Server offline' %}selected{% endif %}>Server offline (Máy chủ vật lý)</option>
+                                                    <option value="Server offline" {% if acc.server_type == 'Server offline' %}selected{% endif %}>Server offline (Máy chủ vật lý nội bộ)</option>
                                                 </select>
                                             </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Đơn vị cung cấp (AWS, Viettel Cloud, CMC...)</label>
-                                                <input type="text" name="provider" class="form-control" value="{{ acc.provider or '' }}">
+                                            <div class="mb-3" id="edit{{ acc.id }}ProviderBox" style="{% if acc.server_type == 'Server offline' %}display:none;{% endif %}">
+                                                <label class="form-label">Đơn vị cung cấp</label>
+                                                <input type="text" name="provider" class="form-control text-muted-placeholder" value="{{ acc.provider or '' }}" placeholder="VD: AWS / Viettel Cloud / CMC">
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label required">IP / Tên miền truy cập chính</label>
-                                                <input type="text" name="access_ip" class="form-control font-monospace" value="{{ acc.access_ip or '' }}" placeholder="VD: 192.168.1.100 hoặc server.domain.com" required>
+                                                <label class="form-label">IP / Tên miền truy cập chính</label>
+                                                <input type="text" name="access_ip" class="form-control font-monospace text-muted-placeholder" value="{{ acc.access_ip or '' }}" placeholder="VD: 192.168.1.100 hoặc server.company.com">
+                                                <div class="form-text text-muted small">Không bắt buộc nếu chưa gán IP</div>
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI (Dành cho Server offline)</label>
-                                                <input type="text" name="mgmt_ip" class="form-control font-monospace" value="{{ acc.mgmt_ip or '' }}" placeholder="VD: 192.168.1.250">
+                                                <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI</label>
+                                                <input type="text" name="mgmt_ip" class="form-control font-monospace text-muted-placeholder" value="{{ acc.mgmt_ip or '' }}" placeholder="VD: 192.168.1.250">
                                             </div>
                                             <div class="row g-2 mb-3">
                                                 <div class="col-md-6">
                                                     <label class="form-label required">Root User / Account</label>
-                                                    <input type="text" name="username_email" class="form-control" value="{{ acc.username_email }}" required>
+                                                    <input type="text" name="username_email" class="form-control text-muted-placeholder" value="{{ acc.username_email }}" required placeholder="VD: root / admin">
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label class="form-label">Mật khẩu (Password)</label>
@@ -385,7 +390,7 @@
                                                 </div>
                                             </div>
                                             <div class="row g-2 mb-3">
-                                                <div class="col-md-6">
+                                                <div class="col-md-6" id="edit{{ acc.id }}CycleBox" style="{% if acc.server_type == 'Server offline' %}display:none;{% endif %}">
                                                     <label class="form-label">Chu kỳ gia hạn</label>
                                                     <select name="billing_cycle" class="form-select">
                                                         <option value="Theo tháng" {% if acc.billing_cycle == 'Theo tháng' %}selected{% endif %}>Theo tháng</option>
@@ -393,7 +398,7 @@
                                                         <option value="Vĩnh viễn" {% if acc.billing_cycle == 'Vĩnh viễn' %}selected{% endif %}>Vĩnh viễn</option>
                                                     </select>
                                                 </div>
-                                                <div class="col-md-6">
+                                                <div class="col-md-6" id="edit{{ acc.id }}ExpBox" style="{% if acc.server_type == 'Server offline' %}display:none;{% endif %}">
                                                     <label class="form-label">Hạn gia hạn (dd/mm/yyyy)</label>
                                                     <input type="date" name="expiration_date" class="form-control" value="{{ acc.expiration_date.strftime('%Y-%m-%d') if acc.expiration_date else '' }}">
                                                 </div>
@@ -509,7 +514,7 @@
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label required">Nền tảng / Loại ứng dụng</label>
-                                                <input type="text" name="platform" class="form-control" value="{{ acc.platform }}" required placeholder="VD: Figma / Adobe Photoshop / ChatGPT AI / Office 365 / Zoom">
+                                                <input type="text" name="platform" class="form-control text-muted-placeholder" value="{{ acc.platform }}" required placeholder="VD: Figma / Adobe Photoshop / ChatGPT AI / Office 365 / Zoom">
                                             </div>
                                             <div class="row g-2 mb-3">
                                                 <div class="col-md-6">
@@ -840,7 +845,7 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label class="form-label">Nhà cung cấp / Đơn vị bán</label>
-                                                    <input type="text" name="supplier" class="form-control" value="{{ lic.supplier or '' }}">
+                                                    <input type="text" name="supplier" class="form-control text-muted-placeholder" value="{{ lic.supplier or '' }}" placeholder="VD: Microsoft Store / FPT">
                                                 </div>
                                             </div>
 
@@ -890,38 +895,41 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST" action="{{ url_for('add_work_account') }}">
+                <input type="hidden" name="platform" value="Server">
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-hdd-network text-success me-1"></i> Thêm Server / Máy chủ Mới</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label required">Tên Server / Mô tả Tủ Rack</label>
-                        <input type="text" name="account_name" class="form-control" placeholder="VD: Server VPS Web Root / DB Primary Server" required>
+                        <label class="form-label required">Tên Server / Tủ Rack</label>
+                        <input type="text" name="account_name" class="form-control text-muted-placeholder" placeholder="VD: Server Primary DB / VPS Web 01" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label required">Loại Server</label>
-                        <select name="server_type" class="form-select" required>
+                        <select name="server_type" class="form-select" onchange="toggleServerOfflineFields(this, 'add')">
                             <option value="Server thuê" selected>Server thuê (Cloud / VPS / AWS)</option>
                             <option value="Server offline">Server offline (Máy chủ vật lý nội bộ)</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Nhà cung cấp (AWS, Viettel Cloud, CMC, BizFly...)</label>
-                        <input type="text" name="provider" class="form-control" placeholder="VD: AWS / Viettel Cloud / CMC">
+                    <div class="mb-3" id="addProviderBox">
+                        <label class="form-label">Nhà cung cấp</label>
+                        <input type="text" name="provider" class="form-control text-muted-placeholder" placeholder="VD: AWS / Viettel Cloud / CMC / BizFly">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label required">IP / Tên miền truy cập chính</label>
-                        <input type="text" name="access_ip" class="form-control font-monospace" placeholder="VD: 192.168.1.100 hoặc server.company.com" required>
+                        <label class="form-label">IP / Tên miền truy cập chính</label>
+                        <input type="text" name="access_ip" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 192.168.1.100 hoặc server.company.com">
+                        <div class="form-text text-muted small">Không bắt buộc nếu chưa gán IP</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">IP Quản lý (iDRAC / ILO / HDM / IPMI cho Server offline)</label>
-                        <input type="text" name="mgmt_ip" class="form-control font-monospace" placeholder="VD: 192.168.1.250">
+                        <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI</label>
+                        <input type="text" name="mgmt_ip" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 192.168.1.250">
+                        <div class="form-text text-muted small">Dành cho quản lý phần cứng Máy chủ offline</div>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
                             <label class="form-label required">Root User / Account</label>
-                            <input type="text" name="username_email" class="form-control" placeholder="VD: root / administrator" required>
+                            <input type="text" name="username_email" class="form-control text-muted-placeholder" placeholder="VD: root / administrator" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Mật khẩu (Password)</label>
@@ -929,7 +937,7 @@
                         </div>
                     </div>
                     <div class="row g-2 mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-6" id="addCycleBox">
                             <label class="form-label">Chu kỳ gia hạn</label>
                             <select name="billing_cycle" class="form-select">
                                 <option value="Theo tháng">Theo tháng</option>
@@ -937,14 +945,14 @@
                                 <option value="Vĩnh viễn">Vĩnh viễn</option>
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-6" id="addExpBox">
                             <label class="form-label">Hạn gia hạn (dd/mm/yyyy)</label>
                             <input type="date" name="expiration_date" class="form-control">
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Ghi chú (CPU/RAM/SSD/Vị trí tủ Rack...)</label>
-                        <textarea name="notes" class="form-control" rows="2" placeholder="Ghi chú thêm..."></textarea>
+                        <label class="form-label">Ghi chú (Cấu hình CPU/RAM/SSD/Vị trí tủ Rack...)</label>
+                        <textarea name="notes" class="form-control text-muted-placeholder" rows="2" placeholder="VD: Dell PowerEdge R740, RAM 64GB, Rack 02..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -968,16 +976,16 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label required">Tên tài khoản / Dịch vụ SaaS</label>
-                        <input type="text" name="account_name" class="form-control" placeholder="VD: Figma Pro Team / Adobe Photoshop / ChatGPT Plus / Zoom Pro" required>
+                        <input type="text" name="account_name" class="form-control text-muted-placeholder" placeholder="VD: Figma Pro Team / Adobe Photoshop / ChatGPT Plus / Zoom Pro" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label required">Nền tảng / Loại ứng dụng</label>
-                        <input type="text" name="platform" class="form-control" placeholder="VD: Figma / Adobe / ChatGPT AI / Office 365 / Zoom / Canva" required>
+                        <input type="text" name="platform" class="form-control text-muted-placeholder" placeholder="VD: Figma / Adobe / ChatGPT AI / Office 365 / Zoom / Canva" required>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
                             <label class="form-label required">Tên đăng nhập / Email</label>
-                            <input type="text" name="username_email" class="form-control" placeholder="VD: account@company.com" required>
+                            <input type="text" name="username_email" class="form-control text-muted-placeholder" placeholder="VD: account@company.com" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Mật khẩu (Password)</label>
@@ -1009,7 +1017,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Ghi chú</label>
-                        <textarea name="notes" class="form-control" rows="2" placeholder="Ghi chú thêm..."></textarea>
+                        <textarea name="notes" class="form-control text-muted-placeholder" rows="2" placeholder="Ghi chú thêm..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1034,7 +1042,7 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label required">Tên phần mềm</label>
-                            <input type="text" name="software_name" class="form-control" placeholder="VD: Microsoft Office 365" required>
+                            <input type="text" name="software_name" class="form-control text-muted-placeholder" placeholder="VD: Microsoft Office 365" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label required">Loại License</label>
@@ -1048,7 +1056,7 @@
 
                     <div class="mb-3">
                         <label class="form-label required">License Key / Product Key</label>
-                        <textarea name="license_key" class="form-control font-monospace" rows="2" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" required></textarea>
+                        <textarea name="license_key" class="form-control font-monospace text-muted-placeholder" rows="2" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" required></textarea>
                     </div>
 
                     <div class="row g-3 mb-3">
@@ -1058,7 +1066,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Nhà cung cấp / Đơn vị bán</label>
-                            <input type="text" name="supplier" class="form-control" placeholder="VD: Microsoft Store / FPT">
+                            <input type="text" name="supplier" class="form-control text-muted-placeholder" placeholder="VD: Microsoft Store / FPT">
                         </div>
                     </div>
 
@@ -1079,7 +1087,7 @@
 
                     <div class="mb-3">
                         <label class="form-label">Ghi chú</label>
-                        <textarea name="notes" class="form-control" rows="2" placeholder="Ghi chú thêm..."></textarea>
+                        <textarea name="notes" class="form-control text-muted-placeholder" rows="2" placeholder="Ghi chú thêm..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1104,7 +1112,7 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label required">Tên Dịch vụ</label>
-                            <input type="text" name="service_name" class="form-control" placeholder="VD: Internet cáp quang Viettel" required>
+                            <input type="text" name="service_name" class="form-control text-muted-placeholder" placeholder="VD: Internet cáp quang Viettel" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label required">Loại Dịch vụ</label>
@@ -1119,29 +1127,29 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Chi nhánh</label>
-                            <input type="text" name="branch" class="form-control" placeholder="VD: Chi nhánh HCM / Hà Nội">
+                            <input type="text" name="branch" class="form-control text-muted-placeholder" placeholder="VD: Chi nhánh HCM / Hà Nội">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Phòng ban sử dụng</label>
-                            <input type="text" name="department" class="form-control" placeholder="VD: Văn phòng">
+                            <input type="text" name="department" class="form-control text-muted-placeholder" placeholder="VD: Văn phòng">
                         </div>
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Mã hợp đồng</label>
-                            <input type="text" name="contract_number" class="form-control" placeholder="VD: HĐ-2026-001">
+                            <input type="text" name="contract_number" class="form-control text-muted-placeholder" placeholder="VD: HĐ-2026-001">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Nhà cung cấp</label>
-                            <input type="text" name="provider" class="form-control" placeholder="VD: Viettel / VNPT / FPT">
+                            <input type="text" name="provider" class="form-control text-muted-placeholder" placeholder="VD: Viettel / VNPT / FPT">
                         </div>
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Băng thông / Thông số</label>
-                            <input type="text" name="bandwidth" class="form-control" placeholder="VD: 500 Mbps">
+                            <input type="text" name="bandwidth" class="form-control text-muted-placeholder" placeholder="VD: 500 Mbps">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Giá cước hàng tháng (VNĐ)</label>
@@ -1151,7 +1159,7 @@
 
                     <div class="mb-3">
                         <label class="form-label">Ghi chú / TT Hỗ trợ kỹ thuật</label>
-                        <textarea name="tech_support_info" class="form-control" rows="2" placeholder="VD: Hotline 1800xxx / NV Kỹ thuật..."></textarea>
+                        <textarea name="tech_support_info" class="form-control text-muted-placeholder" rows="2" placeholder="VD: Hotline 1800xxx / NV Kỹ thuật..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1164,6 +1172,23 @@
 </div>
 
 <script>
+function toggleServerOfflineFields(selectEl, prefix) {
+    const val = selectEl.value;
+    const providerBox = document.getElementById(prefix + 'ProviderBox');
+    const cycleBox = document.getElementById(prefix + 'CycleBox');
+    const expBox = document.getElementById(prefix + 'ExpBox');
+    
+    if (val === 'Server offline') {
+        if (providerBox) providerBox.style.display = 'none';
+        if (cycleBox) cycleBox.style.display = 'none';
+        if (expBox) expBox.style.display = 'none';
+    } else {
+        if (providerBox) providerBox.style.display = 'block';
+        if (cycleBox) cycleBox.style.display = 'block';
+        if (expBox) expBox.style.display = 'block';
+    }
+}
+
 function togglePerpetualDate(chk, inputId) {
     const dateInput = document.getElementById(inputId);
     if (!dateInput) return;
