@@ -10937,6 +10937,12 @@ def _run_lazy_startup_migrations():
             db.create_all()
         except Exception as e_db:
             print(f"Lazy startup db.create_all info: {e_db}")
+        _safe_add_column('work_account', 'server_type', 'VARCHAR(50)')
+        _safe_add_column('work_account', 'provider', 'VARCHAR(255)')
+        _safe_add_column('work_account', 'access_ip', 'VARCHAR(255)')
+        _safe_add_column('work_account', 'mgmt_ip', 'VARCHAR(255)')
+        _safe_add_column('work_account', 'expiration_date', 'DATE')
+        _safe_add_column('work_account', 'billing_cycle', 'VARCHAR(50)')
         _safe_add_column('attendance_user', 'department', 'VARCHAR(100)')
         _safe_add_column('attendance_user', 'system_user_id', 'INTEGER')
         _safe_add_column('stock_item_movement', 'reason', 'VARCHAR(255)')
@@ -11009,6 +11015,12 @@ class WorkAccount(db.Model):
     assigned_to_device_id = db.Column(db.Integer, db.ForeignKey('device.id'))
     status = db.Column(db.String(50), default='Đang sử dụng')
     notes = db.Column(db.Text)
+    server_type = db.Column(db.String(50)) # 'Server thuê', 'Server offline'
+    provider = db.Column(db.String(255))   # AWS, Viettel Cloud, CMC...
+    access_ip = db.Column(db.String(255))  # IP / Domain truy cập
+    mgmt_ip = db.Column(db.String(255))    # IP iDRAC / ILO / HDM / IPMI
+    expiration_date = db.Column(db.Date)   # Ngày hết hạn SaaS / Server
+    billing_cycle = db.Column(db.String(50), default='Theo năm') # 'Theo tháng', 'Theo năm', 'Vĩnh viễn'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     assigned_user = db.relationship('User', foreign_keys=[assigned_to_user_id])
@@ -11416,6 +11428,13 @@ def add_work_account():
         assigned_device = request.form.get('assigned_to_device_id', type=int)
         notes = (request.form.get('notes') or '').strip()
 
+        server_type = (request.form.get('server_type') or '').strip()
+        provider = (request.form.get('provider') or '').strip()
+        access_ip = (request.form.get('access_ip') or '').strip()
+        mgmt_ip = (request.form.get('mgmt_ip') or '').strip()
+        billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
+        exp_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
+
         acc = WorkAccount(
             code=code,
             account_name=acc_name,
@@ -11424,7 +11443,13 @@ def add_work_account():
             password_text=password_text,
             assigned_to_user_id=assigned_user,
             assigned_to_device_id=assigned_device,
-            notes=notes
+            notes=notes,
+            server_type=server_type,
+            provider=provider,
+            access_ip=access_ip,
+            mgmt_ip=mgmt_ip,
+            expiration_date=exp_date,
+            billing_cycle=billing_cycle
         )
         db.session.add(acc)
         db.session.commit()
@@ -11447,6 +11472,12 @@ def edit_work_account(account_id):
         acc.assigned_to_device_id = request.form.get('assigned_to_device_id', type=int)
         acc.status = (request.form.get('status') or 'Đang sử dụng').strip()
         acc.notes = (request.form.get('notes') or '').strip()
+        acc.server_type = (request.form.get('server_type') or '').strip()
+        acc.provider = (request.form.get('provider') or '').strip()
+        acc.access_ip = (request.form.get('access_ip') or '').strip()
+        acc.mgmt_ip = (request.form.get('mgmt_ip') or '').strip()
+        acc.billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
+        acc.expiration_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
 
         db.session.commit()
         flash(f'Đã cập nhật Tài khoản "{acc.account_name}".', 'success')

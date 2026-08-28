@@ -5,9 +5,13 @@
 {% block content %}
 <style>
     .table-compact th, .table-compact td {
-        padding: 0.4rem 0.5rem;
-        font-size: 0.875rem;
+        padding: 0.45rem 0.5rem;
+        font-size: 0.85rem;
     }
+    .badge-soft-primary { background-color: rgba(13, 110, 253, 0.1); color: #0d6efd; border: 1px solid rgba(13, 110, 253, 0.2); }
+    .badge-soft-success { background-color: rgba(25, 135, 84, 0.1); color: #198754; border: 1px solid rgba(25, 135, 84, 0.2); }
+    .badge-soft-warning { background-color: rgba(255, 193, 7, 0.15); color: #856404; border: 1px solid rgba(255, 193, 7, 0.3); }
+    .badge-soft-danger { background-color: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.2); }
 </style>
 
 <div class="container-fluid py-3">
@@ -15,7 +19,7 @@
     <!-- Top Pill Navigation Tabs -->
     <div class="d-flex flex-wrap gap-2 mb-3 align-items-center border-bottom pb-2">
         <a href="{{ url_for('license_list', tab='account') }}" class="btn {% if active_tab == 'account' or not active_tab %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
-            <i class="bi bi-person-badge-fill text-primary me-1"></i> Tài khoản làm việc
+            <i class="bi bi-person-badge-fill text-primary me-1"></i> Tài khoản làm việc & SaaS
         </a>
         <a href="{{ url_for('license_list', tab='server') }}" class="btn {% if active_tab == 'server' %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
             <i class="bi bi-hdd-network-fill text-success me-1"></i> Server & Máy chủ
@@ -32,11 +36,11 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
         <div>
             {% if active_tab == 'account' %}
-            <h3 class="fw-bold mb-1"><i class="bi bi-person-badge text-primary me-1"></i> Tài khoản làm việc</h3>
-            <div class="text-muted small">Quản lý các tài khoản phần mềm/dịch vụ dùng chung (Office 365, Zoom, Email doanh nghiệp...) bàn giao cho nhân viên/thiết bị.</div>
+            <h3 class="fw-bold mb-1"><i class="bi bi-person-badge text-primary me-1"></i> Tài khoản làm việc & SaaS</h3>
+            <div class="text-muted small">Quản lý các tài khoản phần mềm/dịch vụ dùng chung (Figma, Adobe, AI, Office 365, Zoom...) thuê theo tháng/năm kèm cảnh báo gia hạn.</div>
             {% elif active_tab == 'server' %}
             <h3 class="fw-bold mb-1"><i class="bi bi-hdd-network text-success me-1"></i> Server & Máy chủ</h3>
-            <div class="text-muted small">Quản lý tài khoản quản trị máy chủ (VPS, Cloud Server, SSH, Root Credentials, Dedicated Server...).</div>
+            <div class="text-muted small">Quản lý máy chủ thuê (Cloud/VPS/AWS) hoặc Máy chủ offline (iDRAC, ILO, HDM, IPMI management IP...).</div>
             {% elif active_tab == 'itservice' %}
             <h3 class="fw-bold mb-1"><i class="bi bi-globe text-info me-1"></i> Dịch vụ CNTT</h3>
             <div class="text-muted small">Quản lý các dịch vụ viễn thông/CNTT thuê ngoài (đường truyền Internet, thuê chỗ đặt máy chủ...) theo từng chi nhánh.</div>
@@ -47,9 +51,13 @@
         </div>
 
         <div class="d-flex flex-wrap gap-2">
-            {% if active_tab in ['account', 'server'] %}
+            {% if active_tab == 'account' %}
             <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addWorkAccountModal">
-                <i class="bi bi-plus-lg me-1"></i> Thêm Tài khoản
+                <i class="bi bi-plus-lg me-1"></i> Thêm Tài khoản / SaaS
+            </button>
+            {% elif active_tab == 'server' %}
+            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addServerModal">
+                <i class="bi bi-plus-lg me-1"></i> Thêm Server / Máy chủ
             </button>
             {% elif active_tab == 'itservice' %}
             <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addITServiceModal">
@@ -73,7 +81,7 @@
                         <div class="p-2 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-person-badge fs-3"></i></div>
                         <div>
                             <div class="fs-3 fw-bold">{{ account_stats.total }}</div>
-                            <div class="small text-muted">Tổng số tài khoản</div>
+                            <div class="small text-muted">{% if active_tab == 'server' %}Tổng số Server{% else %}Tổng số tài khoản / SaaS{% endif %}</div>
                         </div>
                     </div>
                 </div>
@@ -93,13 +101,13 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-info">
+            <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-warning">
                 <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-2 bg-info bg-opacity-10 text-info rounded-circle"><i class="bi bi-person-plus fs-3"></i></div>
+                        <div class="p-2 bg-warning bg-opacity-10 text-warning rounded-circle"><i class="bi bi-exclamation-triangle fs-3"></i></div>
                         <div>
-                            <div class="fs-3 fw-bold text-info">{{ account_stats.unassigned }}</div>
-                            <div class="small text-muted">Chưa bàn giao / Chưa gán</div>
+                            <div class="fs-3 fw-bold text-warning">{{ account_stats.unassigned }}</div>
+                            <div class="small text-muted">Chưa gán / Cần lưu ý</div>
                         </div>
                     </div>
                 </div>
@@ -212,15 +220,15 @@
                 <input type="hidden" name="tab" value="{{ active_tab }}">
                 <input type="hidden" name="sub_tab" value="{{ sub_tab }}">
 
-                <div class="col-md-4">
+                <div class="col-md-5">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-                        <input type="text" name="q" class="form-control" placeholder="{% if active_tab == 'license' %}Tìm tên phần mềm, mã, key, NCC...{% elif active_tab == 'itservice' %}Tìm loại dịch vụ, mã, mã HĐ, IP...{% else %}Tìm tên tài khoản, email, loại...{% endif %}" value="{{ q }}">
+                        <input type="text" name="q" class="form-control" placeholder="{% if active_tab == 'server' %}Tìm tên Server, IP, nhà cung cấp, loại...{% elif active_tab == 'account' %}Tìm tên tài khoản (Figma, Adobe, Zoom...), email, loại...{% elif active_tab == 'itservice' %}Tìm loại dịch vụ, mã, mã HĐ, IP...{% else %}Tìm tên phần mềm, mã, key, NCC...{% endif %}" value="{{ q }}">
                     </div>
                 </div>
 
                 {% if active_tab == 'license' %}
-                <div class="col-md-2">
+                <div class="col-md-3">
                     <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tất cả loại license --</option>
                         {% for lt in license_types %}
@@ -230,22 +238,14 @@
                 </div>
                 <div class="col-md-2">
                     <select name="supplier" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">-- Tất cả nhà cung cấp --</option>
+                        <option value="">-- Nhà cung cấp --</option>
                         {% for s in suppliers_list %}
                         <option value="{{ s }}" {% if supplier_filter == s %}selected{% endif %}>{{ s }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <select name="device_id" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">-- Tất cả thiết bị --</option>
-                        {% for d in devices_list %}
-                        <option value="{{ d.id }}" {% if device_filter == d.id %}selected{% endif %}>{{ d.device_code }} - {{ d.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
                 {% elif active_tab == 'itservice' %}
-                <div class="col-md-2">
+                <div class="col-md-3">
                     <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tất cả loại dịch vụ --</option>
                         {% for st in service_types %}
@@ -255,68 +255,238 @@
                 </div>
                 <div class="col-md-2">
                     <select name="branch" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">-- Tất cả chi nhánh --</option>
+                        <option value="">-- Chi nhánh --</option>
                         {% for b in branches_list %}
                         <option value="{{ b }}" {% if branch_filter == b %}selected{% endif %}>{{ b }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <select name="supplier" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">-- Tất cả nhà cung cấp --</option>
-                        {% for sp in service_providers_list %}
-                        <option value="{{ sp }}" {% if supplier_filter == sp %}selected{% endif %}>{{ sp }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
                 {% endif %}
 
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Lọc dữ liệu</button>
+                <div class="col-md-2 ms-auto">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary w-100"><i class="bi bi-funnel"></i> Lọc</button>
                 </div>
             </form>
 
             <!-- Table Views -->
-            {% if active_tab in ['account', 'server'] %}
-            <!-- Work Accounts / Server Accounts Table -->
+            {% if active_tab == 'server' %}
+            <!-- Server & Máy chủ Table -->
             <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle table-compact">
+                <table class="table table-sm table-hover align-middle table-compact w-100">
                     <thead class="table-dark text-nowrap">
                         <tr>
                             <th style="width: 35px;">STT</th>
-                            <th>MÃ TK</th>
-                            <th>TÊN TÀI KHOẢN</th>
-                            <th>NỀN TẢNG / DỊCH VỤ</th>
-                            <th>TÊN ĐĂNG NHẬP / EMAIL</th>
-                            <th>MẬT KHẨU</th>
-                            <th>GẮN VỚI NHÂN VIÊN</th>
-                            <th>GẮN VỚI THIẾT BỊ</th>
+                            <th>MÁY CHỦ / LOẠI</th>
+                            <th>ĐƠN VỊ CUNG CẤP</th>
+                            <th>IP / DOMAIN TRUY CẬP</th>
+                            <th>IP QUẢN LÝ (iDRAC / ILO / HDM)</th>
+                            <th>TÀI KHOẢN / MẬT KHẨU</th>
+                            <th>HẠN GIA HẠN</th>
                             <th>GHI CHÚ</th>
-                            <th>TRẠNG THÁI</th>
-                            <th class="text-center">THAO TÁC</th>
+                            <th class="text-center" style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for acc in accounts_paged.items %}
                         <tr>
                             <td class="text-center">{{ loop.index }}</td>
-                            <td><code>{{ acc.code }}</code></td>
-                            <td class="fw-bold">{{ acc.account_name }}</td>
-                            <td><span class="badge bg-light text-dark border">{{ acc.platform }}</span></td>
-                            <td><strong class="font-monospace text-primary">{{ acc.username_email }}</strong></td>
                             <td>
+                                <div class="fw-bold">{{ acc.account_name }}</div>
+                                {% if acc.server_type == 'Server thuê' %}
+                                <span class="badge badge-soft-primary"><i class="bi bi-cloud me-1"></i>Server Thuê</span>
+                                {% else %}
+                                <span class="badge badge-soft-success"><i class="bi bi-cpu me-1"></i>Server Offline</span>
+                                {% endif %}
+                                <span class="badge bg-light text-dark border">{{ acc.platform or 'Server' }}</span>
+                            </td>
+                            <td><strong class="text-dark">{{ acc.provider or '-' }}</strong></td>
+                            <td>
+                                {% if acc.access_ip %}
+                                <span class="font-monospace text-primary fw-semibold me-1"><i class="bi bi-box-arrow-in-right me-1"></i>{{ acc.access_ip }}</span>
+                                <button type="button" class="btn btn-xs btn-light border p-0 px-1" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP!')" title="Copy IP"><i class="bi bi-clipboard"></i></button>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if acc.mgmt_ip %}
+                                <span class="font-monospace text-danger fw-semibold me-1"><i class="bi bi-shield-lock me-1"></i>{{ acc.mgmt_ip }}</span>
+                                <button type="button" class="btn btn-xs btn-light border p-0 px-1" onclick="navigator.clipboard.writeText('{{ acc.mgmt_ip }}'); alert('Đã sao chép IP Mgmt!')" title="Copy IP Mgmt"><i class="bi bi-clipboard"></i></button>
+                                {% else %}
+                                <span class="text-muted small">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div><strong class="font-monospace text-dark">{{ acc.username_email }}</strong></div>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}" data-key="{{ acc.password_text or '' }}">••••••••</span>
+                                    <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Hiện/Ẩn" onclick="togglePassword('{{ acc.id }}')"><i class="bi bi-eye"></i></button>
+                                    <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Sao chép" onclick="copyPassword('{{ acc.id }}')"><i class="bi bi-clipboard"></i></button>
+                                </div>
+                            </td>
+                            <td>
+                                {% if acc.expiration_date %}
+                                <div>{{ acc.expiration_date.strftime('%d/%m/%Y') }}</div>
+                                <span class="badge bg-light text-dark border small">{{ acc.billing_cycle or 'Theo năm' }}</span>
+                                {% else %}
+                                <span class="badge bg-light text-dark border">Vĩnh viễn</span>
+                                {% endif %}
+                            </td>
+                            <td class="small text-muted">{{ acc.notes or '-' }}</td>
+                            <td class="text-center text-nowrap">
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editServerModal{{ acc.id }}"><i class="bi bi-pencil"></i></button>
+                                <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Server này?')">
+                                    <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+
+                        <!-- Edit Server Modal -->
+                        <div class="modal fade" id="editServerModal{{ acc.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Sửa Thông tin Server</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label required">Tên Server / Tủ Rack</label>
+                                                <input type="text" name="account_name" class="form-control" value="{{ acc.account_name }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label required">Loại Server</label>
+                                                <select name="server_type" class="form-select" onchange="toggleServerFieldsEdit(this, '{{ acc.id }}')">
+                                                    <option value="Server thuê" {% if acc.server_type == 'Server thuê' %}selected{% endif %}>Server thuê (Cloud / VPS / AWS)</option>
+                                                    <option value="Server offline" {% if acc.server_type == 'Server offline' %}selected{% endif %}>Server offline (Máy chủ vật lý)</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Đơn vị cung cấp (AWS, Viettel Cloud, CMC...)</label>
+                                                <input type="text" name="provider" class="form-control" value="{{ acc.provider or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label required">IP / Tên miền truy cập chính</label>
+                                                <input type="text" name="access_ip" class="form-control font-monospace" value="{{ acc.access_ip or '' }}" placeholder="VD: 192.168.1.100 hoặc server.domain.com" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI (Dành cho Server offline)</label>
+                                                <input type="text" name="mgmt_ip" class="form-control font-monospace" value="{{ acc.mgmt_ip or '' }}" placeholder="VD: 192.168.1.250">
+                                            </div>
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label required">Root User / Account</label>
+                                                    <input type="text" name="username_email" class="form-control" value="{{ acc.username_email }}" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Mật khẩu (Password)</label>
+                                                    <input type="text" name="password_text" class="form-control font-monospace" value="{{ acc.password_text or '' }}">
+                                                </div>
+                                            </div>
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Chu kỳ gia hạn</label>
+                                                    <select name="billing_cycle" class="form-select">
+                                                        <option value="Theo tháng" {% if acc.billing_cycle == 'Theo tháng' %}selected{% endif %}>Theo tháng</option>
+                                                        <option value="Theo năm" {% if acc.billing_cycle == 'Theo năm' %}selected{% endif %}>Theo năm</option>
+                                                        <option value="Vĩnh viễn" {% if acc.billing_cycle == 'Vĩnh viễn' %}selected{% endif %}>Vĩnh viễn</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Hạn gia hạn (dd/mm/yyyy)</label>
+                                                    <input type="date" name="expiration_date" class="form-control" value="{{ acc.expiration_date.strftime('%Y-%m-%d') if acc.expiration_date else '' }}">
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Ghi chú (Cấu hình CPU/RAM/Disk...)</label>
+                                                <textarea name="notes" class="form-control" rows="2">{{ acc.notes or '' }}</textarea>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                                            <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% else %}
+                        <tr><td colspan="9" class="text-center text-muted py-3">Chưa có bản ghi Server / Máy chủ nào.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% elif active_tab == 'account' %}
+            <!-- Work Accounts & SaaS Table -->
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle table-compact w-100">
+                    <thead class="table-dark text-nowrap">
+                        <tr>
+                            <th style="width: 35px;">STT</th>
+                            <th>TÀI KHOẢN / NỀN TẢNG</th>
+                            <th>TÊN ĐĂNG NHẬP / MẬT KHẨU</th>
+                            <th>GÁN CHO NHÂN VIÊN / TB</th>
+                            <th>CHU KỲ & HẠN GIA HẠN</th>
+                            <th>TRẠNG THÁI GIA HẠN</th>
+                            <th>GHI CHÚ</th>
+                            <th class="text-center" style="width: 70px;">THAO TÁC</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for acc in accounts_paged.items %}
+                        <tr>
+                            <td class="text-center">{{ loop.index }}</td>
+                            <td>
+                                <div class="fw-bold">{{ acc.account_name }}</div>
+                                <span class="badge badge-soft-primary"><i class="bi bi-box-seam me-1"></i>{{ acc.platform }}</span>
+                            </td>
+                            <td>
+                                <div><strong class="font-monospace text-primary">{{ acc.username_email }}</strong></div>
                                 <div class="d-flex align-items-center gap-1">
                                     <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}" data-key="{{ acc.password_text or '' }}">••••••••</span>
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Hiện/Ẩn password" onclick="togglePassword('{{ acc.id }}')"><i class="bi bi-eye"></i></button>
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Sao chép" onclick="copyPassword('{{ acc.id }}')"><i class="bi bi-clipboard"></i></button>
                                 </div>
                             </td>
-                            <td>{{ acc.assigned_user.full_name if acc.assigned_user else '-' }}</td>
-                            <td>{{ acc.assigned_device.device_code if acc.assigned_device else '-' }}</td>
+                            <td>
+                                {% if acc.assigned_user %}
+                                <div><i class="bi bi-person me-1"></i>{{ acc.assigned_user.full_name }}</div>
+                                {% endif %}
+                                {% if acc.assigned_device %}
+                                <div class="small text-muted"><i class="bi bi-laptop me-1"></i>{{ acc.assigned_device.device_code }}</div>
+                                {% endif %}
+                                {% if not acc.assigned_user and not acc.assigned_device %}
+                                <span class="text-muted small">Chưa gán</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if acc.expiration_date %}
+                                <div class="fw-semibold">{{ acc.expiration_date.strftime('%d/%m/%Y') }}</div>
+                                <span class="badge bg-light text-dark border small">{{ acc.billing_cycle or 'Theo năm' }}</span>
+                                {% else %}
+                                <span class="badge bg-light text-dark border">Vĩnh viễn</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not acc.expiration_date or acc.billing_cycle == 'Vĩnh viễn' %}
+                                <span class="badge badge-soft-success rounded-pill"><i class="bi bi-check-circle me-1"></i>Đang hoạt động</span>
+                                {% else %}
+                                    {% set days_left = (acc.expiration_date - date.today()).days if date and acc.expiration_date else 999 %}
+                                    {% if days_left < 0 %}
+                                    <span class="badge badge-soft-danger rounded-pill"><i class="bi bi-x-circle me-1"></i>Cần gia hạn (Quá {{ days_left|abs }} ngày)</span>
+                                    {% elif days_left <= 30 %}
+                                    <span class="badge badge-soft-warning rounded-pill"><i class="bi bi-exclamation-triangle me-1"></i>Sắp hết hạn (Còn {{ days_left }} ngày)</span>
+                                    {% else %}
+                                    <span class="badge badge-soft-success rounded-pill"><i class="bi bi-check-circle me-1"></i>Đang hoạt động</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
                             <td class="small text-muted">{{ acc.notes or '-' }}</td>
-                            <td><span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill">{{ acc.status }}</span></td>
                             <td class="text-center text-nowrap">
-                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editWorkAccountModal{{ acc.id }}"><i class="bi bi-pencil"></i> Sửa</button>
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editWorkAccountModal{{ acc.id }}"><i class="bi bi-pencil"></i></button>
                                 <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Tài khoản này?')">
                                     <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                                 </form>
@@ -329,25 +499,41 @@
                                 <div class="modal-content">
                                     <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}">
                                         <div class="modal-header">
-                                            <h5 class="modal-title">Sửa Tài khoản</h5>
+                                            <h5 class="modal-title">Sửa Tài khoản / SaaS</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body">
                                             <div class="mb-3">
-                                                <label class="form-label required">Tên tài khoản / Mô tả</label>
+                                                <label class="form-label required">Tên tài khoản / Dịch vụ SaaS</label>
                                                 <input type="text" name="account_name" class="form-control" value="{{ acc.account_name }}" required>
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label required">Nền tảng / Phần mềm / Server</label>
-                                                <input type="text" name="platform" class="form-control" value="{{ acc.platform }}" required placeholder="VD: Server / Office 365 / Zoom / VPS">
+                                                <label class="form-label required">Nền tảng / Loại ứng dụng</label>
+                                                <input type="text" name="platform" class="form-control" value="{{ acc.platform }}" required placeholder="VD: Figma / Adobe Photoshop / ChatGPT AI / Office 365 / Zoom">
                                             </div>
-                                            <div class="mb-3">
-                                                <label class="form-label required">Tên đăng nhập / Email / Root User</label>
-                                                <input type="text" name="username_email" class="form-control" value="{{ acc.username_email }}" required>
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label required">Tên đăng nhập / Email</label>
+                                                    <input type="text" name="username_email" class="form-control" value="{{ acc.username_email }}" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Mật khẩu (Password)</label>
+                                                    <input type="text" name="password_text" class="form-control font-monospace" value="{{ acc.password_text or '' }}">
+                                                </div>
                                             </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Mật khẩu (Password)</label>
-                                                <input type="text" name="password_text" class="form-control font-monospace" value="{{ acc.password_text or '' }}">
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Chu kỳ thanh toán</label>
+                                                    <select name="billing_cycle" class="form-select">
+                                                        <option value="Theo tháng" {% if acc.billing_cycle == 'Theo tháng' %}selected{% endif %}>Theo tháng</option>
+                                                        <option value="Theo năm" {% if acc.billing_cycle == 'Theo năm' %}selected{% endif %}>Theo năm</option>
+                                                        <option value="Vĩnh viễn" {% if acc.billing_cycle == 'Vĩnh viễn' %}selected{% endif %}>Vĩnh viễn</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Hạn gia hạn (dd/mm/yyyy)</label>
+                                                    <input type="date" name="expiration_date" class="form-control" value="{{ acc.expiration_date.strftime('%Y-%m-%d') if acc.expiration_date else '' }}">
+                                                </div>
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Gán cho Nhân viên</label>
@@ -373,7 +559,7 @@
                         </div>
 
                         {% else %}
-                        <tr><td colspan="11" class="text-center text-muted py-3">Chưa có bản ghi Tài khoản nào.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted py-3">Chưa có bản ghi Tài khoản SaaS nào.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -381,7 +567,7 @@
 
             {% elif active_tab == 'itservice' %}
             <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle table-compact">
+                <table class="table table-sm table-hover align-middle table-compact w-100">
                     <thead class="table-dark text-nowrap">
                         <tr>
                             <th style="width: 35px;">STT</th>
@@ -395,7 +581,7 @@
                             <th>GIÁ CƯỚC</th>
                             <th>HẠN HỢP ĐỒNG</th>
                             <th>GHI CHÚ</th>
-                            <th class="text-center">THAO TÁC</th>
+                            <th class="text-center" style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -427,7 +613,7 @@
                             </td>
                             <td class="small text-muted">{{ srv.tech_support_info or '-' }}</td>
                             <td class="text-center text-nowrap">
-                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editITServiceModal{{ srv.id }}"><i class="bi bi-pencil"></i> Sửa</button>
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editITServiceModal{{ srv.id }}"><i class="bi bi-pencil"></i></button>
                                 <form method="POST" action="{{ url_for('delete_it_service', service_id=srv.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Dịch vụ này?')">
                                     <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                                 </form>
@@ -516,7 +702,7 @@
             {% else %}
             <!-- License Table -->
             <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle table-compact">
+                <table class="table table-sm table-hover align-middle table-compact w-100">
                     <thead class="table-dark text-nowrap">
                         <tr>
                             <th style="width: 35px;">STT</th>
@@ -528,7 +714,7 @@
                             <th>HẠN DÙNG</th>
                             <th>GHI CHÚ</th>
                             <th>TRẠNG THÁI</th>
-                            <th class="text-center">THAO TÁC</th>
+                            <th class="text-center" style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -580,7 +766,7 @@
                                 {% endif %}
                             </td>
                             <td class="text-center text-nowrap">
-                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editLicenseModal{{ lic.id }}"><i class="bi bi-pencil"></i> Sửa</button>
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editLicenseModal{{ lic.id }}"><i class="bi bi-pencil"></i></button>
                                 <form method="POST" action="{{ url_for('delete_license', license_id=lic.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa License này?')">
                                     <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                                 </form>
@@ -699,43 +885,118 @@
     </div>
 </div>
 
-<!-- Modal Thêm Work Account / Server Account -->
+<!-- Modal Thêm Server / Máy chủ -->
+<div class="modal fade" id="addServerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('add_work_account') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-hdd-network text-success me-1"></i> Thêm Server / Máy chủ Mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label required">Tên Server / Mô tả Tủ Rack</label>
+                        <input type="text" name="account_name" class="form-control" placeholder="VD: Server VPS Web Root / DB Primary Server" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">Loại Server</label>
+                        <select name="server_type" class="form-select" required>
+                            <option value="Server thuê" selected>Server thuê (Cloud / VPS / AWS)</option>
+                            <option value="Server offline">Server offline (Máy chủ vật lý nội bộ)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nhà cung cấp (AWS, Viettel Cloud, CMC, BizFly...)</label>
+                        <input type="text" name="provider" class="form-control" placeholder="VD: AWS / Viettel Cloud / CMC">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">IP / Tên miền truy cập chính</label>
+                        <input type="text" name="access_ip" class="form-control font-monospace" placeholder="VD: 192.168.1.100 hoặc server.company.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">IP Quản lý (iDRAC / ILO / HDM / IPMI cho Server offline)</label>
+                        <input type="text" name="mgmt_ip" class="form-control font-monospace" placeholder="VD: 192.168.1.250">
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label required">Root User / Account</label>
+                            <input type="text" name="username_email" class="form-control" placeholder="VD: root / administrator" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Mật khẩu (Password)</label>
+                            <input type="text" name="password_text" class="form-control font-monospace" placeholder="Mật khẩu máy chủ">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Chu kỳ gia hạn</label>
+                            <select name="billing_cycle" class="form-select">
+                                <option value="Theo tháng">Theo tháng</option>
+                                <option value="Theo năm" selected>Theo năm</option>
+                                <option value="Vĩnh viễn">Vĩnh viễn</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Hạn gia hạn (dd/mm/yyyy)</label>
+                            <input type="date" name="expiration_date" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ghi chú (CPU/RAM/SSD/Vị trí tủ Rack...)</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Ghi chú thêm..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-teal text-white" style="background-color:#008080;">Thêm Server</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Thêm Work Account / SaaS -->
 <div class="modal fade" id="addWorkAccountModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST" action="{{ url_for('add_work_account') }}">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-person-badge text-primary me-1"></i> Thêm Tài khoản Mới</h5>
+                    <h5 class="modal-title"><i class="bi bi-person-badge text-primary me-1"></i> Thêm Tài khoản làm việc / SaaS</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label required">Tên tài khoản / Mô tả</label>
-                        <input type="text" name="account_name" class="form-control" placeholder="{% if active_tab == 'server' %}VD: Server VPS Web Root{% else %}VD: Account Zoom Pro 01 / Office 365{% endif %}" required>
+                        <label class="form-label required">Tên tài khoản / Dịch vụ SaaS</label>
+                        <input type="text" name="account_name" class="form-control" placeholder="VD: Figma Pro Team / Adobe Photoshop / ChatGPT Plus / Zoom Pro" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label required">Nền tảng / Loại tài khoản</label>
-                        <select name="platform" class="form-select" required>
-                            {% if active_tab == 'server' %}
-                            <option value="Server" selected>Server / VPS / Cloud Server</option>
-                            <option value="SSH">Tài khoản SSH / Linux Root</option>
-                            <option value="RDP">Tài khoản RDP / Windows Server</option>
-                            {% else %}
-                            <option value="Office 365">Office 365 / Microsoft</option>
-                            <option value="Zoom">Zoom Pro / Meeting</option>
-                            <option value="Google Workspace">Google Workspace / Gmail</option>
-                            <option value="Email">Email doanh nghiệp</option>
-                            <option value="Khác">Khác</option>
-                            {% endif %}
-                        </select>
+                        <label class="form-label required">Nền tảng / Loại ứng dụng</label>
+                        <input type="text" name="platform" class="form-control" placeholder="VD: Figma / Adobe / ChatGPT AI / Office 365 / Zoom / Canva" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label required">Tên đăng nhập / Email / Root User</label>
-                        <input type="text" name="username_email" class="form-control" placeholder="VD: admin / root / account@company.com" required>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label required">Tên đăng nhập / Email</label>
+                            <input type="text" name="username_email" class="form-control" placeholder="VD: account@company.com" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Mật khẩu (Password)</label>
+                            <input type="text" name="password_text" class="form-control font-monospace" placeholder="Mật khẩu tài khoản">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Mật khẩu (Password)</label>
-                        <input type="text" name="password_text" class="form-control font-monospace" placeholder="Mật khẩu tài khoản">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Chu kỳ thanh toán</label>
+                            <select name="billing_cycle" class="form-select">
+                                <option value="Theo tháng">Theo tháng</option>
+                                <option value="Theo năm" selected>Theo năm</option>
+                                <option value="Vĩnh viễn">Vĩnh viễn</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Hạn gia hạn (dd/mm/yyyy)</label>
+                            <input type="date" name="expiration_date" class="form-control">
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Gán cho Nhân viên</label>
@@ -748,7 +1009,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Ghi chú</label>
-                        <textarea name="notes" class="form-control" rows="2" placeholder="Ghi chú bổ sung..."></textarea>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Ghi chú thêm..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
