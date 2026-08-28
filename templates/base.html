@@ -52,24 +52,24 @@
                             href="{{ url_for('device_list') }}">Thiết bị</a></li>
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint in ['consumable_list', 'convert_devices_to_consumables'] %}active{% endif %}"
-                            href="{{ url_for('consumable_list') }}">Kho thiết bị</a></li>
+                            href="{{ url_for('consumable_list') }}">Kho TB</a></li>
                     {% endif %}
                     {% if current_permissions and 'stock_items.view' in current_permissions %}
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint in ['stock_item_list', 'stock_item_categories', 'add_stock_item', 'edit_stock_item'] %}active{% endif %}"
-                            href="{{ url_for('stock_item_list') }}">Vật tư &amp; phụ kiện</a></li>
+                            href="{{ url_for('stock_item_list') }}">Vật tư &amp; Phụ kiện</a></li>
                     {% endif %}
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint == 'license_list' %}active{% endif %}"
-                            href="{{ url_for('license_list') }}"><i class="bi bi-person-badge-fill text-warning me-1"></i> Tài khoản &amp; Dịch vụ</a></li>
+                            href="{{ url_for('license_list') }}"><i class="bi bi-person-badge-fill text-warning me-1"></i> TK &amp; Dịch vụ</a></li>
                     {% if current_permissions and 'resources.view' in current_permissions %}
                     <li class="nav-item"><a class="nav-link {% if active_endpoint == 'resources' %}active{% endif %}"
-                            href="{{ url_for('resources') }}">Quản lý tài nguyên</a></li>
+                            href="{{ url_for('resources') }}">QL Tài nguyên</a></li>
                     {% endif %}
                     {% if current_permissions and 'handovers.view' in current_permissions %}
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint in ['handover_list', 'handover_report'] %}active{% endif %}"
-                            href="{{ url_for('handover_list') }}">Bàn giao thiết bị</a></li>
+                            href="{{ url_for('handover_list') }}">Bàn giao</a></li>
                     {% endif %}
                     {% if current_permissions and 'maintenance_logs.view' in current_permissions %}
                     <li class="nav-item"><a
@@ -84,7 +84,7 @@
                     {% if current_permissions and 'config_proposals.view' in current_permissions %}
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint == 'config_proposals' %}active{% endif %}"
-                            href="{{ url_for('config_proposals') }}">Đề xuất thiết bị</a></li>
+                            href="{{ url_for('config_proposals') }}">Đề xuất TB</a></li>
                     {% endif %}
                     <li class="nav-item"><a
                             class="nav-link {% if active_endpoint in ['attendance_logs', 'attendance_users', 'attendance_config_page'] %}active{% endif %}"
@@ -96,7 +96,7 @@
                         <a class="nav-link dropdown-toggle {% if active_endpoint in config_endpoints %}active{% endif %}"
                             href="#" id="navbarConfigDropdown" role="button" data-bs-toggle="dropdown"
                             aria-expanded="false">
-                            Cài đặt chung
+                            Cài đặt
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="navbarConfigDropdown">
                             {% if current_permissions and 'users.view' in current_permissions %}

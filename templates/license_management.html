@@ -3,6 +3,13 @@
 {% block title %}Quản lý Tài khoản & Dịch vụ{% endblock %}
 
 {% block content %}
+<style>
+    .table-compact th, .table-compact td {
+        padding: 0.4rem 0.5rem;
+        font-size: 0.875rem;
+    }
+</style>
+
 <div class="container-fluid py-3">
 
     <!-- Top Pill Navigation Tabs -->
@@ -61,11 +68,11 @@
         {% if active_tab in ['account', 'server'] %}
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-primary">
-                <div class="card-body">
+                <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-person-badge fs-3"></i></div>
+                        <div class="p-2 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-person-badge fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold">{{ account_stats.total }}</div>
+                            <div class="fs-3 fw-bold">{{ account_stats.total }}</div>
                             <div class="small text-muted">Tổng số tài khoản</div>
                         </div>
                     </div>
@@ -74,11 +81,11 @@
         </div>
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-success">
-                <div class="card-body">
+                <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-success bg-opacity-10 text-success rounded-circle"><i class="bi bi-check-circle fs-3"></i></div>
+                        <div class="p-2 bg-success bg-opacity-10 text-success rounded-circle"><i class="bi bi-check-circle fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold text-success">{{ account_stats.active }}</div>
+                            <div class="fs-3 fw-bold text-success">{{ account_stats.active }}</div>
                             <div class="small text-muted">Đang hoạt động</div>
                         </div>
                     </div>
@@ -87,11 +94,11 @@
         </div>
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-info">
-                <div class="card-body">
+                <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle"><i class="bi bi-person-plus fs-3"></i></div>
+                        <div class="p-2 bg-info bg-opacity-10 text-info rounded-circle"><i class="bi bi-person-plus fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold text-info">{{ account_stats.unassigned }}</div>
+                            <div class="fs-3 fw-bold text-info">{{ account_stats.unassigned }}</div>
                             <div class="small text-muted">Chưa bàn giao / Chưa gán</div>
                         </div>
                     </div>
@@ -101,11 +108,11 @@
         {% elif active_tab == 'itservice' %}
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-primary">
-                <div class="card-body">
+                <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-globe fs-3"></i></div>
+                        <div class="p-2 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-globe fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold">{{ service_stats.total }}</div>
+                            <div class="fs-3 fw-bold">{{ service_stats.total }}</div>
                             <div class="small text-muted">Tổng số dịch vụ</div>
                         </div>
                     </div>
@@ -114,11 +121,11 @@
         </div>
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-warning">
-                <div class="card-body">
+                <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-circle"><i class="bi bi-exclamation-triangle fs-3"></i></div>
+                        <div class="p-2 bg-warning bg-opacity-10 text-warning rounded-circle"><i class="bi bi-exclamation-triangle fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold text-warning">{{ service_stats.expiring }}</div>
+                            <div class="fs-3 fw-bold text-warning">{{ service_stats.expiring }}</div>
                             <div class="small text-muted">Sắp hết hạn / đã hết hạn</div>
                         </div>
                     </div>
@@ -127,11 +134,11 @@
         </div>
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-secondary">
-                <div class="card-body">
+                <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-secondary bg-opacity-10 text-secondary rounded-circle"><i class="bi bi-building fs-3"></i></div>
+                        <div class="p-2 bg-secondary bg-opacity-10 text-secondary rounded-circle"><i class="bi bi-building fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold">{{ service_stats.unassigned }}</div>
+                            <div class="fs-3 fw-bold">{{ service_stats.unassigned }}</div>
                             <div class="small text-muted">Chưa gán chi nhánh</div>
                         </div>
                     </div>
@@ -141,11 +148,11 @@
         {% else %}
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-primary">
-                <div class="card-body">
+                <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-key fs-3"></i></div>
+                        <div class="p-2 bg-primary bg-opacity-10 text-primary rounded-circle"><i class="bi bi-key fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold">{{ license_stats.total }}</div>
+                            <div class="fs-3 fw-bold">{{ license_stats.total }}</div>
                             <div class="small text-muted">Tổng số license</div>
                         </div>
                     </div>
@@ -154,11 +161,11 @@
         </div>
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-warning">
-                <div class="card-body">
+                <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-circle"><i class="bi bi-exclamation-triangle fs-3"></i></div>
+                        <div class="p-2 bg-warning bg-opacity-10 text-warning rounded-circle"><i class="bi bi-exclamation-triangle fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold text-warning">{{ license_stats.expiring }}</div>
+                            <div class="fs-3 fw-bold text-warning">{{ license_stats.expiring }}</div>
                             <div class="small text-muted">Sắp hết hạn / đã hết hạn</div>
                         </div>
                     </div>
@@ -167,11 +174,11 @@
         </div>
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100 bg-white border-start border-4 border-info">
-                <div class="card-body">
+                <div class="card-body py-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle"><i class="bi bi-laptop fs-3"></i></div>
+                        <div class="p-2 bg-info bg-opacity-10 text-info rounded-circle"><i class="bi bi-laptop fs-3"></i></div>
                         <div>
-                            <div class="fs-2 fw-bold text-info">{{ license_stats.unassigned }}</div>
+                            <div class="fs-3 fw-bold text-info">{{ license_stats.unassigned }}</div>
                             <div class="small text-muted">Chưa gán thiết bị / Còn chỗ</div>
                         </div>
                     </div>
@@ -273,10 +280,10 @@
             {% if active_tab in ['account', 'server'] %}
             <!-- Work Accounts / Server Accounts Table -->
             <div class="table-responsive">
-                <table class="table table-hover align-middle">
+                <table class="table table-sm table-hover align-middle table-compact">
                     <thead class="table-dark text-nowrap">
                         <tr>
-                            <th style="width: 40px;">STT</th>
+                            <th style="width: 35px;">STT</th>
                             <th>MÃ TK</th>
                             <th>TÊN TÀI KHOẢN</th>
                             <th>NỀN TẢNG / DỊCH VỤ</th>
@@ -284,6 +291,7 @@
                             <th>MẬT KHẨU</th>
                             <th>GẮN VỚI NHÂN VIÊN</th>
                             <th>GẮN VỚI THIẾT BỊ</th>
+                            <th>GHI CHÚ</th>
                             <th>TRẠNG THÁI</th>
                             <th class="text-center">THAO TÁC</th>
                         </tr>
@@ -299,17 +307,18 @@
                             <td>
                                 <div class="d-flex align-items-center gap-1">
                                     <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}" data-key="{{ acc.password_text or '' }}">••••••••</span>
-                                    <button type="button" class="btn btn-sm btn-light border px-1" title="Hiện/Ẩn password" onclick="togglePassword('{{ acc.id }}')"><i class="bi bi-eye"></i></button>
-                                    <button type="button" class="btn btn-sm btn-light border px-1" title="Sao chép" onclick="copyPassword('{{ acc.id }}')"><i class="bi bi-clipboard"></i></button>
+                                    <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Hiện/Ẩn password" onclick="togglePassword('{{ acc.id }}')"><i class="bi bi-eye"></i></button>
+                                    <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Sao chép" onclick="copyPassword('{{ acc.id }}')"><i class="bi bi-clipboard"></i></button>
                                 </div>
                             </td>
                             <td>{{ acc.assigned_user.full_name if acc.assigned_user else '-' }}</td>
                             <td>{{ acc.assigned_device.device_code if acc.assigned_device else '-' }}</td>
+                            <td class="small text-muted">{{ acc.notes or '-' }}</td>
                             <td><span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill">{{ acc.status }}</span></td>
                             <td class="text-center text-nowrap">
-                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editWorkAccountModal{{ acc.id }}"><i class="bi bi-pencil"></i> Sửa</button>
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editWorkAccountModal{{ acc.id }}"><i class="bi bi-pencil"></i> Sửa</button>
                                 <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Tài khoản này?')">
-                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                                 </form>
                             </td>
                         </tr>
@@ -349,6 +358,10 @@
                                                     {% endfor %}
                                                 </select>
                                             </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Ghi chú</label>
+                                                <textarea name="notes" class="form-control" rows="2">{{ acc.notes or '' }}</textarea>
+                                            </div>
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
@@ -360,7 +373,7 @@
                         </div>
 
                         {% else %}
-                        <tr><td colspan="10" class="text-center text-muted py-4">Chưa có bản ghi Tài khoản nào.</td></tr>
+                        <tr><td colspan="11" class="text-center text-muted py-3">Chưa có bản ghi Tài khoản nào.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -368,10 +381,10 @@
 
             {% elif active_tab == 'itservice' %}
             <div class="table-responsive">
-                <table class="table table-hover align-middle">
+                <table class="table table-sm table-hover align-middle table-compact">
                     <thead class="table-dark text-nowrap">
                         <tr>
-                            <th style="width: 40px;">STT</th>
+                            <th style="width: 35px;">STT</th>
                             <th>DỊCH VỤ</th>
                             <th>CHI NHÁNH</th>
                             <th>PHÒNG BAN</th>
@@ -381,6 +394,7 @@
                             <th>DẢI IP TĨNH</th>
                             <th>GIÁ CƯỚC</th>
                             <th>HẠN HỢP ĐỒNG</th>
+                            <th>GHI CHÚ</th>
                             <th class="text-center">THAO TÁC</th>
                         </tr>
                     </thead>
@@ -411,10 +425,11 @@
                                 -
                                 {% endif %}
                             </td>
+                            <td class="small text-muted">{{ srv.tech_support_info or '-' }}</td>
                             <td class="text-center text-nowrap">
-                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editITServiceModal{{ srv.id }}"><i class="bi bi-pencil"></i> Sửa</button>
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editITServiceModal{{ srv.id }}"><i class="bi bi-pencil"></i> Sửa</button>
                                 <form method="POST" action="{{ url_for('delete_it_service', service_id=srv.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Dịch vụ này?')">
-                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                                 </form>
                             </td>
                         </tr>
@@ -476,6 +491,11 @@
                                                     <input type="number" name="monthly_cost" class="form-control" value="{{ srv.monthly_cost }}">
                                                 </div>
                                             </div>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">Ghi chú / TT Hỗ trợ kỹ thuật</label>
+                                                <textarea name="tech_support_info" class="form-control" rows="2">{{ srv.tech_support_info or '' }}</textarea>
+                                            </div>
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
@@ -487,7 +507,7 @@
                         </div>
 
                         {% else %}
-                        <tr><td colspan="11" class="text-center text-muted py-4">Chưa có bản ghi Dịch vụ CNTT nào.</td></tr>
+                        <tr><td colspan="12" class="text-center text-muted py-3">Chưa có bản ghi Dịch vụ CNTT nào.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -496,16 +516,17 @@
             {% else %}
             <!-- License Table -->
             <div class="table-responsive">
-                <table class="table table-hover align-middle">
+                <table class="table table-sm table-hover align-middle table-compact">
                     <thead class="table-dark text-nowrap">
                         <tr>
-                            <th style="width: 40px;">STT</th>
+                            <th style="width: 35px;">STT</th>
                             <th>PHẦN MỀM</th>
                             <th>LICENSE KEY</th>
                             <th>GẮN VỚI THIẾT BỊ</th>
                             <th>NHÀ CUNG CẤP</th>
                             <th>NGÀY MUA</th>
                             <th>HẠN DÙNG</th>
+                            <th>GHI CHÚ</th>
                             <th>TRẠNG THÁI</th>
                             <th class="text-center">THAO TÁC</th>
                         </tr>
@@ -521,8 +542,8 @@
                             <td>
                                 <div class="d-flex align-items-center gap-1">
                                     <span class="font-monospace license-key-text text-muted" id="key-text-{{ lic.id }}" data-key="{{ lic.license_key }}">••••••••••••••••</span>
-                                    <button type="button" class="btn btn-sm btn-light border px-1" title="Hiện/Ẩn key" onclick="toggleKey('{{ lic.id }}')"><i class="bi bi-eye"></i></button>
-                                    <button type="button" class="btn btn-sm btn-light border px-1" title="Sao chép" onclick="copyKey('{{ lic.id }}')"><i class="bi bi-clipboard"></i></button>
+                                    <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Hiện/Ẩn key" onclick="toggleKey('{{ lic.id }}')"><i class="bi bi-eye"></i></button>
+                                    <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Sao chép" onclick="copyKey('{{ lic.id }}')"><i class="bi bi-clipboard"></i></button>
                                 </div>
                             </td>
                             <td>
@@ -550,6 +571,7 @@
                                 -
                                 {% endif %}
                             </td>
+                            <td class="small text-muted">{{ lic.notes or '-' }}</td>
                             <td>
                                 {% if lic.status == 'Đang sử dụng' %}
                                 <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill">Đang sử dụng</span>
@@ -558,9 +580,9 @@
                                 {% endif %}
                             </td>
                             <td class="text-center text-nowrap">
-                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editLicenseModal{{ lic.id }}"><i class="bi bi-pencil"></i> Sửa</button>
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editLicenseModal{{ lic.id }}"><i class="bi bi-pencil"></i> Sửa</button>
                                 <form method="POST" action="{{ url_for('delete_license', license_id=lic.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa License này?')">
-                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                                 </form>
                             </td>
                         </tr>
@@ -638,16 +660,16 @@
 
                                             <div class="row g-3 mb-3">
                                                 <div class="col-md-6">
-                                                    <label class="form-label">Ngày mua</label>
+                                                    <label class="form-label">Ngày mua (dd/mm/yyyy)</label>
                                                     <input type="date" name="purchase_date" class="form-control" value="{{ lic.purchase_date.strftime('%Y-%m-%d') if lic.purchase_date else '' }}">
                                                 </div>
                                                 <div class="col-md-6">
-                                                    <label class="form-label">Hạn dùng</label>
+                                                    <label class="form-label">Hạn dùng (dd/mm/yyyy)</label>
                                                     <div class="form-check mb-1">
-                                                        <input class="form-check-input" type="checkbox" name="is_perpetual" id="isPerpEdit{{ lic.id }}" {% if lic.is_perpetual %}checked{% endif %}>
+                                                        <input class="form-check-input" type="checkbox" name="is_perpetual" id="isPerpEdit{{ lic.id }}" onchange="togglePerpetualDate(this, 'expDateEdit{{ lic.id }}')" {% if lic.is_perpetual %}checked{% endif %}>
                                                         <label class="form-check-label" for="isPerpEdit{{ lic.id }}">Vĩnh viễn</label>
                                                     </div>
-                                                    <input type="date" name="expiration_date" class="form-control" value="{{ lic.expiration_date.strftime('%Y-%m-%d') if lic.expiration_date else '' }}">
+                                                    <input type="date" name="expiration_date" id="expDateEdit{{ lic.id }}" class="form-control" value="{{ lic.expiration_date.strftime('%Y-%m-%d') if lic.expiration_date else '' }}" {% if lic.is_perpetual %}disabled{% endif %}>
                                                 </div>
                                             </div>
 
@@ -666,7 +688,7 @@
                         </div>
 
                         {% else %}
-                        <tr><td colspan="9" class="text-center text-muted py-4">Chưa có bản ghi License nào.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted py-3">Chưa có bản ghi License nào.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -724,6 +746,10 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ghi chú</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Ghi chú bổ sung..."></textarea>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
@@ -777,17 +803,22 @@
 
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">Ngày mua</label>
+                            <label class="form-label">Ngày mua (dd/mm/yyyy)</label>
                             <input type="date" name="purchase_date" class="form-control">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Hạn dùng</label>
+                            <label class="form-label">Hạn dùng (dd/mm/yyyy)</label>
                             <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" name="is_perpetual" id="isPerpAdd">
+                                <input class="form-check-input" type="checkbox" name="is_perpetual" id="isPerpAdd" onchange="togglePerpetualDate(this, 'expDateAdd')">
                                 <label class="form-check-label" for="isPerpAdd">Vĩnh viễn</label>
                             </div>
-                            <input type="date" name="expiration_date" class="form-control">
+                            <input type="date" name="expiration_date" id="expDateAdd" class="form-control">
                         </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ghi chú</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Ghi chú thêm..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -856,6 +887,11 @@
                             <input type="number" name="monthly_cost" class="form-control" value="0">
                         </div>
                     </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ghi chú / TT Hỗ trợ kỹ thuật</label>
+                        <textarea name="tech_support_info" class="form-control" rows="2" placeholder="VD: Hotline 1800xxx / NV Kỹ thuật..."></textarea>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
@@ -867,6 +903,17 @@
 </div>
 
 <script>
+function togglePerpetualDate(chk, inputId) {
+    const dateInput = document.getElementById(inputId);
+    if (!dateInput) return;
+    if (chk.checked) {
+        dateInput.value = '';
+        dateInput.disabled = true;
+    } else {
+        dateInput.disabled = false;
+    }
+}
+
 function toggleKey(id) {
     const el = document.getElementById('key-text-' + id);
     if (!el) return;
