@@ -13,6 +13,8 @@
     .badge-soft-warning { background-color: rgba(255, 193, 7, 0.15); color: #856404; border: 1px solid rgba(255, 193, 7, 0.3); }
     .badge-soft-danger { background-color: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.2); }
     .text-muted-placeholder::placeholder { color: #aaa !important; font-style: italic; }
+    .clickable-ip { cursor: pointer; transition: opacity 0.2s; }
+    .clickable-ip:hover { opacity: 0.8; text-decoration: underline; }
 </style>
 
 <div class="container-fluid py-3">
@@ -278,12 +280,12 @@
                         <tr>
                             <th style="width: 35px;">STT</th>
                             <th>MÁY CHỦ / LOẠI</th>
+                            <th>CẤU HÌNH</th>
                             <th>ĐƠN VỊ CUNG CẤP</th>
                             <th>IP / DOMAIN TRUY CẬP</th>
                             <th>IP QUẢN LÝ (iDRAC / ILO / HDM)</th>
                             <th>TÀI KHOẢN / MẬT KHẨU</th>
                             <th>HẠN GIA HẠN</th>
-                            <th>GHI CHÚ</th>
                             <th class="text-center" style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
@@ -300,21 +302,61 @@
                                 {% endif %}
                                 <span class="badge bg-light text-dark border">{{ acc.platform or 'Server' }}</span>
                             </td>
-                            <td><strong class="text-dark">{{ acc.provider if acc.server_type != 'Server offline' else '-' }}</strong></td>
+                            <td>
+                                <button class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" data-bs-toggle="modal" data-bs-target="#specModal{{ acc.id }}" title="Xem chi tiết cấu hình">
+                                    <i class="bi bi-cpu-fill me-1"></i> Cấu hình
+                                </button>
+
+                                <!-- Hardware Spec Pop-up Modal -->
+                                <div class="modal fade" id="specModal{{ acc.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title"><i class="bi bi-cpu text-primary me-1"></i> Cấu hình Máy chủ: <strong>{{ acc.account_name }}</strong></h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="list-group list-group-flush">
+                                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                        <span class="fw-semibold text-muted"><i class="bi bi-cpu me-2 text-primary"></i>Vi xử lý (CPU):</span>
+                                                        <span class="fw-bold">{{ acc.cpu_info or 'Chưa cập nhật' }}</span>
+                                                    </div>
+                                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                        <span class="fw-semibold text-muted"><i class="bi bi-memory me-2 text-success"></i>Bộ nhớ (RAM):</span>
+                                                        <span class="fw-bold">{{ acc.ram_info or 'Chưa cập nhật' }}</span>
+                                                    </div>
+                                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                        <span class="fw-semibold text-muted"><i class="bi bi-hdd me-2 text-warning"></i>Ổ cứng (Disk):</span>
+                                                        <span class="fw-bold">{{ acc.disk_info or 'Chưa cập nhật' }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if acc.server_type == 'Server offline' %}
+                                -
+                                {% else %}
+                                <strong class="text-dark">{{ acc.provider or '-' }}</strong>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if acc.access_ip %}
-                                <span class="font-monospace text-primary fw-semibold me-1"><i class="bi bi-box-arrow-in-right me-1"></i>{{ acc.access_ip }}</span>
-                                <button type="button" class="btn btn-xs btn-light border p-0 px-1" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP!')" title="Copy IP"><i class="bi bi-clipboard"></i></button>
+                                <span class="font-monospace text-primary fw-semibold clickable-ip" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP: {{ acc.access_ip }}')" title="Click để sao chép IP">{{ acc.access_ip }}</span>
                                 {% else %}
                                 -
                                 {% endif %}
                             </td>
                             <td>
                                 {% if acc.mgmt_ip %}
-                                <span class="font-monospace text-danger fw-semibold me-1"><i class="bi bi-shield-lock me-1"></i>{{ acc.mgmt_ip }}</span>
-                                <button type="button" class="btn btn-xs btn-light border p-0 px-1" onclick="navigator.clipboard.writeText('{{ acc.mgmt_ip }}'); alert('Đã sao chép IP Mgmt!')" title="Copy IP Mgmt"><i class="bi bi-clipboard"></i></button>
+                                <span class="font-monospace text-danger fw-semibold clickable-ip" onclick="navigator.clipboard.writeText('{{ acc.mgmt_ip }}'); alert('Đã sao chép IP Mgmt: {{ acc.mgmt_ip }}')" title="Click để sao chép IP Mgmt">{{ acc.mgmt_ip }}</span>
                                 {% else %}
-                                <span class="text-muted small">N/A</span>
+                                <span class="text-muted small">-</span>
                                 {% endif %}
                             </td>
                             <td>
@@ -335,7 +377,6 @@
                                 <span class="badge bg-light text-dark border">Vĩnh viễn</span>
                                 {% endif %}
                             </td>
-                            <td class="small text-muted">{{ acc.notes or '-' }}</td>
                             <td class="text-center text-nowrap">
                                 <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editServerModal{{ acc.id }}"><i class="bi bi-pencil"></i></button>
                                 <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Server này?')">
@@ -346,7 +387,7 @@
 
                         <!-- Edit Server Modal -->
                         <div class="modal fade" id="editServerModal{{ acc.id }}" tabindex="-1">
-                            <div class="modal-dialog">
+                            <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
                                     <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}">
                                         <input type="hidden" name="platform" value="Server">
@@ -370,10 +411,26 @@
                                                 <label class="form-label">Đơn vị cung cấp</label>
                                                 <input type="text" name="provider" class="form-control text-muted-placeholder" value="{{ acc.provider or '' }}" placeholder="VD: AWS / Viettel Cloud / CMC">
                                             </div>
+
+                                            <!-- Hardware Config Inputs -->
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Cấu hình CPU</label>
+                                                    <input type="text" name="cpu_info" class="form-control text-muted-placeholder" value="{{ acc.cpu_info or '' }}" placeholder="VD: Intel Xeon Gold 6248R x 2">
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Dung lượng RAM</label>
+                                                    <input type="text" name="ram_info" class="form-control text-muted-placeholder" value="{{ acc.ram_info or '' }}" placeholder="VD: 64 GB DDR4">
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Ổ cứng (Disk)</label>
+                                                    <input type="text" name="disk_info" class="form-control text-muted-placeholder" value="{{ acc.disk_info or '' }}" placeholder="VD: 2 x 960GB SSD RAID 1">
+                                                </div>
+                                            </div>
+
                                             <div class="mb-3">
                                                 <label class="form-label">IP / Tên miền truy cập chính</label>
                                                 <input type="text" name="access_ip" class="form-control font-monospace text-muted-placeholder" value="{{ acc.access_ip or '' }}" placeholder="VD: 192.168.1.100 hoặc server.company.com">
-                                                <div class="form-text text-muted small">Không bắt buộc nếu chưa gán IP</div>
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI</label>
@@ -404,7 +461,7 @@
                                                 </div>
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label">Ghi chú (Cấu hình CPU/RAM/Disk...)</label>
+                                                <label class="form-label">Ghi chú bổ sung</label>
                                                 <textarea name="notes" class="form-control" rows="2">{{ acc.notes or '' }}</textarea>
                                             </div>
                                         </div>
@@ -436,7 +493,6 @@
                             <th>GÁN CHO NHÂN VIÊN / TB</th>
                             <th>CHU KỲ & HẠN GIA HẠN</th>
                             <th>TRẠNG THÁI GIA HẠN</th>
-                            <th>GHI CHÚ</th>
                             <th class="text-center" style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
@@ -489,7 +545,6 @@
                                     {% endif %}
                                 {% endif %}
                             </td>
-                            <td class="small text-muted">{{ acc.notes or '-' }}</td>
                             <td class="text-center text-nowrap">
                                 <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editWorkAccountModal{{ acc.id }}"><i class="bi bi-pencil"></i></button>
                                 <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Tài khoản này?')">
@@ -564,7 +619,7 @@
                         </div>
 
                         {% else %}
-                        <tr><td colspan="8" class="text-center text-muted py-3">Chưa có bản ghi Tài khoản SaaS nào.</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-3">Chưa có bản ghi Tài khoản SaaS nào.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -585,7 +640,6 @@
                             <th>DẢI IP TĨNH</th>
                             <th>GIÁ CƯỚC</th>
                             <th>HẠN HỢP ĐỒNG</th>
-                            <th>GHI CHÚ</th>
                             <th class="text-center" style="width: 70px;">THAO TÁC</th>
                         </tr>
                     </thead>
@@ -605,7 +659,7 @@
                                 {% if srv.bandwidth %}<div class="small text-muted">{{ srv.bandwidth }}</div>{% endif %}
                             </td>
                             <td>{{ srv.endpoint_device or '-' }}</td>
-                            <td><span class="font-monospace small">{{ srv.static_ip_range or '-' }}</span></td>
+                            <td><span class="font-monospace small clickable-ip" onclick="navigator.clipboard.writeText('{{ srv.static_ip_range }}'); alert('Đã sao chép IP: {{ srv.static_ip_range }}')" title="Click để sao chép IP">{{ srv.static_ip_range or '-' }}</span></td>
                             <td class="fw-semibold">{{ "{:,.0f}".format(srv.monthly_cost) if srv.monthly_cost else '0' }} đ/tháng</td>
                             <td>
                                 {% if srv.is_perpetual %}
@@ -616,7 +670,6 @@
                                 -
                                 {% endif %}
                             </td>
-                            <td class="small text-muted">{{ srv.tech_support_info or '-' }}</td>
                             <td class="text-center text-nowrap">
                                 <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editITServiceModal{{ srv.id }}"><i class="bi bi-pencil"></i></button>
                                 <form method="POST" action="{{ url_for('delete_it_service', service_id=srv.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Dịch vụ này?')">
@@ -698,7 +751,7 @@
                         </div>
 
                         {% else %}
-                        <tr><td colspan="12" class="text-center text-muted py-3">Chưa có bản ghi Dịch vụ CNTT nào.</td></tr>
+                        <tr><td colspan="11" class="text-center text-muted py-3">Chưa có bản ghi Dịch vụ CNTT nào.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -717,7 +770,6 @@
                             <th>NHÀ CUNG CẤP</th>
                             <th>NGÀY MUA</th>
                             <th>HẠN DÙNG</th>
-                            <th>GHI CHÚ</th>
                             <th>TRẠNG THÁI</th>
                             <th class="text-center" style="width: 70px;">THAO TÁC</th>
                         </tr>
@@ -762,7 +814,6 @@
                                 -
                                 {% endif %}
                             </td>
-                            <td class="small text-muted">{{ lic.notes or '-' }}</td>
                             <td>
                                 {% if lic.status == 'Đang sử dụng' %}
                                 <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill">Đang sử dụng</span>
@@ -778,7 +829,7 @@
                             </td>
                         </tr>
 
-                        <!-- Assign Device Modal -->
+                        <!-- Assign Device Modal with Quick Search Filter -->
                         <div class="modal fade" id="assignDeviceModal{{ lic.id }}" tabindex="-1">
                             <div class="modal-dialog">
                                 <div class="modal-content">
@@ -788,10 +839,11 @@
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body">
-                                            <p class="small text-muted">License: <strong>{{ lic.software_name }}</strong> (Chỗ trống: {{ lic.device_assignments|length }}/{{ lic.max_seats }})</p>
+                                            <p class="small text-muted mb-2">License: <strong>{{ lic.software_name }}</strong> (Chỗ trống: {{ lic.device_assignments|length }}/{{ lic.max_seats }})</p>
                                             <div class="mb-3">
                                                 <label class="form-label required">Chọn thiết bị</label>
-                                                <select name="device_id" class="form-select" required>
+                                                <input type="text" class="form-control form-control-sm mb-2 text-muted-placeholder" placeholder="🔍 Nhập mã hoặc tên thiết bị để tìm nhanh..." onkeyup="filterDeviceOptions(this, 'deviceSelect{{ lic.id }}')">
+                                                <select name="device_id" id="deviceSelect{{ lic.id }}" class="form-select" size="6" required>
                                                     <option value="">-- Chọn thiết bị --</option>
                                                     {% for dev in devices_list %}
                                                     <option value="{{ dev.id }}">{{ dev.device_code }} - {{ dev.name }} ({{ dev.user.full_name if dev.user else 'Chưa gán' }})</option>
@@ -879,7 +931,7 @@
                         </div>
 
                         {% else %}
-                        <tr><td colspan="10" class="text-center text-muted py-3">Chưa có bản ghi License nào.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted py-3">Chưa có bản ghi License nào.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -892,7 +944,7 @@
 
 <!-- Modal Thêm Server / Máy chủ -->
 <div class="modal fade" id="addServerModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="POST" action="{{ url_for('add_work_account') }}">
                 <input type="hidden" name="platform" value="Server">
@@ -916,15 +968,30 @@
                         <label class="form-label">Nhà cung cấp</label>
                         <input type="text" name="provider" class="form-control text-muted-placeholder" placeholder="VD: AWS / Viettel Cloud / CMC / BizFly">
                     </div>
+
+                    <!-- Hardware Config Inputs -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Cấu hình CPU</label>
+                            <input type="text" name="cpu_info" class="form-control text-muted-placeholder" placeholder="VD: Intel Xeon Gold 6248R x 2">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Dung lượng RAM</label>
+                            <input type="text" name="ram_info" class="form-control text-muted-placeholder" placeholder="VD: 64 GB DDR4">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Ổ cứng (Disk)</label>
+                            <input type="text" name="disk_info" class="form-control text-muted-placeholder" placeholder="VD: 2 x 960GB SSD RAID 1">
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label">IP / Tên miền truy cập chính</label>
                         <input type="text" name="access_ip" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 192.168.1.100 hoặc server.company.com">
-                        <div class="form-text text-muted small">Không bắt buộc nếu chưa gán IP</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI</label>
                         <input type="text" name="mgmt_ip" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 192.168.1.250">
-                        <div class="form-text text-muted small">Dành cho quản lý phần cứng Máy chủ offline</div>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
@@ -951,8 +1018,8 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Ghi chú (Cấu hình CPU/RAM/SSD/Vị trí tủ Rack...)</label>
-                        <textarea name="notes" class="form-control text-muted-placeholder" rows="2" placeholder="VD: Dell PowerEdge R740, RAM 64GB, Rack 02..."></textarea>
+                        <label class="form-label">Ghi chú bổ sung</label>
+                        <textarea name="notes" class="form-control text-muted-placeholder" rows="2" placeholder="Ghi chú vị trí tủ Rack, lưu ý bảo trì..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1172,6 +1239,21 @@
 </div>
 
 <script>
+function filterDeviceOptions(input, selectId) {
+    const filter = input.value.toLowerCase().trim();
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    const options = select.getElementsByTagName('option');
+    for (let i = 0; i < options.length; i++) {
+        const text = options[i].text.toLowerCase();
+        if (i === 0 || text.includes(filter)) {
+            options[i].style.display = '';
+        } else {
+            options[i].style.display = 'none';
+        }
+    }
+}
+
 function toggleServerOfflineFields(selectEl, prefix) {
     const val = selectEl.value;
     const providerBox = document.getElementById(prefix + 'ProviderBox');

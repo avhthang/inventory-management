@@ -10943,6 +10943,9 @@ def _run_lazy_startup_migrations():
         _safe_add_column('work_account', 'mgmt_ip', 'VARCHAR(255)')
         _safe_add_column('work_account', 'expiration_date', 'DATE')
         _safe_add_column('work_account', 'billing_cycle', 'VARCHAR(50)')
+        _safe_add_column('work_account', 'cpu_info', 'VARCHAR(255)')
+        _safe_add_column('work_account', 'ram_info', 'VARCHAR(255)')
+        _safe_add_column('work_account', 'disk_info', 'VARCHAR(255)')
         _safe_add_column('attendance_user', 'department', 'VARCHAR(100)')
         _safe_add_column('attendance_user', 'system_user_id', 'INTEGER')
         _safe_add_column('stock_item_movement', 'reason', 'VARCHAR(255)')
@@ -11019,6 +11022,9 @@ class WorkAccount(db.Model):
     provider = db.Column(db.String(255))   # AWS, Viettel Cloud, CMC...
     access_ip = db.Column(db.String(255))  # IP / Domain truy cập
     mgmt_ip = db.Column(db.String(255))    # IP iDRAC / ILO / HDM / IPMI
+    cpu_info = db.Column(db.String(255))   # Thông tin CPU
+    ram_info = db.Column(db.String(255))   # Thông tin RAM
+    disk_info = db.Column(db.String(255))  # Thông tin Ổ cứng
     expiration_date = db.Column(db.Date)   # Ngày hết hạn SaaS / Server
     billing_cycle = db.Column(db.String(50), default='Theo năm') # 'Theo tháng', 'Theo năm', 'Vĩnh viễn'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -11432,6 +11438,9 @@ def add_work_account():
         provider = (request.form.get('provider') or '').strip()
         access_ip = (request.form.get('access_ip') or '').strip()
         mgmt_ip = (request.form.get('mgmt_ip') or '').strip()
+        cpu_info = (request.form.get('cpu_info') or '').strip()
+        ram_info = (request.form.get('ram_info') or '').strip()
+        disk_info = (request.form.get('disk_info') or '').strip()
         billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         exp_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
 
@@ -11448,6 +11457,9 @@ def add_work_account():
             provider=provider,
             access_ip=access_ip,
             mgmt_ip=mgmt_ip,
+            cpu_info=cpu_info,
+            ram_info=ram_info,
+            disk_info=disk_info,
             expiration_date=exp_date,
             billing_cycle=billing_cycle
         )
@@ -11476,6 +11488,9 @@ def edit_work_account(account_id):
         acc.provider = (request.form.get('provider') or '').strip()
         acc.access_ip = (request.form.get('access_ip') or '').strip()
         acc.mgmt_ip = (request.form.get('mgmt_ip') or '').strip()
+        acc.cpu_info = (request.form.get('cpu_info') or '').strip()
+        acc.ram_info = (request.form.get('ram_info') or '').strip()
+        acc.disk_info = (request.form.get('disk_info') or '').strip()
         acc.billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         acc.expiration_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
 
