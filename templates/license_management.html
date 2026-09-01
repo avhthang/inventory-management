@@ -391,8 +391,20 @@
                                 <div class="modal-content">
                                     <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}">
                                         <div class="mb-3">
-                        <label class="form-label">Dịch vụ / HĐH cài đặt (Proxmox, VMware, Docker...)</label>
-                        <input type="text" name="platform" class="form-control text-muted-placeholder" placeholder="VD: Proxmox VE / VMware ESXi / Docker / Web Server">
+                        <label class="form-label">Dịch vụ / HĐH cài đặt</label>
+                        <input type="text" name="platform" class="form-control text-muted-placeholder" list="platformSuggestions" placeholder="VD: Proxmox VE, VMware ESXi...">
+                        <datalist id="platformSuggestions">
+                            <option value="Proxmox VE"></option>
+                            <option value="VMware ESXi"></option>
+                            <option value="Windows Server"></option>
+                            <option value="Ubuntu Server"></option>
+                            <option value="Docker / Docker Compose"></option>
+                            <option value="Kubernetes (K8s)"></option>
+                            <option value="Web Server (Nginx/Apache)"></option>
+                            <option value="Database Server"></option>
+                            <option value="VPN Server"></option>
+                            <option value="NAS / Storage Server"></option>
+                        </datalist>
                     </div>
                                         <div class="modal-header">
                                             <h5 class="modal-title">Sửa Thông tin Server</h5>
@@ -929,8 +941,20 @@
         <div class="modal-content">
             <form method="POST" action="{{ url_for('add_work_account') }}">
                 <div class="mb-3">
-                        <label class="form-label">Dịch vụ / HĐH cài đặt (Proxmox, VMware, Docker...)</label>
-                        <input type="text" name="platform" class="form-control text-muted-placeholder" placeholder="VD: Proxmox VE / VMware ESXi / Docker / Web Server">
+                        <label class="form-label">Dịch vụ / HĐH cài đặt</label>
+                        <input type="text" name="platform" class="form-control text-muted-placeholder" list="platformSuggestions" placeholder="VD: Proxmox VE, VMware ESXi...">
+                        <datalist id="platformSuggestions">
+                            <option value="Proxmox VE"></option>
+                            <option value="VMware ESXi"></option>
+                            <option value="Windows Server"></option>
+                            <option value="Ubuntu Server"></option>
+                            <option value="Docker / Docker Compose"></option>
+                            <option value="Kubernetes (K8s)"></option>
+                            <option value="Web Server (Nginx/Apache)"></option>
+                            <option value="Database Server"></option>
+                            <option value="VPN Server"></option>
+                            <option value="NAS / Storage Server"></option>
+                        </datalist>
                     </div>
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-hdd-network text-success me-1"></i> Thêm Server Mới</h5>
