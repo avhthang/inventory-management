@@ -10288,14 +10288,10 @@ def attendance_logs():
             start_date = today - timedelta(days=29)
             end_date = today
     else:
-        # Default: auto-center date range around the latest synced record if available
-        latest_rec = AttendanceRecord.query.order_by(AttendanceRecord.event_time.desc()).first()
-        if latest_rec and latest_rec.event_time:
-            end_date = latest_rec.event_time.date()
-            start_date = end_date - timedelta(days=29)
-        else:
-            start_date = today - timedelta(days=29)
-            end_date = today
+        # Default to Today
+        start_date = today
+        end_date = today
+        quick_range = '1'
 
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
@@ -11143,38 +11139,36 @@ def license_list():
         }
 
         # 3. Work Accounts & Server Accounts Queries
-        account_query = WorkAccount.query
-        server_query = WorkAccount.query.filter(or_(WorkAccount.platform == 'Server', WorkAccount.platform.ilike('%server%'), WorkAccount.platform.ilike('%vps%'), WorkAccount.platform.ilike('%ssh%')))
+        is_server_expr = or_(
+            WorkAccount.platform == 'Server',
+            WorkAccount.platform.ilike('%server%'),
+            WorkAccount.platform.ilike('%vps%'),
+            WorkAccount.platform.ilike('%ssh%'),
+            WorkAccount.server_type.in_(['Server thuê', 'Server offline'])
+        )
 
         if active_tab == 'server':
-            account_query = server_query
-        elif active_tab == 'account':
-            account_query = WorkAccount.query.filter(not_(or_(WorkAccount.platform == 'Server', WorkAccount.platform.ilike('%server%'), WorkAccount.platform.ilike('%vps%'), WorkAccount.platform.ilike('%ssh%'))))
+            tab_query = WorkAccount.query.filter(is_server_expr)
+        else:
+            tab_query = WorkAccount.query.filter(not_(is_server_expr))
 
         if q:
-            account_query = account_query.filter(or_(
+            tab_query = tab_query.filter(or_(
                 WorkAccount.account_name.ilike(f'%{q}%'),
                 WorkAccount.code.ilike(f'%{q}%'),
                 WorkAccount.username_email.ilike(f'%{q}%'),
                 WorkAccount.platform.ilike(f'%{q}%')
             ))
         if status_filter:
-            account_query = account_query.filter_by(status=status_filter)
+            tab_query = tab_query.filter_by(status=status_filter)
 
-        all_accounts_raw = WorkAccount.query.all()
-        total_accounts_count = len(all_accounts_raw)
-        active_accounts_count = sum(1 for a in all_accounts_raw if a.status == 'Đang sử dụng')
-        unassigned_accounts_count = sum(1 for a in all_accounts_raw if not a.assigned_to_user_id and not a.assigned_to_device_id)
+        accounts_paged = tab_query.order_by(WorkAccount.id.desc()).paginate(page=page, per_page=20, error_out=False)
 
-        server_accounts_count = sum(1 for a in all_accounts_raw if 'server' in (a.platform or '').lower() or 'vps' in (a.platform or '').lower() or 'ssh' in (a.platform or '').lower())
-
-        accounts_paged = account_query.order_by(WorkAccount.id.desc()).paginate(page=page, per_page=20, error_out=False)
-
+        tab_records = WorkAccount.query.filter(is_server_expr if active_tab == 'server' else not_(is_server_expr)).all()
         account_stats = {
-            'total': total_accounts_count,
-            'active': active_accounts_count,
-            'unassigned': unassigned_accounts_count,
-            'server_count': server_accounts_count
+            'total': len(tab_records),
+            'active': sum(1 for a in tab_records if a.status == 'Đang sử dụng'),
+            'unassigned': sum(1 for a in tab_records if not a.assigned_to_user_id and not a.assigned_to_device_id)
         }
 
         # Master Auxiliary Dropdowns

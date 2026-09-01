@@ -153,6 +153,12 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // Auto-select first department to display users by default
+        const firstDept = document.querySelector('.dept-clickable');
+        if (firstDept) {
+            firstDept.click();
+        }
+
         // Toggle caret icon up/down based on collapse state
         document.querySelectorAll('.toggle-children').forEach(btn => {
             const icon = btn.querySelector('i.bi');
