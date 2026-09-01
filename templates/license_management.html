@@ -279,7 +279,7 @@
                             <th>MÁY CHỦ</th>
                             <th>CẤU HÌNH</th>
                             <th>ĐƠN VỊ CUNG CẤP</th>
-                            <th>IP TRUY CẬP</th>
+                            <th>DỊCH VỤ</th>
                             <th>IP QUẢN LÝ</th>
                             <th>TÀI KHOẢN</th>
                             <th>THỜI HẠN</th>
@@ -343,10 +343,13 @@
                                 {% endif %}
                             </td>
                             <td class="text-center">
+                                {% if acc.platform and acc.platform != 'Server' %}
+                                <div class="fw-semibold text-dark">{{ acc.platform }}</div>
+                                {% endif %}
                                 {% if acc.access_ip %}
-                                <span class="font-monospace text-primary fw-semibold clickable-ip" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP: {{ acc.access_ip }}')" title="Click để sao chép IP">{{ acc.access_ip }}</span>
+                                <span class="font-monospace text-primary small clickable-ip" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP: {{ acc.access_ip }}')" title="Click để sao chép IP/Domain">{{ acc.access_ip }}</span>
                                 {% else %}
-                                -
+                                <span class="text-muted small">-</span>
                                 {% endif %}
                             </td>
                             <td class="text-center">
@@ -387,7 +390,10 @@
                             <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
                                     <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}">
-                                        <input type="hidden" name="platform" value="Server">
+                                        <div class="mb-3">
+                        <label class="form-label">Dịch vụ / HĐH cài đặt (Proxmox, VMware, Docker...)</label>
+                        <input type="text" name="platform" class="form-control text-muted-placeholder" placeholder="VD: Proxmox VE / VMware ESXi / Docker / Web Server">
+                    </div>
                                         <div class="modal-header">
                                             <h5 class="modal-title">Sửa Thông tin Server</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -922,7 +928,10 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="POST" action="{{ url_for('add_work_account') }}">
-                <input type="hidden" name="platform" value="Server">
+                <div class="mb-3">
+                        <label class="form-label">Dịch vụ / HĐH cài đặt (Proxmox, VMware, Docker...)</label>
+                        <input type="text" name="platform" class="form-control text-muted-placeholder" placeholder="VD: Proxmox VE / VMware ESXi / Docker / Web Server">
+                    </div>
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-hdd-network text-success me-1"></i> Thêm Server Mới</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
