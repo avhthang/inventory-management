@@ -152,190 +152,152 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Auto-select first department to display users by default
-        const firstDept = document.querySelector('.dept-clickable');
-        if (firstDept) {
-            firstDept.click();
+    // =============================================
+    // Department User AJAX - runs independently of Sortable CDN
+    // =============================================
+    var userColumn = document.getElementById('departmentUserColumn');
+
+    function loadDepartmentUsers(deptId, page) {
+        if (!deptId || !userColumn) return;
+        page = page || 1;
+        userColumn.innerHTML = '<div class="card h-100"><div class="card-body text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Đang tải danh sách nhân viên...</p></div></div>';
+        fetch('/departments/' + deptId + '/users/partial?page=' + page)
+            .then(function(response) {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.text();
+            })
+            .then(function(html) {
+                userColumn.innerHTML = html;
+                document.querySelectorAll('.department-item .border-bottom').forEach(function(el) {
+                    el.classList.remove('bg-light');
+                });
+                var item = document.querySelector('.department-item[data-id="' + deptId + '"] > .border-bottom');
+                if (item) item.classList.add('bg-light');
+            })
+            .catch(function(error) {
+                console.error('Lỗi tải nhân viên phòng ban:', error);
+                userColumn.innerHTML = '<div class="alert alert-danger m-3">Lỗi khi tải danh sách nhân viên: ' + error.message + '</div>';
+            });
+    }
+
+    // Global click handler (does not depend on DOMContentLoaded)
+    document.addEventListener('click', function(e) {
+        var clickable = e.target.closest('.dept-clickable');
+        if (clickable && clickable.dataset && clickable.dataset.id) {
+            loadDepartmentUsers(clickable.dataset.id);
+            return;
+        }
+        var pageLink = e.target.closest('.ajax-page');
+        if (pageLink) {
+            e.preventDefault();
+            var deptId = pageLink.dataset.deptId;
+            var page = pageLink.dataset.page;
+            if (deptId && page) loadDepartmentUsers(deptId, page);
+            return;
+        }
+        var removeBtn = e.target.closest('.remove-user-btn');
+        if (removeBtn) {
+            var rdeptId = removeBtn.dataset.deptId;
+            var userId = removeBtn.dataset.userId;
+            var userName = removeBtn.dataset.userName;
+            if (confirm('Bạn có chắc chắn muốn xóa ' + userName + ' khỏi phòng ban?')) {
+                fetch('/departments/' + rdeptId + '/users/' + userId + '/remove', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) loadDepartmentUsers(rdeptId);
+                    else alert(data.message || 'Có lỗi xảy ra.');
+                })
+                .catch(function() { alert('Lỗi kết nối server.'); });
+            }
+        }
+    });
+
+    // Auto-load first department & init other features after DOM ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load first department's users
+        var firstDept = document.querySelector('.dept-clickable[data-id]');
+        if (firstDept && firstDept.dataset.id) {
+            loadDepartmentUsers(firstDept.dataset.id);
         }
 
-        // Toggle caret icon up/down based on collapse state
-        document.querySelectorAll('.toggle-children').forEach(btn => {
-            const icon = btn.querySelector('i.bi');
-            const targetId = btn.getAttribute('data-bs-target');
-            const target = document.querySelector(targetId);
+        // Toggle caret icon
+        document.querySelectorAll('.toggle-children').forEach(function(btn) {
+            var icon = btn.querySelector('i.bi');
+            var targetId = btn.getAttribute('data-bs-target');
+            var target = document.querySelector(targetId);
             if (!icon || !target) return;
-            const setIcon = () => {
-                const expanded = target.classList.contains('show');
-                const open = icon.getAttribute('data-icon-open') || 'bi-caret-up-fill';
-                const closed = icon.getAttribute('data-icon-closed') || 'bi-caret-down-fill';
-                icon.className = `bi ${expanded ? open : closed}`;
+            var setIcon = function() {
+                var expanded = target.classList.contains('show');
+                var open = icon.getAttribute('data-icon-open') || 'bi-caret-up-fill';
+                var closed = icon.getAttribute('data-icon-closed') || 'bi-caret-down-fill';
+                icon.className = 'bi ' + (expanded ? open : closed);
             };
             setIcon();
             target.addEventListener('shown.bs.collapse', setIcon);
             target.addEventListener('hidden.bs.collapse', setIcon);
         });
-        // Initialize Sortable for each department's children
-        document.querySelectorAll('.children').forEach(el => {
-            new Sortable(el, {
-                group: 'departments',
-                handle: '.handle',
-                animation: 150,
-                onEnd: function (evt) {
-                    const deptId = evt.item.dataset.id;
-                    const newParentId = evt.to.dataset.parent;
-                    const newIndex = evt.newIndex;
 
-                    fetch('/departments/reorder', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            dept_id: deptId,
-                            parent_id: newParentId,
-                            new_index: newIndex
-                        })
-                    }).then(response => {
-                        if (!response.ok) {
-                            throw new Error('Reorder failed');
-                        }
-                        return response.json();
-                    }).then(data => {
-                        if (data.success) {
-                            location.reload();
-                        }
-                    }).catch(error => {
-                        console.error('Error:', error);
-                        alert('Có lỗi xảy ra khi sắp xếp phòng ban');
-                    });
-                }
+        // Sortable - wrapped in try/catch; CDN failure won't break other features
+        try {
+            document.querySelectorAll('.children').forEach(function(el) {
+                new Sortable(el, {
+                    group: 'departments',
+                    handle: '.handle',
+                    animation: 150,
+                    onEnd: function(evt) {
+                        var deptId = evt.item.dataset.id;
+                        var newParentId = evt.to.dataset.parent;
+                        var newIndex = evt.newIndex;
+                        fetch('/departments/reorder', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ dept_id: deptId, parent_id: newParentId, new_index: newIndex })
+                        }).then(function(r) {
+                            if (r.ok) return r.json();
+                        }).then(function(data) {
+                            if (data && data.success) location.reload();
+                        }).catch(function(err) {
+                            console.error('Reorder error:', err);
+                        });
+                    }
+                });
             });
-        });
+        } catch(e) {
+            console.warn('Sortable init failed (CDN may be unavailable):', e);
+        }
 
-        // Edit department button handler
-        document.querySelectorAll('.edit-dept').forEach(btn => {
-            btn.addEventListener('click', function () {
-                const form = document.getElementById('editDepartmentForm');
-                const modal = document.getElementById('editDepartmentModal');
-
-                // Update form action URL
-                form.action = `/departments/${this.dataset.id}/edit`;
-
-                // Set form values
-                form.querySelector('[name="name"]').value = this.dataset.name;
-                form.querySelector('[name="description"]').value = this.dataset.description;
-                form.querySelector('[name="parent_id"]').value = this.dataset.parentId;
-                form.querySelector('[name="manager_id"]').value = this.dataset.managerId;
-
-                // Show modal
+        // Edit department
+        document.querySelectorAll('.edit-dept').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var form = document.getElementById('editDepartmentForm');
+                var modal = document.getElementById('editDepartmentModal');
+                form.action = '/departments/' + this.dataset.id + '/edit';
+                form.querySelector('[name="name"]').value = this.dataset.name || '';
+                form.querySelector('[name="description"]').value = this.dataset.description || '';
+                form.querySelector('[name="parent_id"]').value = this.dataset.parentId || '';
+                form.querySelector('[name="manager_id"]').value = this.dataset.managerId || '';
                 new bootstrap.Modal(modal).show();
             });
         });
 
-        // Delete department button handler
-        document.querySelectorAll('.delete-dept').forEach(btn => {
-            btn.addEventListener('click', function () {
+        // Delete department
+        document.querySelectorAll('.delete-dept').forEach(function(btn) {
+            btn.addEventListener('click', function() {
                 if (confirm('Bạn có chắc chắn muốn xóa phòng ban này?')) {
-                    const deptId = this.dataset.id;
-                    fetch(`/departments/${deptId}/delete`, {
-                        method: 'POST'
-                    }).then(response => {
-                        if (!response.ok) {
-                            throw new Error('Delete failed');
-                        }
-                        return response.json();
-                    }).then(data => {
-                        if (data.success) {
-                            location.reload();
-                        } else {
-                            alert(data.message || 'Có lỗi xảy ra khi xóa phòng ban');
-                        }
-                    }).catch(error => {
-                        console.error('Error:', error);
-                        alert('Có lỗi xảy ra khi xóa phòng ban');
-                    });
+                    var deptId = this.dataset.id;
+                    fetch('/departments/' + deptId + '/delete', { method: 'POST' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) location.reload();
+                        else alert(data.message || 'Có lỗi xảy ra khi xóa phòng ban');
+                    })
+                    .catch(function() { alert('Có lỗi xảy ra khi xóa phòng ban'); });
                 }
             });
         });
-
-        // --- NEW: Load department users AJAX ---
-        const userColumn = document.getElementById('departmentUserColumn');
-
-        function loadDepartmentUsers(deptId, page = 1) {
-            userColumn.innerHTML = '<div class="card h-100"><div class="card-body text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Đang tải danh sách nhân viên...</p></div></div>';
-
-            fetch(`/departments/${deptId}/users/partial?page=${page}`)
-                .then(response => {
-                    if (!response.ok) throw new Error('Failed to load users');
-                    return response.text();
-                })
-                .then(html => {
-                    userColumn.innerHTML = html;
-                    // Re-highlight active department
-                    document.querySelectorAll('.department-item .border-bottom').forEach(el => el.classList.remove('bg-light'));
-                    const item = document.querySelector(`.department-item[data-id="${deptId}"] > .border-bottom`);
-                    if (item) item.classList.add('bg-light');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    userColumn.innerHTML = '<div class="alert alert-danger">Lỗi khi tải danh sách nhân viên.</div>';
-                });
-        }
-
-        // Click handler for department list and pagination
-        document.addEventListener('click', function (e) {
-            const clickable = e.target.closest('.dept-clickable');
-            if (clickable) {
-                const deptId = clickable.dataset.id;
-                loadDepartmentUsers(deptId);
-            }
-
-            const pageLink = e.target.closest('.ajax-page');
-            if (pageLink) {
-                e.preventDefault();
-                const deptId = pageLink.dataset.deptId;
-                const page = pageLink.dataset.page;
-                if (deptId && page) {
-                    loadDepartmentUsers(deptId, page);
-                }
-            }
-
-            // AJAX Remove user handler
-            const removeBtn = e.target.closest('.remove-user-btn');
-            if (removeBtn) {
-                const deptId = removeBtn.dataset.deptId;
-                const userId = removeBtn.dataset.userId;
-                const userName = removeBtn.dataset.userName;
-
-                if (confirm(`Bạn có chắc chắn muốn xóa ${userName} khỏi phòng ban?`)) {
-                    fetch(`/departments/${deptId}/users/${userId}/remove`, {
-                        method: 'POST',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                loadDepartmentUsers(deptId);
-                            } else {
-                                alert(data.message || 'Có lỗi xảy ra.');
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('Lỗi kết nối server.');
-                        });
-                }
-            }
-        });
-
-        // Auto-load top root department on page load
-        const firstDept = document.querySelector('.dept-clickable');
-        if (firstDept && firstDept.dataset.id) {
-            loadDepartmentUsers(firstDept.dataset.id);
-        }
     });
 </script>
 {% endblock %}

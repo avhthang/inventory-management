@@ -11052,7 +11052,7 @@ def license_list():
         db.session.rollback()
 
     try:
-        active_tab = request.args.get('tab', 'account')
+        active_tab = request.args.get('tab', 'server')
         sub_tab = request.args.get('sub_tab', 'all')
         q = (request.args.get('q') or '').strip()
         status_filter = (request.args.get('status') or '').strip()
