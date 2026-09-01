@@ -10082,6 +10082,8 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
             if not end_date:
                 end_date = today_date
 
+        page_size = 100 if (start_date == end_date) else 50
+
         start_str_plain = start_date.strftime('%Y-%m-%dT00:00:00')
         end_str_plain = end_date.strftime('%Y-%m-%dT23:59:59')
         start_str_tz = f"{start_str_plain}+07:00"
@@ -10092,70 +10094,105 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
             (start_str_tz, end_str_tz)
         ]
 
-        all_events = []
         last_error = None
         users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
         new_count = 0
 
         search_pos = 0
-        max_pages = 200
+        max_pages = 100
+        working_handler = None
 
         for page_idx in range(max_pages):
             page_events = []
 
-            # Try plain timestamps first, then tz timestamps
-            for st_val, et_val in time_pairs:
-                for major_val in [5, 0]:
-                    xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>30</maxResults><major>{major_val}</major><minor>0</minor><startTime>{st_val}</startTime><endTime>{et_val}</endTime></AcsEventCond>'
-                    ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=3)
-                    if ok_xml:
-                        page_events = _parse_hikvision_events_response(data_xml)
-                        if page_events: break
-                    else:
-                        last_error = data_xml
-                if page_events: break
-
-            if not page_events:
-                for st_val, et_val in time_pairs:
+            if working_handler:
+                htype, st_val, et_val, major_val = working_handler
+                if htype == 'xml':
+                    xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>{page_size}</maxResults><major>{major_val}</major><minor>0</minor><startTime>{st_val}</startTime><endTime>{et_val}</endTime></AcsEventCond>'
+                    ok, data = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=4)
+                    if ok: page_events = _parse_hikvision_events_response(data)
+                elif htype == 'json':
                     json_payload = {
                         "AcsEventCond": {
                             "searchID": "1",
                             "searchResultPosition": search_pos,
-                            "maxResults": 30,
-                            "major": 5,
+                            "maxResults": page_size,
+                            "major": major_val,
                             "minor": 0,
                             "startTime": st_val,
                             "endTime": et_val
                         }
                     }
-                    ok_j, data_j = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=json_payload, content_type='application/json', timeout=3)
-                    if ok_j:
-                        page_events = _parse_hikvision_events_response(data_j)
-                        if page_events: break
-                    else:
-                        last_error = data_j
-                    if page_events: break
-
-            if not page_events:
-                for st_val, et_val in time_pairs:
+                    ok, data = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=json_payload, content_type='application/json', timeout=4)
+                    if ok: page_events = _parse_hikvision_events_response(data)
+                elif htype == 'json_alt':
                     json_payload_alt = {
                         "AcsEventSearchCond": {
                             "searchID": "1",
                             "searchResultPosition": search_pos,
-                            "maxResults": 30,
-                            "major": 5,
+                            "maxResults": page_size,
+                            "major": major_val,
                             "minor": 0,
                             "startTime": st_val,
                             "endTime": et_val
                         }
                     }
-                    ok_j2, data_j2 = _hikvision_request('/ISAPI/AccessControl/AcsEvent/Search?format=json', method='POST', payload=json_payload_alt, content_type='application/json', timeout=3)
-                    if ok_j2:
-                        page_events = _parse_hikvision_events_response(data_j2)
-                        if page_events: break
-                    else:
-                        last_error = data_j2
-                    if page_events: break
+                    ok, data = _hikvision_request('/ISAPI/AccessControl/AcsEvent/Search?format=json', method='POST', payload=json_payload_alt, content_type='application/json', timeout=4)
+                    if ok: page_events = _parse_hikvision_events_response(data)
+            else:
+                for st_val, et_val in time_pairs:
+                    for major_val in [5, 0]:
+                        xml_payload = f'<?xml version="1.0" encoding="utf-8"?><AcsEventCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><searchID>1</searchID><searchResultPosition>{search_pos}</searchResultPosition><maxResults>{page_size}</maxResults><major>{major_val}</major><minor>0</minor><startTime>{st_val}</startTime><endTime>{et_val}</endTime></AcsEventCond>'
+                        ok_xml, data_xml = _hikvision_request('/ISAPI/AccessControl/AcsEvent', method='POST', payload=xml_payload, content_type='application/xml', timeout=2)
+                        if ok_xml:
+                            page_events = _parse_hikvision_events_response(data_xml)
+                            working_handler = ('xml', st_val, et_val, major_val)
+                            break
+                        else:
+                            last_error = data_xml
+                    if working_handler: break
+
+                if not working_handler:
+                    for st_val, et_val in time_pairs:
+                        json_payload = {
+                            "AcsEventCond": {
+                                "searchID": "1",
+                                "searchResultPosition": search_pos,
+                                "maxResults": page_size,
+                                "major": 5,
+                                "minor": 0,
+                                "startTime": st_val,
+                                "endTime": et_val
+                            }
+                        }
+                        ok_j, data_j = _hikvision_request('/ISAPI/AccessControl/AcsEvent?format=json', method='POST', payload=json_payload, content_type='application/json', timeout=2)
+                        if ok_j:
+                            page_events = _parse_hikvision_events_response(data_j)
+                            working_handler = ('json', st_val, et_val, 5)
+                            break
+                        else:
+                            last_error = data_j
+
+                if not working_handler:
+                    for st_val, et_val in time_pairs:
+                        json_payload_alt = {
+                            "AcsEventSearchCond": {
+                                "searchID": "1",
+                                "searchResultPosition": search_pos,
+                                "maxResults": page_size,
+                                "major": 5,
+                                "minor": 0,
+                                "startTime": st_val,
+                                "endTime": et_val
+                            }
+                        }
+                        ok_j2, data_j2 = _hikvision_request('/ISAPI/AccessControl/AcsEvent/Search?format=json', method='POST', payload=json_payload_alt, content_type='application/json', timeout=2)
+                        if ok_j2:
+                            page_events = _parse_hikvision_events_response(data_j2)
+                            working_handler = ('json_alt', st_val, et_val, 5)
+                            break
+                        else:
+                            last_error = data_j2
 
             if not page_events:
                 break
@@ -10274,6 +10311,9 @@ def attendance_logs():
     elif quick_range == '1':
         start_date = today
         end_date = today
+    elif quick_range == '3':
+        start_date = today - timedelta(days=2)
+        end_date = today
     elif quick_range == '7':
         start_date = today - timedelta(days=6)
         end_date = today
@@ -10282,10 +10322,10 @@ def attendance_logs():
         end_date = today
     elif start_date_val or end_date_val:
         try:
-            start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else (today - timedelta(days=29))
+            start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else today
             end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
         except Exception:
-            start_date = today - timedelta(days=29)
+            start_date = today
             end_date = today
     else:
         # Default to Today
@@ -10457,7 +10497,14 @@ def attendance_logs():
         permission_notice = f"⚠️ Phát hiện sự cố dữ liệu: {exc}"
 
     # Summary List Manual Pagination
-    summary_per_page = session.get('per_page_attendance_summary', 20)
+    if 'summary_per_page' in request.args:
+        try:
+            summary_per_page = int(request.args.get('summary_per_page'))
+            session['per_page_attendance_summary'] = summary_per_page
+        except Exception:
+            summary_per_page = session.get('per_page_attendance_summary', 20)
+    else:
+        summary_per_page = session.get('per_page_attendance_summary', 20)
     total_summary_items = len(summary_list)
     summary_total_pages = max(1, (total_summary_items + summary_per_page - 1) // summary_per_page)
     summary_page = min(max(1, summary_page), summary_total_pages)

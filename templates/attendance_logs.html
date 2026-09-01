@@ -83,10 +83,11 @@
             <div class="col-md-3">
                 <label class="form-label fw-semibold">Thời gian</label>
                 <select class="form-select" name="quick_range" id="filterQuickRange" onchange="toggleFilterDates()">
-                    <option value="all" {% if quick_range == 'all' %}selected{% endif %}>Tất cả thời gian</option>
-                    <option value="30" {% if quick_range == '30' or not quick_range %}selected{% endif %}>30 ngày gần nhất (Mặc định)</option>
+                    <option value="1" {% if quick_range == '1' or not quick_range %}selected{% endif %}>Hôm nay (Mặc định)</option>
+                    <option value="3" {% if quick_range == '3' %}selected{% endif %}>3 ngày gần nhất</option>
                     <option value="7" {% if quick_range == '7' %}selected{% endif %}>7 ngày gần nhất</option>
-                    <option value="1" {% if quick_range == '1' %}selected{% endif %}>Hôm nay (1 ngày)</option>
+                    <option value="30" {% if quick_range == '30' %}selected{% endif %}>30 ngày gần nhất</option>
+                    <option value="all" {% if quick_range == 'all' %}selected{% endif %}>Tất cả thời gian</option>
                     <option value="custom" {% if quick_range == 'custom' %}selected{% endif %}>Khoảng ngày tùy chọn...</option>
                 </select>
             </div>
@@ -219,32 +220,40 @@
                 </div>
             </div>
             <!-- Summary Table Pagination -->
-            {% if summary_pagination and summary_pagination.pages > 1 %}
-            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2">
-                <div class="small text-muted">Hiển thị {{ summary_list|length }}/{{ summary_pagination.total }} dòng</div>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2 flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="small text-muted">Hiển thị {{ summary_list|length }}/{{ summary_pagination.total }} dòng</span>
+                    <select class="form-select form-select-sm per-page-select" style="width:auto" data-table="summary" onchange="changePerPage(this,'summary')">
+                        <option value="10" {% if summary_pagination.per_page == 10 %}selected{% endif %}>10 dòng</option>
+                        <option value="20" {% if summary_pagination.per_page == 20 or summary_pagination.per_page is not defined %}selected{% endif %}>20 dòng</option>
+                        <option value="50" {% if summary_pagination.per_page == 50 %}selected{% endif %}>50 dòng</option>
+                        <option value="100" {% if summary_pagination.per_page == 100 %}selected{% endif %}>100 dòng</option>
+                    </select>
+                </div>
+                {% if summary_pagination and summary_pagination.pages > 1 %}
                 <nav aria-label="Summary pagination">
                     <ul class="pagination pagination-sm mb-0">
                         <li class="page-item {% if not summary_pagination.has_prev %}disabled{% endif %}">
-                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.prev_num, start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">Trước</a>
+                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.prev_num, start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by, active_tab='summary', summary_per_page=summary_pagination.per_page) }}">Trước</a>
                         </li>
                         {% set cur = summary_pagination.page %}
                         {% set tot = summary_pagination.pages %}
                         {% for p in range(1, tot + 1) %}
                             {% if p == 1 or p == tot or (p >= cur - 2 and p <= cur + 2) %}
                             <li class="page-item {% if p == cur %}active{% endif %}">
-                                <a class="page-link" href="{{ url_for('attendance_logs', summary_page=p, start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">{{ p }}</a>
+                                <a class="page-link" href="{{ url_for('attendance_logs', summary_page=p, start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by, active_tab='summary', summary_per_page=summary_pagination.per_page) }}">{{ p }}</a>
                             </li>
                             {% elif (p == cur - 3 and cur - 3 > 1) or (p == cur + 3 and cur + 3 < tot) %}
                             <li class="page-item disabled"><span class="page-link">…</span></li>
                             {% endif %}
                         {% endfor %}
                         <li class="page-item {% if not summary_pagination.has_next %}disabled{% endif %}">
-                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.next_num, start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by, active_tab='summary') }}">Sau</a>
+                            <a class="page-link" href="{{ url_for('attendance_logs', summary_page=summary_pagination.next_num, start_date=start_date, end_date=end_date, quick_range=quick_range, q=q, user_type=user_type, sort=sort_by, active_tab='summary', summary_per_page=summary_pagination.per_page) }}">Sau</a>
                         </li>
                     </ul>
                 </nav>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
     </div>
 
@@ -334,15 +343,15 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">1. Phạm vi đồng bộ</label>
                         <div class="form-check mb-2">
-                            <input class="form-check-input" type="radio" name="sync_type" id="syncScopeAll" value="all" checked onchange="toggleSyncFields()">
+                            <input class="form-check-input" type="radio" name="sync_type" id="syncScopeAll" value="all" onchange="toggleSyncFields()">
                             <label class="form-check-label fw-semibold" for="syncScopeAll">
-                                Tất cả (Cả Danh sách người dùng & Nhật ký chấm công)
+                                Tất cả (Cả Danh sách người dùng &amp; Nhật ký chấm công)
                             </label>
                         </div>
                         <div class="form-check mb-2">
-                            <input class="form-check-input" type="radio" name="sync_type" id="syncScopeLogs" value="logs_only" onchange="toggleSyncFields()">
+                            <input class="form-check-input" type="radio" name="sync_type" id="syncScopeLogs" value="logs_only" checked onchange="toggleSyncFields()">
                             <label class="form-check-label fw-semibold" for="syncScopeLogs">
-                                Chỉ Nhật ký quẹt vân tay / Chấm công
+                                Chỉ Nhật ký quét vân tay / Chấm công
                             </label>
                         </div>
                         <div class="form-check mb-2">
@@ -356,11 +365,11 @@
                     <div class="mb-3" id="logDaysSection">
                         <label class="form-label fw-bold">2. Khoảng thời gian đồng bộ Nhật ký</label>
                         <select class="form-select" name="days" id="selectSyncDays" onchange="toggleCustomDates()">
-                            <option value="1">1 ngày (Hôm nay)</option>
-                            <option value="7" selected>7 ngày gần nhất (Mặc định)</option>
+                            <option value="1" selected>1 ngày (Hôm nay)</option>
+                            <option value="3">3 ngày gần nhất</option>
+                            <option value="7">7 ngày gần nhất</option>
                             <option value="15">15 ngày gần nhất</option>
                             <option value="30">30 ngày gần nhất (1 tháng)</option>
-                            <option value="90">90 ngày (3 tháng)</option>
                             <option value="custom">Khoảng ngày tùy chọn...</option>
                         </select>
                     </div>
@@ -390,9 +399,143 @@
 {{ super() }}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
+    // Restore per-page selections from localStorage
+    var summaryPP = localStorage.getItem('attendance_summary_per_page') || '20';
+    var logsPP = localStorage.getItem('attendance_logs_per_page') || '20';
+    var summarySelect = document.querySelector('.per-page-select[data-table="summary"]');
+    if (summarySelect) summarySelect.value = summaryPP;
+
     const urlParams = new URLSearchParams(window.location.search);
     const activeTabParam = urlParams.get('active_tab');
     const storedTab = sessionStorage.getItem('activeAttendanceTab');
+    
+    let targetTab = activeTabParam || storedTab;
+    if (targetTab === 'logs') {
+        const logsTabBtn = document.getElementById('logs-tab');
+        if (logsTabBtn) {
+            const logsTab = new bootstrap.Tab(logsTabBtn);
+            logsTab.show();
+        }
+    }
+
+    document.querySelectorAll('#attendanceTab button').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', function(e) {
+            const tabId = e.target.id === 'logs-tab' ? 'logs' : 'summary';
+            sessionStorage.setItem('activeAttendanceTab', tabId);
+            const activeInput = document.getElementById('activeTabInput');
+            if (activeInput) activeInput.value = tabId;
+        });
+    });
+
+    // Append active_tab=logs to Tab 2 pagination links
+    document.querySelectorAll('#logs-tab-pane .page-link').forEach(link => {
+        if (link.href && !link.href.includes('active_tab=')) {
+            link.href += (link.href.includes('?') ? '&' : '?') + 'active_tab=logs';
+        }
+    });
+});
+
+function changePerPage(select, table) {
+    var perPage = select.value;
+    localStorage.setItem('attendance_' + table + '_per_page', perPage);
+    var url = new URL(window.location.href);
+    url.searchParams.set(table === 'summary' ? 'summary_per_page' : 'per_page', perPage);
+    url.searchParams.set(table === 'summary' ? 'summary_page' : 'page', '1');
+    url.searchParams.set('active_tab', table === 'summary' ? 'summary' : 'logs');
+    window.location.href = url.toString();
+}
+
+function toggleFilterDates() {
+    const val = document.getElementById('filterQuickRange').value;
+    const startCol = document.getElementById('filterStartDateCol');
+    const endCol = document.getElementById('filterEndDateCol');
+    if (val === 'custom') {
+        startCol.classList.remove('d-none');
+        endCol.classList.remove('d-none');
+    } else {
+        startCol.classList.add('d-none');
+        endCol.classList.add('d-none');
+    }
+}
+
+function toggleSyncFields() {
+    const isUsersOnly = document.getElementById('syncScopeUsers').checked;
+    const logSection = document.getElementById('logDaysSection');
+    const customSection = document.getElementById('customDateSection');
+    if (isUsersOnly) {
+        logSection.classList.add('d-none');
+        customSection.classList.add('d-none');
+    } else {
+        logSection.classList.remove('d-none');
+        toggleCustomDates();
+    }
+}
+
+function toggleCustomDates() {
+    const val = document.getElementById('selectSyncDays').value;
+    const customSection = document.getElementById('customDateSection');
+    if (val === 'custom') {
+        customSection.classList.remove('d-none');
+    } else {
+        customSection.classList.add('d-none');
+    }
+}
+
+function submitHikvisionSync() {
+    const modalEl = document.getElementById('syncHikvisionModal');
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) modalInstance.hide();
+
+    const btn = document.querySelector('button[data-bs-target="#syncHikvisionModal"]');
+    const alertBar = document.getElementById('syncAlertBar');
+    const alertText = document.getElementById('syncAlertText');
+    const spinner = document.getElementById('syncSpinner');
+
+    const form = document.getElementById('formSyncOptions');
+    const formData = new FormData(form);
+    const daysVal = formData.get('days') || '1';
+    const syncType = formData.get('sync_type') || 'logs_only';
+
+    btn.disabled = true;
+    alertBar.className = 'alert alert-info d-flex align-items-center gap-2 show';
+    var syncMsg = daysVal === '1'
+        ? 'Đang đồng bộ dữ liệu hôm nay... (có thể mất 5-15 giây)'
+        : 'Đang tiến hành đồng bộ ' + daysVal + ' ngày... (có thể mất vài phút)';
+    alertText.textContent = syncMsg;
+    spinner.className = 'spinner-border spinner-border-sm text-info';
+
+    fetch('/attendance/sync', {
+        method: 'POST',
+        body: formData
+    })
+    .then(async res => {
+        let data;
+        try { data = await res.json(); } catch(e) { data = { success: false, message: 'Lỗi HTTP ' + res.status + ': ' + res.statusText }; }
+        return data;
+    })
+    .then(data => {
+        btn.disabled = false;
+        if (data.success) {
+            alertBar.className = 'alert alert-success d-flex align-items-center gap-2 show';
+            alertText.textContent = '✔ ' + data.message;
+            spinner.className = 'd-none';
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
+            alertText.textContent = '✖ ' + (data.message || 'Lỗi không xác định');
+            spinner.className = 'd-none';
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        alertBar.className = 'alert alert-danger d-flex align-items-center gap-2 show';
+        alertText.textContent = '✖ Lỗi kết nối: ' + (err.message || err);
+        spinner.className = 'd-none';
+    });
+}
+</script>
+{% endblock %}
+
     
     let targetTab = activeTabParam || storedTab;
     if (targetTab === 'logs') {
