@@ -10246,8 +10246,13 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
                 time_str = evt.get('time') or evt.get('eventTime') or evt.get('event_time') or evt.get('Date') or evt.get('Time')
                 serial_no = str(evt.get('serialNo') or evt.get('serial') or evt.get('eventID') or '')
                 card_no = str(evt.get('cardNo') or '')
+                user_name_raw = str(evt.get('name') or evt.get('employeeName') or '').strip()
                 
                 if not time_str: continue
+
+                # Skip events for unrecognized users ("Chưa nhận diện" / UNKNOWN / 0 / empty)
+                if not emp_no or emp_no.upper() in ('UNKNOWN', '0', 'NONE', 'NULL', 'UNDEFINED', '') or 'CHƯA NHẬN DIỆN' in user_name_raw.upper() or 'UNKNOWN' in user_name_raw.upper():
+                    continue
 
                 event_dt = None
                 try:
@@ -10410,7 +10415,15 @@ def attendance_logs():
     permission_notice = None
 
     try:
-        query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+        query = AttendanceRecord.query.filter(
+            AttendanceRecord.event_time >= start_dt,
+            AttendanceRecord.event_time <= end_dt,
+            AttendanceRecord.employee_no != 'UNKNOWN',
+            AttendanceRecord.employee_no != '0',
+            AttendanceRecord.employee_no != '',
+            not_(AttendanceRecord.user_name.ilike('%chưa nhận diện%')),
+            not_(AttendanceRecord.user_name.ilike('%unknown%'))
+        )
 
         if not is_admin:
             linked_att_user = AttendanceUser.query.filter_by(system_user_id=current_user_id).first()
@@ -10508,13 +10521,22 @@ def attendance_logs():
 
         records_today_query = AttendanceRecord.query.filter(
             AttendanceRecord.event_time >= start_today,
-            AttendanceRecord.event_time <= end_today
+            AttendanceRecord.event_time <= end_today,
+            AttendanceRecord.employee_no != 'UNKNOWN',
+            AttendanceRecord.employee_no != '0',
+            AttendanceRecord.employee_no != '',
+            not_(AttendanceRecord.user_name.ilike('%chưa nhận diện%')),
+            not_(AttendanceRecord.user_name.ilike('%unknown%'))
         )
         
         users_today_query = db.session.query(func.count(db.distinct(AttendanceRecord.employee_no))).filter(
             AttendanceRecord.event_time >= start_today,
             AttendanceRecord.event_time <= end_today,
-            AttendanceRecord.employee_no != 'UNKNOWN'
+            AttendanceRecord.employee_no != 'UNKNOWN',
+            AttendanceRecord.employee_no != '0',
+            AttendanceRecord.employee_no != '',
+            not_(AttendanceRecord.user_name.ilike('%chưa nhận diện%')),
+            not_(AttendanceRecord.user_name.ilike('%unknown%'))
         )
 
         if not is_admin:
@@ -10529,7 +10551,9 @@ def attendance_logs():
         
         last_rec = AttendanceRecord.query.order_by(AttendanceRecord.id.desc()).first()
         if last_rec and last_rec.created_at:
-            stats['last_sync_time'] = last_rec.created_at.strftime('%H:%M:%S %d/%m/%Y')
+            # Convert UTC created_at to GMT+7 Vietnam Time
+            gmt7_created = last_rec.created_at + timedelta(hours=7)
+            stats['last_sync_time'] = gmt7_created.strftime('%H:%M:%S %d/%m/%Y')
         else:
             stats['last_sync_time'] = 'Chưa có dữ liệu'
     except Exception as exc:
@@ -10655,7 +10679,15 @@ def attendance_export():
         if export_type == 'summary':
             writer.writerow(['STT', 'Ngày', 'Mã NV', 'Account', 'Đối tượng', 'Phòng ban', 'Giờ Vào (Sớm nhất)', 'Giờ Ra (Muộn nhất)', 'Tổng lượt'])
             
-            query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+            query = AttendanceRecord.query.filter(
+                AttendanceRecord.event_time >= start_dt,
+                AttendanceRecord.event_time <= end_dt,
+                AttendanceRecord.employee_no != 'UNKNOWN',
+                AttendanceRecord.employee_no != '0',
+                AttendanceRecord.employee_no != '',
+                not_(AttendanceRecord.user_name.ilike('%chưa nhận diện%')),
+                not_(AttendanceRecord.user_name.ilike('%unknown%'))
+            )
 
             if not is_admin:
                 linked_att_user = AttendanceUser.query.filter_by(system_user_id=current_user_id).first()
@@ -10724,7 +10756,15 @@ def attendance_export():
             filename = f"Tong_hop_cham_cong_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv"
         else:
             writer.writerow(['STT', 'Thời gian quẹt', 'Mã NV', 'Account', 'Phương thức', 'Sự kiện', 'Thiết bị', 'Mã sự kiện'])
-            query = AttendanceRecord.query.filter(AttendanceRecord.event_time >= start_dt, AttendanceRecord.event_time <= end_dt)
+            query = AttendanceRecord.query.filter(
+                AttendanceRecord.event_time >= start_dt,
+                AttendanceRecord.event_time <= end_dt,
+                AttendanceRecord.employee_no != 'UNKNOWN',
+                AttendanceRecord.employee_no != '0',
+                AttendanceRecord.employee_no != '',
+                not_(AttendanceRecord.user_name.ilike('%chưa nhận diện%')),
+                not_(AttendanceRecord.user_name.ilike('%unknown%'))
+            )
             if not is_admin:
                 linked_att_user = AttendanceUser.query.filter_by(system_user_id=current_user_id).first()
                 if linked_att_user and linked_att_user.employee_no:
