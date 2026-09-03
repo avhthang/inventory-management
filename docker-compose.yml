@@ -9,7 +9,6 @@ services:
       - ${INVENTORY_ENV_FILE:-/opt/docker/secrets/inventory/inventory.env}
     environment:
       FLASK_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-postgresql://inventory_user:inventory_pass@inventory-postgres:5432/inventory_db}
       INVENTORY_INSTANCE_DIR: /app/instance
       INVENTORY_BACKUP_DIR: /app/backups
       PREFERRED_URL_SCHEME: ${PREFERRED_URL_SCHEME:-https}
