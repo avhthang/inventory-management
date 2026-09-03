@@ -17,9 +17,21 @@
     .badge-soft-success { background-color: rgba(25, 135, 84, 0.1); color: #198754; border: 1px solid rgba(25, 135, 84, 0.2); }
     .badge-soft-warning { background-color: rgba(255, 193, 7, 0.15); color: #856404; border: 1px solid rgba(255, 193, 7, 0.3); }
     .badge-soft-danger { background-color: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.2); }
+    .badge-soft-secondary { background-color: rgba(108, 117, 125, 0.12); color: #495057; border: 1px solid rgba(108, 117, 125, 0.25); }
     .text-muted-placeholder::placeholder { color: #aaa !important; font-style: italic; }
     .clickable-ip { cursor: pointer; transition: opacity 0.2s; }
     .clickable-ip:hover { opacity: 0.8; text-decoration: underline; }
+    .server-name-clamp {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        line-height: 1.25;
+    }
+    .server-access-value {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
 </style>
 
 <div class="container-fluid py-3">
@@ -276,10 +288,9 @@
                     <thead class="table-dark text-nowrap align-middle">
                         <tr class="align-middle">
                             <th style="width: 40px;" class="text-center align-middle">STT</th>
-                            <th style="width: 190px;" class="align-middle text-start">MÁY CHỦ</th>
+                            <th style="width: 230px;" class="align-middle text-start">MÁY CHỦ</th>
                             <th style="width: 65px;" class="text-center align-middle">CẤU HÌNH</th>
-                            <th style="width: 110px;" class="align-middle text-center">ĐƠN VỊ CUNG CẤP</th>
-                            <th style="width: 130px;" class="text-center align-middle">DỊCH VỤ / IP</th>
+                            <th style="width: 260px;" class="text-center align-middle">DỊCH VỤ / IP</th>
                             <th style="width: 155px;" class="text-center align-middle">IP QUẢN LÝ / MAC</th>
                             <th style="width: 115px;" class="text-center align-middle">TRẠNG THÁI</th>
                             <th style="width: 130px;" class="align-middle text-start">TÀI KHOẢN</th>
@@ -291,7 +302,7 @@
                         {% for acc in accounts_paged.items %}
                         <tr class="align-middle">
                             <td class="text-center align-middle">{{ loop.index }}</td>
-                            <td class="align-middle text-truncate" style="max-width: 190px;">
+                            <td class="align-middle" style="width: 230px;">
                                 <div class="d-flex align-items-center gap-2">
                                     {% if acc.image_file %}
                                     <img src="{{ url_for('static', filename=acc.image_file.replace('static/', '')) if acc.image_file.startswith('static/') else '/' + acc.image_file }}" 
@@ -301,16 +312,16 @@
                                          onclick="window.open(this.src, '_blank')"
                                          title="Click xem ảnh thực tế">
                                     {% endif %}
-                                    <div class="overflow-hidden">
-                                        <div class="fw-bold text-dark text-truncate" title="{{ acc.account_name }}">{{ acc.account_name }}</div>
-                                        <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
+                                    <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                                        <div class="fw-bold text-dark server-name-clamp" title="{{ acc.account_name }}">{{ acc.account_name }}</div>
+                                        <div class="d-flex flex-nowrap align-items-center gap-1 mt-1 overflow-hidden" title="{{ acc.server_type or 'Server thuê' }}{% if acc.rack_position %} - {{ acc.rack_position }}{% endif %}">
                                             {% if acc.server_type == 'Server offline' %}
-                                            <span class="badge badge-soft-success py-0" style="font-size:0.7rem;"><i class="bi bi-cpu me-1"></i>Offline</span>
+                                            <span class="badge badge-soft-secondary py-0 text-nowrap" style="font-size:0.7rem;"><i class="bi bi-server me-1"></i>Nội bộ</span>
                                             {% else %}
-                                            <span class="badge badge-soft-primary py-0" style="font-size:0.7rem;"><i class="bi bi-cloud me-1"></i>Thuê</span>
+                                            <span class="badge badge-soft-primary py-0 text-nowrap" style="font-size:0.7rem;"><i class="bi bi-cloud me-1"></i>Thuê</span>
                                             {% endif %}
                                             {% if acc.rack_position %}
-                                            <span class="badge bg-secondary text-white py-0" style="font-size:0.7rem;" title="{{ acc.rack_position }}"><i class="bi bi-hdd-rack me-1"></i>{{ acc.rack_position }}</span>
+                                            <span class="badge bg-secondary text-white py-0 text-truncate" style="font-size:0.7rem; max-width: 125px;" title="{{ acc.rack_position }}"><i class="bi bi-hdd-rack me-1"></i>{{ acc.rack_position }}</span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -321,19 +332,12 @@
                                     <i class="bi bi-cpu-fill"></i>
                                 </button>
                             </td>
-                            <td class="text-center align-middle text-truncate">
-                                {% if acc.server_type == 'Server offline' %}
-                                -
-                                {% else %}
-                                <strong class="text-dark text-truncate d-block" title="{{ acc.provider or '-' }}">{{ acc.provider or '-' }}</strong>
-                                {% endif %}
-                            </td>
-                            <td class="text-center align-middle text-truncate">
+                            <td class="align-middle" style="width: 260px;">
                                 {% if acc.platform and acc.platform != 'Server' %}
                                 <div class="fw-semibold text-dark text-truncate" title="{{ acc.platform }}">{{ acc.platform }}</div>
                                 {% endif %}
                                 {% if acc.access_ip %}
-                                <span class="font-monospace text-primary small clickable-ip d-inline-block text-truncate" style="max-width:125px;" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP: {{ acc.access_ip }}')" title="Click để sao chép: {{ acc.access_ip }}">{{ acc.access_ip }}</span>
+                                <span class="font-monospace text-primary small clickable-ip d-block server-access-value" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP: {{ acc.access_ip }}')" title="Click để sao chép: {{ acc.access_ip }}">{{ acc.access_ip }}</span>
                                 {% else %}
                                 <span class="text-muted small">-</span>
                                 {% endif %}
@@ -810,7 +814,7 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="10" class="text-center text-muted py-3 align-middle">Chưa có bản ghi Server nào.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted py-3 align-middle">Chưa có bản ghi Server nào.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
