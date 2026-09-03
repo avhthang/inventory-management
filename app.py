@@ -20,6 +20,9 @@ import zipfile
 import schedule
 import threading
 import time
+import socket
+import subprocess
+import platform as sys_platform
 import pytz
 import re
 import unicodedata
@@ -11070,6 +11073,7 @@ class WorkAccount(db.Model):
     provider = db.Column(db.String(255))   # AWS, Viettel Cloud, CMC...
     access_ip = db.Column(db.String(255))  # IP / Domain truy cập
     mgmt_ip = db.Column(db.String(255))    # IP iDRAC / ILO / HDM / IPMI
+    mgmt_mac = db.Column(db.String(100))   # MAC iDRAC / ILO / HDM / IPMI
     cpu_info = db.Column(db.String(255))   # Thông tin CPU
     ram_info = db.Column(db.String(255))   # Thông tin RAM
     disk_info = db.Column(db.String(255))  # Thông tin Ổ cứng
@@ -11105,6 +11109,13 @@ def license_list():
     
     try:
         db.create_all()
+        with db.engine.connect() as conn:
+            for col_n, col_t in [('rack_position', 'VARCHAR(255)'), ('image_file', 'VARCHAR(255)'), ('cpu_qty', 'VARCHAR(50)'), ('ram_qty', 'VARCHAR(50)'), ('disk_qty', 'VARCHAR(50)'), ('mgmt_mac', 'VARCHAR(100)')]:
+                try:
+                    conn.execute(text(f'ALTER TABLE work_account ADD COLUMN {col_n} {col_t}'))
+                    conn.commit()
+                except Exception:
+                    pass
     except Exception as db_err:
         db.session.rollback()
 
@@ -11489,6 +11500,7 @@ def add_work_account():
         provider = (request.form.get('provider') or '').strip()
         access_ip = (request.form.get('access_ip') or '').strip()
         mgmt_ip = (request.form.get('mgmt_ip') or '').strip()
+        mgmt_mac = (request.form.get('mgmt_mac') or '').strip()
         cpu_info = (request.form.get('cpu_info') or '').strip()
         ram_info = (request.form.get('ram_info') or '').strip()
         disk_info = (request.form.get('disk_info') or '').strip()
@@ -11514,7 +11526,7 @@ def add_work_account():
             if ram_lines:
                 ram_info = "\n".join(ram_lines)
                 if total_ram_qty > 0:
-                    ram_qty = f"{total_ram_qty} thanh"
+                    ram_qty = str(total_ram_qty)
 
         # Parse dynamic Disk entries if provided
         disk_names = request.form.getlist('disk_name[]')
@@ -11533,7 +11545,7 @@ def add_work_account():
             if disk_lines:
                 disk_info = "\n".join(disk_lines)
                 if total_disk_qty > 0:
-                    disk_qty = f"{total_disk_qty} ổ"
+                    disk_qty = str(total_disk_qty)
 
         billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         exp_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
@@ -11564,6 +11576,7 @@ def add_work_account():
             provider=provider,
             access_ip=access_ip,
             mgmt_ip=mgmt_ip,
+            mgmt_mac=mgmt_mac,
             cpu_info=cpu_info,
             ram_info=ram_info,
             disk_info=disk_info,
@@ -11603,6 +11616,7 @@ def edit_work_account(account_id):
         acc.provider = (request.form.get('provider') or '').strip()
         acc.access_ip = (request.form.get('access_ip') or '').strip()
         acc.mgmt_ip = (request.form.get('mgmt_ip') or '').strip()
+        acc.mgmt_mac = (request.form.get('mgmt_mac') or '').strip()
         acc.cpu_info = (request.form.get('cpu_info') or '').strip()
         acc.ram_info = (request.form.get('ram_info') or '').strip()
         acc.disk_info = (request.form.get('disk_info') or '').strip()
@@ -11628,7 +11642,7 @@ def edit_work_account(account_id):
             if ram_lines:
                 acc.ram_info = "\n".join(ram_lines)
                 if total_ram_qty > 0:
-                    acc.ram_qty = f"{total_ram_qty} thanh"
+                    acc.ram_qty = str(total_ram_qty)
 
         # Parse dynamic Disk entries if provided
         disk_names = request.form.getlist('disk_name[]')
@@ -11647,7 +11661,7 @@ def edit_work_account(account_id):
             if disk_lines:
                 acc.disk_info = "\n".join(disk_lines)
                 if total_disk_qty > 0:
-                    acc.disk_qty = f"{total_disk_qty} ổ"
+                    acc.disk_qty = str(total_disk_qty)
 
         acc.billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         acc.expiration_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
@@ -11687,6 +11701,73 @@ def delete_work_account(account_id):
         db.session.rollback()
         flash(f'Lỗi xóa: {exc}', 'danger')
     return redirect(url_for('license_list', tab=redirect_tab))
+
+@app.route('/work-accounts/<int:account_id>/ping')
+def ping_work_account(account_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Chưa đăng nhập'}), 401
+    
+    acc = WorkAccount.query.get_or_404(account_id)
+    ip_raw = (acc.access_ip or acc.mgmt_ip or '').strip()
+    
+    if not ip_raw:
+        return jsonify({'success': False, 'status': 'no_ip', 'message': 'Chưa có IP truy cập'})
+
+    # Clean IP/Hostname
+    host = ip_raw
+    if '://' in host:
+        host = host.split('://')[1]
+    if '/' in host:
+        host = host.split('/')[0]
+    if ':' in host and not host.count(':') > 1: # Avoid IPv6 colon issue
+        host = host.split(':')[0]
+    host = host.strip()
+
+    start_time = time.time()
+    is_online = False
+    latency_ms = 0
+    
+    # 1. Try ICMP Ping (Timeout max 2 seconds)
+    is_win = sys_platform.system().lower() == 'windows'
+    cmd = ['ping', '-n', '1', '-w', '2000', host] if is_win else ['ping', '-c', '1', '-W', '2', host]
+
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=2.5)
+        latency_ms = round((time.time() - start_time) * 1000)
+        if res.returncode == 0:
+            is_online = True
+    except Exception:
+        pass
+
+    # 2. Fallback TCP Socket connect on common ports if ICMP is blocked
+    if not is_online:
+        for port in [80, 443, 22, 8006, 3389, 8000, 8443]:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(1.2)
+                s.connect((host, port))
+                s.close()
+                is_online = True
+                latency_ms = round((time.time() - start_time) * 1000)
+                break
+            except Exception:
+                pass
+
+    if is_online:
+        return jsonify({
+            'success': True,
+            'status': 'online',
+            'host': host,
+            'latency_ms': latency_ms,
+            'message': f'Online ({latency_ms}ms)'
+        })
+    else:
+        return jsonify({
+            'success': True,
+            'status': 'offline',
+            'host': host,
+            'message': 'Offline'
+        })
 
 
 if __name__ == '__main__':

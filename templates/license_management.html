@@ -272,47 +272,45 @@
             {% if active_tab == 'server' %}
             <!-- Server Table -->
             <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle table-compact w-100 mb-0">
+                <table class="table table-sm table-hover align-middle table-compact w-100 mb-0" style="table-layout: fixed;">
                     <thead class="table-dark text-nowrap align-middle">
                         <tr class="align-middle">
-                            <th style="width: 35px;" class="text-center align-middle">STT</th>
-                            <th class="align-middle text-start">MÁY CHỦ</th>
-                            <th class="text-center align-middle">CẤU HÌNH</th>
-                            <th class="align-middle text-center">ĐƠN VỊ CUNG CẤP</th>
-                            <th class="text-center align-middle">DỊCH VỤ</th>
-                            <th class="text-center align-middle">IP QUẢN LÝ</th>
-                            <th class="align-middle text-start">TÀI KHOẢN</th>
-                            <th class="text-center align-middle">THỜI HẠN</th>
-                            <th style="width: 70px;" class="text-center align-middle">THAO TÁC</th>
+                            <th style="width: 40px;" class="text-center align-middle">STT</th>
+                            <th style="width: 210px;" class="align-middle text-start">MÁY CHỦ</th>
+                            <th style="width: 85px;" class="text-center align-middle">CẤU HÌNH</th>
+                            <th style="width: 120px;" class="align-middle text-center">ĐƠN VỊ CUNG CẤP</th>
+                            <th style="width: 135px;" class="text-center align-middle">DỊCH VỤ / IP</th>
+                            <th style="width: 165px;" class="text-center align-middle">IP QUẢN LÝ / MAC</th>
+                            <th style="width: 115px;" class="text-center align-middle">TRẠNG THÁI</th>
+                            <th style="width: 135px;" class="align-middle text-start">TÀI KHOẢN</th>
+                            <th style="width: 95px;" class="text-center align-middle">THỜI HẠN</th>
+                            <th style="width: 75px;" class="text-center align-middle">THAO TÁC</th>
                         </tr>
                     </thead>
                     <tbody class="align-middle">
                         {% for acc in accounts_paged.items %}
                         <tr class="align-middle">
                             <td class="text-center align-middle">{{ loop.index }}</td>
-                            <td class="align-middle">
+                            <td class="align-middle text-truncate" style="max-width: 210px;">
                                 <div class="d-flex align-items-center gap-2">
                                     {% if acc.image_file %}
                                     <img src="{{ url_for('static', filename=acc.image_file.replace('static/', '')) if acc.image_file.startswith('static/') else '/' + acc.image_file }}" 
                                          alt="{{ acc.account_name }}" 
                                          class="rounded border shadow-sm flex-shrink-0" 
-                                         style="width: 38px; height: 38px; object-fit: cover; cursor: pointer;"
+                                         style="width: 36px; height: 36px; object-fit: cover; cursor: pointer;"
                                          onclick="window.open(this.src, '_blank')"
                                          title="Click xem ảnh thực tế">
                                     {% endif %}
-                                    <div>
-                                        <div class="fw-bold text-dark">{{ acc.account_name }}</div>
+                                    <div class="overflow-hidden">
+                                        <div class="fw-bold text-dark text-truncate" title="{{ acc.account_name }}">{{ acc.account_name }}</div>
                                         <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
                                             {% if acc.server_type == 'Server offline' %}
-                                            <span class="badge badge-soft-success"><i class="bi bi-cpu me-1"></i>Server Offline</span>
+                                            <span class="badge badge-soft-success py-0" style="font-size:0.7rem;"><i class="bi bi-cpu me-1"></i>Offline</span>
                                             {% else %}
-                                            <span class="badge badge-soft-primary"><i class="bi bi-cloud me-1"></i>Server Thuê</span>
-                                            {% endif %}
-                                            {% if acc.platform and acc.platform != 'Server' %}
-                                            <span class="badge bg-light text-dark border">{{ acc.platform }}</span>
+                                            <span class="badge badge-soft-primary py-0" style="font-size:0.7rem;"><i class="bi bi-cloud me-1"></i>Thuê</span>
                                             {% endif %}
                                             {% if acc.rack_position %}
-                                            <span class="badge bg-secondary text-white"><i class="bi bi-hdd-rack me-1"></i>{{ acc.rack_position }}</span>
+                                            <span class="badge bg-secondary text-white py-0" style="font-size:0.7rem;" title="{{ acc.rack_position }}"><i class="bi bi-hdd-rack me-1"></i>{{ acc.rack_position }}</span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -320,22 +318,22 @@
                             </td>
                             <td class="text-center align-middle">
                                 <button class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" data-bs-toggle="modal" data-bs-target="#specModal{{ acc.id }}" title="Xem chi tiết cấu hình">
-                                    <i class="bi bi-cpu-fill me-1"></i> Cấu hình
+                                    <i class="bi bi-cpu-fill me-1"></i>Cấu hình
                                 </button>
                             </td>
-                            <td class="text-center align-middle">
+                            <td class="text-center align-middle text-truncate">
                                 {% if acc.server_type == 'Server offline' %}
                                 -
                                 {% else %}
-                                <strong class="text-dark">{{ acc.provider or '-' }}</strong>
+                                <strong class="text-dark text-truncate d-block" title="{{ acc.provider or '-' }}">{{ acc.provider or '-' }}</strong>
                                 {% endif %}
                             </td>
-                            <td class="text-center align-middle">
+                            <td class="text-center align-middle text-truncate">
                                 {% if acc.platform and acc.platform != 'Server' %}
-                                <div class="fw-semibold text-dark">{{ acc.platform }}</div>
+                                <div class="fw-semibold text-dark text-truncate" title="{{ acc.platform }}">{{ acc.platform }}</div>
                                 {% endif %}
                                 {% if acc.access_ip %}
-                                <span class="font-monospace text-primary small clickable-ip" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP: {{ acc.access_ip }}')" title="Click để sao chép IP/Domain">{{ acc.access_ip }}</span>
+                                <span class="font-monospace text-primary small clickable-ip d-inline-block text-truncate" style="max-width:125px;" onclick="navigator.clipboard.writeText('{{ acc.access_ip }}'); alert('Đã sao chép IP: {{ acc.access_ip }}')" title="Click để sao chép: {{ acc.access_ip }}">{{ acc.access_ip }}</span>
                                 {% else %}
                                 <span class="text-muted small">-</span>
                                 {% endif %}
@@ -346,9 +344,20 @@
                                 {% else %}
                                 <span class="text-muted small">-</span>
                                 {% endif %}
+                                {% if acc.mgmt_mac %}
+                                <div class="small text-muted font-monospace opacity-75 mt-1 text-truncate" style="font-size:0.75rem;" title="MAC IP Quản lý: {{ acc.mgmt_mac }}"><i class="bi bi-ethernet me-1"></i>{{ acc.mgmt_mac }}</div>
+                                {% endif %}
                             </td>
-                            <td class="align-middle">
-                                <div><strong class="font-monospace text-dark">{{ acc.username_email }}</strong></div>
+                            <td class="text-center align-middle">
+                                <div class="d-flex flex-column align-items-center gap-1">
+                                    <button type="button" class="btn btn-xs btn-outline-info rounded-pill px-2 py-0" id="pingBtn{{ acc.id }}" onclick="checkServerPing('{{ acc.id }}')" title="Kiểm tra kết nối Ping tới Máy chủ">
+                                        <i class="bi bi-activity me-1"></i>Check Ping
+                                    </button>
+                                    <div id="pingBadge{{ acc.id }}"></div>
+                                </div>
+                            </td>
+                            <td class="align-middle text-truncate" style="max-width:135px;">
+                                <div><strong class="font-monospace text-dark text-truncate d-block" title="{{ acc.username_email }}">{{ acc.username_email }}</strong></div>
                                 <div class="d-flex align-items-center gap-1">
                                     <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}" data-key="{{ acc.password_text or '' }}">••••••••</span>
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Hiện/Ẩn" onclick="togglePassword('{{ acc.id }}')"><i class="bi bi-eye"></i></button>
@@ -357,10 +366,10 @@
                             </td>
                             <td class="text-center align-middle">
                                 {% if acc.server_type == 'Server offline' %}
-                                <span class="badge bg-light text-dark border">Vĩnh viễn (Nội bộ)</span>
+                                <span class="badge bg-light text-dark border">Nội bộ</span>
                                 {% elif acc.expiration_date %}
                                 <div>{{ acc.expiration_date.strftime('%d/%m/%Y') }}</div>
-                                <span class="badge bg-light text-dark border small">{{ acc.billing_cycle or 'Theo năm' }}</span>
+                                <span class="badge bg-light text-dark border small py-0">{{ acc.billing_cycle or 'Theo năm' }}</span>
                                 {% else %}
                                 <span class="badge bg-light text-dark border">Vĩnh viễn</span>
                                 {% endif %}
@@ -375,55 +384,56 @@
                                 <div class="modal fade" id="specModal{{ acc.id }}" tabindex="-1" aria-hidden="true">
                                     <div class="modal-dialog modal-lg modal-dialog-centered">
                                         <div class="modal-content border-0 shadow">
-                                            <div class="modal-header bg-white border-bottom py-3">
-                                                <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
-                                                    <i class="bi bi-cpu-fill text-primary fs-4"></i>
+                                            <div class="modal-header bg-white border-bottom py-2 px-3">
+                                                <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
+                                                    <i class="bi bi-cpu-fill text-primary fs-5"></i>
                                                     <span>Cấu hình Máy chủ: <strong class="text-primary">{{ acc.account_name }}</strong></span>
-                                                </h5>
+                                                </h6>
                                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                                             </div>
-                                            <div class="modal-body p-4 text-start">
-                                                {% if acc.image_file or acc.rack_position %}
-                                                <div class="row g-3 mb-4 p-3 bg-light rounded border align-items-center">
+                                            <div class="modal-body p-3 text-start">
+                                                {% if acc.image_file or acc.rack_position or acc.mgmt_mac %}
+                                                <div class="row g-2 mb-3 p-2 bg-light rounded border align-items-center">
                                                     {% if acc.image_file %}
-                                                    <div class="col-md-4 text-center">
+                                                    <div class="col-md-3 text-center">
                                                         <img src="{{ url_for('static', filename=acc.image_file.replace('static/', '')) if acc.image_file.startswith('static/') else '/' + acc.image_file }}" 
                                                              alt="{{ acc.account_name }}" 
                                                              class="img-fluid rounded border shadow-sm" 
-                                                             style="max-height: 140px; object-fit: cover; cursor: pointer;"
+                                                             style="max-height: 90px; object-fit: cover; cursor: pointer;"
                                                              onclick="window.open(this.src, '_blank')">
-                                                        <div class="small text-muted mt-1"><i class="bi bi-zoom-in me-1"></i>Click phóng to ảnh</div>
                                                     </div>
                                                     {% endif %}
-                                                    <div class="{% if acc.image_file %}col-md-8{% else %}col-12{% endif %}">
-                                                        {% if acc.rack_position %}
-                                                        <div class="d-flex align-items-center gap-2 mb-2">
-                                                            <span class="badge bg-secondary px-2 py-1"><i class="bi bi-hdd-rack me-1"></i>Vị trí Tủ Rack</span>
-                                                            <span class="fw-bold fs-6 text-dark">{{ acc.rack_position }}</span>
-                                                        </div>
-                                                        {% endif %}
-                                                        <div class="small text-muted">
-                                                            <span class="me-3"><i class="bi bi-tag me-1"></i>Loại: <strong>{{ acc.server_type or 'Server' }}</strong></span>
-                                                            {% if acc.provider %}<span class="me-3"><i class="bi bi-building me-1"></i>NCC: <strong>{{ acc.provider }}</strong></span>{% endif %}
+                                                    <div class="{% if acc.image_file %}col-md-9{% else %}col-12{% endif %}">
+                                                        <div class="d-flex flex-wrap align-items-center gap-3">
+                                                            {% if acc.rack_position %}
+                                                            <div><span class="badge bg-secondary px-2 py-1"><i class="bi bi-hdd-rack me-1"></i>Rack: <strong>{{ acc.rack_position }}</strong></span></div>
+                                                            {% endif %}
+                                                            {% if acc.mgmt_mac %}
+                                                            <div><span class="badge bg-dark text-white font-monospace px-2 py-1"><i class="bi bi-ethernet me-1"></i>MAC Mgmt: {{ acc.mgmt_mac }}</span></div>
+                                                            {% endif %}
+                                                            <div class="small text-muted">
+                                                                <span class="me-2"><i class="bi bi-tag me-1"></i>Loại: <strong>{{ acc.server_type or 'Server' }}</strong></span>
+                                                                {% if acc.provider %}<span><i class="bi bi-building me-1"></i>NCC: <strong>{{ acc.provider }}</strong></span>{% endif %}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 {% endif %}
 
                                                 <div class="table-responsive">
-                                                    <table class="table table-bordered align-middle mb-0">
+                                                    <table class="table table-sm table-bordered align-middle mb-0">
                                                         <thead class="table-light text-nowrap align-middle">
                                                             <tr class="align-middle">
-                                                                <th style="width: 170px;" class="text-center align-middle">Thành phần</th>
-                                                                <th style="width: 110px;" class="text-center align-middle">Tổng SL</th>
+                                                                <th style="width: 160px;" class="text-center align-middle">Thành phần</th>
+                                                                <th style="width: 90px;" class="text-center align-middle">Số lượng</th>
                                                                 <th class="text-start align-middle">Chi tiết từng loại &amp; Dung lượng</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody class="align-middle">
                                                             <tr class="align-middle">
-                                                                <td class="fw-bold text-dark text-center align-middle">
+                                                                <td class="fw-bold text-dark text-center align-middle py-2">
                                                                     <div class="d-flex align-items-center justify-content-center gap-1">
-                                                                        <i class="bi bi-cpu text-primary fs-5"></i>
+                                                                        <i class="bi bi-cpu text-primary fs-6"></i>
                                                                         <span>Vi xử lý (CPU)</span>
                                                                     </div>
                                                                 </td>
@@ -439,15 +449,15 @@
                                                                 </td>
                                                             </tr>
                                                             <tr class="align-middle">
-                                                                <td class="fw-bold text-dark text-center align-middle">
+                                                                <td class="fw-bold text-dark text-center align-middle py-2">
                                                                     <div class="d-flex align-items-center justify-content-center gap-1">
-                                                                        <i class="bi bi-memory text-success fs-5"></i>
+                                                                        <i class="bi bi-memory text-success fs-6"></i>
                                                                         <span>Bộ nhớ (RAM)</span>
                                                                     </div>
                                                                 </td>
                                                                 <td class="text-center align-middle">
                                                                     {% if acc.ram_qty %}
-                                                                    <span class="badge bg-success px-2 py-1 fs-6">{{ acc.ram_qty }}</span>
+                                                                    <span class="badge bg-success px-2 py-1 fs-6">{{ acc.ram_qty.replace(' thanh', '') }}</span>
                                                                     {% else %}
                                                                     <span class="text-muted small">-</span>
                                                                     {% endif %}
@@ -470,15 +480,15 @@
                                                                 </td>
                                                             </tr>
                                                             <tr class="align-middle">
-                                                                <td class="fw-bold text-dark text-center align-middle">
+                                                                <td class="fw-bold text-dark text-center align-middle py-2">
                                                                     <div class="d-flex align-items-center justify-content-center gap-1">
-                                                                        <i class="bi bi-hdd text-warning fs-5"></i>
+                                                                        <i class="bi bi-hdd text-warning fs-6"></i>
                                                                         <span>Ổ cứng (Disk)</span>
                                                                     </div>
                                                                 </td>
                                                                 <td class="text-center align-middle">
                                                                     {% if acc.disk_qty %}
-                                                                    <span class="badge bg-warning text-dark px-2 py-1 fs-6">{{ acc.disk_qty }}</span>
+                                                                    <span class="badge bg-warning text-dark px-2 py-1 fs-6">{{ acc.disk_qty.replace(' ổ', '') }}</span>
                                                                     {% else %}
                                                                     <span class="text-muted small">-</span>
                                                                     {% endif %}
@@ -593,7 +603,7 @@
                                                         <!-- RAM Section -->
                                                         <div class="mb-3">
                                                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-memory text-success me-1"></i>Bộ nhớ (RAM) - Thêm từng loại</label>
+                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-memory text-success me-1"></i>Bộ nhớ (RAM) - Dung lượng &amp; Số lượng</label>
                                                                 <button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2" onclick="addRamItem('edit{{ acc.id }}')"><i class="bi bi-plus-lg me-1"></i>Thêm loại RAM</button>
                                                             </div>
                                                             <div id="edit{{ acc.id }}RamList" class="d-flex flex-column gap-2 mb-2">
@@ -627,7 +637,7 @@
                                                                     </div>
                                                                 {% endif %}
                                                             </div>
-                                                            <div class="form-text small text-muted">Nếu có nhiều dung lượng RAM (VD: 32GB, 16GB, 8GB), bấm "+ Thêm loại RAM" để nhập chi tiết từng loại.</div>
+                                                            <div class="form-text small text-muted">Bấm "+ Thêm loại RAM" nếu cắm nhiều dung lượng (VD: 16GB, 32GB, 64GB, 128GB).</div>
                                                         </div>
 
                                                         <hr class="my-2 text-muted opacity-25">
@@ -635,7 +645,7 @@
                                                         <!-- DISK Section -->
                                                         <div class="mb-2">
                                                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-hdd text-warning me-1"></i>Ổ cứng (Disk) - Thêm từng loại</label>
+                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-hdd text-warning me-1"></i>Ổ cứng (Disk) - Dung lượng &amp; Số lượng</label>
                                                                 <button type="button" class="btn btn-xs btn-outline-warning text-dark rounded-pill px-2" onclick="addDiskItem('edit{{ acc.id }}')"><i class="bi bi-plus-lg me-1"></i>Thêm loại Ổ cứng</button>
                                                             </div>
                                                             <div id="edit{{ acc.id }}DiskList" class="d-flex flex-column gap-2 mb-2">
@@ -669,7 +679,7 @@
                                                                     </div>
                                                                 {% endif %}
                                                             </div>
-                                                            <div class="form-text small text-muted">Nếu có nhiều loại Ổ cứng (VD: 1TB SSD, 8TB HDD, 4TB HDD, 12TB NVMe), bấm "+ Thêm loại Ổ cứng" để nhập chi tiết từng loại.</div>
+                                                            <div class="form-text small text-muted">Bấm "+ Thêm loại Ổ cứng" nếu lắp nhiều dung lượng (VD: 1TB, 4TB, 8TB, 16TB).</div>
                                                         </div>
                                                     </div>
 
@@ -677,9 +687,15 @@
                                                         <label class="form-label">IP / Tên miền truy cập chính</label>
                                                         <input type="text" name="access_ip" class="form-control font-monospace text-muted-placeholder" value="{{ acc.access_ip or '' }}" placeholder="VD: 192.168.1.100 hoặc server.company.com">
                                                     </div>
-                                                    <div class="mb-3">
-                                                        <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI</label>
-                                                        <input type="text" name="mgmt_ip" class="form-control font-monospace text-muted-placeholder" value="{{ acc.mgmt_ip or '' }}" placeholder="VD: 192.168.1.250">
+                                                    <div class="row g-2 mb-3">
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI</label>
+                                                            <input type="text" name="mgmt_ip" class="form-control font-monospace text-muted-placeholder" value="{{ acc.mgmt_ip or '' }}" placeholder="VD: 192.168.1.250">
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label"><i class="bi bi-ethernet me-1"></i>Địa chỉ MAC (IP Quản lý)</label>
+                                                            <input type="text" name="mgmt_mac" class="form-control font-monospace text-muted-placeholder" value="{{ acc.mgmt_mac or '' }}" placeholder="VD: 00:1A:2B:3C:4D:5E">
+                                                        </div>
                                                     </div>
                                                     <div class="row g-2 mb-3">
                                                         <div class="col-md-6">
@@ -721,7 +737,7 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="9" class="text-center text-muted py-3 align-middle">Chưa có bản ghi Server nào.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted py-3 align-middle">Chưa có bản ghi Server nào.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -1293,9 +1309,15 @@
                         <label class="form-label">IP / Tên miền truy cập chính</label>
                         <input type="text" name="access_ip" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 192.168.1.100 hoặc server.company.com">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI</label>
-                        <input type="text" name="mgmt_ip" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 192.168.1.250">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">IP Quản lý iDRAC / ILO / HDM / IPMI</label>
+                            <input type="text" name="mgmt_ip" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 192.168.1.250">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label"><i class="bi bi-ethernet me-1"></i>Địa chỉ MAC (IP Quản lý)</label>
+                            <input type="text" name="mgmt_mac" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 00:1A:2B:3C:4D:5E">
+                        </div>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
@@ -1652,6 +1674,34 @@ function addDiskItem(prefix) {
         </div>
     `;
     container.appendChild(div);
+}
+
+function checkServerPing(accId) {
+    const btn = document.getElementById('pingBtn' + accId);
+    const badge = document.getElementById('pingBadge' + accId);
+    if (!btn) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" style="width:0.65rem;height:0.65rem;"></span>Ping...';
+    
+    fetch('/work-accounts/' + accId + '/ping')
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-activity me-1"></i>Check Ping';
+            if (!badge) return;
+            if (data.status === 'online') {
+                badge.innerHTML = `<span class="badge bg-success py-1" style="font-size:0.7rem;"><i class="bi bi-check-circle-fill me-1"></i>Online (${data.latency_ms}ms)</span>`;
+            } else if (data.status === 'offline') {
+                badge.innerHTML = `<span class="badge bg-danger py-1" style="font-size:0.7rem;"><i class="bi bi-x-circle-fill me-1"></i>Offline</span>`;
+            } else {
+                badge.innerHTML = `<span class="badge bg-secondary py-1" style="font-size:0.7rem;">${data.message}</span>`;
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-activity me-1"></i>Check Ping';
+            if (badge) badge.innerHTML = `<span class="badge bg-danger py-1" style="font-size:0.7rem;">Lỗi</span>`;
+        });
 }
 </script>
 
