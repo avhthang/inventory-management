@@ -271,27 +271,27 @@
             <!-- Table Views -->
             {% if active_tab == 'server' %}
             <!-- Server Table -->
-            <div class="table-responsive">
+            <div class="table-responsive" style="overflow-x: auto;">
                 <table class="table table-sm table-hover align-middle table-compact w-100 mb-0" style="table-layout: fixed;">
                     <thead class="table-dark text-nowrap align-middle">
                         <tr class="align-middle">
                             <th style="width: 40px;" class="text-center align-middle">STT</th>
-                            <th style="width: 210px;" class="align-middle text-start">MÁY CHỦ</th>
-                            <th style="width: 85px;" class="text-center align-middle">CẤU HÌNH</th>
-                            <th style="width: 120px;" class="align-middle text-center">ĐƠN VỊ CUNG CẤP</th>
-                            <th style="width: 135px;" class="text-center align-middle">DỊCH VỤ / IP</th>
-                            <th style="width: 165px;" class="text-center align-middle">IP QUẢN LÝ / MAC</th>
+                            <th style="width: 190px;" class="align-middle text-start">MÁY CHỦ</th>
+                            <th style="width: 65px;" class="text-center align-middle">CẤU HÌNH</th>
+                            <th style="width: 110px;" class="align-middle text-center">ĐƠN VỊ CUNG CẤP</th>
+                            <th style="width: 130px;" class="text-center align-middle">DỊCH VỤ / IP</th>
+                            <th style="width: 155px;" class="text-center align-middle">IP QUẢN LÝ / MAC</th>
                             <th style="width: 115px;" class="text-center align-middle">TRẠNG THÁI</th>
-                            <th style="width: 135px;" class="align-middle text-start">TÀI KHOẢN</th>
-                            <th style="width: 95px;" class="text-center align-middle">THỜI HẠN</th>
-                            <th style="width: 75px;" class="text-center align-middle">THAO TÁC</th>
+                            <th style="width: 130px;" class="align-middle text-start">TÀI KHOẢN</th>
+                            <th style="width: 90px;" class="text-center align-middle">THỜI HẠN</th>
+                            <th style="width: 95px;" class="text-center align-middle">THAO TÁC</th>
                         </tr>
                     </thead>
                     <tbody class="align-middle">
                         {% for acc in accounts_paged.items %}
                         <tr class="align-middle">
                             <td class="text-center align-middle">{{ loop.index }}</td>
-                            <td class="align-middle text-truncate" style="max-width: 210px;">
+                            <td class="align-middle text-truncate" style="max-width: 190px;">
                                 <div class="d-flex align-items-center gap-2">
                                     {% if acc.image_file %}
                                     <img src="{{ url_for('static', filename=acc.image_file.replace('static/', '')) if acc.image_file.startswith('static/') else '/' + acc.image_file }}" 
@@ -356,7 +356,7 @@
                                     <div id="pingBadge{{ acc.id }}"></div>
                                 </div>
                             </td>
-                            <td class="align-middle text-truncate" style="max-width:135px;">
+                            <td class="align-middle text-truncate" style="max-width:130px;">
                                 <div><strong class="font-monospace text-dark text-truncate d-block" title="{{ acc.username_email }}">{{ acc.username_email }}</strong></div>
                                 <div class="d-flex align-items-center gap-1">
                                     <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}" data-key="{{ acc.password_text or '' }}">••••••••</span>
@@ -388,41 +388,60 @@
                                             <div class="modal-header bg-white border-bottom py-2 px-3">
                                                 <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
                                                     <i class="bi bi-cpu-fill text-primary fs-5"></i>
-                                                    <span>Thông tin Máy chủ: <strong class="text-primary">{{ acc.account_name }}</strong></span>
+                                                    <span>Thông tin chi tiết Máy chủ: <strong class="text-primary">{{ acc.account_name }}</strong></span>
                                                 </h6>
                                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                                             </div>
                                             <div class="modal-body p-3 text-start">
-                                                {% if acc.image_file or acc.rack_position or acc.mgmt_mac or acc.assigned_device %}
-                                                <div class="row g-2 mb-3 p-2 bg-light rounded border align-items-center">
-                                                    {% if acc.image_file %}
-                                                    <div class="col-md-3 text-center">
-                                                        <img src="{{ url_for('static', filename=acc.image_file.replace('static/', '')) if acc.image_file.startswith('static/') else '/' + acc.image_file }}" 
-                                                             alt="{{ acc.account_name }}" 
-                                                             class="img-fluid rounded border shadow-sm" 
-                                                             style="max-height: 90px; object-fit: cover; cursor: pointer;"
-                                                             onclick="window.open(this.src, '_blank')">
-                                                    </div>
-                                                    {% endif %}
-                                                    <div class="{% if acc.image_file %}col-md-9{% else %}col-12{% endif %}">
-                                                        <div class="d-flex flex-wrap align-items-center gap-3">
-                                                            {% if acc.rack_position %}
-                                                            <div><span class="badge bg-secondary px-2 py-1"><i class="bi bi-hdd-rack me-1"></i>Rack: <strong>{{ acc.rack_position }}</strong></span></div>
-                                                            {% endif %}
-                                                            {% if acc.mgmt_mac %}
-                                                            <div><span class="badge bg-dark text-white font-monospace opacity-75 px-2 py-1"><i class="bi bi-ethernet me-1"></i>MAC addresses: {{ acc.mgmt_mac }}</span></div>
-                                                            {% endif %}
-                                                            {% if acc.assigned_device %}
-                                                            <div><span class="badge bg-info text-dark font-monospace px-2 py-1"><i class="bi bi-laptop me-1"></i>Thiết bị: <strong>{{ acc.assigned_device.device_code }} - {{ acc.assigned_device.name }}</strong></span></div>
-                                                            {% endif %}
-                                                            <div class="small text-muted">
-                                                                <span class="me-2"><i class="bi bi-tag me-1"></i>Loại: <strong>{{ acc.server_type or 'Server' }}</strong></span>
-                                                                {% if acc.provider %}<span><i class="bi bi-building me-1"></i>NCC: <strong>{{ acc.provider }}</strong></span>{% endif %}
+                                                <!-- Detailed Server Info Panel -->
+                                                <div class="p-3 bg-light rounded border mb-3">
+                                                    <div class="row g-2 align-items-center">
+                                                        {% if acc.image_file %}
+                                                        <div class="col-md-3 text-center">
+                                                            <img src="{{ url_for('static', filename=acc.image_file.replace('static/', '')) if acc.image_file.startswith('static/') else '/' + acc.image_file }}" 
+                                                                 alt="{{ acc.account_name }}" 
+                                                                 class="img-fluid rounded border shadow-sm" 
+                                                                 style="max-height: 100px; object-fit: cover; cursor: pointer;"
+                                                                 onclick="window.open(this.src, '_blank')"
+                                                                 title="Click xem ảnh thực tế">
+                                                        </div>
+                                                        {% endif %}
+                                                        <div class="{% if acc.image_file %}col-md-9{% else %}col-12{% endif %}">
+                                                            <div class="row g-2">
+                                                                <div class="col-6 col-md-4">
+                                                                    <span class="text-muted d-block" style="font-size:0.75rem;">Trạng thái hiện tại:</span>
+                                                                    <span class="badge {% if acc.status == 'Đang sử dụng' %}bg-success{% else %}bg-secondary{% endif %} px-2 py-1">{{ acc.status or 'Đang sử dụng' }}</span>
+                                                                </div>
+                                                                <div class="col-6 col-md-4">
+                                                                    <span class="text-muted d-block" style="font-size:0.75rem;">Dịch vụ / Platform:</span>
+                                                                    <strong class="text-dark">{{ acc.platform or 'Server' }}</strong>
+                                                                </div>
+                                                                <div class="col-6 col-md-4">
+                                                                    <span class="text-muted d-block" style="font-size:0.75rem;">IP / Domain chính:</span>
+                                                                    <span class="font-monospace text-primary fw-bold">{{ acc.access_ip or '-' }}</span>
+                                                                </div>
+                                                                <div class="col-6 col-md-4">
+                                                                    <span class="text-muted d-block" style="font-size:0.75rem;">IP Quản lý (iDRAC/ILO/HDM):</span>
+                                                                    <span class="font-monospace text-danger fw-bold">{{ acc.mgmt_ip or '-' }}</span>
+                                                                </div>
+                                                                <div class="col-6 col-md-4">
+                                                                    <span class="text-muted d-block" style="font-size:0.75rem;">MAC addresses:</span>
+                                                                    <span class="font-monospace text-dark opacity-75 fw-semibold">{{ acc.mgmt_mac or '-' }}</span>
+                                                                </div>
+                                                                <div class="col-6 col-md-4">
+                                                                    <span class="text-muted d-block" style="font-size:0.75rem;">Vị trí Rack / NCC:</span>
+                                                                    <span class="text-dark fw-medium">{{ acc.rack_position or '-' }} {% if acc.provider %}({{ acc.provider }}){% endif %}</span>
+                                                                </div>
+                                                                {% if acc.assigned_device %}
+                                                                <div class="col-12 mt-1">
+                                                                    <span class="text-muted me-1" style="font-size:0.75rem;">Thiết bị vật lý gán cùng:</span>
+                                                                    <span class="badge bg-info text-dark font-monospace px-2 py-1"><i class="bi bi-laptop me-1"></i>{{ acc.assigned_device.device_code }} - {{ acc.assigned_device.name }}</span>
+                                                                </div>
+                                                                {% endif %}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                {% endif %}
 
                                                 <div class="table-responsive" style="overflow-x: hidden;">
                                                     <table class="table table-sm table-bordered align-middle mb-0" style="table-layout: fixed; width: 100%;">
