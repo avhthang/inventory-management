@@ -318,7 +318,7 @@
                             </td>
                             <td class="text-center align-middle">
                                 <button class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" data-bs-toggle="modal" data-bs-target="#specModal{{ acc.id }}" title="Xem chi tiết cấu hình">
-                                    <i class="bi bi-cpu-fill me-1"></i>Cấu hình
+                                    <i class="bi bi-cpu-fill"></i>
                                 </button>
                             </td>
                             <td class="text-center align-middle text-truncate">
@@ -350,8 +350,8 @@
                             </td>
                             <td class="text-center align-middle">
                                 <div class="d-flex flex-column align-items-center gap-1">
-                                    <button type="button" class="btn btn-xs btn-outline-info rounded-pill px-2 py-0" id="pingBtn{{ acc.id }}" onclick="checkServerPing('{{ acc.id }}')" title="Kiểm tra kết nối Ping tới Máy chủ">
-                                        <i class="bi bi-activity me-1"></i>Check Ping
+                                    <button type="button" class="btn btn-xs btn-outline-info rounded-pill text-nowrap py-0 px-2" style="font-size:0.68rem; line-height:1.4;" id="pingBtn{{ acc.id }}" onclick="checkServerPing('{{ acc.id }}')" title="Kiểm tra kết nối Ping tới Máy chủ">
+                                        <i class="bi bi-activity me-1"></i>Ping
                                     </button>
                                     <div id="pingBadge{{ acc.id }}"></div>
                                 </div>
@@ -424,19 +424,22 @@
                                                     <table class="table table-sm table-bordered align-middle mb-0">
                                                         <thead class="table-light text-nowrap align-middle">
                                                             <tr class="align-middle">
-                                                                <th style="width: 160px;" class="text-center align-middle">Thành phần</th>
-                                                                <th style="width: 90px;" class="text-center align-middle">Số lượng</th>
-                                                                <th class="text-start align-middle">Chi tiết từng loại &amp; Dung lượng</th>
+                                                                <th style="width: 150px;" class="text-center align-middle">Thành phần</th>
+                                                                <th style="width: 120px;" class="text-center align-middle">Dung lượng</th>
+                                                                <th style="width: 80px;" class="text-center align-middle">Số lượng</th>
+                                                                <th class="text-start align-middle">Chi tiết</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody class="align-middle">
+                                                            <!-- CPU -->
                                                             <tr class="align-middle">
                                                                 <td class="fw-bold text-dark text-center align-middle py-2">
                                                                     <div class="d-flex align-items-center justify-content-center gap-1">
                                                                         <i class="bi bi-cpu text-primary fs-6"></i>
-                                                                        <span>Vi xử lý (CPU)</span>
+                                                                        <span>CPU</span>
                                                                     </div>
                                                                 </td>
+                                                                <td class="text-center align-middle font-monospace text-muted">-</td>
                                                                 <td class="text-center align-middle">
                                                                     {% if acc.cpu_qty %}
                                                                     <span class="badge bg-primary px-2 py-1 fs-6">{{ acc.cpu_qty }}</span>
@@ -448,68 +451,88 @@
                                                                     {{ acc.cpu_info or 'Chưa cập nhật' }}
                                                                 </td>
                                                             </tr>
-                                                            <tr class="align-middle">
-                                                                <td class="fw-bold text-dark text-center align-middle py-2">
-                                                                    <div class="d-flex align-items-center justify-content-center gap-1">
-                                                                        <i class="bi bi-memory text-success fs-6"></i>
-                                                                        <span>Bộ nhớ (RAM)</span>
-                                                                    </div>
-                                                                </td>
-                                                                <td class="text-center align-middle">
-                                                                    {% if acc.ram_qty %}
-                                                                    <span class="badge bg-success px-2 py-1 fs-6">{{ acc.ram_qty.replace(' thanh', '') }}</span>
-                                                                    {% else %}
-                                                                    <span class="text-muted small">-</span>
-                                                                    {% endif %}
-                                                                </td>
-                                                                <td class="text-start text-dark fw-medium align-middle">
-                                                                    {% if acc.ram_info %}
-                                                                        <div class="d-flex flex-column gap-1">
-                                                                            {% for line in acc.ram_info.split('\n') %}
-                                                                                {% if line.strip() %}
-                                                                                <div class="d-flex align-items-center gap-2">
-                                                                                    <i class="bi bi-check2-circle text-success fs-6"></i>
-                                                                                    <span>{{ line.strip() }}</span>
+
+                                                            <!-- RAM -->
+                                                            {% if acc.ram_info %}
+                                                                {% for line in acc.ram_info.split('\n') %}
+                                                                    {% if line.strip() %}
+                                                                        {% set parts = line.split('|') %}
+                                                                        <tr class="align-middle">
+                                                                            <td class="fw-bold text-dark text-center align-middle py-2">
+                                                                                <div class="d-flex align-items-center justify-content-center gap-1">
+                                                                                    <i class="bi bi-memory text-success fs-6"></i>
+                                                                                    <span>Bộ nhớ (RAM)</span>
                                                                                 </div>
-                                                                                {% endif %}
-                                                                            {% endfor %}
+                                                                            </td>
+                                                                            <td class="text-center align-middle font-monospace fw-bold text-success">
+                                                                                {{ parts[0].strip() if parts|length > 0 else line.strip() }}
+                                                                            </td>
+                                                                            <td class="text-center align-middle">
+                                                                                <span class="badge bg-success px-2 py-1 fs-6">{{ parts[1].strip() if parts|length > 1 else '-' }}</span>
+                                                                            </td>
+                                                                            <td class="text-start text-dark fw-medium align-middle">
+                                                                                {{ parts[2].strip() if (parts|length > 2 and parts[2].strip()) else '-' }}
+                                                                            </td>
+                                                                        </tr>
+                                                                    {% endif %}
+                                                                {% endfor %}
+                                                            {% else %}
+                                                                <tr class="align-middle">
+                                                                    <td class="fw-bold text-dark text-center align-middle py-2">
+                                                                        <div class="d-flex align-items-center justify-content-center gap-1">
+                                                                            <i class="bi bi-memory text-success fs-6"></i>
+                                                                            <span>Bộ nhớ (RAM)</span>
                                                                         </div>
-                                                                    {% else %}
-                                                                        <span class="text-muted">Chưa cập nhật</span>
-                                                                    {% endif %}
-                                                                </td>
-                                                            </tr>
-                                                            <tr class="align-middle">
-                                                                <td class="fw-bold text-dark text-center align-middle py-2">
-                                                                    <div class="d-flex align-items-center justify-content-center gap-1">
-                                                                        <i class="bi bi-hdd text-warning fs-6"></i>
-                                                                        <span>Ổ cứng (Disk)</span>
-                                                                    </div>
-                                                                </td>
-                                                                <td class="text-center align-middle">
-                                                                    {% if acc.disk_qty %}
-                                                                    <span class="badge bg-warning text-dark px-2 py-1 fs-6">{{ acc.disk_qty.replace(' ổ', '') }}</span>
-                                                                    {% else %}
-                                                                    <span class="text-muted small">-</span>
-                                                                    {% endif %}
-                                                                </td>
-                                                                <td class="text-start text-dark fw-medium align-middle">
-                                                                    {% if acc.disk_info %}
-                                                                        <div class="d-flex flex-column gap-1">
-                                                                            {% for line in acc.disk_info.split('\n') %}
-                                                                                {% if line.strip() %}
-                                                                                <div class="d-flex align-items-center gap-2">
-                                                                                    <i class="bi bi-hdd-stack text-warning fs-6"></i>
-                                                                                    <span>{{ line.strip() }}</span>
+                                                                    </td>
+                                                                    <td class="text-center align-middle text-muted">-</td>
+                                                                    <td class="text-center align-middle text-muted">-</td>
+                                                                    <td class="text-start text-muted align-middle">Chưa cập nhật</td>
+                                                                </tr>
+                                                            {% endif %}
+
+                                                            <!-- DISK -->
+                                                            {% if acc.disk_info %}
+                                                                {% for line in acc.disk_info.split('\n') %}
+                                                                    {% if line.strip() %}
+                                                                        {% set parts = line.split('|') %}
+                                                                        {% set type_cap = parts[0].strip() if parts|length > 0 else line.strip() %}
+                                                                        <tr class="align-middle">
+                                                                            <td class="fw-bold text-dark text-center align-middle py-2">
+                                                                                <div class="d-flex align-items-center justify-content-center gap-1">
+                                                                                    {% if '[HDD]' in type_cap or 'HDD' in type_cap %}
+                                                                                    <i class="bi bi-hdd text-secondary fs-6"></i>
+                                                                                    <span>Ổ cứng HDD</span>
+                                                                                    {% else %}
+                                                                                    <i class="bi bi-hdd-fill text-warning fs-6"></i>
+                                                                                    <span>Ổ cứng SSD</span>
+                                                                                    {% endif %}
                                                                                 </div>
-                                                                                {% endif %}
-                                                                            {% endfor %}
-                                                                        </div>
-                                                                    {% else %}
-                                                                        <span class="text-muted">Chưa cập nhật</span>
+                                                                            </td>
+                                                                            <td class="text-center align-middle font-monospace fw-bold text-dark">
+                                                                                {{ type_cap.replace('[SSD]', '').replace('[HDD]', '').replace('[NVMe]', '').strip() }}
+                                                                            </td>
+                                                                            <td class="text-center align-middle">
+                                                                                <span class="badge bg-warning text-dark px-2 py-1 fs-6">{{ parts[1].strip() if parts|length > 1 else '-' }}</span>
+                                                                            </td>
+                                                                            <td class="text-start text-dark fw-medium align-middle">
+                                                                                {{ parts[2].strip() if (parts|length > 2 and parts[2].strip()) else '-' }}
+                                                                            </td>
+                                                                        </tr>
                                                                     {% endif %}
-                                                                </td>
-                                                            </tr>
+                                                                {% endfor %}
+                                                            {% else %}
+                                                                <tr class="align-middle">
+                                                                    <td class="fw-bold text-dark text-center align-middle py-2">
+                                                                        <div class="d-flex align-items-center justify-content-center gap-1">
+                                                                            <i class="bi bi-hdd-fill text-warning fs-6"></i>
+                                                                            <span>Ổ cứng (Disk)</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td class="text-center align-middle text-muted">-</td>
+                                                                    <td class="text-center align-middle text-muted">-</td>
+                                                                    <td class="text-start text-muted align-middle">Chưa cập nhật</td>
+                                                                </tr>
+                                                            {% endif %}
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -603,21 +626,25 @@
                                                         <!-- RAM Section -->
                                                         <div class="mb-3">
                                                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-memory text-success me-1"></i>Bộ nhớ (RAM) - Dung lượng &amp; Số lượng</label>
+                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-memory text-success me-1"></i>Bộ nhớ (RAM) - Dung lượng | Số lượng | Chi tiết</label>
                                                                 <button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2" onclick="addRamItem('edit{{ acc.id }}')"><i class="bi bi-plus-lg me-1"></i>Thêm loại RAM</button>
                                                             </div>
                                                             <div id="edit{{ acc.id }}RamList" class="d-flex flex-column gap-2 mb-2">
                                                                 {% if acc.ram_info %}
                                                                     {% for line in acc.ram_info.split('\n') %}
                                                                         {% if line.strip() %}
+                                                                        {% set parts = line.split('|') %}
                                                                         <div class="row g-1 align-items-center ram-item-row">
-                                                                            <div class="col-7 col-md-8">
-                                                                                <input type="text" name="ram_name[]" class="form-control form-control-sm" value="{{ line.split(' (x')[0] if ' (x' in line else line }}" placeholder="VD: RAM 32GB DDR4 3200MHz">
+                                                                            <div class="col-4">
+                                                                                <input type="text" name="ram_cap[]" class="form-control form-control-sm font-monospace" value="{{ parts[0].strip() if parts|length > 0 else line.strip() }}" placeholder="VD: 32GB">
                                                                             </div>
-                                                                            <div class="col-3 col-md-3">
-                                                                                <input type="text" name="ram_qty[]" class="form-control form-control-sm" value="{{ line.split(' (x')[1].replace(')', '') if ' (x' in line else '' }}" placeholder="SL: 4">
+                                                                            <div class="col-2">
+                                                                                <input type="text" name="ram_qty[]" class="form-control form-control-sm" value="{{ parts[1].strip() if parts|length > 1 else '1' }}" placeholder="SL: 4">
                                                                             </div>
-                                                                            <div class="col-2 col-md-1 text-end">
+                                                                            <div class="col-5">
+                                                                                <input type="text" name="ram_detail[]" class="form-control form-control-sm" value="{{ parts[2].strip() if parts|length > 2 else '' }}" placeholder="Chi tiết: DDR4 3200MHz ECC">
+                                                                            </div>
+                                                                            <div class="col-1 text-end">
                                                                                 <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.ram-item-row').remove()"><i class="bi bi-x-lg"></i></button>
                                                                             </div>
                                                                         </div>
@@ -625,13 +652,16 @@
                                                                     {% endfor %}
                                                                 {% else %}
                                                                     <div class="row g-1 align-items-center ram-item-row">
-                                                                        <div class="col-7 col-md-8">
-                                                                            <input type="text" name="ram_name[]" class="form-control form-control-sm" placeholder="VD: RAM 32GB DDR4 3200MHz">
+                                                                        <div class="col-4">
+                                                                            <input type="text" name="ram_cap[]" class="form-control form-control-sm font-monospace" placeholder="Dung lượng (16GB, 32GB, 64GB...)">
                                                                         </div>
-                                                                        <div class="col-3 col-md-3">
+                                                                        <div class="col-2">
                                                                             <input type="text" name="ram_qty[]" class="form-control form-control-sm" placeholder="SL: 4">
                                                                         </div>
-                                                                        <div class="col-2 col-md-1 text-end">
+                                                                        <div class="col-5">
+                                                                            <input type="text" name="ram_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (DDR4 3200MHz ECC...)">
+                                                                        </div>
+                                                                        <div class="col-1 text-end">
                                                                             <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.ram-item-row').remove()"><i class="bi bi-x-lg"></i></button>
                                                                         </div>
                                                                     </div>
@@ -645,21 +675,33 @@
                                                         <!-- DISK Section -->
                                                         <div class="mb-2">
                                                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-hdd text-warning me-1"></i>Ổ cứng (Disk) - Dung lượng &amp; Số lượng</label>
+                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-hdd text-warning me-1"></i>Ổ cứng (Disk) - Loại | Dung lượng | Số lượng | Chi tiết</label>
                                                                 <button type="button" class="btn btn-xs btn-outline-warning text-dark rounded-pill px-2" onclick="addDiskItem('edit{{ acc.id }}')"><i class="bi bi-plus-lg me-1"></i>Thêm loại Ổ cứng</button>
                                                             </div>
                                                             <div id="edit{{ acc.id }}DiskList" class="d-flex flex-column gap-2 mb-2">
                                                                 {% if acc.disk_info %}
                                                                     {% for line in acc.disk_info.split('\n') %}
                                                                         {% if line.strip() %}
+                                                                        {% set parts = line.split('|') %}
+                                                                        {% set type_cap = parts[0].strip() if parts|length > 0 else line.strip() %}
                                                                         <div class="row g-1 align-items-center disk-item-row">
-                                                                            <div class="col-7 col-md-8">
-                                                                                <input type="text" name="disk_name[]" class="form-control form-control-sm" value="{{ line.split(' (x')[0] if ' (x' in line else line }}" placeholder="VD: SSD 1.92TB NVMe Enterprise">
+                                                                            <div class="col-2">
+                                                                                <select name="disk_type[]" class="form-select form-select-sm px-1">
+                                                                                    <option value="SSD" {% if '[SSD]' in type_cap or 'SSD' in type_cap %}selected{% endif %}>SSD</option>
+                                                                                    <option value="HDD" {% if '[HDD]' in type_cap or 'HDD' in type_cap %}selected{% endif %}>HDD</option>
+                                                                                    <option value="NVMe" {% if '[NVMe]' in type_cap or 'NVMe' in type_cap %}selected{% endif %}>NVMe</option>
+                                                                                </select>
                                                                             </div>
-                                                                            <div class="col-3 col-md-3">
-                                                                                <input type="text" name="disk_qty[]" class="form-control form-control-sm" value="{{ line.split(' (x')[1].replace(')', '') if ' (x' in line else '' }}" placeholder="SL: 2">
+                                                                            <div class="col-3">
+                                                                                <input type="text" name="disk_cap[]" class="form-control form-control-sm font-monospace" value="{{ type_cap.replace('[SSD]', '').replace('[HDD]', '').replace('[NVMe]', '').strip() }}" placeholder="VD: 1.92TB / 8TB">
                                                                             </div>
-                                                                            <div class="col-2 col-md-1 text-end">
+                                                                            <div class="col-2">
+                                                                                <input type="text" name="disk_qty[]" class="form-control form-control-sm" value="{{ parts[1].strip() if parts|length > 1 else '1' }}" placeholder="SL: 2">
+                                                                            </div>
+                                                                            <div class="col-4">
+                                                                                <input type="text" name="disk_detail[]" class="form-control form-control-sm" value="{{ parts[2].strip() if parts|length > 2 else '' }}" placeholder="Chi tiết: Enterprise SATA 7.2K">
+                                                                            </div>
+                                                                            <div class="col-1 text-end">
                                                                                 <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.disk-item-row').remove()"><i class="bi bi-x-lg"></i></button>
                                                                             </div>
                                                                         </div>
@@ -667,19 +709,29 @@
                                                                     {% endfor %}
                                                                 {% else %}
                                                                     <div class="row g-1 align-items-center disk-item-row">
-                                                                        <div class="col-7 col-md-8">
-                                                                            <input type="text" name="disk_name[]" class="form-control form-control-sm" placeholder="VD: SSD 1.92TB NVMe Enterprise">
+                                                                        <div class="col-2">
+                                                                            <select name="disk_type[]" class="form-select form-select-sm px-1">
+                                                                                <option value="SSD" selected>SSD</option>
+                                                                                <option value="HDD">HDD</option>
+                                                                                <option value="NVMe">NVMe</option>
+                                                                            </select>
                                                                         </div>
-                                                                        <div class="col-3 col-md-3">
+                                                                        <div class="col-3">
+                                                                            <input type="text" name="disk_cap[]" class="form-control form-control-sm font-monospace" placeholder="Dung lượng (1TB, 4TB, 8TB...)">
+                                                                        </div>
+                                                                        <div class="col-2">
                                                                             <input type="text" name="disk_qty[]" class="form-control form-control-sm" placeholder="SL: 2">
                                                                         </div>
-                                                                        <div class="col-2 col-md-1 text-end">
+                                                                        <div class="col-4">
+                                                                            <input type="text" name="disk_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (SATA 7.2K / PCIe 4.0)">
+                                                                        </div>
+                                                                        <div class="col-1 text-end">
                                                                             <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.disk-item-row').remove()"><i class="bi bi-x-lg"></i></button>
                                                                         </div>
                                                                     </div>
                                                                 {% endif %}
                                                             </div>
-                                                            <div class="form-text small text-muted">Bấm "+ Thêm loại Ổ cứng" nếu lắp nhiều dung lượng (VD: 1TB, 4TB, 8TB, 16TB).</div>
+                                                            <div class="form-text small text-muted">Bấm "+ Thêm loại Ổ cứng" nếu lắp nhiều loại/dung lượng (VD: 1TB SSD, 8TB HDD, 4TB HDD, 16TB NVMe).</div>
                                                         </div>
                                                     </div>
 
@@ -1261,23 +1313,26 @@
                         <!-- RAM Section -->
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-memory text-success me-1"></i>Bộ nhớ (RAM) - Thêm từng loại</label>
+                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-memory text-success me-1"></i>Bộ nhớ (RAM) - Dung lượng | Số lượng | Chi tiết</label>
                                 <button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2" onclick="addRamItem('add')"><i class="bi bi-plus-lg me-1"></i>Thêm loại RAM</button>
                             </div>
                             <div id="addRamList" class="d-flex flex-column gap-2 mb-2">
                                 <div class="row g-1 align-items-center ram-item-row">
-                                    <div class="col-7 col-md-8">
-                                        <input type="text" name="ram_name[]" class="form-control form-control-sm" placeholder="VD: RAM 32GB DDR4 3200MHz">
+                                    <div class="col-4">
+                                        <input type="text" name="ram_cap[]" class="form-control form-control-sm font-monospace" placeholder="Dung lượng (16GB, 32GB, 64GB...)">
                                     </div>
-                                    <div class="col-3 col-md-3">
+                                    <div class="col-2">
                                         <input type="text" name="ram_qty[]" class="form-control form-control-sm" placeholder="SL: 4">
                                     </div>
-                                    <div class="col-2 col-md-1 text-end">
+                                    <div class="col-5">
+                                        <input type="text" name="ram_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (DDR4 3200MHz ECC...)">
+                                    </div>
+                                    <div class="col-1 text-end">
                                         <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.ram-item-row').remove()"><i class="bi bi-x-lg"></i></button>
                                     </div>
                                 </div>
                             </div>
-                            <div class="form-text small text-muted">Bấm "+ Thêm loại RAM" nếu server cắm nhiều loại RAM khác nhau (VD: 32GB, 16GB, 8GB, 64GB).</div>
+                            <div class="form-text small text-muted">Bấm "+ Thêm loại RAM" nếu cắm nhiều loại/dung lượng khác nhau (VD: 16GB, 32GB, 64GB).</div>
                         </div>
 
                         <hr class="my-2 text-muted opacity-25">
@@ -1285,23 +1340,33 @@
                         <!-- DISK Section -->
                         <div class="mb-2">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-hdd text-warning me-1"></i>Ổ cứng (Disk) - Thêm từng loại</label>
+                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-hdd text-warning me-1"></i>Ổ cứng (Disk) - Loại | Dung lượng | Số lượng | Chi tiết</label>
                                 <button type="button" class="btn btn-xs btn-outline-warning text-dark rounded-pill px-2" onclick="addDiskItem('add')"><i class="bi bi-plus-lg me-1"></i>Thêm loại Ổ cứng</button>
                             </div>
                             <div id="addDiskList" class="d-flex flex-column gap-2 mb-2">
                                 <div class="row g-1 align-items-center disk-item-row">
-                                    <div class="col-7 col-md-8">
-                                        <input type="text" name="disk_name[]" class="form-control form-control-sm" placeholder="VD: SSD 1.92TB NVMe Enterprise">
+                                    <div class="col-2">
+                                        <select name="disk_type[]" class="form-select form-select-sm px-1">
+                                            <option value="SSD" selected>SSD</option>
+                                            <option value="HDD">HDD</option>
+                                            <option value="NVMe">NVMe</option>
+                                        </select>
                                     </div>
-                                    <div class="col-3 col-md-3">
+                                    <div class="col-3">
+                                        <input type="text" name="disk_cap[]" class="form-control form-control-sm font-monospace" placeholder="Dung lượng (1TB, 4TB, 8TB...)">
+                                    </div>
+                                    <div class="col-2">
                                         <input type="text" name="disk_qty[]" class="form-control form-control-sm" placeholder="SL: 2">
                                     </div>
-                                    <div class="col-2 col-md-1 text-end">
+                                    <div class="col-4">
+                                        <input type="text" name="disk_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (SATA 7.2K / PCIe 4.0)">
+                                    </div>
+                                    <div class="col-1 text-end">
                                         <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.disk-item-row').remove()"><i class="bi bi-x-lg"></i></button>
                                     </div>
                                 </div>
                             </div>
-                            <div class="form-text small text-muted">Bấm "+ Thêm loại Ổ cứng" nếu server lắp nhiều dung lượng khác nhau (VD: 1TB, 4TB, 8TB, 12TB).</div>
+                            <div class="form-text small text-muted">Bấm "+ Thêm loại Ổ cứng" nếu server lắp nhiều dung lượng/loại khác nhau (VD: 1TB SSD, 8TB HDD, 16TB NVMe).</div>
                         </div>
                     </div>
 
@@ -1644,13 +1709,16 @@ function addRamItem(prefix) {
     const div = document.createElement('div');
     div.className = 'row g-1 align-items-center ram-item-row';
     div.innerHTML = `
-        <div class="col-7 col-md-8">
-            <input type="text" name="ram_name[]" class="form-control form-control-sm" placeholder="VD: RAM 16GB / 32GB / 64GB DDR4">
+        <div class="col-4">
+            <input type="text" name="ram_cap[]" class="form-control form-control-sm font-monospace" placeholder="Dung lượng (16GB, 32GB, 64GB...)">
         </div>
-        <div class="col-3 col-md-3">
-            <input type="text" name="ram_qty[]" class="form-control form-control-sm" placeholder="SL: 2">
+        <div class="col-2">
+            <input type="text" name="ram_qty[]" class="form-control form-control-sm" placeholder="SL: 4">
         </div>
-        <div class="col-2 col-md-1 text-end">
+        <div class="col-5">
+            <input type="text" name="ram_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (DDR4 3200MHz ECC...)">
+        </div>
+        <div class="col-1 text-end">
             <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.ram-item-row').remove()"><i class="bi bi-x-lg"></i></button>
         </div>
     `;
@@ -1663,13 +1731,23 @@ function addDiskItem(prefix) {
     const div = document.createElement('div');
     div.className = 'row g-1 align-items-center disk-item-row';
     div.innerHTML = `
-        <div class="col-7 col-md-8">
-            <input type="text" name="disk_name[]" class="form-control form-control-sm" placeholder="VD: 1TB / 4TB / 8TB / 12TB HDD hoặc SSD">
+        <div class="col-2">
+            <select name="disk_type[]" class="form-select form-select-sm px-1">
+                <option value="SSD" selected>SSD</option>
+                <option value="HDD">HDD</option>
+                <option value="NVMe">NVMe</option>
+            </select>
         </div>
-        <div class="col-3 col-md-3">
-            <input type="text" name="disk_qty[]" class="form-control form-control-sm" placeholder="SL: 4">
+        <div class="col-3">
+            <input type="text" name="disk_cap[]" class="form-control form-control-sm font-monospace" placeholder="Dung lượng (1TB, 4TB, 8TB, 16TB...)">
         </div>
-        <div class="col-2 col-md-1 text-end">
+        <div class="col-2">
+            <input type="text" name="disk_qty[]" class="form-control form-control-sm" placeholder="SL: 2">
+        </div>
+        <div class="col-4">
+            <input type="text" name="disk_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (Enterprise SATA 7.2K / PCIe 4.0)">
+        </div>
+        <div class="col-1 text-end">
             <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.disk-item-row').remove()"><i class="bi bi-x-lg"></i></button>
         </div>
     `;
@@ -1681,26 +1759,26 @@ function checkServerPing(accId) {
     const badge = document.getElementById('pingBadge' + accId);
     if (!btn) return;
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" style="width:0.65rem;height:0.65rem;"></span>Ping...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" style="width:0.6rem;height:0.6rem;"></span>Ping...';
     
     fetch('/work-accounts/' + accId + '/ping')
         .then(res => res.json())
         .then(data => {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-activity me-1"></i>Check Ping';
+            btn.innerHTML = '<i class="bi bi-activity me-1"></i>Ping';
             if (!badge) return;
             if (data.status === 'online') {
-                badge.innerHTML = `<span class="badge bg-success py-1" style="font-size:0.7rem;"><i class="bi bi-check-circle-fill me-1"></i>Online (${data.latency_ms}ms)</span>`;
+                badge.innerHTML = `<span class="badge bg-success py-1" style="font-size:0.68rem;"><i class="bi bi-check-circle-fill me-1"></i>Online (${data.latency_ms}ms)</span>`;
             } else if (data.status === 'offline') {
-                badge.innerHTML = `<span class="badge bg-danger py-1" style="font-size:0.7rem;"><i class="bi bi-x-circle-fill me-1"></i>Offline</span>`;
+                badge.innerHTML = `<span class="badge bg-danger py-1" style="font-size:0.68rem;"><i class="bi bi-x-circle-fill me-1"></i>Offline</span>`;
             } else {
-                badge.innerHTML = `<span class="badge bg-secondary py-1" style="font-size:0.7rem;">${data.message}</span>`;
+                badge.innerHTML = `<span class="badge bg-secondary py-1" style="font-size:0.68rem;">${data.message}</span>`;
             }
         })
         .catch(() => {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-activity me-1"></i>Check Ping';
-            if (badge) badge.innerHTML = `<span class="badge bg-danger py-1" style="font-size:0.7rem;">Lỗi</span>`;
+            btn.innerHTML = '<i class="bi bi-activity me-1"></i>Ping';
+            if (badge) badge.innerHTML = `<span class="badge bg-danger py-1" style="font-size:0.68rem;">Lỗi</span>`;
         });
 }
 </script>

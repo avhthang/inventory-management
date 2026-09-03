@@ -11510,42 +11510,57 @@ def add_work_account():
         disk_qty = (request.form.get('disk_qty') or '').strip()
 
         # Parse dynamic RAM entries if provided
-        ram_names = request.form.getlist('ram_name[]')
+        ram_caps = request.form.getlist('ram_cap[]')
         ram_qtys = request.form.getlist('ram_qty[]')
-        if ram_names and any(n.strip() for n in ram_names):
-            ram_lines = []
-            total_ram_qty = 0
+        ram_details = request.form.getlist('ram_detail[]')
+        ram_names = request.form.getlist('ram_name[]')
+
+        ram_lines = []
+        total_ram_qty = 0
+        if ram_caps and any(c.strip() for c in ram_caps):
+            for r_c, r_q, r_d in zip(ram_caps, ram_qtys, ram_details):
+                r_c, r_q, r_d = (r_c or '').strip(), (r_q or '').strip(), (r_d or '').strip()
+                if r_c or r_d:
+                    ram_lines.append(f"{r_c} | {r_q or '1'} | {r_d}")
+                    if r_q.isdigit(): total_ram_qty += int(r_q)
+        elif ram_names and any(n.strip() for n in ram_names):
             for r_n, r_q in zip(ram_names, ram_qtys):
                 r_n, r_q = (r_n or '').strip(), (r_q or '').strip()
                 if r_n:
-                    if r_q:
-                        ram_lines.append(f"{r_n} (x{r_q})")
-                        if r_q.isdigit(): total_ram_qty += int(r_q)
-                    else:
-                        ram_lines.append(r_n)
-            if ram_lines:
-                ram_info = "\n".join(ram_lines)
-                if total_ram_qty > 0:
-                    ram_qty = str(total_ram_qty)
+                    ram_lines.append(f"{r_n} | {r_q or '1'} | ")
+                    if r_q.isdigit(): total_ram_qty += int(r_q)
+
+        if ram_lines:
+            ram_info = "\n".join(ram_lines)
+            if total_ram_qty > 0:
+                ram_qty = str(total_ram_qty)
 
         # Parse dynamic Disk entries if provided
-        disk_names = request.form.getlist('disk_name[]')
+        disk_types = request.form.getlist('disk_type[]')
+        disk_caps = request.form.getlist('disk_cap[]')
         disk_qtys = request.form.getlist('disk_qty[]')
-        if disk_names and any(n.strip() for n in disk_names):
-            disk_lines = []
-            total_disk_qty = 0
+        disk_details = request.form.getlist('disk_detail[]')
+        disk_names = request.form.getlist('disk_name[]')
+
+        disk_lines = []
+        total_disk_qty = 0
+        if disk_caps and any(c.strip() for c in disk_caps):
+            for d_t, d_c, d_q, d_d in zip(disk_types, disk_caps, disk_qtys, disk_details):
+                d_t, d_c, d_q, d_d = (d_t or 'SSD').strip(), (d_c or '').strip(), (d_q or '').strip(), (d_d or '').strip()
+                if d_c or d_d:
+                    disk_lines.append(f"[{d_t}] {d_c} | {d_q or '1'} | {d_d}")
+                    if d_q.isdigit(): total_disk_qty += int(d_q)
+        elif disk_names and any(n.strip() for n in disk_names):
             for d_n, d_q in zip(disk_names, disk_qtys):
                 d_n, d_q = (d_n or '').strip(), (d_q or '').strip()
                 if d_n:
-                    if d_q:
-                        disk_lines.append(f"{d_n} (x{d_q})")
-                        if d_q.isdigit(): total_disk_qty += int(d_q)
-                    else:
-                        disk_lines.append(d_n)
-            if disk_lines:
-                disk_info = "\n".join(disk_lines)
-                if total_disk_qty > 0:
-                    disk_qty = str(total_disk_qty)
+                    disk_lines.append(f"[SSD] {d_n} | {d_q or '1'} | ")
+                    if d_q.isdigit(): total_disk_qty += int(d_q)
+
+        if disk_lines:
+            disk_info = "\n".join(disk_lines)
+            if total_disk_qty > 0:
+                disk_qty = str(total_disk_qty)
 
         billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         exp_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
@@ -11626,42 +11641,57 @@ def edit_work_account(account_id):
         acc.disk_qty = (request.form.get('disk_qty') or '').strip()
 
         # Parse dynamic RAM entries if provided
-        ram_names = request.form.getlist('ram_name[]')
+        ram_caps = request.form.getlist('ram_cap[]')
         ram_qtys = request.form.getlist('ram_qty[]')
-        if ram_names and any(n.strip() for n in ram_names):
-            ram_lines = []
-            total_ram_qty = 0
+        ram_details = request.form.getlist('ram_detail[]')
+        ram_names = request.form.getlist('ram_name[]')
+
+        ram_lines = []
+        total_ram_qty = 0
+        if ram_caps and any(c.strip() for c in ram_caps):
+            for r_c, r_q, r_d in zip(ram_caps, ram_qtys, ram_details):
+                r_c, r_q, r_d = (r_c or '').strip(), (r_q or '').strip(), (r_d or '').strip()
+                if r_c or r_d:
+                    ram_lines.append(f"{r_c} | {r_q or '1'} | {r_d}")
+                    if r_q.isdigit(): total_ram_qty += int(r_q)
+        elif ram_names and any(n.strip() for n in ram_names):
             for r_n, r_q in zip(ram_names, ram_qtys):
                 r_n, r_q = (r_n or '').strip(), (r_q or '').strip()
                 if r_n:
-                    if r_q:
-                        ram_lines.append(f"{r_n} (x{r_q})")
-                        if r_q.isdigit(): total_ram_qty += int(r_q)
-                    else:
-                        ram_lines.append(r_n)
-            if ram_lines:
-                acc.ram_info = "\n".join(ram_lines)
-                if total_ram_qty > 0:
-                    acc.ram_qty = str(total_ram_qty)
+                    ram_lines.append(f"{r_n} | {r_q or '1'} | ")
+                    if r_q.isdigit(): total_ram_qty += int(r_q)
+
+        if ram_lines:
+            acc.ram_info = "\n".join(ram_lines)
+            if total_ram_qty > 0:
+                acc.ram_qty = str(total_ram_qty)
 
         # Parse dynamic Disk entries if provided
-        disk_names = request.form.getlist('disk_name[]')
+        disk_types = request.form.getlist('disk_type[]')
+        disk_caps = request.form.getlist('disk_cap[]')
         disk_qtys = request.form.getlist('disk_qty[]')
-        if disk_names and any(n.strip() for n in disk_names):
-            disk_lines = []
-            total_disk_qty = 0
+        disk_details = request.form.getlist('disk_detail[]')
+        disk_names = request.form.getlist('disk_name[]')
+
+        disk_lines = []
+        total_disk_qty = 0
+        if disk_caps and any(c.strip() for c in disk_caps):
+            for d_t, d_c, d_q, d_d in zip(disk_types, disk_caps, disk_qtys, disk_details):
+                d_t, d_c, d_q, d_d = (d_t or 'SSD').strip(), (d_c or '').strip(), (d_q or '').strip(), (d_d or '').strip()
+                if d_c or d_d:
+                    disk_lines.append(f"[{d_t}] {d_c} | {d_q or '1'} | {d_d}")
+                    if d_q.isdigit(): total_disk_qty += int(d_q)
+        elif disk_names and any(n.strip() for n in disk_names):
             for d_n, d_q in zip(disk_names, disk_qtys):
                 d_n, d_q = (d_n or '').strip(), (d_q or '').strip()
                 if d_n:
-                    if d_q:
-                        disk_lines.append(f"{d_n} (x{d_q})")
-                        if d_q.isdigit(): total_disk_qty += int(d_q)
-                    else:
-                        disk_lines.append(d_n)
-            if disk_lines:
-                acc.disk_info = "\n".join(disk_lines)
-                if total_disk_qty > 0:
-                    acc.disk_qty = str(total_disk_qty)
+                    disk_lines.append(f"[SSD] {d_n} | {d_q or '1'} | ")
+                    if d_q.isdigit(): total_disk_qty += int(d_q)
+
+        if disk_lines:
+            acc.disk_info = "\n".join(disk_lines)
+            if total_disk_qty > 0:
+                acc.disk_qty = str(total_disk_qty)
 
         acc.billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         acc.expiration_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
