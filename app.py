@@ -150,9 +150,9 @@ def inject_global_template_context():
 
 @app.template_filter('format_spec_cap')
 def format_spec_cap_filter(line):
-    """Parses a hardware spec line 'capacity | qty | detail' and returns total capacity, qty breakdown, and detail."""
+    """Parses a hardware spec line 'capacity | qty | detail' and returns (total_display, detail_str)."""
     if not line or not line.strip():
-        return "-", "-", "-"
+        return "-", "-"
     parts = [p.strip() for p in line.split('|')]
     raw_cap = parts[0] if len(parts) > 0 else line.strip()
     raw_qty = parts[1] if len(parts) > 1 else ''
@@ -175,16 +175,18 @@ def format_spec_cap_filter(line):
             val_num = float(match.group(1))
             unit = (match.group(2) or '').upper()
             total_val = val_num * qty_num
-            total_cap = f"{int(total_val) if total_val.is_integer() else round(total_val, 2)}{unit}"
-            qty_breakdown = f"{qty_num} ({cap_clean}*{qty_num})"
+            unit_space = f" {unit}" if unit else ""
+            total_num_str = f"{int(total_val) if total_val.is_integer() else round(total_val, 2)}{unit_space}"
+            if qty_num > 1:
+                total_display = f"{total_num_str} ({cap_clean}*{qty_num})"
+            else:
+                total_display = f"{total_num_str}"
         except Exception:
-            total_cap = cap_clean
-            qty_breakdown = f"{qty_num} ({cap_clean}*{qty_num})"
+            total_display = f"{cap_clean}"
     else:
-        total_cap = cap_clean or "-"
-        qty_breakdown = f"{qty_num}" if qty_num else "-"
+        total_display = cap_clean or "-"
 
-    return total_cap, qty_breakdown, detail_str
+    return total_display, detail_str
 
 # Permission catalogue
 PERMISSIONS = [
@@ -11125,7 +11127,7 @@ class WorkAccount(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     assigned_user = db.relationship('User', foreign_keys=[assigned_to_user_id])
-    assigned_device = db.relationship('Device', foreign_keys=[assigned_to_device_id])
+    assigned_device = db.relationship('Device', foreign_keys=[assigned_to_device_id], backref=db.backref('work_accounts', lazy=True))
 
 class SoftwareLicenseType(db.Model):
     id = db.Column(db.Integer, primary_key=True)

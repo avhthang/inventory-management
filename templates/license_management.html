@@ -345,7 +345,7 @@
                                 <span class="text-muted small">-</span>
                                 {% endif %}
                                 {% if acc.mgmt_mac %}
-                                <div class="small text-muted font-monospace opacity-75 mt-1 text-truncate" style="font-size:0.75rem;" title="MAC IP Quản lý: {{ acc.mgmt_mac }}"><i class="bi bi-ethernet me-1"></i>{{ acc.mgmt_mac }}</div>
+                                <div class="small text-muted font-monospace opacity-50 mt-1 text-truncate" style="font-size:0.72rem;" title="MAC addresses (IP Quản lý): {{ acc.mgmt_mac }}"><i class="bi bi-ethernet me-1"></i>{{ acc.mgmt_mac }}</div>
                                 {% endif %}
                             </td>
                             <td class="text-center align-middle">
@@ -375,24 +375,25 @@
                                 {% endif %}
                             </td>
                             <td class="text-center align-middle text-nowrap">
-                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editServerModal{{ acc.id }}"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-xs btn-outline-info py-0 px-1 me-1" data-bs-toggle="modal" data-bs-target="#specModal{{ acc.id }}" title="Xem thông tin chi tiết Máy chủ"><i class="bi bi-eye"></i></button>
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editServerModal{{ acc.id }}" title="Chỉnh sửa Máy chủ"><i class="bi bi-pencil"></i></button>
                                 <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Server này?')">
-                                    <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+                                    <button class="btn btn-xs btn-outline-danger py-0 px-1" title="Xóa Máy chủ"><i class="bi bi-trash"></i></button>
                                 </form>
 
-                                <!-- Hardware Spec Pop-up Modal -->
+                                <!-- Hardware Spec Pop-up Modal (View Info Only) -->
                                 <div class="modal fade" id="specModal{{ acc.id }}" tabindex="-1" aria-hidden="true">
                                     <div class="modal-dialog modal-lg modal-dialog-centered">
                                         <div class="modal-content border-0 shadow">
                                             <div class="modal-header bg-white border-bottom py-2 px-3">
                                                 <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
                                                     <i class="bi bi-cpu-fill text-primary fs-5"></i>
-                                                    <span>Cấu hình Máy chủ: <strong class="text-primary">{{ acc.account_name }}</strong></span>
+                                                    <span>Thông tin Máy chủ: <strong class="text-primary">{{ acc.account_name }}</strong></span>
                                                 </h6>
                                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                                             </div>
                                             <div class="modal-body p-3 text-start">
-                                                {% if acc.image_file or acc.rack_position or acc.mgmt_mac %}
+                                                {% if acc.image_file or acc.rack_position or acc.mgmt_mac or acc.assigned_device %}
                                                 <div class="row g-2 mb-3 p-2 bg-light rounded border align-items-center">
                                                     {% if acc.image_file %}
                                                     <div class="col-md-3 text-center">
@@ -409,7 +410,10 @@
                                                             <div><span class="badge bg-secondary px-2 py-1"><i class="bi bi-hdd-rack me-1"></i>Rack: <strong>{{ acc.rack_position }}</strong></span></div>
                                                             {% endif %}
                                                             {% if acc.mgmt_mac %}
-                                                            <div><span class="badge bg-dark text-white font-monospace px-2 py-1"><i class="bi bi-ethernet me-1"></i>MAC Mgmt: {{ acc.mgmt_mac }}</span></div>
+                                                            <div><span class="badge bg-dark text-white font-monospace opacity-75 px-2 py-1"><i class="bi bi-ethernet me-1"></i>MAC addresses: {{ acc.mgmt_mac }}</span></div>
+                                                            {% endif %}
+                                                            {% if acc.assigned_device %}
+                                                            <div><span class="badge bg-info text-dark font-monospace px-2 py-1"><i class="bi bi-laptop me-1"></i>Thiết bị: <strong>{{ acc.assigned_device.device_code }} - {{ acc.assigned_device.name }}</strong></span></div>
                                                             {% endif %}
                                                             <div class="small text-muted">
                                                                 <span class="me-2"><i class="bi bi-tag me-1"></i>Loại: <strong>{{ acc.server_type or 'Server' }}</strong></span>
@@ -424,9 +428,8 @@
                                                     <table class="table table-sm table-bordered align-middle mb-0" style="table-layout: fixed; width: 100%;">
                                                         <thead class="table-light text-nowrap align-middle">
                                                             <tr class="align-middle">
-                                                                <th style="width: 135px;" class="text-center align-middle">Thành phần</th>
-                                                                <th style="width: 125px;" class="text-center align-middle">Tổng dung lượng</th>
-                                                                <th style="width: 145px;" class="text-center align-middle">Số lượng &amp; Loại</th>
+                                                                <th style="width: 140px;" class="text-center align-middle">Thành phần</th>
+                                                                <th style="width: 170px;" class="text-center align-middle">Tổng</th>
                                                                 <th class="text-start align-middle">Chi tiết</th>
                                                             </tr>
                                                         </thead>
@@ -439,13 +442,8 @@
                                                                         <span>CPU</span>
                                                                     </div>
                                                                 </td>
-                                                                <td class="text-center align-middle font-monospace text-muted">-</td>
-                                                                <td class="text-center align-middle">
-                                                                    {% if acc.cpu_qty %}
-                                                                    <span class="badge bg-primary px-2 py-1 fs-6">{{ acc.cpu_qty }} CPU</span>
-                                                                    {% else %}
-                                                                    <span class="text-muted small">-</span>
-                                                                    {% endif %}
+                                                                <td class="text-center align-middle font-monospace fw-bold text-primary fs-6">
+                                                                    {{ acc.cpu_qty or '1' }} CPU
                                                                 </td>
                                                                 <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">
                                                                     {{ acc.cpu_info or 'Chưa cập nhật' }}
@@ -456,7 +454,7 @@
                                                             {% if acc.ram_info %}
                                                                 {% for line in acc.ram_info.split('\n') %}
                                                                     {% if line.strip() %}
-                                                                        {% set total_cap, qty_bd, detail = line | format_spec_cap %}
+                                                                        {% set total_display, detail = line | format_spec_cap %}
                                                                         <tr class="align-middle">
                                                                             <td class="fw-bold text-dark text-center align-middle py-2">
                                                                                 <div class="d-flex align-items-center justify-content-center gap-1">
@@ -465,10 +463,7 @@
                                                                                 </div>
                                                                             </td>
                                                                             <td class="text-center align-middle font-monospace fw-bold text-success fs-6">
-                                                                                {{ total_cap }}
-                                                                            </td>
-                                                                            <td class="text-center align-middle font-monospace fw-semibold text-dark">
-                                                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">{{ qty_bd }}</span>
+                                                                                {{ total_display }}
                                                                             </td>
                                                                             <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">
                                                                                 {{ detail or '-' }}
@@ -485,7 +480,6 @@
                                                                         </div>
                                                                     </td>
                                                                     <td class="text-center align-middle text-muted">-</td>
-                                                                    <td class="text-center align-middle text-muted">-</td>
                                                                     <td class="text-start text-muted align-middle">Chưa cập nhật</td>
                                                                 </tr>
                                                             {% endif %}
@@ -494,7 +488,7 @@
                                                             {% if acc.disk_info %}
                                                                 {% for line in acc.disk_info.split('\n') %}
                                                                     {% if line.strip() %}
-                                                                        {% set total_cap, qty_bd, detail = line | format_spec_cap %}
+                                                                        {% set total_display, detail = line | format_spec_cap %}
                                                                         {% set type_cap = line.split('|')[0] if '|' in line else line %}
                                                                         <tr class="align-middle">
                                                                             <td class="fw-bold text-dark text-center align-middle py-2">
@@ -509,10 +503,7 @@
                                                                                 </div>
                                                                             </td>
                                                                             <td class="text-center align-middle font-monospace fw-bold text-dark fs-6">
-                                                                                {{ total_cap }}
-                                                                            </td>
-                                                                            <td class="text-center align-middle font-monospace fw-semibold text-dark">
-                                                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">{{ qty_bd }}</span>
+                                                                                {{ total_display }}
                                                                             </td>
                                                                             <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">
                                                                                 {{ detail or '-' }}
@@ -528,7 +519,6 @@
                                                                             <span>Ổ cứng (Disk)</span>
                                                                         </div>
                                                                     </td>
-                                                                    <td class="text-center align-middle text-muted">-</td>
                                                                     <td class="text-center align-middle text-muted">-</td>
                                                                     <td class="text-start text-muted align-middle">Chưa cập nhật</td>
                                                                 </tr>
@@ -733,6 +723,18 @@
                                                             </div>
                                                             <div class="form-text small text-muted">Bấm "+ Thêm loại Ổ cứng" nếu lắp nhiều loại/dung lượng (VD: 1TB SSD, 8TB HDD, 4TB HDD, 16TB NVMe).</div>
                                                         </div>
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <label class="form-label"><i class="bi bi-laptop me-1"></i>Thiết bị vật lý liên kết (Quản lý thiết bị)</label>
+                                                        <select name="assigned_to_device_id" class="form-select">
+                                                            <option value="">-- Không liên kết với Thiết bị nào --</option>
+                                                            {% for dev in devices_list %}
+                                                            <option value="{{ dev.id }}" {% if acc.assigned_to_device_id == dev.id %}selected{% endif %}>
+                                                                {{ dev.device_code }} - {{ dev.name }} {% if dev.serial_number %}(S/N: {{ dev.serial_number }}){% endif %}
+                                                            </option>
+                                                            {% endfor %}
+                                                        </select>
                                                     </div>
 
                                                     <div class="mb-3">
@@ -1371,6 +1373,18 @@
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label"><i class="bi bi-laptop me-1"></i>Thiết bị vật lý liên kết (Quản lý thiết bị)</label>
+                        <select name="assigned_to_device_id" class="form-select">
+                            <option value="">-- Không liên kết với Thiết bị nào --</option>
+                            {% for dev in devices_list %}
+                            <option value="{{ dev.id }}">
+                                {{ dev.device_code }} - {{ dev.name }} {% if dev.serial_number %}(S/N: {{ dev.serial_number }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">IP / Tên miền truy cập chính</label>
                         <input type="text" name="access_ip" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 192.168.1.100 hoặc server.company.com">
                     </div>
@@ -1380,7 +1394,7 @@
                             <input type="text" name="mgmt_ip" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 192.168.1.250">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label"><i class="bi bi-ethernet me-1"></i>Địa chỉ MAC (IP Quản lý)</label>
+                            <label class="form-label"><i class="bi bi-ethernet me-1"></i>Địa chỉ MAC (MAC addresses)</label>
                             <input type="text" name="mgmt_mac" class="form-control font-monospace text-muted-placeholder" placeholder="VD: 00:1A:2B:3C:4D:5E">
                         </div>
                     </div>
