@@ -420,13 +420,13 @@
                                                 </div>
                                                 {% endif %}
 
-                                                <div class="table-responsive">
-                                                    <table class="table table-sm table-bordered align-middle mb-0">
+                                                <div class="table-responsive" style="overflow-x: hidden;">
+                                                    <table class="table table-sm table-bordered align-middle mb-0" style="table-layout: fixed; width: 100%;">
                                                         <thead class="table-light text-nowrap align-middle">
                                                             <tr class="align-middle">
-                                                                <th style="width: 150px;" class="text-center align-middle">Thành phần</th>
-                                                                <th style="width: 120px;" class="text-center align-middle">Dung lượng</th>
-                                                                <th style="width: 80px;" class="text-center align-middle">Số lượng</th>
+                                                                <th style="width: 135px;" class="text-center align-middle">Thành phần</th>
+                                                                <th style="width: 125px;" class="text-center align-middle">Tổng dung lượng</th>
+                                                                <th style="width: 145px;" class="text-center align-middle">Số lượng &amp; Loại</th>
                                                                 <th class="text-start align-middle">Chi tiết</th>
                                                             </tr>
                                                         </thead>
@@ -442,12 +442,12 @@
                                                                 <td class="text-center align-middle font-monospace text-muted">-</td>
                                                                 <td class="text-center align-middle">
                                                                     {% if acc.cpu_qty %}
-                                                                    <span class="badge bg-primary px-2 py-1 fs-6">{{ acc.cpu_qty }}</span>
+                                                                    <span class="badge bg-primary px-2 py-1 fs-6">{{ acc.cpu_qty }} CPU</span>
                                                                     {% else %}
                                                                     <span class="text-muted small">-</span>
                                                                     {% endif %}
                                                                 </td>
-                                                                <td class="text-start text-dark fw-medium align-middle" style="white-space: pre-line;">
+                                                                <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">
                                                                     {{ acc.cpu_info or 'Chưa cập nhật' }}
                                                                 </td>
                                                             </tr>
@@ -456,7 +456,7 @@
                                                             {% if acc.ram_info %}
                                                                 {% for line in acc.ram_info.split('\n') %}
                                                                     {% if line.strip() %}
-                                                                        {% set parts = line.split('|') %}
+                                                                        {% set total_cap, qty_bd, detail = line | format_spec_cap %}
                                                                         <tr class="align-middle">
                                                                             <td class="fw-bold text-dark text-center align-middle py-2">
                                                                                 <div class="d-flex align-items-center justify-content-center gap-1">
@@ -464,14 +464,14 @@
                                                                                     <span>Bộ nhớ (RAM)</span>
                                                                                 </div>
                                                                             </td>
-                                                                            <td class="text-center align-middle font-monospace fw-bold text-success">
-                                                                                {{ parts[0].strip() if parts|length > 0 else line.strip() }}
+                                                                            <td class="text-center align-middle font-monospace fw-bold text-success fs-6">
+                                                                                {{ total_cap }}
                                                                             </td>
-                                                                            <td class="text-center align-middle">
-                                                                                <span class="badge bg-success px-2 py-1 fs-6">{{ parts[1].strip() if parts|length > 1 else '-' }}</span>
+                                                                            <td class="text-center align-middle font-monospace fw-semibold text-dark">
+                                                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">{{ qty_bd }}</span>
                                                                             </td>
-                                                                            <td class="text-start text-dark fw-medium align-middle">
-                                                                                {{ parts[2].strip() if (parts|length > 2 and parts[2].strip()) else '-' }}
+                                                                            <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">
+                                                                                {{ detail or '-' }}
                                                                             </td>
                                                                         </tr>
                                                                     {% endif %}
@@ -494,8 +494,8 @@
                                                             {% if acc.disk_info %}
                                                                 {% for line in acc.disk_info.split('\n') %}
                                                                     {% if line.strip() %}
-                                                                        {% set parts = line.split('|') %}
-                                                                        {% set type_cap = parts[0].strip() if parts|length > 0 else line.strip() %}
+                                                                        {% set total_cap, qty_bd, detail = line | format_spec_cap %}
+                                                                        {% set type_cap = line.split('|')[0] if '|' in line else line %}
                                                                         <tr class="align-middle">
                                                                             <td class="fw-bold text-dark text-center align-middle py-2">
                                                                                 <div class="d-flex align-items-center justify-content-center gap-1">
@@ -508,14 +508,14 @@
                                                                                     {% endif %}
                                                                                 </div>
                                                                             </td>
-                                                                            <td class="text-center align-middle font-monospace fw-bold text-dark">
-                                                                                {{ type_cap.replace('[SSD]', '').replace('[HDD]', '').replace('[NVMe]', '').strip() }}
+                                                                            <td class="text-center align-middle font-monospace fw-bold text-dark fs-6">
+                                                                                {{ total_cap }}
                                                                             </td>
-                                                                            <td class="text-center align-middle">
-                                                                                <span class="badge bg-warning text-dark px-2 py-1 fs-6">{{ parts[1].strip() if parts|length > 1 else '-' }}</span>
+                                                                            <td class="text-center align-middle font-monospace fw-semibold text-dark">
+                                                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">{{ qty_bd }}</span>
                                                                             </td>
-                                                                            <td class="text-start text-dark fw-medium align-middle">
-                                                                                {{ parts[2].strip() if (parts|length > 2 and parts[2].strip()) else '-' }}
+                                                                            <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">
+                                                                                {{ detail or '-' }}
                                                                             </td>
                                                                         </tr>
                                                                     {% endif %}

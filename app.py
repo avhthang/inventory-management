@@ -148,6 +148,44 @@ def inject_global_template_context():
         'user_permissions': perms
     }
 
+@app.template_filter('format_spec_cap')
+def format_spec_cap_filter(line):
+    """Parses a hardware spec line 'capacity | qty | detail' and returns total capacity, qty breakdown, and detail."""
+    if not line or not line.strip():
+        return "-", "-", "-"
+    parts = [p.strip() for p in line.split('|')]
+    raw_cap = parts[0] if len(parts) > 0 else line.strip()
+    raw_qty = parts[1] if len(parts) > 1 else ''
+    detail_str = parts[2] if len(parts) > 2 else ''
+    
+    cap_clean = re.sub(r'\[(SSD|HDD|NVMe)\]', '', raw_cap, flags=re.IGNORECASE).strip()
+    
+    qty_num = 1
+    if raw_qty and raw_qty.isdigit():
+        qty_num = int(raw_qty)
+    else:
+        x_match = re.search(r'\(?x\s*(\d+)\)?', cap_clean, flags=re.IGNORECASE)
+        if x_match:
+            qty_num = int(x_match.group(1))
+            cap_clean = re.sub(r'\(?x\s*\d+\)?', '', cap_clean, flags=re.IGNORECASE).strip()
+
+    match = re.search(r'([\d\.]+)\s*([a-zA-Z]+)?', cap_clean)
+    if match:
+        try:
+            val_num = float(match.group(1))
+            unit = (match.group(2) or '').upper()
+            total_val = val_num * qty_num
+            total_cap = f"{int(total_val) if total_val.is_integer() else round(total_val, 2)}{unit}"
+            qty_breakdown = f"{qty_num} ({cap_clean}*{qty_num})"
+        except Exception:
+            total_cap = cap_clean
+            qty_breakdown = f"{qty_num} ({cap_clean}*{qty_num})"
+    else:
+        total_cap = cap_clean or "-"
+        qty_breakdown = f"{qty_num}" if qty_num else "-"
+
+    return total_cap, qty_breakdown, detail_str
+
 # Permission catalogue
 PERMISSIONS = [
     # Thiết bị
