@@ -10989,6 +10989,11 @@ def _run_lazy_startup_migrations():
         _safe_add_column('work_account', 'cpu_info', 'VARCHAR(255)')
         _safe_add_column('work_account', 'ram_info', 'VARCHAR(255)')
         _safe_add_column('work_account', 'disk_info', 'VARCHAR(255)')
+        _safe_add_column('work_account', 'rack_position', 'VARCHAR(255)')
+        _safe_add_column('work_account', 'image_file', 'VARCHAR(255)')
+        _safe_add_column('work_account', 'cpu_qty', 'VARCHAR(50)')
+        _safe_add_column('work_account', 'ram_qty', 'VARCHAR(50)')
+        _safe_add_column('work_account', 'disk_qty', 'VARCHAR(50)')
         _safe_add_column('attendance_user', 'department', 'VARCHAR(100)')
         _safe_add_column('attendance_user', 'system_user_id', 'INTEGER')
         _safe_add_column('stock_item_movement', 'reason', 'VARCHAR(255)')
@@ -11070,6 +11075,11 @@ class WorkAccount(db.Model):
     disk_info = db.Column(db.String(255))  # Thông tin Ổ cứng
     expiration_date = db.Column(db.Date)   # Ngày hết hạn SaaS / Server
     billing_cycle = db.Column(db.String(50), default='Theo năm') # 'Theo tháng', 'Theo năm', 'Vĩnh viễn'
+    rack_position = db.Column(db.String(255)) # Vị trí trong tủ rack
+    image_file = db.Column(db.String(255))    # Ảnh chụp máy chủ / tủ rack
+    cpu_qty = db.Column(db.String(50))       # Số lượng CPU
+    ram_qty = db.Column(db.String(50))       # Số lượng RAM
+    disk_qty = db.Column(db.String(50))      # Số lượng Ổ cứng
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     assigned_user = db.relationship('User', foreign_keys=[assigned_to_user_id])
@@ -11482,8 +11492,25 @@ def add_work_account():
         cpu_info = (request.form.get('cpu_info') or '').strip()
         ram_info = (request.form.get('ram_info') or '').strip()
         disk_info = (request.form.get('disk_info') or '').strip()
+        rack_position = (request.form.get('rack_position') or '').strip()
+        cpu_qty = (request.form.get('cpu_qty') or '').strip()
+        ram_qty = (request.form.get('ram_qty') or '').strip()
+        disk_qty = (request.form.get('disk_qty') or '').strip()
         billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         exp_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
+
+        image_path = None
+        if 'image_file' in request.files:
+            file = request.files['image_file']
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+                    new_filename = f"srv_{uuid.uuid4().hex[:12]}{ext}"
+                    upload_dir = os.path.join(app.root_path, 'static', 'uploads', 'servers')
+                    os.makedirs(upload_dir, exist_ok=True)
+                    file.save(os.path.join(upload_dir, new_filename))
+                    image_path = f"static/uploads/servers/{new_filename}"
 
         acc = WorkAccount(
             code=code,
@@ -11501,16 +11528,24 @@ def add_work_account():
             cpu_info=cpu_info,
             ram_info=ram_info,
             disk_info=disk_info,
+            rack_position=rack_position,
+            image_file=image_path,
+            cpu_qty=cpu_qty,
+            ram_qty=ram_qty,
+            disk_qty=disk_qty,
             expiration_date=exp_date,
             billing_cycle=billing_cycle
         )
         db.session.add(acc)
         db.session.commit()
-        flash(f'Thêm Tài khoản làm việc "{acc_name}" thành công.', 'success')
+        item_label = "Server" if (server_type or 'server' in platform.lower()) else "Tài khoản làm việc"
+        flash(f'Thêm {item_label} "{acc_name}" thành công.', 'success')
     except Exception as exc:
         db.session.rollback()
-        flash(f'Lỗi thêm Tài khoản: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='account'))
+        flash(f'Lỗi thêm: {exc}', 'danger')
+
+    redirect_tab = request.form.get('redirect_tab') or ('server' if (request.form.get('server_type') or 'server' in (request.form.get('platform') or '').lower()) else 'account')
+    return redirect(url_for('license_list', tab=redirect_tab))
 
 @app.route('/work-accounts/<int:account_id>/edit', methods=['POST'])
 def edit_work_account(account_id):
@@ -11532,28 +11567,48 @@ def edit_work_account(account_id):
         acc.cpu_info = (request.form.get('cpu_info') or '').strip()
         acc.ram_info = (request.form.get('ram_info') or '').strip()
         acc.disk_info = (request.form.get('disk_info') or '').strip()
+        acc.rack_position = (request.form.get('rack_position') or '').strip()
+        acc.cpu_qty = (request.form.get('cpu_qty') or '').strip()
+        acc.ram_qty = (request.form.get('ram_qty') or '').strip()
+        acc.disk_qty = (request.form.get('disk_qty') or '').strip()
         acc.billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         acc.expiration_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
 
+        if 'image_file' in request.files:
+            file = request.files['image_file']
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+                    new_filename = f"srv_{uuid.uuid4().hex[:12]}{ext}"
+                    upload_dir = os.path.join(app.root_path, 'static', 'uploads', 'servers')
+                    os.makedirs(upload_dir, exist_ok=True)
+                    file.save(os.path.join(upload_dir, new_filename))
+                    acc.image_file = f"static/uploads/servers/{new_filename}"
+
         db.session.commit()
-        flash(f'Đã cập nhật Tài khoản "{acc.account_name}".', 'success')
+        item_label = "Server" if (acc.server_type or 'server' in (acc.platform or '').lower()) else "Tài khoản"
+        flash(f'Đã cập nhật {item_label} "{acc.account_name}".', 'success')
     except Exception as exc:
         db.session.rollback()
-        flash(f'Lỗi cập nhật Tài khoản: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='account'))
+        flash(f'Lỗi cập nhật: {exc}', 'danger')
+
+    redirect_tab = request.form.get('redirect_tab') or ('server' if (acc.server_type or 'server' in (acc.platform or '').lower()) else 'account')
+    return redirect(url_for('license_list', tab=redirect_tab))
 
 @app.route('/work-accounts/<int:account_id>/delete', methods=['POST'])
 def delete_work_account(account_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     acc = WorkAccount.query.get_or_404(account_id)
+    redirect_tab = 'server' if (acc.server_type or 'server' in (acc.platform or '').lower()) else 'account'
     try:
         db.session.delete(acc)
         db.session.commit()
-        flash('Đã xóa Tài khoản thành công.', 'success')
+        flash('Đã xóa thành công.', 'success')
     except Exception as exc:
         db.session.rollback()
-        flash(f'Lỗi xóa Tài khoản: {exc}', 'danger')
-    return redirect(url_for('license_list', tab='account'))
+        flash(f'Lỗi xóa: {exc}', 'danger')
+    return redirect(url_for('license_list', tab=redirect_tab))
 
 
 if __name__ == '__main__':

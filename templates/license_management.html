@@ -26,11 +26,11 @@
 
     <!-- Top Pill Navigation Tabs -->
     <div class="d-flex flex-wrap gap-2 mb-3 align-items-center border-bottom pb-2">
-        <a href="{{ url_for('license_list', tab='account') }}" class="btn {% if active_tab == 'account' or not active_tab %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
-            <i class="bi bi-person-badge-fill text-primary me-1"></i> Tài khoản làm việc
-        </a>
-        <a href="{{ url_for('license_list', tab='server') }}" class="btn {% if active_tab == 'server' %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
+        <a href="{{ url_for('license_list', tab='server') }}" class="btn {% if active_tab == 'server' or not active_tab %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
             <i class="bi bi-hdd-network-fill text-success me-1"></i> Server
+        </a>
+        <a href="{{ url_for('license_list', tab='account') }}" class="btn {% if active_tab == 'account' %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
+            <i class="bi bi-person-badge-fill text-primary me-1"></i> Tài khoản làm việc
         </a>
         <a href="{{ url_for('license_list', tab='itservice') }}" class="btn {% if active_tab == 'itservice' %}btn-dark fw-bold{% else %}btn-light border{% endif %} rounded-pill px-3">
             <i class="bi bi-globe text-info me-1"></i> Dịch vụ CNTT
@@ -291,13 +291,32 @@
                         <tr>
                             <td class="text-center">{{ loop.index }}</td>
                             <td>
-                                <div class="fw-bold">{{ acc.account_name }}</div>
-                                {% if acc.server_type == 'Server offline' %}
-                                <span class="badge badge-soft-success"><i class="bi bi-cpu me-1"></i>Server Offline</span>
-                                {% else %}
-                                <span class="badge badge-soft-primary"><i class="bi bi-cloud me-1"></i>Server Thuê</span>
-                                {% endif %}
-                                <span class="badge bg-light text-dark border">{{ acc.platform or 'Server' }}</span>
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if acc.image_file %}
+                                    <img src="{{ url_for('static', filename=acc.image_file.replace('static/', '')) if acc.image_file.startswith('static/') else '/' + acc.image_file }}" 
+                                         alt="{{ acc.account_name }}" 
+                                         class="rounded border shadow-sm flex-shrink-0" 
+                                         style="width: 38px; height: 38px; object-fit: cover; cursor: pointer;"
+                                         onclick="window.open(this.src, '_blank')"
+                                         title="Click xem ảnh thực tế">
+                                    {% endif %}
+                                    <div>
+                                        <div class="fw-bold text-dark">{{ acc.account_name }}</div>
+                                        <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
+                                            {% if acc.server_type == 'Server offline' %}
+                                            <span class="badge badge-soft-success"><i class="bi bi-cpu me-1"></i>Server Offline</span>
+                                            {% else %}
+                                            <span class="badge badge-soft-primary"><i class="bi bi-cloud me-1"></i>Server Thuê</span>
+                                            {% endif %}
+                                            {% if acc.platform and acc.platform != 'Server' %}
+                                            <span class="badge bg-light text-dark border">{{ acc.platform }}</span>
+                                            {% endif %}
+                                            {% if acc.rack_position %}
+                                            <span class="badge bg-secondary text-white"><i class="bi bi-hdd-rack me-1"></i>{{ acc.rack_position }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
                             <td class="text-center">
                                 <button class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" data-bs-toggle="modal" data-bs-target="#specModal{{ acc.id }}" title="Xem chi tiết cấu hình">
@@ -305,31 +324,105 @@
                                 </button>
 
                                 <!-- Hardware Spec Pop-up Modal -->
-                                <div class="modal fade" id="specModal{{ acc.id }}" tabindex="-1">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title"><i class="bi bi-cpu text-primary me-1"></i> Cấu hình Máy chủ: <strong>{{ acc.account_name }}</strong></h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                <div class="modal fade" id="specModal{{ acc.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                                        <div class="modal-content border-0 shadow">
+                                            <div class="modal-header bg-white border-bottom py-3">
+                                                <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
+                                                    <i class="bi bi-cpu-fill text-primary fs-4"></i>
+                                                    <span>Cấu hình Máy chủ: <strong class="text-primary">{{ acc.account_name }}</strong></span>
+                                                </h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                                             </div>
-                                            <div class="modal-body">
-                                                <div class="list-group list-group-flush">
-                                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                                        <span class="fw-semibold text-muted"><i class="bi bi-cpu me-2 text-primary"></i>Vi xử lý (CPU):</span>
-                                                        <span class="fw-bold">{{ acc.cpu_info or 'Chưa cập nhật' }}</span>
+                                            <div class="modal-body p-4 text-start">
+                                                {% if acc.image_file or acc.rack_position %}
+                                                <div class="row g-3 mb-4 p-3 bg-light rounded border align-items-center">
+                                                    {% if acc.image_file %}
+                                                    <div class="col-md-4 text-center">
+                                                        <img src="{{ url_for('static', filename=acc.image_file.replace('static/', '')) if acc.image_file.startswith('static/') else '/' + acc.image_file }}" 
+                                                             alt="{{ acc.account_name }}" 
+                                                             class="img-fluid rounded border shadow-sm" 
+                                                             style="max-height: 140px; object-fit: cover; cursor: pointer;"
+                                                             onclick="window.open(this.src, '_blank')">
+                                                        <div class="small text-muted mt-1"><i class="bi bi-zoom-in me-1"></i>Click phóng to ảnh</div>
                                                     </div>
-                                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                                        <span class="fw-semibold text-muted"><i class="bi bi-memory me-2 text-success"></i>Bộ nhớ (RAM):</span>
-                                                        <span class="fw-bold">{{ acc.ram_info or 'Chưa cập nhật' }}</span>
-                                                    </div>
-                                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                                        <span class="fw-semibold text-muted"><i class="bi bi-hdd me-2 text-warning"></i>Ổ cứng (Disk):</span>
-                                                        <span class="fw-bold">{{ acc.disk_info or 'Chưa cập nhật' }}</span>
+                                                    {% endif %}
+                                                    <div class="{% if acc.image_file %}col-md-8{% else %}col-12{% endif %}">
+                                                        {% if acc.rack_position %}
+                                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                                            <span class="badge bg-secondary px-2 py-1"><i class="bi bi-hdd-rack me-1"></i>Vị trí Tủ Rack</span>
+                                                            <span class="fw-bold fs-6 text-dark">{{ acc.rack_position }}</span>
+                                                        </div>
+                                                        {% endif %}
+                                                        <div class="small text-muted">
+                                                            <span class="me-3"><i class="bi bi-tag me-1"></i>Loại: <strong>{{ acc.server_type or 'Server' }}</strong></span>
+                                                            {% if acc.provider %}<span class="me-3"><i class="bi bi-building me-1"></i>NCC: <strong>{{ acc.provider }}</strong></span>{% endif %}
+                                                        </div>
                                                     </div>
                                                 </div>
+                                                {% endif %}
+
+                                                <div class="table-responsive">
+                                                    <table class="table table-bordered align-middle mb-0">
+                                                        <thead class="table-light text-nowrap">
+                                                            <tr>
+                                                                <th style="width: 170px;" class="text-start">Thành phần</th>
+                                                                <th style="width: 100px;" class="text-center">Số lượng</th>
+                                                                <th class="text-start">Thông tin chi tiết</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <tr>
+                                                                <td class="fw-bold text-dark text-start">
+                                                                    <i class="bi bi-cpu text-primary me-2 fs-5"></i>Vi xử lý (CPU)
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    {% if acc.cpu_qty %}
+                                                                    <span class="badge bg-primary px-2 py-1 fs-6">{{ acc.cpu_qty }}</span>
+                                                                    {% else %}
+                                                                    <span class="text-muted small">-</span>
+                                                                    {% endif %}
+                                                                </td>
+                                                                <td class="text-start text-dark fw-medium" style="white-space: pre-line;">
+                                                                    {{ acc.cpu_info or 'Chưa cập nhật' }}
+                                                                </td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="fw-bold text-dark text-start">
+                                                                    <i class="bi bi-memory text-success me-2 fs-5"></i>Bộ nhớ (RAM)
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    {% if acc.ram_qty %}
+                                                                    <span class="badge bg-success px-2 py-1 fs-6">{{ acc.ram_qty }}</span>
+                                                                    {% else %}
+                                                                    <span class="text-muted small">-</span>
+                                                                    {% endif %}
+                                                                </td>
+                                                                <td class="text-start text-dark fw-medium" style="white-space: pre-line;">
+                                                                    {{ acc.ram_info or 'Chưa cập nhật' }}
+                                                                </td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="fw-bold text-dark text-start">
+                                                                    <i class="bi bi-hdd text-warning me-2 fs-5"></i>Ổ cứng (Disk)
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    {% if acc.disk_qty %}
+                                                                    <span class="badge bg-warning text-dark px-2 py-1 fs-6">{{ acc.disk_qty }}</span>
+                                                                    {% else %}
+                                                                    <span class="text-muted small">-</span>
+                                                                    {% endif %}
+                                                                </td>
+                                                                <td class="text-start text-dark fw-medium" style="white-space: pre-line;">
+                                                                    {{ acc.disk_info or 'Chưa cập nhật' }}
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
                                             </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                                            <div class="modal-footer bg-light py-2">
+                                                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Đóng</button>
                                             </div>
                                         </div>
                                     </div>
@@ -389,57 +482,96 @@
                         <div class="modal fade" id="editServerModal{{ acc.id }}" tabindex="-1">
                             <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
-                                    <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}">
+                                    <form method="POST" action="{{ url_for('edit_work_account', account_id=acc.id) }}" enctype="multipart/form-data">
+                                        <input type="hidden" name="redirect_tab" value="server">
                                         <div class="modal-header">
-                                            <h5 class="modal-title">Sửa Thông tin Server</h5>
+                                            <h5 class="modal-title"><i class="bi bi-pencil-square text-warning me-2"></i>Sửa Thông tin Server</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
-                                        <div class="modal-body">
+                                        <div class="modal-body text-start">
                                             <div class="mb-3">
-                                                <label class="form-label required">Tên Server / Tủ Rack</label>
+                                                <label class="form-label required">Tên Server</label>
                                                 <input type="text" name="account_name" class="form-control" value="{{ acc.account_name }}" required>
                                             </div>
-                                            <div class="mb-3">
-                                                <label class="form-label required">Loại Server</label>
-                                                <select name="server_type" class="form-select" onchange="toggleServerOfflineFields(this, 'edit{{ acc.id }}')">
-                                                    <option value="Server thuê" {% if acc.server_type == 'Server thuê' %}selected{% endif %}>Server thuê (Cloud / VPS / AWS)</option>
-                                                    <option value="Server offline" {% if acc.server_type == 'Server offline' %}selected{% endif %}>Server offline (Máy chủ vật lý nội bộ)</option>
-                                                </select>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Dịch vụ / HĐH cài đặt</label>
-                                                <input type="text" name="platform" class="form-control form-control-sm text-muted-placeholder" value="{{ acc.platform if acc.platform != 'Server' else '' }}" list="platformSuggestionsEdit{{ acc.id }}" placeholder="VD: Proxmox VE, VMware ESXi, Docker...">
-                                                <datalist id="platformSuggestionsEdit{{ acc.id }}">
-                                                    <option value="Proxmox VE">
-                                                    <option value="VMware ESXi">
-                                                    <option value="Windows Server">
-                                                    <option value="Ubuntu Server">
-                                                    <option value="Docker / Docker Compose">
-                                                    <option value="Kubernetes (K8s)">
-                                                    <option value="Web Server (Nginx/Apache)">
-                                                    <option value="Database Server">
-                                                    <option value="VPN Server">
-                                                    <option value="NAS / Storage Server">
-                                                </datalist>
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label required">Loại Server</label>
+                                                    <select name="server_type" class="form-select" onchange="toggleServerOfflineFields(this, 'edit{{ acc.id }}')">
+                                                        <option value="Server thuê" {% if acc.server_type == 'Server thuê' %}selected{% endif %}>Server thuê (Cloud / VPS / AWS)</option>
+                                                        <option value="Server offline" {% if acc.server_type == 'Server offline' %}selected{% endif %}>Server offline (Máy chủ vật lý nội bộ)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Dịch vụ / HĐH cài đặt</label>
+                                                    <input type="text" name="platform" class="form-control text-muted-placeholder" value="{{ acc.platform if acc.platform != 'Server' else '' }}" list="platformSuggestionsEdit{{ acc.id }}" placeholder="VD: Proxmox VE, VMware ESXi, Docker...">
+                                                    <datalist id="platformSuggestionsEdit{{ acc.id }}">
+                                                        <option value="Proxmox VE">
+                                                        <option value="VMware ESXi">
+                                                        <option value="Windows Server">
+                                                        <option value="Ubuntu Server">
+                                                        <option value="Docker / Docker Compose">
+                                                        <option value="Kubernetes (K8s)">
+                                                        <option value="Web Server (Nginx/Apache)">
+                                                        <option value="Database Server">
+                                                        <option value="VPN Server">
+                                                        <option value="NAS / Storage Server">
+                                                    </datalist>
+                                                </div>
                                             </div>
                                             <div class="mb-3" id="edit{{ acc.id }}ProviderBox" style="{% if acc.server_type == 'Server offline' %}display:none;{% endif %}">
                                                 <label class="form-label">Đơn vị cung cấp</label>
                                                 <input type="text" name="provider" class="form-control text-muted-placeholder" value="{{ acc.provider or '' }}" placeholder="VD: AWS / Viettel Cloud / CMC">
                                             </div>
 
-                                            <!-- Hardware Config Inputs -->
                                             <div class="row g-2 mb-3">
-                                                <div class="col-md-4">
-                                                    <label class="form-label">Cấu hình CPU</label>
-                                                    <input type="text" name="cpu_info" class="form-control text-muted-placeholder" value="{{ acc.cpu_info or '' }}" placeholder="VD: Intel Xeon Gold 6248R x 2">
+                                                <div class="col-md-7">
+                                                    <label class="form-label"><i class="bi bi-hdd-rack me-1"></i>Vị trí trong tủ Rack</label>
+                                                    <input type="text" name="rack_position" class="form-control text-muted-placeholder" value="{{ acc.rack_position or '' }}" placeholder="VD: Tủ Rack A - Vị trí U12-U14">
                                                 </div>
-                                                <div class="col-md-4">
-                                                    <label class="form-label">Dung lượng RAM</label>
-                                                    <input type="text" name="ram_info" class="form-control text-muted-placeholder" value="{{ acc.ram_info or '' }}" placeholder="VD: 64 GB DDR4">
+                                                <div class="col-md-5">
+                                                    <label class="form-label"><i class="bi bi-image me-1"></i>Ảnh máy chủ / tủ rack</label>
+                                                    <input type="file" name="image_file" class="form-control form-control-sm" accept="image/*">
+                                                    {% if acc.image_file %}
+                                                    <div class="small text-success mt-1"><i class="bi bi-check-circle me-1"></i>Đã có ảnh (Tải ảnh mới để thay thế)</div>
+                                                    {% endif %}
                                                 </div>
-                                                <div class="col-md-4">
-                                                    <label class="form-label">Ổ cứng (Disk)</label>
-                                                    <input type="text" name="disk_info" class="form-control text-muted-placeholder" value="{{ acc.disk_info or '' }}" placeholder="VD: 2 x 960GB SSD RAID 1">
+                                            </div>
+
+                                            <!-- Hardware Config Inputs & Quantities -->
+                                            <div class="p-3 bg-light rounded border mb-3">
+                                                <div class="fw-bold small text-uppercase text-primary mb-2"><i class="bi bi-cpu me-1"></i>Cấu hình phần cứng &amp; Số lượng</div>
+                                                
+                                                <div class="row g-2 mb-2">
+                                                    <div class="col-md-8">
+                                                        <label class="form-label small">Thông tin CPU (Vi xử lý)</label>
+                                                        <input type="text" name="cpu_info" class="form-control form-control-sm text-muted-placeholder" value="{{ acc.cpu_info or '' }}" placeholder="VD: Intel Xeon Silver 4310 Core: 12, Threads: 24...">
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label small">Số lượng CPU</label>
+                                                        <input type="text" name="cpu_qty" class="form-control form-control-sm text-muted-placeholder" value="{{ acc.cpu_qty or '' }}" placeholder="VD: 2">
+                                                    </div>
+                                                </div>
+
+                                                <div class="row g-2 mb-2">
+                                                    <div class="col-md-8">
+                                                        <label class="form-label small">Thông tin RAM (Bộ nhớ)</label>
+                                                        <input type="text" name="ram_info" class="form-control form-control-sm text-muted-placeholder" value="{{ acc.ram_info or '' }}" placeholder="VD: 32GB RDIMM 3200 MT/s">
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label small">Số lượng RAM</label>
+                                                        <input type="text" name="ram_qty" class="form-control form-control-sm text-muted-placeholder" value="{{ acc.ram_qty or '' }}" placeholder="VD: 8">
+                                                    </div>
+                                                </div>
+
+                                                <div class="row g-2">
+                                                    <div class="col-md-8">
+                                                        <label class="form-label small">Thông tin Ổ cứng (Disk)</label>
+                                                        <input type="text" name="disk_info" class="form-control form-control-sm text-muted-placeholder" value="{{ acc.disk_info or '' }}" placeholder="VD: 1.92TB SATA SSD + 4TB HDD">
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label small">Số lượng Ổ cứng</label>
+                                                        <input type="text" name="disk_qty" class="form-control form-control-sm text-muted-placeholder" value="{{ acc.disk_qty or '' }}" placeholder="VD: 3 SSD + 2 HDD">
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -478,6 +610,16 @@
                                             <div class="mb-3">
                                                 <label class="form-label">Ghi chú bổ sung</label>
                                                 <textarea name="notes" class="form-control" rows="2">{{ acc.notes or '' }}</textarea>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                                            <button type="submit" class="btn btn-primary">Lưu Thay đổi</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                                             </div>
                                         </div>
                                         <div class="modal-footer">
@@ -939,57 +1081,93 @@
 <div class="modal fade" id="addServerModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form method="POST" action="{{ url_for('add_work_account') }}">
+            <form method="POST" action="{{ url_for('add_work_account') }}" enctype="multipart/form-data">
+                <input type="hidden" name="redirect_tab" value="server">
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-hdd-network text-success me-1"></i> Thêm Server Mới</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body text-start">
                     <div class="mb-3">
-                        <label class="form-label required">Tên Server / Tủ Rack</label>
+                        <label class="form-label required">Tên Server</label>
                         <input type="text" name="account_name" class="form-control text-muted-placeholder" placeholder="VD: Server Primary DB / VPS Web 01" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label required">Loại Server</label>
-                        <select name="server_type" class="form-select" onchange="toggleServerOfflineFields(this, 'add')">
-                            <option value="Server thuê" selected>Server thuê (Cloud / VPS / AWS)</option>
-                            <option value="Server offline">Server offline (Máy chủ vật lý nội bộ)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Dịch vụ / HĐH cài đặt</label>
-                        <input type="text" name="platform" class="form-control form-control-sm text-muted-placeholder" list="platformSuggestionsAdd" placeholder="VD: Proxmox VE, VMware ESXi, Docker...">
-                        <datalist id="platformSuggestionsAdd">
-                            <option value="Proxmox VE">
-                            <option value="VMware ESXi">
-                            <option value="Windows Server">
-                            <option value="Ubuntu Server">
-                            <option value="Docker / Docker Compose">
-                            <option value="Kubernetes (K8s)">
-                            <option value="Web Server (Nginx/Apache)">
-                            <option value="Database Server">
-                            <option value="VPN Server">
-                            <option value="NAS / Storage Server">
-                        </datalist>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label required">Loại Server</label>
+                            <select name="server_type" class="form-select" onchange="toggleServerOfflineFields(this, 'add')">
+                                <option value="Server thuê" selected>Server thuê (Cloud / VPS / AWS)</option>
+                                <option value="Server offline">Server offline (Máy chủ vật lý nội bộ)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Dịch vụ / HĐH cài đặt</label>
+                            <input type="text" name="platform" class="form-control text-muted-placeholder" list="platformSuggestionsAdd" placeholder="VD: Proxmox VE, VMware ESXi, Docker...">
+                            <datalist id="platformSuggestionsAdd">
+                                <option value="Proxmox VE">
+                                <option value="VMware ESXi">
+                                <option value="Windows Server">
+                                <option value="Ubuntu Server">
+                                <option value="Docker / Docker Compose">
+                                <option value="Kubernetes (K8s)">
+                                <option value="Web Server (Nginx/Apache)">
+                                <option value="Database Server">
+                                <option value="VPN Server">
+                                <option value="NAS / Storage Server">
+                            </datalist>
+                        </div>
                     </div>
                     <div class="mb-3" id="addProviderBox">
-                        <label class="form-label">Nhà cung cấp</label>
+                        <label class="form-label">Đơn vị cung cấp</label>
                         <input type="text" name="provider" class="form-control text-muted-placeholder" placeholder="VD: AWS / Viettel Cloud / CMC / BizFly">
                     </div>
 
-                    <!-- Hardware Config Inputs -->
                     <div class="row g-2 mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Cấu hình CPU</label>
-                            <input type="text" name="cpu_info" class="form-control text-muted-placeholder" placeholder="VD: Intel Xeon Gold 6248R x 2">
+                        <div class="col-md-7">
+                            <label class="form-label"><i class="bi bi-hdd-rack me-1"></i>Vị trí trong tủ Rack</label>
+                            <input type="text" name="rack_position" class="form-control text-muted-placeholder" placeholder="VD: Tủ Rack A - Vị trí U12-U14">
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Dung lượng RAM</label>
-                            <input type="text" name="ram_info" class="form-control text-muted-placeholder" placeholder="VD: 64 GB DDR4">
+                        <div class="col-md-5">
+                            <label class="form-label"><i class="bi bi-image me-1"></i>Ảnh máy chủ / tủ rack</label>
+                            <input type="file" name="image_file" class="form-control form-control-sm" accept="image/*">
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Ổ cứng (Disk)</label>
-                            <input type="text" name="disk_info" class="form-control text-muted-placeholder" placeholder="VD: 2 x 960GB SSD RAID 1">
+                    </div>
+
+                    <!-- Hardware Config Inputs & Quantities -->
+                    <div class="p-3 bg-light rounded border mb-3">
+                        <div class="fw-bold small text-uppercase text-primary mb-2"><i class="bi bi-cpu me-1"></i>Cấu hình phần cứng &amp; Số lượng</div>
+                        
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-8">
+                                <label class="form-label small">Thông tin CPU (Vi xử lý)</label>
+                                <input type="text" name="cpu_info" class="form-control form-control-sm text-muted-placeholder" placeholder="VD: Intel Xeon Silver 4310 Core: 12, Threads: 24...">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Số lượng CPU</label>
+                                <input type="text" name="cpu_qty" class="form-control form-control-sm text-muted-placeholder" placeholder="VD: 2">
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-8">
+                                <label class="form-label small">Thông tin RAM (Bộ nhớ)</label>
+                                <input type="text" name="ram_info" class="form-control form-control-sm text-muted-placeholder" placeholder="VD: 32GB RDIMM 3200 MT/s">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Số lượng RAM</label>
+                                <input type="text" name="ram_qty" class="form-control form-control-sm text-muted-placeholder" placeholder="VD: 8">
+                            </div>
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-md-8">
+                                <label class="form-label small">Thông tin Ổ cứng (Disk)</label>
+                                <input type="text" name="disk_info" class="form-control form-control-sm text-muted-placeholder" placeholder="VD: 1.92TB SATA SSD + 4TB HDD">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Số lượng Ổ cứng</label>
+                                <input type="text" name="disk_qty" class="form-control form-control-sm text-muted-placeholder" placeholder="VD: 3 SSD + 2 HDD">
+                            </div>
                         </div>
                     </div>
 
@@ -1027,7 +1205,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Ghi chú bổ sung</label>
-                        <textarea name="notes" class="form-control text-muted-placeholder" rows="2" placeholder="Ghi chú vị trí tủ Rack, lưu ý bảo trì..."></textarea>
+                        <textarea name="notes" class="form-control text-muted-placeholder" rows="2" placeholder="Ghi chú thêm..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
