@@ -11496,6 +11496,45 @@ def add_work_account():
         cpu_qty = (request.form.get('cpu_qty') or '').strip()
         ram_qty = (request.form.get('ram_qty') or '').strip()
         disk_qty = (request.form.get('disk_qty') or '').strip()
+
+        # Parse dynamic RAM entries if provided
+        ram_names = request.form.getlist('ram_name[]')
+        ram_qtys = request.form.getlist('ram_qty[]')
+        if ram_names and any(n.strip() for n in ram_names):
+            ram_lines = []
+            total_ram_qty = 0
+            for r_n, r_q in zip(ram_names, ram_qtys):
+                r_n, r_q = (r_n or '').strip(), (r_q or '').strip()
+                if r_n:
+                    if r_q:
+                        ram_lines.append(f"{r_n} (x{r_q})")
+                        if r_q.isdigit(): total_ram_qty += int(r_q)
+                    else:
+                        ram_lines.append(r_n)
+            if ram_lines:
+                ram_info = "\n".join(ram_lines)
+                if total_ram_qty > 0:
+                    ram_qty = f"{total_ram_qty} thanh"
+
+        # Parse dynamic Disk entries if provided
+        disk_names = request.form.getlist('disk_name[]')
+        disk_qtys = request.form.getlist('disk_qty[]')
+        if disk_names and any(n.strip() for n in disk_names):
+            disk_lines = []
+            total_disk_qty = 0
+            for d_n, d_q in zip(disk_names, disk_qtys):
+                d_n, d_q = (d_n or '').strip(), (d_q or '').strip()
+                if d_n:
+                    if d_q:
+                        disk_lines.append(f"{d_n} (x{d_q})")
+                        if d_q.isdigit(): total_disk_qty += int(d_q)
+                    else:
+                        disk_lines.append(d_n)
+            if disk_lines:
+                disk_info = "\n".join(disk_lines)
+                if total_disk_qty > 0:
+                    disk_qty = f"{total_disk_qty} ổ"
+
         billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         exp_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
 
@@ -11571,6 +11610,45 @@ def edit_work_account(account_id):
         acc.cpu_qty = (request.form.get('cpu_qty') or '').strip()
         acc.ram_qty = (request.form.get('ram_qty') or '').strip()
         acc.disk_qty = (request.form.get('disk_qty') or '').strip()
+
+        # Parse dynamic RAM entries if provided
+        ram_names = request.form.getlist('ram_name[]')
+        ram_qtys = request.form.getlist('ram_qty[]')
+        if ram_names and any(n.strip() for n in ram_names):
+            ram_lines = []
+            total_ram_qty = 0
+            for r_n, r_q in zip(ram_names, ram_qtys):
+                r_n, r_q = (r_n or '').strip(), (r_q or '').strip()
+                if r_n:
+                    if r_q:
+                        ram_lines.append(f"{r_n} (x{r_q})")
+                        if r_q.isdigit(): total_ram_qty += int(r_q)
+                    else:
+                        ram_lines.append(r_n)
+            if ram_lines:
+                acc.ram_info = "\n".join(ram_lines)
+                if total_ram_qty > 0:
+                    acc.ram_qty = f"{total_ram_qty} thanh"
+
+        # Parse dynamic Disk entries if provided
+        disk_names = request.form.getlist('disk_name[]')
+        disk_qtys = request.form.getlist('disk_qty[]')
+        if disk_names and any(n.strip() for n in disk_names):
+            disk_lines = []
+            total_disk_qty = 0
+            for d_n, d_q in zip(disk_names, disk_qtys):
+                d_n, d_q = (d_n or '').strip(), (d_q or '').strip()
+                if d_n:
+                    if d_q:
+                        disk_lines.append(f"{d_n} (x{d_q})")
+                        if d_q.isdigit(): total_disk_qty += int(d_q)
+                    else:
+                        disk_lines.append(d_n)
+            if disk_lines:
+                acc.disk_info = "\n".join(disk_lines)
+                if total_disk_qty > 0:
+                    acc.disk_qty = f"{total_disk_qty} ổ"
+
         acc.billing_cycle = (request.form.get('billing_cycle') or 'Theo năm').strip()
         acc.expiration_date = datetime.strptime(request.form.get('expiration_date'), '%Y-%m-%d').date() if request.form.get('expiration_date') else None
 
