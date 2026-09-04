@@ -71,25 +71,47 @@
         </div>
 
         <div class="d-flex flex-wrap gap-2">
+            <button id="licenseSecurityButton" type="button" class="btn {% if license_security_unlocked %}btn-success{% else %}btn-outline-secondary{% endif %}" onclick="openLicenseSecurityModal()">
+                <i id="licenseSecurityIcon" class="bi {% if license_security_unlocked %}bi-shield-check{% else %}bi-shield-lock{% endif %} me-1"></i>
+                <span id="licenseSecurityLabel">{% if license_security_unlocked %}Đã mở khóa{% else %}Mở khóa{% endif %}</span>
+                <span id="licenseSecurityCountdown" class="badge bg-white text-success ms-1 {% if not license_security_unlocked %}d-none{% endif %}"></span>
+            </button>
+            <button id="licenseSecurityLockButton" type="button" class="btn btn-outline-danger {% if not license_security_unlocked %}d-none{% endif %}" onclick="lockLicenseSecurity()" title="Khóa lại ngay, không chờ hết thời gian">
+                <i class="bi bi-lock-fill"></i>
+            </button>
+            {% if license_can_audit %}
+            <button type="button" class="btn btn-outline-dark" onclick="openLicenseAuditModal()" title="Nhật ký truy cập dữ liệu bảo mật">
+                <i class="bi bi-clock-history"></i>
+            </button>
+            {% endif %}
+            {% if license_can_edit %}
             {% if active_tab == 'account' %}
-            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addWorkAccountModal">
+            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" onclick="return openProtectedModal('addWorkAccountModal')">
                 <i class="bi bi-plus-lg me-1"></i> Thêm Tài khoản
             </button>
             {% elif active_tab == 'server' %}
-            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addServerModal">
+            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" onclick="return openProtectedModal('addServerModal')">
                 <i class="bi bi-plus-lg me-1"></i> Thêm Server
             </button>
             {% elif active_tab == 'itservice' %}
-            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addITServiceModal">
+            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" onclick="return openProtectedModal('addITServiceModal')">
                 <i class="bi bi-plus-lg me-1"></i> Thêm Dịch vụ
             </button>
             {% else %}
-            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" data-bs-toggle="modal" data-bs-target="#addLicenseModal">
+            <button class="btn btn-teal text-white shadow-sm" style="background-color: #008080;" onclick="return openProtectedModal('addLicenseModal')">
                 <i class="bi bi-plus-lg me-1"></i> Thêm License
             </button>
             {% endif %}
+            {% endif %}
         </div>
     </div>
+
+    {% if not license_can_view_secret %}
+    <div class="alert alert-light border d-flex align-items-center gap-2 py-2 small mb-3">
+        <i class="bi bi-eye-slash text-secondary"></i>
+        <span>Tài khoản của bạn không có quyền <code>licenses.view_secret</code> nên mật khẩu và license key luôn được ẩn.</span>
+    </div>
+    {% endif %}
 
     <!-- Summary Metric Cards -->
     <div class="row g-3 mb-4">
@@ -328,7 +350,7 @@
                                 </div>
                             </td>
                             <td class="text-center align-middle">
-                                <button class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" data-bs-toggle="modal" data-bs-target="#specModal{{ acc.id }}" title="Xem chi tiết cấu hình">
+                                <button class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" onclick="return openProtectedModal('specModal{{ acc.id }}')" title="Xem chi tiết cấu hình">
                                     <i class="bi bi-cpu-fill"></i>
                                 </button>
                             </td>
@@ -363,9 +385,11 @@
                             <td class="align-middle text-truncate" style="max-width:130px;">
                                 <div><strong class="font-monospace text-dark text-truncate d-block" title="{{ acc.username_email }}">{{ acc.username_email }}</strong></div>
                                 <div class="d-flex align-items-center gap-1">
-                                    <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}" data-key="{{ acc.password_text or '' }}">••••••••</span>
+                                    <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}">••••••••</span>
+                                    {% if license_can_view_secret %}
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Hiện/Ẩn" onclick="togglePassword('{{ acc.id }}')"><i class="bi bi-eye"></i></button>
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Sao chép" onclick="copyPassword('{{ acc.id }}')"><i class="bi bi-clipboard"></i></button>
+                                    {% endif %}
                                 </div>
                             </td>
                             <td class="text-center align-middle">
@@ -379,11 +403,15 @@
                                 {% endif %}
                             </td>
                             <td class="text-center align-middle text-nowrap">
-                                <button class="btn btn-xs btn-outline-info py-0 px-1 me-1" data-bs-toggle="modal" data-bs-target="#specModal{{ acc.id }}" title="Xem thông tin chi tiết Máy chủ"><i class="bi bi-eye"></i></button>
-                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editServerModal{{ acc.id }}" title="Chỉnh sửa Máy chủ"><i class="bi bi-pencil"></i></button>
-                                <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Server này?')">
+                                <button class="btn btn-xs btn-outline-info py-0 px-1 me-1" onclick="return openProtectedModal('specModal{{ acc.id }}')" title="Xem thông tin chi tiết Máy chủ"><i class="bi bi-eye"></i></button>
+                                {% if license_can_edit %}
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" onclick="return openProtectedModal('editServerModal{{ acc.id }}')" title="Chỉnh sửa Máy chủ"><i class="bi bi-pencil"></i></button>
+                                {% endif %}
+                                {% if license_can_delete %}
+                                <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Server này?') && requireProtectedForm()">
                                     <button class="btn btn-xs btn-outline-danger py-0 px-1" title="Xóa Máy chủ"><i class="bi bi-trash"></i></button>
                                 </form>
+                                {% endif %}
 
                                 <!-- Hardware Spec Pop-up Modal (View Info Only) -->
                                 <div class="modal fade" id="specModal{{ acc.id }}" tabindex="-1" aria-hidden="true">
@@ -781,7 +809,7 @@
                                                         </div>
                                                         <div class="col-md-6">
                                                             <label class="form-label">Mật khẩu (Password)</label>
-                                                            <input type="text" name="password_text" class="form-control font-monospace" value="{{ acc.password_text or '' }}">
+                                                            <input type="password" name="password_text" class="form-control font-monospace" placeholder="Để trống để giữ nguyên mật khẩu">
                                                         </div>
                                                     </div>
                                                     <div class="row g-2 mb-3">
@@ -846,9 +874,11 @@
                             <td>
                                 <div><strong class="font-monospace text-primary">{{ acc.username_email }}</strong></div>
                                 <div class="d-flex align-items-center gap-1">
-                                    <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}" data-key="{{ acc.password_text or '' }}">••••••••</span>
+                                    <span class="font-monospace license-key-text text-muted" id="pwd-text-{{ acc.id }}">••••••••</span>
+                                    {% if license_can_view_secret %}
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Hiện/Ẩn password" onclick="togglePassword('{{ acc.id }}')"><i class="bi bi-eye"></i></button>
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Sao chép" onclick="copyPassword('{{ acc.id }}')"><i class="bi bi-clipboard"></i></button>
+                                    {% endif %}
                                 </div>
                             </td>
                             <td>
@@ -885,10 +915,14 @@
                                 {% endif %}
                             </td>
                             <td class="text-center text-nowrap">
-                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editWorkAccountModal{{ acc.id }}"><i class="bi bi-pencil"></i></button>
-                                <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Tài khoản này?')">
+                                {% if license_can_edit %}
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" onclick="return openProtectedModal('editWorkAccountModal{{ acc.id }}')"><i class="bi bi-pencil"></i></button>
+                                {% endif %}
+                                {% if license_can_delete %}
+                                <form method="POST" action="{{ url_for('delete_work_account', account_id=acc.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Tài khoản này?') && requireProtectedForm()">
                                     <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
 
@@ -917,7 +951,7 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label class="form-label">Mật khẩu (Password)</label>
-                                                    <input type="text" name="password_text" class="form-control font-monospace" value="{{ acc.password_text or '' }}">
+                                                    <input type="password" name="password_text" class="form-control font-monospace" placeholder="Để trống để giữ nguyên mật khẩu">
                                                 </div>
                                             </div>
                                             <div class="row g-2 mb-3">
@@ -999,10 +1033,14 @@
                                 {% endif %}
                             </td>
                             <td class="text-center text-nowrap">
-                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editITServiceModal{{ srv.id }}"><i class="bi bi-pencil"></i></button>
-                                <form method="POST" action="{{ url_for('delete_it_service', service_id=srv.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Dịch vụ này?')">
+                                {% if license_can_edit %}
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" onclick="return openProtectedModal('editITServiceModal{{ srv.id }}')"><i class="bi bi-pencil"></i></button>
+                                {% endif %}
+                                {% if license_can_delete %}
+                                <form method="POST" action="{{ url_for('delete_it_service', service_id=srv.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa Dịch vụ này?') && requireProtectedForm()">
                                     <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
 
@@ -1101,9 +1139,11 @@
                             </td>
                             <td>
                                 <div class="d-flex align-items-center gap-1">
-                                    <span class="font-monospace license-key-text text-muted" id="key-text-{{ lic.id }}" data-key="{{ lic.license_key }}">••••••••••••••••</span>
+                                    <span class="font-monospace license-key-text text-muted" id="key-text-{{ lic.id }}">••••••••••••••••</span>
+                                    {% if license_can_view_secret %}
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Hiện/Ẩn key" onclick="toggleKey('{{ lic.id }}')"><i class="bi bi-eye"></i></button>
                                     <button type="button" class="btn btn-xs btn-light border px-1 py-0" title="Sao chép" onclick="copyKey('{{ lic.id }}')"><i class="bi bi-clipboard"></i></button>
+                                    {% endif %}
                                 </div>
                             </td>
                             <td>
@@ -1111,13 +1151,15 @@
                                     {% for da in lic.device_assignments %}
                                     <span class="badge bg-light text-dark border me-1"><i class="bi bi-laptop me-1"></i>{{ da.device.device_code }}</span>
                                     {% endfor %}
-                                    {% if lic.device_assignments|length < lic.max_seats %}
-                                    <button class="btn btn-xs btn-outline-primary btn-sm rounded-pill py-0 px-2 mt-1" data-bs-toggle="modal" data-bs-target="#assignDeviceModal{{ lic.id }}">+ Gán thêm ({{ lic.device_assignments|length }}/{{ lic.max_seats }})</button>
+                                    {% if lic.device_assignments|length < lic.max_seats and license_can_edit %}
+                                    <button class="btn btn-xs btn-outline-primary btn-sm rounded-pill py-0 px-2 mt-1" onclick="return openProtectedModal('assignDeviceModal{{ lic.id }}')">+ Gán thêm ({{ lic.device_assignments|length }}/{{ lic.max_seats }})</button>
                                     {% endif %}
                                 {% else %}
                                     <span class="small text-muted">Chưa gán thiết bị (0/{{ lic.max_seats }} chỗ)</span>
                                     <br>
-                                    <button class="btn btn-xs btn-outline-primary btn-sm rounded-pill py-0 px-2 mt-1" data-bs-toggle="modal" data-bs-target="#assignDeviceModal{{ lic.id }}">+ Gán thiết bị</button>
+                                    {% if license_can_edit %}
+                                    <button class="btn btn-xs btn-outline-primary btn-sm rounded-pill py-0 px-2 mt-1" onclick="return openProtectedModal('assignDeviceModal{{ lic.id }}')">+ Gán thiết bị</button>
+                                    {% endif %}
                                 {% endif %}
                             </td>
                             <td class="text-center">{{ lic.supplier or '-' }}</td>
@@ -1139,10 +1181,14 @@
                                 {% endif %}
                             </td>
                             <td class="text-center text-nowrap">
-                                <button class="btn btn-xs btn-outline-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editLicenseModal{{ lic.id }}"><i class="bi bi-pencil"></i></button>
-                                <form method="POST" action="{{ url_for('delete_license', license_id=lic.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa License này?')">
+                                {% if license_can_edit %}
+                                <button class="btn btn-xs btn-outline-warning py-0 px-1" onclick="return openProtectedModal('editLicenseModal{{ lic.id }}')"><i class="bi bi-pencil"></i></button>
+                                {% endif %}
+                                {% if license_can_delete %}
+                                <form method="POST" action="{{ url_for('delete_license', license_id=lic.id) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa License này?') && requireProtectedForm()">
                                     <button class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
 
@@ -1203,8 +1249,8 @@
                                             </div>
 
                                             <div class="mb-3">
-                                                <label class="form-label required">License Key / Product Key</label>
-                                                <textarea name="license_key" class="form-control font-monospace" rows="2" required>{{ lic.license_key }}</textarea>
+                                                <label class="form-label">License Key / Product Key</label>
+                                                <textarea name="license_key" class="form-control font-monospace" rows="2" placeholder="Để trống để giữ nguyên License Key"></textarea>
                                             </div>
 
                                             <div class="row g-3 mb-3">
@@ -1656,7 +1702,250 @@
     </div>
 </div>
 
+<div class="modal fade" id="licenseSecurityModal" tabindex="-1" aria-labelledby="licenseSecurityModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <form id="licenseSecurityForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="licenseSecurityModalLabel"><i class="bi bi-shield-lock text-primary me-2"></i>Mở khóa bảo mật</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">Nhập lại mật khẩu đăng nhập để xem thông tin bảo mật và thực hiện thay đổi trong 5 phút.</p>
+                    <label for="licenseSecurityPassword" class="form-label">Mật khẩu đăng nhập</label>
+                    <input id="licenseSecurityPassword" type="password" class="form-control" autocomplete="current-password" required autofocus>
+                    <div id="licenseSecurityError" class="small text-danger mt-2 d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-unlock me-1"></i>Mở khóa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if license_can_audit %}
+<div class="modal fade" id="licenseAuditModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-clock-history text-dark me-2"></i>Nhật ký truy cập bảo mật</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-muted small mb-2">50 lượt gần nhất: mở khóa, xem và sao chép mật khẩu / license key.</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle small mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:150px;">Thời gian</th>
+                                <th style="width:140px;">Người dùng</th>
+                                <th style="width:180px;">Hành động</th>
+                                <th>Đối tượng</th>
+                                <th style="width:110px;">IP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="licenseAuditBody">
+                            <tr><td colspan="5" class="text-center text-muted py-3">Đang tải...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
+let licenseSecurityUnlocked = {{ 'true' if license_security_unlocked else 'false' }};
+const licenseCanViewSecret = {{ 'true' if license_can_view_secret else 'false' }};
+let licenseSecurityDeadline = licenseSecurityUnlocked
+    ? Date.now() + {{ license_security_remaining|default(0) }} * 1000
+    : 0;
+let licenseSecurityTimer = null;
+let pendingProtectedAction = null;
+
+function maskAllRevealedSecrets() {
+    document.querySelectorAll('[id^="pwd-text-"], [id^="key-text-"]').forEach((el) => {
+        if (!el.dataset.key) return;
+        delete el.dataset.key;
+        el.innerText = el.id.startsWith('pwd-text-') ? '••••••••' : '••••••••••••••••';
+    });
+}
+
+function renderLicenseSecurityState() {
+    const button = document.getElementById('licenseSecurityButton');
+    const icon = document.getElementById('licenseSecurityIcon');
+    const label = document.getElementById('licenseSecurityLabel');
+    const countdown = document.getElementById('licenseSecurityCountdown');
+    const lockButton = document.getElementById('licenseSecurityLockButton');
+    if (!button) return;
+
+    if (licenseSecurityUnlocked) {
+        const left = Math.max(0, Math.round((licenseSecurityDeadline - Date.now()) / 1000));
+        button.className = 'btn btn-success';
+        icon.className = 'bi bi-shield-check me-1';
+        label.textContent = 'Đã mở khóa';
+        countdown.classList.remove('d-none');
+        countdown.className = 'badge bg-white text-success ms-1';
+        countdown.textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
+        lockButton.classList.remove('d-none');
+    } else {
+        button.className = 'btn btn-outline-secondary';
+        icon.className = 'bi bi-shield-lock me-1';
+        label.textContent = 'Mở khóa';
+        countdown.classList.add('d-none');
+        lockButton.classList.add('d-none');
+    }
+}
+
+function setLicenseSecurityUnlocked(seconds) {
+    licenseSecurityUnlocked = true;
+    licenseSecurityDeadline = Date.now() + seconds * 1000;
+    if (licenseSecurityTimer) clearInterval(licenseSecurityTimer);
+    licenseSecurityTimer = setInterval(() => {
+        if (Date.now() >= licenseSecurityDeadline) {
+            expireLicenseSecurity();
+            return;
+        }
+        renderLicenseSecurityState();
+    }, 1000);
+    renderLicenseSecurityState();
+}
+
+function expireLicenseSecurity() {
+    licenseSecurityUnlocked = false;
+    licenseSecurityDeadline = 0;
+    if (licenseSecurityTimer) clearInterval(licenseSecurityTimer);
+    licenseSecurityTimer = null;
+    maskAllRevealedSecrets();
+    renderLicenseSecurityState();
+}
+
+async function lockLicenseSecurity() {
+    try {
+        await fetch('{{ url_for("lock_license_security") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+            body: '{}'
+        });
+    } catch (error) {
+        /* vẫn khóa phía UI dù request lỗi */
+    }
+    expireLicenseSecurity();
+}
+
+async function openLicenseAuditModal() {
+    const body = document.getElementById('licenseAuditBody');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Đang tải...</td></tr>';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('licenseAuditModal')).show();
+    try {
+        const response = await fetch('{{ url_for("license_security_audit") }}', {
+            headers: {'Accept': 'application/json'}, cache: 'no-store'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) throw new Error(data.message || 'Không đọc được nhật ký.');
+        if (!data.entries.length) {
+            body.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Chưa có dữ liệu.</td></tr>';
+            return;
+        }
+        body.innerHTML = '';
+        data.entries.forEach((entry) => {
+            const row = document.createElement('tr');
+            if (entry.is_alert) row.className = 'table-warning';
+            [entry.time, entry.user, entry.action, entry.target, entry.ip].forEach((value, index) => {
+                const cell = document.createElement('td');
+                cell.textContent = value || '—';
+                if (index === 0 || index === 4) cell.className = 'font-monospace';
+                row.appendChild(cell);
+            });
+            body.appendChild(row);
+        });
+    } catch (error) {
+        body.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-3"></td></tr>`;
+        body.querySelector('td').textContent = error.message;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (licenseSecurityUnlocked) {
+        const left = Math.max(0, Math.round((licenseSecurityDeadline - Date.now()) / 1000));
+        if (left > 0) setLicenseSecurityUnlocked(left); else expireLicenseSecurity();
+    } else {
+        renderLicenseSecurityState();
+    }
+});
+
+function openLicenseSecurityModal(action) {
+    if (action) pendingProtectedAction = action;
+    const error = document.getElementById('licenseSecurityError');
+    const password = document.getElementById('licenseSecurityPassword');
+    error.classList.add('d-none');
+    error.textContent = '';
+    password.value = '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('licenseSecurityModal')).show();
+    setTimeout(() => password.focus(), 200);
+    return false;
+}
+
+function openProtectedModal(modalId) {
+    if (!licenseSecurityUnlocked) return openLicenseSecurityModal(() => openProtectedModal(modalId));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).show();
+    return false;
+}
+
+function requireProtectedForm() {
+    if (licenseSecurityUnlocked) return true;
+    openLicenseSecurityModal();
+    return false;
+}
+
+async function fetchProtectedSecret(url) {
+    const response = await fetch(url, {headers: {'Accept': 'application/json'}, cache: 'no-store'});
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        // Hết hạn phía server nhưng UI còn tưởng đang mở khóa -> đồng bộ lại.
+        if (data.need_unlock) expireLicenseSecurity();
+        throw new Error(data.message || 'Không thể đọc dữ liệu bảo mật.');
+    }
+    return data;
+}
+
+document.getElementById('licenseSecurityForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const password = document.getElementById('licenseSecurityPassword');
+    const error = document.getElementById('licenseSecurityError');
+    const response = await fetch('{{ url_for("unlock_license_security") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: JSON.stringify({password: password.value})
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+        error.textContent = data.message || 'Không thể mở khóa.';
+        error.classList.remove('d-none');
+        password.value = '';
+        if (response.status === 429) {
+            // Bị tạm chặn: bỏ hành động đang chờ để không tự bật lại modal.
+            pendingProtectedAction = null;
+        } else {
+            password.focus();
+        }
+        return;
+    }
+    bootstrap.Modal.getInstance(document.getElementById('licenseSecurityModal')).hide();
+    password.value = '';
+    setLicenseSecurityUnlocked(data.expires_in || {{ license_security_window|default(300) }});
+    const action = pendingProtectedAction;
+    pendingProtectedAction = null;
+    if (action) action();
+});
+
 function filterSelectOptions(input, selectId) {
     const filter = input.value.toLowerCase().trim();
     const select = document.getElementById(selectId);
@@ -1700,44 +1989,66 @@ function togglePerpetualDate(chk, inputId) {
     }
 }
 
-function toggleKey(id) {
+async function toggleKey(id) {
     const el = document.getElementById('key-text-' + id);
-    if (!el) return;
-    const realKey = el.dataset.key;
-    if (el.innerText === '••••••••••••••••') {
-        el.innerText = realKey;
-    } else {
+    if (!el || !licenseCanViewSecret) return;
+    if (el.dataset.key) {
         el.innerText = '••••••••••••••••';
+        delete el.dataset.key;
+        return;
+    }
+    if (!licenseSecurityUnlocked) return openLicenseSecurityModal(() => toggleKey(id));
+    try {
+        const data = await fetchProtectedSecret(`/licenses/security/software-licenses/${id}/key`);
+        el.dataset.key = data.license_key;
+        el.innerText = data.license_key || 'Không có key';
+    } catch (error) {
+        alert(error.message);
     }
 }
 
-function copyKey(id) {
+async function copyKey(id) {
     const el = document.getElementById('key-text-' + id);
-    if (!el) return;
-    const realKey = el.dataset.key;
-    navigator.clipboard.writeText(realKey).then(() => {
+    if (!el || !licenseCanViewSecret) return;
+    if (!licenseSecurityUnlocked) return openLicenseSecurityModal(() => copyKey(id));
+    try {
+        const data = await fetchProtectedSecret(`/licenses/security/software-licenses/${id}/key?mode=copy`);
+        await navigator.clipboard.writeText(data.license_key || '');
         alert('Đã sao chép License Key vào khay nhớ tạm!');
-    });
-}
-
-function togglePassword(id) {
-    const el = document.getElementById('pwd-text-' + id);
-    if (!el) return;
-    const realKey = el.dataset.key;
-    if (el.innerText === '••••••••') {
-        el.innerText = realKey;
-    } else {
-        el.innerText = '••••••••';
+    } catch (error) {
+        alert(error.message);
     }
 }
 
-function copyPassword(id) {
+async function togglePassword(id) {
     const el = document.getElementById('pwd-text-' + id);
-    if (!el) return;
-    const realKey = el.dataset.key;
-    navigator.clipboard.writeText(realKey).then(() => {
+    if (!el || !licenseCanViewSecret) return;
+    if (el.dataset.key) {
+        el.innerText = '••••••••';
+        delete el.dataset.key;
+        return;
+    }
+    if (!licenseSecurityUnlocked) return openLicenseSecurityModal(() => togglePassword(id));
+    try {
+        const data = await fetchProtectedSecret(`/licenses/security/work-accounts/${id}/password`);
+        el.dataset.key = data.password;
+        el.innerText = data.password || 'Không có mật khẩu';
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function copyPassword(id) {
+    const el = document.getElementById('pwd-text-' + id);
+    if (!el || !licenseCanViewSecret) return;
+    if (!licenseSecurityUnlocked) return openLicenseSecurityModal(() => copyPassword(id));
+    try {
+        const data = await fetchProtectedSecret(`/licenses/security/work-accounts/${id}/password?mode=copy`);
+        await navigator.clipboard.writeText(data.password || '');
         alert('Đã sao chép Mật khẩu vào khay nhớ tạm!');
-    });
+    } catch (error) {
+        alert(error.message);
+    }
 }
 
 function addRamItem(prefix) {

@@ -27,6 +27,7 @@ import pytz
 import re
 import unicodedata
 from contextlib import contextmanager
+from functools import wraps
 from config import config, get_database_info, is_external_database
 from backup_restore import DatabaseBackup
 
@@ -257,6 +258,12 @@ PERMISSIONS = [
     ('attendance.sync', 'Thực hiện đồng bộ dữ liệu từ máy chấm công Hikvision'),
     ('attendance.manage_users', 'Quản lý danh sách người chấm công (Thêm/Sửa/Xóa/Liên kết)'),
     ('attendance.config', 'Cấu hình kết nối thiết bị Hikvision'),
+    # Tài khoản & Dịch vụ (License / Dịch vụ IT / Tài khoản làm việc & Máy chủ)
+    ('licenses.view', 'Xem Tài khoản & Dịch vụ (mật khẩu/license key luôn bị ẩn)'),
+    ('licenses.view_secret', 'Xem/sao chép mật khẩu & license key (cần nhập lại mật khẩu)'),
+    ('licenses.edit', 'Thêm/Sửa license, dịch vụ IT, tài khoản, máy chủ'),
+    ('licenses.delete', 'Xóa license, dịch vụ IT, tài khoản, máy chủ'),
+    ('licenses.audit', 'Xem nhật ký truy cập dữ liệu bảo mật'),
 ]
 
 # Register SQLite function last_token for sorting by given name
@@ -11178,15 +11185,298 @@ class ITServiceType(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
 
 
+class CredentialAccessLog(db.Model):
+    """Nhật ký truy cập dữ liệu bảo mật của module Tài khoản & Dịch vụ.
+
+    Vừa là dấu vết kiểm toán (ai đã xem mật khẩu nào, lúc nào, từ IP nào),
+    vừa là nguồn dữ liệu để chống dò mật khẩu ở endpoint mở khóa.
+    Lưu ở DB thay vì bộ nhớ tiến trình để đếm đúng khi gunicorn chạy nhiều worker.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    action = db.Column(db.String(50), nullable=False, index=True)
+    entity_type = db.Column(db.String(50))
+    entity_id = db.Column(db.Integer)
+    entity_label = db.Column(db.String(255))
+    ip_address = db.Column(db.String(64))
+    user_agent = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+
+
 
 # ==========================================
 # LICENSE, IT SERVICES & WORK ACCOUNTS ROUTES
 # ==========================================
 
+LICENSE_SECURITY_WINDOW_SECONDS = 300
+LICENSE_SECURITY_MAX_ATTEMPTS = 5
+LICENSE_SECURITY_LOCKOUT_SECONDS = 900
+LICENSE_AUDIT_ACTION_LABELS = {
+    'unlock_success': 'Mở khóa thành công',
+    'unlock_failed': 'Nhập sai mật khẩu mở khóa',
+    'unlock_blocked': 'Bị chặn do nhập sai quá nhiều lần',
+    'unlock_denied': 'Mở khóa bị từ chối (không có quyền)',
+    'lock': 'Khóa lại thủ công',
+    'view_password': 'Xem mật khẩu',
+    'copy_password': 'Sao chép mật khẩu',
+    'view_license_key': 'Xem license key',
+    'copy_license_key': 'Sao chép license key',
+    'denied': 'Truy cập bị từ chối',
+}
+
+
+def _wants_json_response():
+    return request.is_json or request.accept_mimetypes.best == 'application/json'
+
+
+def _client_ip():
+    forwarded = request.headers.get('X-Forwarded-For', '')
+    return (forwarded.split(',')[0].strip() if forwarded else request.remote_addr) or ''
+
+
+def _log_credential_access(action, entity_type=None, entity_id=None, entity_label=None, user_id=None):
+    """Ghi nhật ký truy cập dữ liệu bảo mật. Không bao giờ làm gián đoạn luồng chính."""
+    try:
+        db.session.add(CredentialAccessLog(
+            user_id=user_id if user_id is not None else session.get('user_id'),
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            entity_label=((entity_label or '')[:255] or None),
+            ip_address=_client_ip()[:64],
+            user_agent=(request.headers.get('User-Agent') or '')[:255],
+        ))
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        print(f"Credential access log error: {exc}")
+
+
+def _require_license_permission(permission_code='licenses.view'):
+    if 'user_id' not in session:
+        return False
+    current_user = _get_current_user()
+    if current_user and current_user.role == 'admin':
+        return True
+    return permission_code in _get_current_permissions()
+
+
+def _license_security_is_unlocked():
+    """Người dùng hiện tại đã nhập lại mật khẩu trong cửa sổ thời gian cho phép."""
+    return (
+        session.get('license_security_user_id') == session.get('user_id')
+        and session.get('license_security_unlocked_until', 0) > time.time()
+    )
+
+
+def _license_security_remaining_seconds():
+    if not _license_security_is_unlocked():
+        return 0
+    return max(0, int(session.get('license_security_unlocked_until', 0) - time.time()))
+
+
+def _license_security_clear():
+    session.pop('license_security_user_id', None)
+    session.pop('license_security_unlocked_until', None)
+    session.modified = True
+
+
+def _license_security_lock_state(user_id):
+    """(bị_chặn, số_giây_chờ, số_lần_thử_còn_lại) dựa trên nhật ký trong DB.
+
+    Chỉ tính các lần sai kể từ lần mở khóa thành công gần nhất, để người dùng
+    nhập đúng một lần là được xóa bộ đếm.
+    """
+    try:
+        now = datetime.utcnow()
+        window_start = now - timedelta(seconds=LICENSE_SECURITY_LOCKOUT_SECONDS)
+        last_success = (CredentialAccessLog.query
+                        .filter_by(user_id=user_id, action='unlock_success')
+                        .order_by(CredentialAccessLog.created_at.desc())
+                        .first())
+        if last_success and last_success.created_at and last_success.created_at > window_start:
+            window_start = last_success.created_at
+        failures = (CredentialAccessLog.query
+                    .filter(CredentialAccessLog.user_id == user_id,
+                            CredentialAccessLog.action == 'unlock_failed',
+                            CredentialAccessLog.created_at >= window_start)
+                    .order_by(CredentialAccessLog.created_at.desc())
+                    .all())
+        if len(failures) >= LICENSE_SECURITY_MAX_ATTEMPTS:
+            retry_after = int((failures[0].created_at
+                               + timedelta(seconds=LICENSE_SECURITY_LOCKOUT_SECONDS)
+                               - now).total_seconds())
+            if retry_after > 0:
+                return True, retry_after, 0
+        return False, 0, max(0, LICENSE_SECURITY_MAX_ATTEMPTS - len(failures))
+    except Exception as exc:
+        db.session.rollback()
+        print(f"License security lock state error: {exc}")
+        return False, 0, LICENSE_SECURITY_MAX_ATTEMPTS
+
+
+def license_sensitive_access_required(permission_code='licenses.edit'):
+    """Bảo vệ dữ liệu bảo mật và các thao tác ghi của module Tài khoản & Dịch vụ.
+
+    Ba lớp kiểm tra, theo đúng thứ tự: đã đăng nhập -> có quyền RBAC tương ứng
+    -> đã nhập lại mật khẩu trong 5 phút gần đây.
+    """
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if 'user_id' not in session:
+                if _wants_json_response():
+                    return jsonify({'success': False, 'message': 'Phiên đăng nhập đã hết hạn.'}), 401
+                return redirect(url_for('login'))
+
+            if not _require_license_permission(permission_code):
+                message = 'Bạn không có quyền thực hiện thao tác này trên Tài khoản & Dịch vụ.'
+                _log_credential_access('denied', entity_type=permission_code,
+                                       entity_label=request.path)
+                if _wants_json_response():
+                    return jsonify({'success': False, 'message': message}), 403
+                flash(message, 'danger')
+                return redirect(request.referrer or url_for('home'))
+
+            if not _license_security_is_unlocked():
+                message = 'Vui lòng nhập lại mật khẩu để mở khóa Tài khoản & Dịch vụ trong 5 phút.'
+                if _wants_json_response():
+                    return jsonify({'success': False, 'message': message, 'need_unlock': True}), 403
+                flash(message, 'warning')
+                return redirect(request.referrer or url_for('license_list'))
+
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
+@app.route('/licenses/security/unlock', methods=['POST'])
+def unlock_license_security():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Phiên đăng nhập đã hết hạn.'}), 401
+
+    if not _require_license_permission('licenses.view'):
+        _log_credential_access('unlock_denied')
+        return jsonify({'success': False,
+                        'message': 'Bạn không có quyền truy cập Tài khoản & Dịch vụ.'}), 403
+
+    user_id = session['user_id']
+    is_locked, retry_after, _ = _license_security_lock_state(user_id)
+    if is_locked:
+        _log_credential_access('unlock_blocked', user_id=user_id)
+        return jsonify({
+            'success': False,
+            'locked': True,
+            'retry_after': retry_after,
+            'message': f'Đã nhập sai quá {LICENSE_SECURITY_MAX_ATTEMPTS} lần. '
+                       f'Vui lòng thử lại sau {max(1, retry_after // 60)} phút.',
+        }), 429
+
+    payload = request.get_json(silent=True) or request.form
+    password = (payload.get('password') or '').strip()
+    current_user = User.query.get(user_id)
+    if not password or not current_user or not check_password_hash(current_user.password, password):
+        _license_security_clear()
+        _log_credential_access('unlock_failed', user_id=user_id)
+        _, _, remaining = _license_security_lock_state(user_id)
+        message = 'Mật khẩu xác thực không đúng.'
+        if remaining:
+            message += f' Còn {remaining} lần thử.'
+        else:
+            message += f' Tài khoản bị tạm chặn {LICENSE_SECURITY_LOCKOUT_SECONDS // 60} phút.'
+        return jsonify({'success': False, 'message': message, 'remaining_attempts': remaining}), 403
+
+    session['license_security_user_id'] = current_user.id
+    session['license_security_unlocked_until'] = int(time.time()) + LICENSE_SECURITY_WINDOW_SECONDS
+    session.modified = True
+    _log_credential_access('unlock_success', user_id=current_user.id)
+    return jsonify({
+        'success': True,
+        'expires_in': LICENSE_SECURITY_WINDOW_SECONDS,
+        'can_view_secret': _require_license_permission('licenses.view_secret'),
+    })
+
+
+@app.route('/licenses/security/lock', methods=['POST'])
+def lock_license_security():
+    """Khóa lại ngay, không chờ hết 5 phút."""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Phiên đăng nhập đã hết hạn.'}), 401
+    was_unlocked = _license_security_is_unlocked()
+    _license_security_clear()
+    if was_unlocked:
+        _log_credential_access('lock')
+    return jsonify({'success': True})
+
+
+def _no_store(response):
+    """Chặn browser/proxy cache lại dữ liệu bảo mật."""
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
+
+
+@app.route('/licenses/security/work-accounts/<int:account_id>/password')
+@license_sensitive_access_required('licenses.view_secret')
+def get_work_account_password(account_id):
+    account = WorkAccount.query.get_or_404(account_id)
+    action = 'copy_password' if request.args.get('mode') == 'copy' else 'view_password'
+    _log_credential_access(action, entity_type='work_account', entity_id=account.id,
+                           entity_label=f'{account.code} - {account.account_name}')
+    return _no_store(jsonify({'success': True, 'password': account.password_text or ''}))
+
+
+@app.route('/licenses/security/software-licenses/<int:license_id>/key')
+@license_sensitive_access_required('licenses.view_secret')
+def get_software_license_key(license_id):
+    license_record = SoftwareLicense.query.get_or_404(license_id)
+    action = 'copy_license_key' if request.args.get('mode') == 'copy' else 'view_license_key'
+    _log_credential_access(action, entity_type='software_license', entity_id=license_record.id,
+                           entity_label=f'{license_record.code} - {license_record.software_name}')
+    return _no_store(jsonify({'success': True, 'license_key': license_record.license_key or ''}))
+
+
+@app.route('/licenses/security/audit')
+def license_security_audit():
+    """Nhật ký ai đã xem/sao chép mật khẩu, license key và các lần mở khóa."""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Phiên đăng nhập đã hết hạn.'}), 401
+    if not _require_license_permission('licenses.audit'):
+        return jsonify({'success': False, 'message': 'Bạn không có quyền xem nhật ký bảo mật.'}), 403
+    try:
+        limit = min(request.args.get('limit', 50, type=int) or 50, 200)
+        rows = (CredentialAccessLog.query
+                .order_by(CredentialAccessLog.created_at.desc())
+                .limit(limit).all())
+        entries = []
+        for row in rows:
+            local_time = ''
+            if row.created_at:
+                local_time = (pytz.utc.localize(row.created_at)
+                              .astimezone(VIETNAM_TZ).strftime('%d/%m/%Y %H:%M:%S'))
+            entries.append({
+                'time': local_time,
+                'user': ((row.user.full_name or row.user.username) if row.user else 'Không rõ'),
+                'action': LICENSE_AUDIT_ACTION_LABELS.get(row.action, row.action),
+                'is_alert': row.action in ('unlock_failed', 'unlock_blocked', 'denied', 'unlock_denied'),
+                'target': row.entity_label or '',
+                'ip': row.ip_address or '',
+            })
+        return _no_store(jsonify({'success': True, 'entries': entries}))
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Lỗi đọc nhật ký: {exc}'}), 500
+
+
 @app.route('/licenses')
 def license_list():
     if 'user_id' not in session: return redirect(url_for('login'))
-    
+    if not _require_license_permission('licenses.view'):
+        flash('Bạn không có quyền xem Tài khoản & Dịch vụ.', 'danger')
+        return redirect(url_for('home'))
+
     try:
         db.create_all()
         with db.engine.connect() as conn:
@@ -11356,7 +11646,14 @@ def license_list():
             service_providers_list=service_providers_list,
             license_types=license_types,
             service_types=service_types,
-            current_permissions=current_permissions
+            current_permissions=current_permissions,
+            license_security_unlocked=_license_security_is_unlocked(),
+            license_security_remaining=_license_security_remaining_seconds(),
+            license_security_window=LICENSE_SECURITY_WINDOW_SECONDS,
+            license_can_view_secret=_require_license_permission('licenses.view_secret'),
+            license_can_edit=_require_license_permission('licenses.edit'),
+            license_can_delete=_require_license_permission('licenses.delete'),
+            license_can_audit=_require_license_permission('licenses.audit')
         )
     except Exception as exc:
         db.session.rollback()
@@ -11366,6 +11663,7 @@ def license_list():
         return redirect(url_for('home'))
 
 @app.route('/licenses/add', methods=['POST'])
+@license_sensitive_access_required('licenses.edit')
 def add_license():
     if 'user_id' not in session: return redirect(url_for('login'))
     try:
@@ -11405,13 +11703,16 @@ def add_license():
     return redirect(url_for('license_list', tab='license'))
 
 @app.route('/licenses/<int:license_id>/edit', methods=['POST'])
+@license_sensitive_access_required('licenses.edit')
 def edit_license(license_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     lic = SoftwareLicense.query.get_or_404(license_id)
     try:
         lic.software_name = (request.form.get('software_name') or '').strip()
         lic.license_type = (request.form.get('license_type') or 'Hệ điều hành').strip()
-        lic.license_key = (request.form.get('license_key') or '').strip()
+        new_license_key = (request.form.get('license_key') or '').strip()
+        if new_license_key:
+            lic.license_key = new_license_key
         lic.max_seats = request.form.get('max_seats', 1, type=int)
         lic.supplier = (request.form.get('supplier') or '').strip()
         lic.purchase_date = datetime.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date() if request.form.get('purchase_date') else None
@@ -11429,6 +11730,7 @@ def edit_license(license_id):
     return redirect(url_for('license_list', tab='license'))
 
 @app.route('/licenses/<int:license_id>/delete', methods=['POST'])
+@license_sensitive_access_required('licenses.delete')
 def delete_license(license_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     lic = SoftwareLicense.query.get_or_404(license_id)
@@ -11442,6 +11744,7 @@ def delete_license(license_id):
     return redirect(url_for('license_list', tab='license'))
 
 @app.route('/licenses/<int:license_id>/assign-device', methods=['POST'])
+@license_sensitive_access_required('licenses.edit')
 def assign_license_device(license_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     lic = SoftwareLicense.query.get_or_404(license_id)
@@ -11463,6 +11766,7 @@ def assign_license_device(license_id):
     return redirect(url_for('license_list', tab='license'))
 
 @app.route('/licenses/<int:license_id>/unassign-device/<int:device_id>', methods=['POST'])
+@license_sensitive_access_required('licenses.edit')
 def unassign_license_device(license_id, device_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     ld = LicenseDevice.query.filter_by(license_id=license_id, device_id=device_id).first()
@@ -11473,6 +11777,7 @@ def unassign_license_device(license_id, device_id):
     return redirect(url_for('license_list', tab='license'))
 
 @app.route('/it-services/add', methods=['POST'])
+@license_sensitive_access_required('licenses.edit')
 def add_it_service():
     if 'user_id' not in session: return redirect(url_for('login'))
     try:
@@ -11520,6 +11825,7 @@ def add_it_service():
     return redirect(url_for('license_list', tab='itservice'))
 
 @app.route('/it-services/<int:service_id>/edit', methods=['POST'])
+@license_sensitive_access_required('licenses.edit')
 def edit_it_service(service_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     srv = ITService.query.get_or_404(service_id)
@@ -11548,6 +11854,7 @@ def edit_it_service(service_id):
     return redirect(url_for('license_list', tab='itservice'))
 
 @app.route('/it-services/<int:service_id>/delete', methods=['POST'])
+@license_sensitive_access_required('licenses.delete')
 def delete_it_service(service_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     srv = ITService.query.get_or_404(service_id)
@@ -11561,6 +11868,7 @@ def delete_it_service(service_id):
     return redirect(url_for('license_list', tab='itservice'))
 
 @app.route('/work-accounts/add', methods=['POST'])
+@license_sensitive_access_required('licenses.edit')
 def add_work_account():
     if 'user_id' not in session: return redirect(url_for('login'))
     try:
@@ -11695,6 +12003,7 @@ def add_work_account():
     return redirect(url_for('license_list', tab=redirect_tab))
 
 @app.route('/work-accounts/<int:account_id>/edit', methods=['POST'])
+@license_sensitive_access_required('licenses.edit')
 def edit_work_account(account_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     acc = WorkAccount.query.get_or_404(account_id)
@@ -11702,7 +12011,9 @@ def edit_work_account(account_id):
         acc.account_name = (request.form.get('account_name') or '').strip()
         acc.platform = (request.form.get('platform') or 'Office 365').strip()
         acc.username_email = (request.form.get('username_email') or '').strip()
-        acc.password_text = (request.form.get('password_text') or '').strip()
+        new_password = (request.form.get('password_text') or '').strip()
+        if new_password:
+            acc.password_text = new_password
         acc.assigned_to_user_id = request.form.get('assigned_to_user_id', type=int)
         acc.assigned_to_device_id = request.form.get('assigned_to_device_id', type=int)
         acc.status = (request.form.get('status') or 'Đang sử dụng').strip()
@@ -11799,6 +12110,7 @@ def edit_work_account(account_id):
     return redirect(url_for('license_list', tab=redirect_tab))
 
 @app.route('/work-accounts/<int:account_id>/delete', methods=['POST'])
+@license_sensitive_access_required('licenses.delete')
 def delete_work_account(account_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     acc = WorkAccount.query.get_or_404(account_id)
@@ -11816,7 +12128,9 @@ def delete_work_account(account_id):
 def ping_work_account(account_id):
     if 'user_id' not in session:
         return jsonify({'success': False, 'message': 'Chưa đăng nhập'}), 401
-    
+    if not _require_license_permission('licenses.view'):
+        return jsonify({'success': False, 'message': 'Bạn không có quyền kiểm tra kết nối máy chủ'}), 403
+
     acc = WorkAccount.query.get_or_404(account_id)
     ip_raw = (acc.access_ip or acc.mgmt_ip or '').strip()
     
