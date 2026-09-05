@@ -41,6 +41,24 @@ body {
     color: red;
 }
 
+/* Gợi ý cách nhập: in mờ hơn nội dung thật để người dùng nhận ra đây chỉ là
+   ví dụ minh họa cách nhập, không phải dữ liệu đã lưu. */
+.hint-placeholder::placeholder {
+    color: #b3b9c0;
+    opacity: 1; /* Firefox tự hạ opacity của placeholder, ghi đè để giữ đúng màu */
+    font-style: italic;
+    font-weight: 400;
+}
+
+.hint-placeholder:disabled::placeholder {
+    color: #cbd0d6;
+}
+
+.hint-text {
+    color: #9aa1a9;
+    font-style: italic;
+}
+
 .table-details td {
     font-size: 0.95rem; /* Giảm nhẹ cỡ chữ từ 1rem (mặc định) xuống 0.95rem */
 }

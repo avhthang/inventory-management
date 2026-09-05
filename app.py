@@ -2971,20 +2971,24 @@ def role_detail(role_id):
 @app.route('/health')
 def health_check():
     """Health check endpoint for load balancers and monitoring"""
+    # Endpoint này không yêu cầu đăng nhập nên chỉ trả về trạng thái, không trả
+    # về nội dung lỗi (có thể chứa thông tin kết nối/DB).
     try:
         # Check database connection
         with db.engine.connect() as conn:
             conn.execute(text('SELECT 1'))
         db_status = 'healthy'
     except Exception as e:
-        db_status = f'unhealthy: {str(e)}'
-    
+        print(f"Health check DB error: {e}")
+        db_status = 'unhealthy'
+
     # Check if we can access the database
     try:
         user_count = User.query.count()
         user_status = 'healthy'
     except Exception as e:
-        user_status = f'unhealthy: {str(e)}'
+        print(f"Health check user query error: {e}")
+        user_status = 'unhealthy'
     
     health_data = {
         'status': 'healthy' if db_status == 'healthy' and user_status == 'healthy' else 'unhealthy',
@@ -3368,7 +3372,9 @@ def department_users_partial(id):
 def add_department():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+    if not _require_permission('departments.edit'):
+        return _permission_denied('Bạn không có quyền thêm phòng ban.', 'list_departments')
+
     if request.method == 'GET':
         return redirect(url_for('list_departments'))
     
@@ -3410,7 +3416,9 @@ def add_department():
 def edit_department(id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+    if not _require_permission('departments.edit'):
+        return _permission_denied('Bạn không có quyền sửa phòng ban.', 'list_departments')
+
     dept = Department.query.get_or_404(id)
     name = request.form.get('name')
     description = request.form.get('description')
@@ -3440,7 +3448,9 @@ def edit_department(id):
 def delete_department(id):
     if 'user_id' not in session:
         return jsonify({'success': False, 'message': 'Unauthorized'})
-    
+    if not _require_permission('departments.delete'):
+        return jsonify({'success': False, 'message': 'Bạn không có quyền xóa phòng ban.'}), 403
+
     dept = Department.query.get_or_404(id)
     
     # Check if department has children
@@ -3472,7 +3482,9 @@ def delete_department(id):
 @app.route('/departments/export_excel')
 def export_departments_excel():
     if 'user_id' not in session: return redirect(url_for('login'))
-    
+    if not (_require_permission('departments.view') or _require_permission('departments.edit')):
+        return _permission_denied('Bạn không có quyền xuất danh sách phòng ban.', 'list_departments')
+
     departments = Department.query.order_by(Department.id).all()
     data = []
     for dept in departments:
@@ -3500,7 +3512,9 @@ def export_departments_excel():
 @app.route('/departments/import', methods=['GET', 'POST'])
 def import_departments():
     if 'user_id' not in session: return redirect(url_for('login'))
-    
+    if not _require_permission('departments.edit'):
+        return _permission_denied('Bạn không có quyền nhập phòng ban từ Excel.', 'list_departments')
+
     if request.method == 'POST':
         file = request.files.get('file')
         if not file or not (file.filename.endswith('.xls') or file.filename.endswith('.xlsx')):
@@ -3579,7 +3593,9 @@ def import_departments():
 def reorder_departments():
     if 'user_id' not in session:
         return jsonify({'success': False, 'message': 'Unauthorized'})
-    
+    if not _require_permission('departments.edit'):
+        return jsonify({'success': False, 'message': 'Bạn không có quyền sắp xếp phòng ban.'}), 403
+
     data = request.get_json()
     dept_id = data.get('dept_id')
     new_parent_id = data.get('parent_id')
@@ -3891,6 +3907,8 @@ def save_device_filters():
 @app.route('/devices/bulk_update', methods=['POST'])
 def devices_bulk_update():
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('devices.edit'):
+        return _permission_denied('Bạn không có quyền cập nhật thiết bị.', 'device_list')
     device_ids = request.form.getlist('device_ids')
     if not device_ids:
         flash('Vui lòng chọn ít nhất một thiết bị.', 'warning')
@@ -3986,6 +4004,8 @@ def return_device(device_id):
 @app.route('/add_device', methods=['GET', 'POST'])
 def add_device():
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('devices.edit'):
+        return _permission_denied('Bạn không có quyền thêm thiết bị.', 'device_list')
     if request.method == 'POST':
         shared_purchase_date = request.form.get('purchase_date')
         if not shared_purchase_date:
@@ -4169,6 +4189,8 @@ def add_device():
 @app.route('/edit_device/<int:device_id>', methods=['GET', 'POST'])
 def edit_device(device_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('devices.edit'):
+        return _permission_denied('Bạn không có quyền sửa thiết bị.', 'device_list')
     device = Device.query.get_or_404(device_id)
     if request.method == 'POST':
         # snapshot before
@@ -4292,6 +4314,8 @@ def edit_device(device_id):
 @app.route('/delete_device/<int:device_id>', methods=['POST'])
 def delete_device(device_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('devices.delete'):
+        return _permission_denied('Bạn không có quyền xóa thiết bị.', 'device_list')
     device = Device.query.get_or_404(device_id)
     if device.handovers:
         flash('Không thể xóa thiết bị đã có lịch sử bàn giao.', 'danger')
@@ -4306,6 +4330,8 @@ def delete_device(device_id):
 @app.route('/devices/bulk_delete', methods=['POST'])
 def bulk_delete_devices():
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('devices.delete'):
+        return _permission_denied('Bạn không có quyền xóa thiết bị.', 'device_list')
     device_ids = request.form.getlist('device_ids')
     if not device_ids:
         flash('Vui lòng chọn ít nhất một thiết bị.', 'warning')
@@ -4355,16 +4381,28 @@ def device_detail(device_id):
 def add_devices_bulk():
     if 'user_id' not in session:
         return redirect(url_for('login'))
+    if not _require_permission('devices.edit'):
+        return _permission_denied('Bạn không có quyền thêm thiết bị.', 'device_list')
     flash('Màn thêm nhiều thiết bị đã được gộp vào trang Thêm thiết bị.', 'info')
     return redirect(url_for('add_device'))
 
 # --- Handover Routes ---
 @app.route('/handover_report', methods=['GET'])
 def handover_report():
-    # Get a list of all devices and users for the form
-    devices = Device.query.all()
-    users = User.query.all()
-    return render_template('handover_report.html', devices=devices, users=users)
+    """Màn tạo biên bản bàn giao cũ — chưa hoàn thiện.
+
+    templates/handover_report.html POST tới endpoint 'save_handover_report' không hề
+    tồn tại, nên trang này luôn lỗi khi render; lối vào trên giao diện cũng đã bị
+    comment sẵn (templates/handovers.html). Trước đây route còn không kiểm tra đăng
+    nhập, nghĩa là khách vô danh vẫn buộc được máy chủ nạp toàn bộ Device + User rồi
+    mới lỗi. Giữ URL để không trả 404, nhưng đưa người dùng về luồng bàn giao đang chạy.
+    """
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if not _require_permission('handovers.edit'):
+        return _permission_denied('Bạn không có quyền tạo biên bản bàn giao.', 'handover_list')
+    flash('Màn tạo biên bản bàn giao cũ chưa hoàn thiện. Vui lòng dùng chức năng bàn giao trong danh sách thiết bị.', 'info')
+    return redirect(url_for('handover_list'))
 
 @app.route('/handover_list')
 def handover_list():
@@ -4432,7 +4470,8 @@ def handover_list():
 def download_handover_template():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-
+    if not _require_permission('handovers.edit'):
+        return _permission_denied('Bạn không có quyền tải mẫu nhập phiếu bàn giao.', 'handover_list')
     # Định nghĩa các cột và dữ liệu mẫu
     columns = [
         'Mã thiết bị', 'Tên đăng nhập người giao', 'Tên đăng nhập người nhận', 
@@ -4464,6 +4503,8 @@ def download_handover_template():
 @app.route('/add_handover', methods=['GET', 'POST'])
 def add_handover():
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('handovers.view'):
+        return _permission_denied('Bạn không có quyền tạo phiếu bàn giao.', 'handover_list')
     current_user = _get_current_user()
     current_permissions = _get_current_permissions()
     can_manage_all_devices = current_user and (current_user.role == 'admin' or 'devices.edit' in current_permissions or 'handovers.edit' in current_permissions)
@@ -4661,7 +4702,9 @@ def add_handover():
 @app.route('/edit_handover/<int:handover_id>', methods=['GET', 'POST'])
 def edit_handover(handover_id):
     if 'user_id' not in session: return redirect(url_for('login'))
-    
+    if not _require_permission('handovers.edit'):
+        return _permission_denied('Bạn không có quyền sửa phiếu bàn giao.', 'handover_list')
+
     handover = DeviceHandover.query.get_or_404(handover_id)
     
     # Lưu lại thông tin cũ trước khi thay đổi
@@ -4746,6 +4789,8 @@ def edit_handover(handover_id):
 @app.route('/delete_handover/<int:handover_id>', methods=['POST'])
 def delete_handover(handover_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('handovers.delete'):
+        return _permission_denied('Bạn không có quyền xóa phiếu bàn giao.', 'handover_list')
     handover = DeviceHandover.query.get_or_404(handover_id)
     images_to_delete = _handover_image_list(handover)
     batch_id = handover.batch_id
@@ -4806,7 +4851,8 @@ def handover_detail(handover_id):
 @app.route('/import_handovers', methods=['GET', 'POST'])
 def import_handovers():
     if 'user_id' not in session: return redirect(url_for('login'))
-    # Thêm kiểm tra quyền admin nếu cần
+    if not _require_permission('handovers.edit'):
+        return _permission_denied('Bạn không có quyền nhập phiếu bàn giao từ Excel.', 'handover_list')
 
     if request.method == 'POST':
         file = request.files.get('file')
@@ -4975,11 +5021,16 @@ def set_users_default_status():
 
 @app.route('/users/<int:user_id>/reset_password', methods=['POST'])
 def reset_user_password(user_id):
-    if 'user_id' not in session: 
+    if 'user_id' not in session:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
         return redirect(url_for('login'))
-        
+
+    # Endpoint này trả về mật khẩu mới dạng rõ -> bắt buộc phải có quyền users.edit,
+    # nếu không bất kỳ user đã đăng nhập cũng có thể reset mật khẩu của admin.
+    if not _require_permission('users.edit'):
+        return _permission_denied('Bạn không có quyền reset mật khẩu người dùng.', 'user_list')
+
     user = User.query.get_or_404(user_id)
     try:
         from security import generate_secure_password
@@ -5001,6 +5052,8 @@ def reset_user_password(user_id):
 @app.route('/add_user', methods=['GET', 'POST'])
 def add_user():
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('users.edit'):
+        return _permission_denied('Bạn không có quyền thêm người dùng.', 'user_list')
     if request.method == 'POST':
         username = request.form.get('username')
         email = request.form.get('email')
@@ -5047,6 +5100,11 @@ def add_user():
         role = request.form.get('role', 'user')
         if role not in ['admin', 'user']:
             role = 'user'
+        # Chỉ admin mới được tạo tài khoản admin: nếu không, quyền users.edit
+        # sẽ trở thành đường tự nâng cấp lên admin.
+        if role == 'admin' and not _is_admin_user():
+            role = 'user'
+            flash('Chỉ Quản trị viên mới được tạo tài khoản quyền Admin. Đã tạo với quyền Người dùng.', 'warning')
         new_user.role = role
         
         db.session.commit()
@@ -5140,6 +5198,8 @@ def quit_user(user_id):
 @app.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
 def edit_user(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('users.edit'):
+        return _permission_denied('Bạn không có quyền sửa thông tin người dùng.', 'user_list')
     user = User.query.get_or_404(user_id)
     if request.method == 'POST':
         old = {
@@ -5163,7 +5223,6 @@ def edit_user(user_id):
                 user.last_name_token = None
         user.email = request.form.get('email')
         user.date_of_birth = datetime.strptime(request.form['date_of_birth'], '%Y-%m-%d').date() if request.form.get('date_of_birth') else None
-        user.role = request.form.get('role')
         # Handle department_id instead of department string
         department_id_str = request.form.get('department_id')
         user.department_id = int(department_id_str) if department_id_str else None
@@ -5181,14 +5240,27 @@ def edit_user(user_id):
         if new_password:
             user.password = generate_password_hash(new_password)
         
-        # Xử lý phân quyền mới: chỉ dựa vào cột role
+        # Xử lý phân quyền: cột role là nguồn chính, nhưng chỉ admin được thay đổi nó
+        previous_role = (user.role or 'user')
         role = request.form.get('role')
         if role not in ['admin', 'user']:
              role = 'user'
+        if role != previous_role and not _is_admin_user():
+            # Người có users.edit nhưng không phải admin không được đổi quyền của ai,
+            # tránh biến chức năng sửa thông tin thành đường tự nâng quyền lên admin.
+            flash('Chỉ Quản trị viên mới được thay đổi quyền tài khoản. Các thông tin khác vẫn được lưu.', 'warning')
+            role = previous_role
         user.role = role
-        
-        # Xóa TẤT CẢ các quyền UserRole cũ để tránh xung đột quyền lẻ
-        UserRole.query.filter_by(user_id=user_id).delete()
+
+        # Chỉ can thiệp vào vai trò RBAC khi cột role thật sự thay đổi. Trước đây
+        # mọi lần lưu form đều xóa sạch UserRole, làm mất các quyền đã cấp ở trang
+        # Phân quyền (ví dụ licenses.view) chỉ vì admin sửa số điện thoại.
+        if role != previous_role:
+            UserRole.query.filter_by(user_id=user_id).delete()
+            if role == 'user':
+                default_role = Role.query.filter_by(name='Người dùng').first()
+                if default_role:
+                    db.session.add(UserRole(user_id=user_id, role_id=default_role.id))
         
         # Xử lý nghỉ việc - tự động tạo phiếu trả thiết bị
         
@@ -5234,7 +5306,12 @@ def edit_user(user_id):
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('users.delete'):
+        return _permission_denied('Bạn không có quyền xóa người dùng.', 'user_list')
     user = User.query.get_or_404(user_id)
+    if (user.role or '').lower() == 'admin' and not _is_admin_user():
+        flash('Chỉ Quản trị viên mới được xóa tài khoản Quản trị viên.', 'danger')
+        return redirect(url_for('user_list'))
     if user.given_handovers.count() > 0 or user.received_handovers.count() > 0:
         flash(f'Không thể xóa người dùng "{user.full_name}" vì họ đã có lịch sử bàn giao thiết bị.', 'danger')
         return redirect(url_for('user_list'))
@@ -5252,6 +5329,11 @@ def delete_user(user_id):
 @app.route('/user/<int:user_id>')
 def user_detail(user_id):
     if 'user_id' not in session: return redirect(url_for('login'))
+    # Trang này hiển thị hồ sơ và lịch sử bàn giao của người khác: cần users.view,
+    # trừ khi người dùng đang xem chính mình.
+    if user_id != session.get('user_id') and not _require_permission('users.view'):
+        flash('Bạn không có quyền xem thông tin người dùng khác.', 'danger')
+        return redirect(url_for('home'))
     user = User.query.get_or_404(user_id)
     # Thiết bị đang quản lý
     devices = Device.query.filter_by(manager_id=user.id).order_by(Device.device_code).all()
@@ -5279,7 +5361,9 @@ def user_detail(user_id):
 def device_info(device_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
-    device = Device.query.get(device_id)
+    # Chỉ trả về thiết bị nằm trong phạm vi người dùng được phép thấy trên danh
+    # sách thiết bị; nếu không, endpoint này sẽ tiết lộ thiết bị của đơn vị khác.
+    device = _visible_devices_query_for().filter(Device.id == device_id).first()
     if device:
         return jsonify({
             'id': device.id, 
@@ -5294,6 +5378,8 @@ def device_info(device_id):
 @app.route('/import_devices', methods=['GET', 'POST'])
 def import_devices():
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not _require_permission('devices.edit'):
+        return _permission_denied('Bạn không có quyền nhập thiết bị từ Excel.', 'device_list')
     if request.method == 'POST':
         file = request.files.get('file')
         if not file or not (file.filename.endswith('.xls') or file.filename.endswith('.xlsx')):
@@ -5410,7 +5496,10 @@ def import_devices():
 @app.route('/export_devices_excel')
 def export_devices_excel():
     if 'user_id' not in session: return redirect(url_for('login'))
-    devices = Device.query.order_by(Device.device_code).all()
+    if not (_require_permission('devices.view') or _require_permission('devices.edit')):
+        return _permission_denied('Bạn không có quyền xuất danh sách thiết bị.', 'device_list')
+    # Xuất đúng phạm vi thiết bị người dùng được phép thấy (admin: toàn bộ).
+    devices = _visible_devices_query_for().order_by(Device.device_code).all()
     data = []
     for device in devices:
         data.append({
@@ -5481,6 +5570,34 @@ def _is_admin_user(user=None):
         return UserRole.query.filter_by(user_id=user.id, role_id=admin_role.id).first() is not None
     except Exception:
         return False
+
+def _require_permission(permission_code):
+    """True nếu người dùng hiện tại là admin hoặc có đúng quyền RBAC được yêu cầu.
+
+    Dùng cho các endpoint ghi dữ liệu vốn chỉ được ẩn ở giao diện: giao diện ẩn
+    không phải là kiểm soát truy cập, endpoint vẫn phải tự kiểm tra quyền.
+    """
+    if 'user_id' not in session:
+        return False
+    if _is_admin_user():
+        return True
+    return permission_code in _get_current_permissions()
+
+
+def _permission_denied(message='Bạn không có quyền thực hiện chức năng này.', redirect_endpoint='home'):
+    """Trả về phản hồi từ chối phù hợp với loại request (JSON cho AJAX, flash cho form).
+
+    Chỉ chuyển hướng tới endpoint nội bộ, không dùng request.referrer để tránh
+    bị lợi dụng chuyển hướng ra ngoài.
+    """
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': False, 'message': message}), 403
+    flash(message, 'danger')
+    try:
+        return redirect(url_for(redirect_endpoint))
+    except Exception:
+        return redirect(url_for('home'))
+
 
 def _managed_department_ids(user=None):
     """Departments directly managed by user, including nested child departments."""
@@ -5653,7 +5770,9 @@ def download_maintenance_file(log_id, filename):
 @app.route('/import_users', methods=['GET', 'POST'])
 def import_users():
     if 'user_id' not in session: return redirect(url_for('login'))
-    
+    if not _require_permission('users.edit'):
+        return _permission_denied('Bạn không có quyền nhập người dùng từ Excel.', 'user_list')
+
     if request.method == 'POST':
         file = request.files.get('file')
         if not file or not (file.filename.endswith('.xls') or file.filename.endswith('.xlsx')):
@@ -5735,6 +5854,8 @@ def import_users():
 @app.route('/export_users_excel')
 def export_users_excel():
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not (_require_permission('users.view') or _require_permission('users.edit')):
+        return _permission_denied('Bạn không có quyền xuất danh sách người dùng.', 'user_list')
     users = User.query.order_by(func.lower(User.last_name_token), func.lower(User.full_name), func.lower(User.username)).all()
     data = []
     for user in users:
@@ -6674,6 +6795,8 @@ def delete_bug_report(report_id):
 @app.route('/export_handovers_excel')
 def export_handovers_excel():
     if 'user_id' not in session: return redirect(url_for('login'))
+    if not (_require_permission('handovers.view') or _require_permission('handovers.edit')):
+        return _permission_denied('Bạn không có quyền xuất lịch sử bàn giao.', 'handover_list')
     handovers = DeviceHandover.query.order_by(DeviceHandover.handover_date.desc()).all()
     data = []
     for handover in handovers:
@@ -6874,6 +6997,11 @@ def add_config_proposal():
 def download_proposal_attachment(attachment_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     attachment = ConfigProposalAttachment.query.get_or_404(attachment_id)
+    # Chỉ cho tải tệp thuộc đề xuất mà người dùng được phép xem.
+    parent_proposal = ConfigProposal.query.get(attachment.proposal_id)
+    if not _can_access_config_proposal(parent_proposal):
+        flash('Bạn không có quyền tải tệp của đề xuất này.', 'danger')
+        return redirect(url_for('config_proposals'))
     return send_from_directory(
         os.path.join(instance_path, 'proposal_attachments'),
         attachment.file_path,
@@ -7202,7 +7330,10 @@ def delete_proposal_order_tracking(tracking_id):
 def add_proposal_order_tracking(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     p = ConfigProposal.query.get_or_404(proposal_id)
-    
+    if not _can_access_config_proposal(p):
+        flash('Bạn không có quyền cập nhật đề xuất này.', 'danger')
+        return redirect(url_for('config_proposals'))
+
     status_content = request.form.get('status_content')
     note = request.form.get('note')
     
@@ -7225,6 +7356,9 @@ def add_proposal_order_tracking(proposal_id):
 def delete_config_proposal(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     p = ConfigProposal.query.get_or_404(proposal_id)
+    if not _can_access_config_proposal(p):
+        flash('Bạn không có quyền xóa đề xuất này.', 'danger')
+        return redirect(url_for('config_proposals'))
     # cascade will remove items
     db.session.delete(p)
     db.session.commit()
@@ -7235,6 +7369,9 @@ def delete_config_proposal(proposal_id):
 def clone_config_proposal(proposal_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     p = ConfigProposal.query.get_or_404(proposal_id)
+    if not _can_access_config_proposal(p):
+        flash('Bạn không có quyền nhân bản đề xuất này.', 'danger')
+        return redirect(url_for('config_proposals'))
     new_p = ConfigProposal(
         name=f"{p.name} (bản sao)",
         proposal_date=p.proposal_date,
@@ -7687,8 +7824,15 @@ def api_group_devices(group_id):
     if 'user_id' not in session: return jsonify({'error': 'Unauthorized'}), 401
     group = DeviceGroup.query.get_or_404(group_id)
     device_links = DeviceGroupDevice.query.filter_by(group_id=group_id).all()
+    # Giới hạn theo phạm vi thiết bị người dùng được phép thấy để endpoint này
+    # không trở thành đường vòng đọc thiết bị của đơn vị khác.
+    visible_ids = None
+    if not _is_admin_user():
+        visible_ids = {row[0] for row in _visible_devices_query_for().with_entities(Device.id).all()}
     devices = []
     for link in device_links:
+        if visible_ids is not None and link.device_id not in visible_ids:
+            continue
         device = Device.query.get(link.device_id)
         if device:
             devices.append({
@@ -9837,7 +9981,7 @@ def delete_device_type(id):
 
 _hikvision_cfg_path = os.path.join(instance_path, 'hikvision_config.json')
 hikvision_config_defaults = {
-    'host': '192.168.111.94',
+    'host': '',
     'port': '8000',
     'username': 'admin',
     'password': '',
@@ -9845,32 +9989,65 @@ hikvision_config_defaults = {
     'sync_interval': 15
 }
 
+def _hikvision_env_config():
+    """Cấu hình dự phòng lấy từ biến môi trường.
+
+    Dùng khi file hikvision_config.json chưa tồn tại (ví dụ container được tạo
+    lại mà thư mục instance chưa được gắn volume) để người dùng không phải nhập
+    lại thông số kết nối sau mỗi lần cập nhật.
+    """
+    env_map = {
+        'host': os.environ.get('HIKVISION_HOST'),
+        'port': os.environ.get('HIKVISION_PORT'),
+        'username': os.environ.get('HIKVISION_USERNAME'),
+        'password': os.environ.get('HIKVISION_PASSWORD'),
+    }
+    return {k: v.strip() for k, v in env_map.items() if v not in (None, '')}
+
+
 def get_hikvision_config():
+    """Cấu hình thiết bị Hikvision (gồm mật khẩu) - chỉ dùng cho luồng gọi thiết bị.
+
+    Không truyền trực tiếp kết quả này vào template: dùng _hikvision_public_config().
+    """
     cfg = dict(hikvision_config_defaults)
+    saved = {}
     try:
         if os.path.exists(_hikvision_cfg_path):
             with open(_hikvision_cfg_path, 'r', encoding='utf-8') as f:
-                saved = json.load(f)
-                if isinstance(saved, dict):
-                    cfg.update({k: v for k, v in saved.items() if v is not None})
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    saved = {k: v for k, v in loaded.items() if v is not None}
     except Exception:
-        pass
-    
-    host_val = str(cfg.get('host') or '').strip()
-    if host_val == '192.168.11.94':
-        cfg['host'] = '192.168.111.94'
-        try:
-            with open(_hikvision_cfg_path, 'w', encoding='utf-8') as f:
-                json.dump(cfg, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        saved = {}
+    # Biến môi trường chỉ điền cho khóa mà file cấu hình chưa có; giá trị người
+    # dùng lưu qua giao diện luôn được ưu tiên.
+    cfg.update({k: v for k, v in _hikvision_env_config().items() if k not in saved})
+    cfg.update(saved)
     return cfg
+
+
+def _hikvision_public_config(cfg=None):
+    """Bản cấu hình an toàn để hiển thị: không chứa mật khẩu thiết bị."""
+    cfg = cfg if cfg is not None else get_hikvision_config()
+    return {
+        'host': cfg.get('host') or '',
+        'port': cfg.get('port') or '',
+        'username': cfg.get('username') or '',
+        'has_password': bool(cfg.get('password')),
+    }
 
 def save_hikvision_config(data):
     cfg = get_hikvision_config()
     cfg.update(data)
-    with open(_hikvision_cfg_path, 'w', encoding='utf-8') as f:
+    # Ghi kiểu atomic: tránh mất/hỏng cấu hình nếu tiến trình bị dừng giữa lúc ghi.
+    os.makedirs(os.path.dirname(_hikvision_cfg_path) or '.', exist_ok=True)
+    tmp_path = f'{_hikvision_cfg_path}.tmp'
+    with open(tmp_path, 'w', encoding='utf-8') as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, _hikvision_cfg_path)
     return cfg
 
 _cached_hikvision_base_url = None
@@ -9883,16 +10060,24 @@ def get_hikvision_session():
         _hikvision_session = requests.Session()
     return _hikvision_session
 
-def _hikvision_request(endpoint, method='GET', payload=None, timeout=3, content_type='application/json'):
+def _hikvision_request(endpoint, method='GET', payload=None, timeout=3, content_type='application/json', cfg_override=None):
     global _cached_hikvision_base_url
     cfg = get_hikvision_config()
-    host = (cfg.get('host') or '192.168.111.94').strip()
+    if cfg_override:
+        # Dùng cho chức năng "Thử kết nối": kiểm tra thông số vừa nhập mà không
+        # ghi đè cấu hình đang chạy.
+        cfg = dict(cfg)
+        cfg.update({k: v for k, v in cfg_override.items() if v not in (None, '')})
+    host = (cfg.get('host') or '').strip()
     port = str(cfg.get('port') or '8000').strip()
     username = (cfg.get('username') or 'admin').strip()
     password = cfg.get('password') or ''
 
+    if not host:
+        return False, 'Chưa cấu hình địa chỉ IP máy chấm công. Vào Cấu hình kết nối để nhập thông tin thiết bị.'
+
     base_urls = []
-    if _cached_hikvision_base_url:
+    if _cached_hikvision_base_url and not cfg_override:
         base_urls.append(_cached_hikvision_base_url)
 
     u1 = f"http://{host}:80"
@@ -9935,7 +10120,8 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=3, content_
                         resp = session.get(url, auth=auth, headers=headers, timeout=timeout, verify=False)
                     
                     if resp.status_code == 200:
-                        _cached_hikvision_base_url = base_url
+                        if not cfg_override:
+                            _cached_hikvision_base_url = base_url
                         try:
                             return True, resp.json()
                         except Exception:
@@ -9982,7 +10168,8 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=3, content_
 
             with opener.open(req, timeout=timeout) as resp:
                 body = resp.read().decode('utf-8', errors='ignore')
-                _cached_hikvision_base_url = base_url
+                if not cfg_override:
+                    _cached_hikvision_base_url = base_url
                 try:
                     return True, json.loads(body)
                 except Exception:
@@ -9997,8 +10184,8 @@ def _hikvision_request(endpoint, method='GET', payload=None, timeout=3, content_
 
     return False, "Không thể kết nối Hikvision. Chi tiết: " + " | ".join(errors_log[:3])
 
-def _hikvision_test_connection():
-    ok, data = _hikvision_request('/ISAPI/System/deviceInfo', method='GET', timeout=3)
+def _hikvision_test_connection(cfg_override=None):
+    ok, data = _hikvision_request('/ISAPI/System/deviceInfo', method='GET', timeout=3, cfg_override=cfg_override)
     if ok:
         dev_name = 'Hikvision Terminal'
         if isinstance(data, dict):
@@ -10366,6 +10553,10 @@ def attendance_logs():
     elif quick_range == '1':
         start_date = today
         end_date = today
+    elif quick_range == 'yesterday':
+        # Chỉ đúng ngày hôm qua, không gộp hôm nay
+        start_date = today - timedelta(days=1)
+        end_date = start_date
     elif quick_range == '3':
         start_date = today - timedelta(days=2)
         end_date = today
@@ -10375,13 +10566,16 @@ def attendance_logs():
     elif quick_range == '30':
         start_date = today - timedelta(days=29)
         end_date = today
-    elif start_date_val or end_date_val:
+    elif quick_range == 'custom' or start_date_val or end_date_val:
         try:
             start_date = datetime.strptime(start_date_val, '%Y-%m-%d').date() if start_date_val else today
             end_date = datetime.strptime(end_date_val, '%Y-%m-%d').date() if end_date_val else today
         except Exception:
             start_date = today
             end_date = today
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+        quick_range = 'custom'
     else:
         # Default to Today
         start_date = today
@@ -10393,11 +10587,15 @@ def attendance_logs():
 
     summary_list = []
     records = None
+    # Không đưa mật khẩu thiết bị vào context template; địa chỉ thiết bị chỉ hiện
+    # với người có quyền cấu hình/đồng bộ.
+    can_see_device = _require_permission('attendance.config') or _require_permission('attendance.sync')
     stats = {
         'total_records': 0,
         'total_users': 0,
         'last_sync_time': 'Chưa có dữ liệu',
-        'hikvision_cfg': get_hikvision_config()
+        'hikvision_cfg': _hikvision_public_config() if can_see_device else {'host': '', 'port': '', 'username': '', 'has_password': False},
+        'can_see_device': can_see_device
     }
 
     current_user_id = session.get('user_id')
@@ -10448,7 +10646,9 @@ def attendance_logs():
             ))
 
         if user_type_filter:
-            matching_emp_nos = [u.employee_no for u in AttendanceUser.query.filter_by(user_type=user_type_filter).all()]
+            matching_emp_nos = [row[0] for row in AttendanceUser.query.with_entities(
+                AttendanceUser.employee_no
+            ).filter_by(user_type=user_type_filter).all()]
             query = query.filter(AttendanceRecord.employee_no.in_(matching_emp_nos))
 
         if 'per_page' in request.args:
@@ -10463,39 +10663,93 @@ def attendance_logs():
         # Tab 2 Paginated Records
         records = query.order_by(AttendanceRecord.event_time.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
-        # Python-based DB-agnostic Summary Aggregation
-        all_raw_records = query.order_by(AttendanceRecord.event_time.asc()).all()
+        # Tổng hợp theo (mã chấm công, ngày).
+        # Ưu tiên gom nhóm ngay trong SQL (nhanh và không nạp toàn bộ bản ghi vào
+        # Python). Nếu loại DB không hỗ trợ hàm date() thì tự động quay lại cách
+        # gom bằng Python, chỉ lấy 3 cột cần dùng thay vì nạp cả ORM object.
+        summary_map = {}
+        aggregated_in_sql = False
+        try:
+            date_expr = func.date(AttendanceRecord.event_time)
+            grouped_rows = query.with_entities(
+                AttendanceRecord.employee_no.label('employee_no'),
+                date_expr.label('log_date'),
+                func.min(AttendanceRecord.event_time).label('first_in'),
+                func.max(AttendanceRecord.event_time).label('last_out'),
+                func.count(AttendanceRecord.id).label('total_scans'),
+                func.max(AttendanceRecord.user_name).label('user_name')
+            ).group_by(AttendanceRecord.employee_no, date_expr).all()
+            for row in grouped_rows:
+                log_date_value = row.log_date
+                if hasattr(log_date_value, 'strftime'):
+                    log_date_str = log_date_value.strftime('%Y-%m-%d')
+                else:
+                    log_date_str = str(log_date_value)[:10]
+                summary_map[(row.employee_no, log_date_str)] = {
+                    'employee_no': row.employee_no,
+                    'user_name': row.user_name or 'Chưa rõ',
+                    'user_type': 'Nhân viên',
+                    'department': '-',
+                    'log_date': log_date_str,
+                    'first_in': row.first_in,
+                    'last_out': row.last_out,
+                    'total_scans': row.total_scans or 0
+                }
+            aggregated_in_sql = True
+        except Exception as agg_exc:
+            db.session.rollback()
+            summary_map = {}
+            print(f"Attendance summary SQL aggregation fallback: {agg_exc}")
+
+        if not aggregated_in_sql:
+            raw_rows = query.with_entities(
+                AttendanceRecord.employee_no,
+                AttendanceRecord.event_time,
+                AttendanceRecord.user_name
+            ).order_by(AttendanceRecord.event_time.asc()).all()
+            for emp_no, event_time, rec_user_name in raw_rows:
+                if not event_time:
+                    continue
+                log_date_str = event_time.strftime('%Y-%m-%d')
+                key = (emp_no, log_date_str)
+                existing = summary_map.get(key)
+                if existing is None:
+                    summary_map[key] = {
+                        'employee_no': emp_no,
+                        'user_name': rec_user_name or 'Chưa rõ',
+                        'user_type': 'Nhân viên',
+                        'department': '-',
+                        'log_date': log_date_str,
+                        'first_in': event_time,
+                        'last_out': event_time,
+                        'total_scans': 1
+                    }
+                else:
+                    existing['last_out'] = event_time
+                    existing['total_scans'] += 1
+
+        # Chỉ tra thông tin của những mã chấm công thực sự xuất hiện trong kỳ.
         users_map = {}
         try:
-            users_map = {u.employee_no: u for u in AttendanceUser.query.all()}
+            present_emp_nos = {key[0] for key in summary_map.keys() if key[0]}
+            if present_emp_nos:
+                user_rows = AttendanceUser.query.with_entities(
+                    AttendanceUser.employee_no,
+                    AttendanceUser.name,
+                    AttendanceUser.user_type,
+                    AttendanceUser.department
+                ).filter(AttendanceUser.employee_no.in_(present_emp_nos)).all()
+                users_map = {row[0]: row for row in user_rows}
         except Exception as u_exc:
             db.session.rollback()
             print(f"Users map query info: {u_exc}")
-        
-        summary_map = {}
-        for rec in all_raw_records:
-            log_date_str = rec.event_time.strftime('%Y-%m-%d')
-            key = (rec.employee_no, log_date_str)
-            if key not in summary_map:
-                u_obj = users_map.get(rec.employee_no)
-                u_name = getattr(u_obj, 'name', None) if u_obj else None
-                u_type = getattr(u_obj, 'user_type', None) if u_obj else None
-                u_dept = getattr(u_obj, 'department', None) if u_obj else None
-                summary_map[key] = {
-                    'employee_no': rec.employee_no,
-                    'user_name': u_name or rec.user_name or 'Chưa rõ',
-                    'user_type': u_type or 'Nhân viên',
-                    'department': u_dept or '-',
-                    'log_date': log_date_str,
-                    'first_in': rec.event_time,
-                    'last_out': rec.event_time,
-                    'total_scans': 1
-                }
-            else:
-                summary_map[key]['last_out'] = rec.event_time
-                summary_map[key]['total_scans'] += 1
 
         for s in summary_map.values():
+            u_row = users_map.get(s['employee_no'])
+            if u_row:
+                s['user_name'] = u_row[1] or s['user_name']
+                s['user_type'] = u_row[2] or 'Nhân viên'
+                s['department'] = u_row[3] or '-'
             if s['last_out'] == s['first_in']:
                 s['last_out'] = None
             summary_list.append(s)
@@ -10645,8 +10899,17 @@ def attendance_export():
         sort_by = (request.args.get('sort') or 'date_desc').strip()
         
         today = date.today()
-        if quick_range == '1':
+        if quick_range == 'all':
+            start_date = date(2000, 1, 1)
+            end_date = date(2099, 12, 31)
+        elif quick_range == '1':
             start_date = today
+            end_date = today
+        elif quick_range == 'yesterday':
+            start_date = today - timedelta(days=1)
+            end_date = start_date
+        elif quick_range == '3':
+            start_date = today - timedelta(days=2)
             end_date = today
         elif quick_range == '7':
             start_date = today - timedelta(days=6)
@@ -10661,6 +10924,8 @@ def attendance_export():
             except Exception:
                 start_date = today - timedelta(days=6)
                 end_date = today
+            if start_date > end_date:
+                start_date, end_date = end_date, start_date
 
         start_dt = datetime.combine(start_date, datetime.min.time())
         end_dt = datetime.combine(end_date, datetime.max.time())
@@ -10955,19 +11220,22 @@ def delete_attendance_user(user_id):
 @app.route('/attendance/config', methods=['GET', 'POST'])
 def attendance_config_page():
     if 'user_id' not in session: return redirect(url_for('login'))
-    user_permissions = session.get('permissions') or []
-    current_user_id = session.get('user_id')
-    user_role = str(session.get('role') or '').lower()
-    is_admin = (user_role in ('admin', 'quản trị viên', 'administrator')) or ('attendance.view_all' in user_permissions) or (session.get('is_admin') is True) or (current_user_id == 1)
-    if not is_admin and 'attendance.config' not in user_permissions:
+    # Trang này quản lý thông tin đăng nhập thiết bị -> chỉ đúng quyền attendance.config
+    # (trước đây quyền "xem toàn bộ chấm công" cũng mở được trang cấu hình).
+    if not _require_permission('attendance.config'):
         flash('Bạn không có quyền truy cập cấu hình máy chấm công.', 'danger')
         return redirect(url_for('attendance_logs'))
     if request.method == 'POST':
-        host = (request.form.get('host') or '192.168.11.94').strip()
+        saved_cfg = get_hikvision_config()
+        host = (request.form.get('host') or '').strip()
         port = (request.form.get('port') or '8000').strip()
         username = (request.form.get('username') or 'admin').strip()
-        password = request.form.get('password') or ''
-        
+        # Ô mật khẩu không bao giờ được đổ giá trị cũ ra HTML, nên để trống
+        # nghĩa là "giữ nguyên mật khẩu đang lưu".
+        password = request.form.get('password')
+        if not password:
+            password = saved_cfg.get('password') or ''
+
         save_hikvision_config({
             'host': host,
             'port': port,
@@ -10977,28 +11245,33 @@ def attendance_config_page():
         flash('Đã lưu cấu hình kết nối máy chấm công Hikvision.', 'success')
         return redirect(url_for('attendance_config_page'))
 
-    cfg = get_hikvision_config()
-    return render_template('attendance_config.html', cfg=cfg)
+    return render_template('attendance_config.html', cfg=_hikvision_public_config())
 
 @app.route('/attendance/test-connection', methods=['POST'])
 def attendance_test_connection():
     if 'user_id' not in session: return jsonify({'success': False, 'message': 'Unauthorized'}), 401
-    
-    host = request.form.get('host')
-    if host:
-        save_hikvision_config({
-            'host': (request.form.get('host') or '').strip(),
-            'port': (request.form.get('port') or '8000').strip(),
-            'username': (request.form.get('username') or 'admin').strip(),
-            'password': request.form.get('password') or ''
-        })
+    # Endpoint này khiến server tự mở kết nối tới host/port do người gọi chỉ định,
+    # nên phải khóa bằng đúng quyền cấu hình thiết bị - nếu không nó thành công cụ
+    # dò quét mạng nội bộ cho bất kỳ user đã đăng nhập.
+    if not _require_permission('attendance.config'):
+        return jsonify({'success': False, 'message': 'Bạn không có quyền thử kết nối thiết bị chấm công.'}), 403
 
-    ok, msg = _hikvision_test_connection()
+    # Chỉ thử với thông số vừa nhập, không ghi đè cấu hình đang chạy.
+    override = {
+        'host': (request.form.get('host') or '').strip(),
+        'port': (request.form.get('port') or '').strip(),
+        'username': (request.form.get('username') or '').strip(),
+        'password': request.form.get('password') or '',
+    }
+
+    ok, msg = _hikvision_test_connection(cfg_override=override)
     return jsonify({'success': ok, 'message': msg})
 
 @app.route('/attendance/sync', methods=['POST'])
 def attendance_sync_api():
     if 'user_id' not in session: return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    if not _require_permission('attendance.sync'):
+        return jsonify({'success': False, 'message': 'Bạn không có quyền đồng bộ dữ liệu chấm công.'}), 403
     
     try:
         sync_type = request.form.get('sync_type') or (request.json.get('sync_type') if request.is_json else None) or 'all'

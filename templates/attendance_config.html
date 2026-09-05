@@ -12,34 +12,39 @@
     <div class="card shadow-sm border-0">
         <div class="card-body p-4">
             <div class="alert alert-light border mb-4">
-                <div class="fw-bold text-primary mb-1"><i class="bi bi-info-circle"></i> Thông tin thiết bị Hikvision:</div>
+                <div class="fw-bold text-primary mb-1"><i class="bi bi-info-circle"></i> Cách lấy thông tin kết nối:</div>
                 <ul class="mb-0 ps-3 small text-muted">
-                    <li>Địa chỉ IP thiết bị: <code>192.168.11.94</code></li>
-                    <li>Cổng kết nối mặc định: <code>8000</code> (hoặc <code>80</code>)</li>
-                    <li>Tài khoản quản trị thiết bị mặc định: <code>admin</code> (dùng mật khẩu máy chấm công / iVMS-4200 AC)</li>
+                    <li>Địa chỉ IP thiết bị: xem trên màn hình thiết bị hoặc trong iVMS-4200 (VD: <code>192.168.1.100</code>)</li>
+                    <li>Cổng kết nối thường dùng: <code>8000</code> (hoặc <code>80</code> nếu thiết bị chỉ mở HTTP)</li>
+                    <li>Tài khoản quản trị thiết bị: tài khoản bạn dùng để đăng nhập thiết bị / iVMS-4200</li>
                 </ul>
             </div>
 
-            <form method="POST" id="attendanceConfigForm">
+            <form method="POST" id="attendanceConfigForm" autocomplete="off">
                 <div class="row g-3 mb-3">
                     <div class="col-md-8">
                         <label class="form-label fw-semibold required">Địa chỉ IP Máy chấm công</label>
-                        <input type="text" class="form-control font-monospace" name="host" id="cfgHost" value="{{ cfg.host }}" required placeholder="192.168.11.94">
+                        <input type="text" class="form-control font-monospace hint-placeholder" name="host" id="cfgHost" value="{{ cfg.host }}" required placeholder="VD: 192.168.1.100">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-semibold required">Cổng (Port)</label>
-                        <input type="text" class="form-control font-monospace" name="port" id="cfgPort" value="{{ cfg.port }}" required placeholder="8000">
+                        <input type="text" class="form-control font-monospace hint-placeholder" name="port" id="cfgPort" value="{{ cfg.port }}" required placeholder="VD: 8000">
                     </div>
                 </div>
 
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label class="form-label fw-semibold required">Tài khoản (Username)</label>
-                        <input type="text" class="form-control" name="username" id="cfgUsername" value="{{ cfg.username }}" required placeholder="admin">
+                        <input type="text" class="form-control hint-placeholder" name="username" id="cfgUsername" value="{{ cfg.username }}" required placeholder="VD: admin">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Mật khẩu (Password)</label>
-                        <input type="password" class="form-control" name="password" id="cfgPassword" value="{{ cfg.password }}" placeholder="Nhập mật khẩu thiết bị Hikvision">
+                        <input type="password" class="form-control hint-placeholder" name="password" id="cfgPassword" value="" autocomplete="new-password"
+                               placeholder="{% if cfg.has_password %}Để trống nếu giữ mật khẩu hiện tại{% else %}Nhập mật khẩu thiết bị{% endif %}">
+                        <div class="form-text hint-text">
+                            {% if cfg.has_password %}Đã có mật khẩu được lưu. Mật khẩu không được hiển thị lại; chỉ nhập khi cần thay đổi.
+                            {% else %}Chưa lưu mật khẩu thiết bị.{% endif %}
+                        </div>
                     </div>
                 </div>
 

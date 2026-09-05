@@ -24,41 +24,41 @@
 
             <form method="POST">
                 <div class="mb-3">
-                    <label class="form-label fw-semibold required">Tên Công ty / Đơn vị chính</label>
-                    <input type="text" class="form-control" name="company_name" value="{{ cfg.company_name }}" required placeholder="VD: CÔNG TY CỔ PHẦN THIẾT BỊ & CÔNG NGHỆ" {% if not is_admin %}disabled{% endif %}>
+                    <label class="form-label fw-semibold required">Tên Công ty / Đơn vị</label>
+                    <input type="text" class="form-control hint-placeholder" name="company_name" value="{{ cfg.company_name }}" required placeholder="VD: CÔNG TY CỔ PHẦN THIẾT BỊ & CÔNG NGHỆ" {% if not is_admin %}disabled{% endif %}>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Địa chỉ trụ sở / Kho</label>
-                    <input type="text" class="form-control" name="company_address" value="{{ cfg.company_address or '' }}" placeholder="VD: 123 Đường ABC, Phường X, Quận Y, TP.HCM" {% if not is_admin %}disabled{% endif %}>
+                    <input type="text" class="form-control hint-placeholder" name="company_address" value="{{ cfg.company_address or '' }}" placeholder="VD: 123 Đường ABC, Phường X, Quận Y, TP.HCM" {% if not is_admin %}disabled{% endif %}>
                 </div>
 
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Mã số thuế (MST)</label>
-                        <input type="text" class="form-control font-monospace" name="company_tax_id" value="{{ cfg.company_tax_id or '' }}" placeholder="VD: 0101234567" {% if not is_admin %}disabled{% endif %}>
+                        <input type="text" class="form-control font-monospace hint-placeholder" name="company_tax_id" value="{{ cfg.company_tax_id or '' }}" placeholder="VD: 0101234567" {% if not is_admin %}disabled{% endif %}>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Địa chỉ Email</label>
-                        <input type="email" class="form-control" name="company_email" value="{{ cfg.company_email or '' }}" placeholder="VD: contact@company.com" {% if not is_admin %}disabled{% endif %}>
+                        <input type="email" class="form-control hint-placeholder" name="company_email" value="{{ cfg.company_email or '' }}" placeholder="VD: contact@company.com" {% if not is_admin %}disabled{% endif %}>
                     </div>
                 </div>
 
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Số điện thoại liên hệ</label>
-                        <input type="text" class="form-control" name="company_phone" value="{{ cfg.company_phone or '' }}" placeholder="VD: 028 1234 5678" {% if not is_admin %}disabled{% endif %}>
+                        <input type="text" class="form-control hint-placeholder" name="company_phone" value="{{ cfg.company_phone or '' }}" placeholder="VD: 028 1234 5678" {% if not is_admin %}disabled{% endif %}>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Số tài khoản ngân hàng</label>
-                        <input type="text" class="form-control font-monospace" name="company_bank_account" value="{{ cfg.company_bank_account or '' }}" placeholder="VD: 1900xxxxxx - Vietcombank" {% if not is_admin %}disabled{% endif %}>
+                        <input type="text" class="form-control font-monospace hint-placeholder" name="company_bank_account" value="{{ cfg.company_bank_account or '' }}" placeholder="VD: 1900xxxxxx - Vietcombank" {% if not is_admin %}disabled{% endif %}>
                     </div>
                 </div>
 
                 <div class="mb-4">
-                    <label class="form-label fw-semibold">Chi nhánh, phòng ban xuất nhập thiết bị</label>
-                    <input type="text" class="form-control" name="branch_name" value="{{ cfg.branch_name or 'Phòng Quản lý Thiết bị' }}" placeholder="Mặc định: Phòng Quản lý Thiết bị" {% if not is_admin %}disabled{% endif %}>
-                    <div class="form-text">Ví dụ: <i>Phòng Quản lý Thiết bị - Chi nhánh TP.HCM</i></div>
+                    <label class="form-label fw-semibold">Phòng ban xuất nhập thiết bị</label>
+                    <input type="text" class="form-control hint-placeholder" name="branch_name" value="{{ cfg.branch_name or 'Phòng Quản lý Thiết bị' }}" placeholder="VD: Phòng Quản lý Thiết bị" {% if not is_admin %}disabled{% endif %}>
+                    <div class="form-text hint-text">Gợi ý: <i>Phòng Quản lý Thiết bị - Chi nhánh TP.HCM</i></div>
                 </div>
 
                 {% if is_admin %}

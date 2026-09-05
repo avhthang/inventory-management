@@ -66,7 +66,13 @@
         <div class="card h-100 border-0 shadow-sm bg-dark text-white">
             <div class="card-body">
                 <div class="small text-white-50">Máy chấm công</div>
+                {% if stats.can_see_device and stats.hikvision_cfg.host %}
                 <div class="fs-6 fw-bold font-monospace mt-1">{{ stats.hikvision_cfg.host }}:{{ stats.hikvision_cfg.port }}</div>
+                {% elif stats.can_see_device %}
+                <div class="fs-6 fw-bold mt-1">Chưa cấu hình</div>
+                {% else %}
+                <div class="fs-6 fw-bold mt-1">Hikvision</div>
+                {% endif %}
                 <div class="small text-success mt-1"><i class="bi bi-check-circle-fill"></i> Sẵn sàng kết nối</div>
             </div>
         </div>
@@ -84,6 +90,7 @@
                 <label class="form-label fw-semibold">Thời gian</label>
                 <select class="form-select" name="quick_range" id="filterQuickRange" onchange="toggleFilterDates()">
                     <option value="1" {% if quick_range == '1' or not quick_range %}selected{% endif %}>Hôm nay (Mặc định)</option>
+                    <option value="yesterday" {% if quick_range == 'yesterday' %}selected{% endif %}>Hôm qua</option>
                     <option value="3" {% if quick_range == '3' %}selected{% endif %}>3 ngày gần nhất</option>
                     <option value="7" {% if quick_range == '7' %}selected{% endif %}>7 ngày gần nhất</option>
                     <option value="30" {% if quick_range == '30' %}selected{% endif %}>30 ngày gần nhất</option>
