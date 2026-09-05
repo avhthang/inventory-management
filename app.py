@@ -11332,6 +11332,54 @@ def _safe_add_column(table_name, col_name, col_type):
     except Exception as exc:
         print(f"Migration helper info: {exc}")
 
+# Danh sách cột bổ sung của bảng work_account (dự án không dùng Alembic nên phải tự
+# ALTER TABLE). Chỉ khai báo ở một nơi để khối migration lúc khởi động và /licenses
+# không bị lệch nhau.
+_WORK_ACCOUNT_EXTRA_COLUMNS = [
+    ('server_type', 'VARCHAR(50)'),
+    ('provider', 'VARCHAR(255)'),
+    ('access_ip', 'VARCHAR(255)'),
+    ('mgmt_ip', 'VARCHAR(255)'),
+    ('mgmt_mac', 'VARCHAR(100)'),
+    ('expiration_date', 'DATE'),
+    ('billing_cycle', 'VARCHAR(50)'),
+    ('cpu_info', 'VARCHAR(255)'),
+    ('ram_info', 'VARCHAR(255)'),
+    ('disk_info', 'VARCHAR(255)'),
+    ('rack_position', 'VARCHAR(255)'),
+    ('image_file', 'VARCHAR(255)'),
+    ('cpu_qty', 'VARCHAR(50)'),
+    ('ram_qty', 'VARCHAR(50)'),
+    ('disk_qty', 'VARCHAR(50)'),
+    ('gpu_info', 'TEXT'),
+    ('gpu_qty', 'VARCHAR(50)'),
+    ('nic_info', 'TEXT'),
+    ('nic_qty', 'VARCHAR(50)'),
+    ('raid_info', 'VARCHAR(255)'),
+    ('psu_info', 'VARCHAR(255)'),
+    ('server_model', 'VARCHAR(255)'),
+    ('serial_number', 'VARCHAR(100)'),
+]
+
+_license_schema_ensured = False
+
+def _ensure_license_schema():
+    """Tạo bảng và bổ sung cột cho module Tài khoản & Dịch vụ, đúng một lần mỗi tiến trình.
+
+    Trước đây /licenses gọi db.create_all() rồi thử 6 câu ALTER TABLE ở **mọi** request;
+    tất cả đều thất bại sau lần đầu nhưng vẫn phải đi vòng qua database, làm trang tải chậm.
+    """
+    global _license_schema_ensured
+    if _license_schema_ensured:
+        return
+    _license_schema_ensured = True
+    try:
+        db.create_all()
+    except Exception as exc:
+        print(f"License schema create_all info: {exc}")
+    for col_name, col_type in _WORK_ACCOUNT_EXTRA_COLUMNS:
+        _safe_add_column('work_account', col_name, col_type)
+
 _startup_db_initialized = False
 
 @app.before_request
@@ -11343,20 +11391,7 @@ def _run_lazy_startup_migrations():
             db.create_all()
         except Exception as e_db:
             print(f"Lazy startup db.create_all info: {e_db}")
-        _safe_add_column('work_account', 'server_type', 'VARCHAR(50)')
-        _safe_add_column('work_account', 'provider', 'VARCHAR(255)')
-        _safe_add_column('work_account', 'access_ip', 'VARCHAR(255)')
-        _safe_add_column('work_account', 'mgmt_ip', 'VARCHAR(255)')
-        _safe_add_column('work_account', 'expiration_date', 'DATE')
-        _safe_add_column('work_account', 'billing_cycle', 'VARCHAR(50)')
-        _safe_add_column('work_account', 'cpu_info', 'VARCHAR(255)')
-        _safe_add_column('work_account', 'ram_info', 'VARCHAR(255)')
-        _safe_add_column('work_account', 'disk_info', 'VARCHAR(255)')
-        _safe_add_column('work_account', 'rack_position', 'VARCHAR(255)')
-        _safe_add_column('work_account', 'image_file', 'VARCHAR(255)')
-        _safe_add_column('work_account', 'cpu_qty', 'VARCHAR(50)')
-        _safe_add_column('work_account', 'ram_qty', 'VARCHAR(50)')
-        _safe_add_column('work_account', 'disk_qty', 'VARCHAR(50)')
+        _ensure_license_schema()
         _safe_add_column('attendance_user', 'department', 'VARCHAR(100)')
         _safe_add_column('attendance_user', 'system_user_id', 'INTEGER')
         _safe_add_column('stock_item_movement', 'reason', 'VARCHAR(255)')
@@ -11444,6 +11479,17 @@ class WorkAccount(db.Model):
     cpu_qty = db.Column(db.String(50))       # Số lượng CPU
     ram_qty = db.Column(db.String(50))       # Số lượng RAM
     disk_qty = db.Column(db.String(50))      # Số lượng Ổ cứng
+    # Các trường cấu hình bổ sung. gpu_info/nic_info dùng db.Text vì lưu nhiều dòng
+    # ("thông số | số lượng | chi tiết") — VARCHAR(255) như ram_info/disk_info sẽ bị
+    # PostgreSQL từ chối khi máy chủ có nhiều loại GPU/card mạng.
+    gpu_info = db.Column(db.Text)            # GPU: "model | số lượng | chi tiết" mỗi dòng
+    gpu_qty = db.Column(db.String(50))       # Tổng số GPU
+    nic_info = db.Column(db.Text)            # NIC: "[loại cổng] tốc độ | số lượng | chi tiết" mỗi dòng
+    nic_qty = db.Column(db.String(50))       # Tổng số port mạng
+    raid_info = db.Column(db.String(255))    # Card RAID / chế độ RAID
+    psu_info = db.Column(db.String(255))     # Nguồn (PSU)
+    server_model = db.Column(db.String(255)) # Model máy chủ (VD: Dell PowerEdge R740xd)
+    serial_number = db.Column(db.String(100))# Serial / Service Tag của máy chủ
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     assigned_user = db.relationship('User', foreign_keys=[assigned_to_user_id])
@@ -11751,14 +11797,7 @@ def license_list():
         return redirect(url_for('home'))
 
     try:
-        db.create_all()
-        with db.engine.connect() as conn:
-            for col_n, col_t in [('rack_position', 'VARCHAR(255)'), ('image_file', 'VARCHAR(255)'), ('cpu_qty', 'VARCHAR(50)'), ('ram_qty', 'VARCHAR(50)'), ('disk_qty', 'VARCHAR(50)'), ('mgmt_mac', 'VARCHAR(100)')]:
-                try:
-                    conn.execute(text(f'ALTER TABLE work_account ADD COLUMN {col_n} {col_t}'))
-                    conn.commit()
-                except Exception:
-                    pass
+        _ensure_license_schema()
     except Exception as db_err:
         db.session.rollback()
 
@@ -12140,6 +12179,36 @@ def delete_it_service(service_id):
         flash(f'Lỗi xóa Dịch vụ CNTT: {exc}', 'danger')
     return redirect(url_for('license_list', tab='itservice'))
 
+def _parse_spec_rows(spec_field, qty_field, detail_field, type_field=None, type_default=''):
+    """Gộp các dòng nhập nhiều mục (GPU, card mạng...) thành chuỗi lưu trữ nhiều dòng.
+
+    Mỗi dòng có dạng "thông số | số lượng | chi tiết" — đúng quy ước mà ram_info /
+    disk_info đang dùng, nên phần hiển thị đọc được ngay mà không cần format riêng.
+    Trả về (chuỗi nhiều dòng, tổng số lượng dạng chuỗi rỗng nếu không tính được).
+    """
+    specs = request.form.getlist(spec_field)
+    qtys = request.form.getlist(qty_field)
+    details = request.form.getlist(detail_field)
+    types = request.form.getlist(type_field) if type_field else []
+
+    lines = []
+    total_qty = 0
+    for idx, raw_spec in enumerate(specs):
+        spec = (raw_spec or '').strip()
+        qty = (qtys[idx] or '').strip() if idx < len(qtys) else ''
+        detail = (details[idx] or '').strip() if idx < len(details) else ''
+        if not spec and not detail:
+            continue
+        if type_field:
+            row_type = ((types[idx] or '').strip() if idx < len(types) else '') or type_default
+            if row_type:
+                spec = f"[{row_type}] {spec}".strip()
+        lines.append(f"{spec} | {qty or '1'} | {detail}")
+        if qty.isdigit():
+            total_qty += int(qty)
+
+    return "\n".join(lines), (str(total_qty) if total_qty > 0 else '')
+
 @app.route('/work-accounts/add', methods=['POST'])
 @license_sensitive_access_required('licenses.edit')
 def add_work_account():
@@ -12169,6 +12238,13 @@ def add_work_account():
         cpu_qty = (request.form.get('cpu_qty') or '').strip()
         ram_qty = (request.form.get('ram_qty') or '').strip()
         disk_qty = (request.form.get('disk_qty') or '').strip()
+
+        raid_info = (request.form.get('raid_info') or '').strip()
+        psu_info = (request.form.get('psu_info') or '').strip()
+        server_model = (request.form.get('server_model') or '').strip()
+        serial_number = (request.form.get('serial_number') or '').strip()
+        gpu_info, gpu_qty = _parse_spec_rows('gpu_model[]', 'gpu_qty[]', 'gpu_detail[]')
+        nic_info, nic_qty = _parse_spec_rows('nic_speed[]', 'nic_qty[]', 'nic_detail[]', 'nic_type[]', 'RJ45')
 
         # Parse dynamic RAM entries if provided
         ram_caps = request.form.getlist('ram_cap[]')
@@ -12261,6 +12337,14 @@ def add_work_account():
             cpu_qty=cpu_qty,
             ram_qty=ram_qty,
             disk_qty=disk_qty,
+            gpu_info=gpu_info,
+            gpu_qty=gpu_qty,
+            nic_info=nic_info,
+            nic_qty=nic_qty,
+            raid_info=raid_info,
+            psu_info=psu_info,
+            server_model=server_model,
+            serial_number=serial_number,
             expiration_date=exp_date,
             billing_cycle=billing_cycle
         )
@@ -12303,6 +12387,13 @@ def edit_work_account(account_id):
         acc.cpu_qty = (request.form.get('cpu_qty') or '').strip()
         acc.ram_qty = (request.form.get('ram_qty') or '').strip()
         acc.disk_qty = (request.form.get('disk_qty') or '').strip()
+
+        acc.raid_info = (request.form.get('raid_info') or '').strip()
+        acc.psu_info = (request.form.get('psu_info') or '').strip()
+        acc.server_model = (request.form.get('server_model') or '').strip()
+        acc.serial_number = (request.form.get('serial_number') or '').strip()
+        acc.gpu_info, acc.gpu_qty = _parse_spec_rows('gpu_model[]', 'gpu_qty[]', 'gpu_detail[]')
+        acc.nic_info, acc.nic_qty = _parse_spec_rows('nic_speed[]', 'nic_qty[]', 'nic_detail[]', 'nic_type[]', 'RJ45')
 
         # Parse dynamic RAM entries if provided
         ram_caps = request.form.getlist('ram_cap[]')

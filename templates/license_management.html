@@ -464,6 +464,14 @@
                                                                     <span class="text-muted d-block" style="font-size:0.75rem;">Vị trí Rack / NCC:</span>
                                                                     <span class="text-dark fw-medium">{{ acc.rack_position or '-' }} {% if acc.provider %}({{ acc.provider }}){% endif %}</span>
                                                                 </div>
+                                                                <div class="col-6 col-md-4">
+                                                                    <span class="text-muted d-block" style="font-size:0.75rem;">Model máy chủ:</span>
+                                                                    <span class="text-dark fw-medium">{{ acc.server_model or '-' }}</span>
+                                                                </div>
+                                                                <div class="col-6 col-md-4">
+                                                                    <span class="text-muted d-block" style="font-size:0.75rem;">Serial / Service Tag:</span>
+                                                                    <span class="font-monospace text-dark fw-semibold">{{ acc.serial_number or '-' }}</span>
+                                                                </div>
                                                                 {% if acc.assigned_device %}
                                                                 <div class="col-12 mt-1">
                                                                     <span class="text-muted me-1" style="font-size:0.75rem;">Thiết bị vật lý gán cùng:</span>
@@ -535,6 +543,32 @@
                                                                 </tr>
                                                             {% endif %}
 
+                                                            <!-- GPU (chỉ hiện khi đã nhập, tránh thêm dòng trống cho mọi máy chủ) -->
+                                                            {% if acc.gpu_info %}
+                                                                {% for line in acc.gpu_info.split('\n') %}
+                                                                    {% if line.strip() %}
+                                                                        {% set parts = line.split('|') %}
+                                                                        {% set gpu_model = parts[0].strip() if parts|length > 0 else line.strip() %}
+                                                                        {% set gpu_row_qty = parts[1].strip() if parts|length > 1 else '1' %}
+                                                                        {% set gpu_detail = parts[2].strip() if parts|length > 2 else '' %}
+                                                                        <tr class="align-middle">
+                                                                            <td class="fw-bold text-dark text-center align-middle py-2">
+                                                                                <div class="d-flex align-items-center justify-content-center gap-1">
+                                                                                    <i class="bi bi-gpu-card text-danger fs-6"></i>
+                                                                                    <span>Card đồ họa (GPU)</span>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td class="text-center align-middle font-monospace fw-bold text-danger fs-6">
+                                                                                {{ gpu_row_qty or '1' }} GPU
+                                                                            </td>
+                                                                            <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">
+                                                                                {{ gpu_model or '-' }}{% if gpu_detail %} <span class="text-muted fw-normal">— {{ gpu_detail }}</span>{% endif %}
+                                                                            </td>
+                                                                        </tr>
+                                                                    {% endif %}
+                                                                {% endfor %}
+                                                            {% endif %}
+
                                                             <!-- DISK -->
                                                             {% if acc.disk_info %}
                                                                 {% for line in acc.disk_info.split('\n') %}
@@ -573,6 +607,60 @@
                                                                     <td class="text-center align-middle text-muted">-</td>
                                                                     <td class="text-start text-muted align-middle">Chưa cập nhật</td>
                                                                 </tr>
+                                                            {% endif %}
+
+                                                            <!-- NIC / Port mạng (chỉ hiện khi đã nhập) -->
+                                                            {% if acc.nic_info %}
+                                                                {% for line in acc.nic_info.split('\n') %}
+                                                                    {% if line.strip() %}
+                                                                        {% set parts = line.split('|') %}
+                                                                        {% set nic_spec = parts[0].strip() if parts|length > 0 else line.strip() %}
+                                                                        {% set nic_type = nic_spec.split(']')[0].replace('[', '').strip() if ']' in nic_spec else '' %}
+                                                                        {% set nic_speed = nic_spec.split(']')[1].strip() if ']' in nic_spec else nic_spec %}
+                                                                        {% set nic_row_qty = parts[1].strip() if parts|length > 1 else '1' %}
+                                                                        {% set nic_detail = parts[2].strip() if parts|length > 2 else '' %}
+                                                                        <tr class="align-middle">
+                                                                            <td class="fw-bold text-dark text-center align-middle py-2">
+                                                                                <div class="d-flex align-items-center justify-content-center gap-1">
+                                                                                    <i class="bi bi-ethernet text-info fs-6"></i>
+                                                                                    <span>Card mạng (NIC)</span>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td class="text-center align-middle font-monospace fw-bold text-info fs-6">
+                                                                                {{ nic_row_qty or '1' }} port
+                                                                            </td>
+                                                                            <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">
+                                                                                {% if nic_type %}<span class="badge bg-light text-dark border me-1">{{ nic_type }}</span>{% endif %}{{ nic_speed or '-' }}{% if nic_detail %} <span class="text-muted fw-normal">— {{ nic_detail }}</span>{% endif %}
+                                                                            </td>
+                                                                        </tr>
+                                                                    {% endif %}
+                                                                {% endfor %}
+                                                            {% endif %}
+
+                                                            <!-- RAID / PSU (chỉ hiện khi đã nhập) -->
+                                                            {% if acc.raid_info %}
+                                                            <tr class="align-middle">
+                                                                <td class="fw-bold text-dark text-center align-middle py-2">
+                                                                    <div class="d-flex align-items-center justify-content-center gap-1">
+                                                                        <i class="bi bi-hdd-stack text-secondary fs-6"></i>
+                                                                        <span>RAID</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td class="text-center align-middle text-muted">-</td>
+                                                                <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">{{ acc.raid_info }}</td>
+                                                            </tr>
+                                                            {% endif %}
+                                                            {% if acc.psu_info %}
+                                                            <tr class="align-middle">
+                                                                <td class="fw-bold text-dark text-center align-middle py-2">
+                                                                    <div class="d-flex align-items-center justify-content-center gap-1">
+                                                                        <i class="bi bi-plug text-warning fs-6"></i>
+                                                                        <span>Nguồn (PSU)</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td class="text-center align-middle text-muted">-</td>
+                                                                <td class="text-start text-dark fw-medium align-middle" style="white-space: normal; word-break: break-word;">{{ acc.psu_info }}</td>
+                                                            </tr>
                                                             {% endif %}
                                                         </tbody>
                                                     </table>
@@ -628,6 +716,17 @@
                                                     <div class="mb-3" id="edit{{ acc.id }}ProviderBox" style="{% if acc.server_type == 'Server offline' %}display:none;{% endif %}">
                                                         <label class="form-label">Đơn vị cung cấp</label>
                                                         <input type="text" name="provider" class="form-control text-muted-placeholder" value="{{ acc.provider or '' }}" placeholder="VD: AWS / Viettel Cloud / CMC">
+                                                    </div>
+
+                                                    <div class="row g-2 mb-3">
+                                                        <div class="col-md-7">
+                                                            <label class="form-label"><i class="bi bi-hdd-network me-1"></i>Model máy chủ</label>
+                                                            <input type="text" name="server_model" class="form-control text-muted-placeholder" value="{{ acc.server_model or '' }}" placeholder="VD: Dell PowerEdge R740xd / HPE ProLiant DL380 Gen10">
+                                                        </div>
+                                                        <div class="col-md-5">
+                                                            <label class="form-label"><i class="bi bi-upc-scan me-1"></i>Serial / Service Tag</label>
+                                                            <input type="text" name="serial_number" class="form-control font-monospace text-muted-placeholder" value="{{ acc.serial_number or '' }}" placeholder="VD: SN-ABC12345">
+                                                        </div>
                                                     </div>
 
                                                     <div class="row g-2 mb-3">
@@ -713,6 +812,37 @@
 
                                                         <hr class="my-2 text-muted opacity-25">
 
+                                                        <!-- GPU Section -->
+                                                        {% set gpu_lines = (acc.gpu_info or '').split('\n') | map('trim') | select() | list %}
+                                                        <div class="mb-3">
+                                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-gpu-card text-danger me-1"></i>Card đồ họa (GPU) - Model | Số lượng | Chi tiết</label>
+                                                                <button type="button" class="btn btn-xs btn-outline-danger rounded-pill px-2" onclick="addGpuItem('edit{{ acc.id }}')"><i class="bi bi-plus-lg me-1"></i>Thêm GPU</button>
+                                                            </div>
+                                                            <div id="edit{{ acc.id }}GpuList" class="d-flex flex-column gap-2 mb-2">
+                                                                {% for line in gpu_lines or [''] %}
+                                                                {% set parts = line.split('|') %}
+                                                                <div class="row g-1 align-items-center gpu-item-row">
+                                                                    <div class="col-4">
+                                                                        <input type="text" name="gpu_model[]" class="form-control form-control-sm" value="{{ parts[0].strip() if line else '' }}" placeholder="Model (VD: NVIDIA RTX A4000 16GB)">
+                                                                    </div>
+                                                                    <div class="col-2">
+                                                                        <input type="text" name="gpu_qty[]" class="form-control form-control-sm" value="{{ parts[1].strip() if parts|length > 1 else '' }}" placeholder="SL: 2">
+                                                                    </div>
+                                                                    <div class="col-5">
+                                                                        <input type="text" name="gpu_detail[]" class="form-control form-control-sm" value="{{ parts[2].strip() if parts|length > 2 else '' }}" placeholder="Chi tiết (PCIe 4.0 x16 / passthrough VM...)">
+                                                                    </div>
+                                                                    <div class="col-1 text-end">
+                                                                        <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.gpu-item-row').remove()"><i class="bi bi-x-lg"></i></button>
+                                                                    </div>
+                                                                </div>
+                                                                {% endfor %}
+                                                            </div>
+                                                            <div class="form-text small text-muted">Để trống nếu máy chủ không gắn GPU rời.</div>
+                                                        </div>
+
+                                                        <hr class="my-2 text-muted opacity-25">
+
                                                         <!-- DISK Section -->
                                                         <div class="mb-2">
                                                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -773,6 +903,61 @@
                                                                 {% endif %}
                                                             </div>
                                                             <div class="form-text small text-muted">Bấm "+ Thêm loại Ổ cứng" nếu lắp nhiều loại/dung lượng (VD: 1TB SSD, 8TB HDD, 4TB HDD, 16TB NVMe).</div>
+                                                        </div>
+
+                                                        <hr class="my-2 text-muted opacity-25">
+
+                                                        <!-- NIC Section -->
+                                                        {% set nic_lines = (acc.nic_info or '').split('\n') | map('trim') | select() | list %}
+                                                        <div class="mb-3">
+                                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-ethernet text-info me-1"></i>Card mạng / Port mạng (NIC) - Loại cổng | Tốc độ | Số port | Chi tiết</label>
+                                                                <button type="button" class="btn btn-xs btn-outline-info rounded-pill px-2" onclick="addNicItem('edit{{ acc.id }}')"><i class="bi bi-plus-lg me-1"></i>Thêm Port mạng</button>
+                                                            </div>
+                                                            <div id="edit{{ acc.id }}NicList" class="d-flex flex-column gap-2 mb-2">
+                                                                {% for line in nic_lines or [''] %}
+                                                                {% set parts = line.split('|') %}
+                                                                {% set nic_spec = parts[0].strip() if line else '' %}
+                                                                {% set nic_type = nic_spec.split(']')[0].replace('[', '').strip() if ']' in nic_spec else 'RJ45' %}
+                                                                {% set nic_speed = nic_spec.split(']')[1].strip() if ']' in nic_spec else nic_spec %}
+                                                                <div class="row g-1 align-items-center nic-item-row">
+                                                                    <div class="col-3">
+                                                                        <select name="nic_type[]" class="form-select form-select-sm px-1">
+                                                                            <option value="RJ45" {% if nic_type == 'RJ45' %}selected{% endif %}>RJ45</option>
+                                                                            <option value="SFP+" {% if nic_type == 'SFP+' %}selected{% endif %}>SFP+</option>
+                                                                            <option value="SFP28" {% if nic_type == 'SFP28' %}selected{% endif %}>SFP28</option>
+                                                                            <option value="QSFP+" {% if nic_type == 'QSFP+' %}selected{% endif %}>QSFP+</option>
+                                                                            <option value="QSFP28" {% if nic_type == 'QSFP28' %}selected{% endif %}>QSFP28</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-2">
+                                                                        <input type="text" name="nic_speed[]" class="form-control form-control-sm font-monospace" value="{{ nic_speed }}" placeholder="1GbE">
+                                                                    </div>
+                                                                    <div class="col-2">
+                                                                        <input type="text" name="nic_qty[]" class="form-control form-control-sm" value="{{ parts[1].strip() if parts|length > 1 else '' }}" placeholder="Port: 4">
+                                                                    </div>
+                                                                    <div class="col-4">
+                                                                        <input type="text" name="nic_detail[]" class="form-control form-control-sm" value="{{ parts[2].strip() if parts|length > 2 else '' }}" placeholder="Chi tiết (Intel i350 / bond0 LACP...)">
+                                                                    </div>
+                                                                    <div class="col-1 text-end">
+                                                                        <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.nic-item-row').remove()"><i class="bi bi-x-lg"></i></button>
+                                                                    </div>
+                                                                </div>
+                                                                {% endfor %}
+                                                            </div>
+                                                            <div class="form-text small text-muted">Mỗi dòng là một nhóm port cùng loại/tốc độ (VD: 4 port RJ45 1GbE + 2 port SFP+ 10GbE).</div>
+                                                        </div>
+                                                        <hr class="my-2 text-muted opacity-25">
+
+                                                        <div class="row g-2">
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-bold mb-1 text-dark"><i class="bi bi-hdd-stack text-secondary me-1"></i>RAID / Card điều khiển</label>
+                                                                <input type="text" name="raid_info" class="form-control form-control-sm text-muted-placeholder" value="{{ acc.raid_info or '' }}" placeholder="VD: RAID 5 - PERC H730P 2GB Cache">
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-bold mb-1 text-dark"><i class="bi bi-plug text-warning me-1"></i>Nguồn (PSU)</label>
+                                                                <input type="text" name="psu_info" class="form-control form-control-sm text-muted-placeholder" value="{{ acc.psu_info or '' }}" placeholder="VD: 2 x 750W Hot-plug (dự phòng)">
+                                                            </div>
                                                         </div>
                                                     </div>
 
@@ -1352,6 +1537,17 @@
 
                     <div class="row g-2 mb-3">
                         <div class="col-md-7">
+                            <label class="form-label"><i class="bi bi-hdd-network me-1"></i>Model máy chủ</label>
+                            <input type="text" name="server_model" class="form-control text-muted-placeholder" placeholder="VD: Dell PowerEdge R740xd / HPE ProLiant DL380 Gen10">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label"><i class="bi bi-upc-scan me-1"></i>Serial / Service Tag</label>
+                            <input type="text" name="serial_number" class="form-control font-monospace text-muted-placeholder" placeholder="VD: SN-ABC12345">
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-7">
                             <label class="form-label"><i class="bi bi-hdd-rack me-1"></i>Vị trí trong tủ Rack</label>
                             <input type="text" name="rack_position" class="form-control text-muted-placeholder" placeholder="VD: Tủ Rack A - Vị trí U12-U14">
                         </div>
@@ -1408,6 +1604,33 @@
 
                         <hr class="my-2 text-muted opacity-25">
 
+                        <!-- GPU Section -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-gpu-card text-danger me-1"></i>Card đồ họa (GPU) - Model | Số lượng | Chi tiết</label>
+                                <button type="button" class="btn btn-xs btn-outline-danger rounded-pill px-2" onclick="addGpuItem('add')"><i class="bi bi-plus-lg me-1"></i>Thêm GPU</button>
+                            </div>
+                            <div id="addGpuList" class="d-flex flex-column gap-2 mb-2">
+                                <div class="row g-1 align-items-center gpu-item-row">
+                                    <div class="col-4">
+                                        <input type="text" name="gpu_model[]" class="form-control form-control-sm" placeholder="Model (VD: NVIDIA RTX A4000 16GB)">
+                                    </div>
+                                    <div class="col-2">
+                                        <input type="text" name="gpu_qty[]" class="form-control form-control-sm" placeholder="SL: 2">
+                                    </div>
+                                    <div class="col-5">
+                                        <input type="text" name="gpu_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (PCIe 4.0 x16 / passthrough VM...)">
+                                    </div>
+                                    <div class="col-1 text-end">
+                                        <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.gpu-item-row').remove()"><i class="bi bi-x-lg"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-text small text-muted">Để trống nếu máy chủ không gắn GPU rời.</div>
+                        </div>
+
+                        <hr class="my-2 text-muted opacity-25">
+
                         <!-- DISK Section -->
                         <div class="mb-2">
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -1438,6 +1661,55 @@
                                 </div>
                             </div>
                             <div class="form-text small text-muted">Bấm "+ Thêm loại Ổ cứng" nếu server lắp nhiều dung lượng/loại khác nhau (VD: 1TB SSD, 8TB HDD, 16TB NVMe).</div>
+                        </div>
+
+                        <hr class="my-2 text-muted opacity-25">
+
+                        <!-- NIC Section -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label small fw-bold mb-0 text-dark"><i class="bi bi-ethernet text-info me-1"></i>Card mạng / Port mạng (NIC) - Loại cổng | Tốc độ | Số port | Chi tiết</label>
+                                <button type="button" class="btn btn-xs btn-outline-info rounded-pill px-2" onclick="addNicItem('add')"><i class="bi bi-plus-lg me-1"></i>Thêm Port mạng</button>
+                            </div>
+                            <div id="addNicList" class="d-flex flex-column gap-2 mb-2">
+                                <div class="row g-1 align-items-center nic-item-row">
+                                    <div class="col-3">
+                                        <select name="nic_type[]" class="form-select form-select-sm px-1">
+                                            <option value="RJ45" selected>RJ45</option>
+                                            <option value="SFP+">SFP+</option>
+                                            <option value="SFP28">SFP28</option>
+                                            <option value="QSFP+">QSFP+</option>
+                                            <option value="QSFP28">QSFP28</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-2">
+                                        <input type="text" name="nic_speed[]" class="form-control form-control-sm font-monospace" placeholder="1GbE">
+                                    </div>
+                                    <div class="col-2">
+                                        <input type="text" name="nic_qty[]" class="form-control form-control-sm" placeholder="Port: 4">
+                                    </div>
+                                    <div class="col-4">
+                                        <input type="text" name="nic_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (Intel i350 / bond0 LACP...)">
+                                    </div>
+                                    <div class="col-1 text-end">
+                                        <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.nic-item-row').remove()"><i class="bi bi-x-lg"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-text small text-muted">Mỗi dòng là một nhóm port cùng loại/tốc độ (VD: 4 port RJ45 1GbE + 2 port SFP+ 10GbE).</div>
+                        </div>
+
+                        <hr class="my-2 text-muted opacity-25">
+
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold mb-1 text-dark"><i class="bi bi-hdd-stack text-secondary me-1"></i>RAID / Card điều khiển</label>
+                                <input type="text" name="raid_info" class="form-control form-control-sm text-muted-placeholder" placeholder="VD: RAID 5 - PERC H730P 2GB Cache">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold mb-1 text-dark"><i class="bi bi-plug text-warning me-1"></i>Nguồn (PSU)</label>
+                                <input type="text" name="psu_info" class="form-control form-control-sm text-muted-placeholder" placeholder="VD: 2 x 750W Hot-plug (dự phòng)">
+                            </div>
                         </div>
                     </div>
 
@@ -2097,6 +2369,59 @@ function addDiskItem(prefix) {
         </div>
         <div class="col-1 text-end">
             <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.disk-item-row').remove()"><i class="bi bi-x-lg"></i></button>
+        </div>
+    `;
+    container.appendChild(div);
+}
+
+function addGpuItem(prefix) {
+    const container = document.getElementById(prefix + 'GpuList');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = 'row g-1 align-items-center gpu-item-row';
+    div.innerHTML = `
+        <div class="col-4">
+            <input type="text" name="gpu_model[]" class="form-control form-control-sm" placeholder="Model (VD: NVIDIA RTX A4000 16GB)">
+        </div>
+        <div class="col-2">
+            <input type="text" name="gpu_qty[]" class="form-control form-control-sm" placeholder="SL: 2">
+        </div>
+        <div class="col-5">
+            <input type="text" name="gpu_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (PCIe 4.0 x16 / passthrough VM...)">
+        </div>
+        <div class="col-1 text-end">
+            <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.gpu-item-row').remove()"><i class="bi bi-x-lg"></i></button>
+        </div>
+    `;
+    container.appendChild(div);
+}
+
+function addNicItem(prefix) {
+    const container = document.getElementById(prefix + 'NicList');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = 'row g-1 align-items-center nic-item-row';
+    div.innerHTML = `
+        <div class="col-3">
+            <select name="nic_type[]" class="form-select form-select-sm px-1">
+                <option value="RJ45" selected>RJ45</option>
+                <option value="SFP+">SFP+</option>
+                <option value="SFP28">SFP28</option>
+                <option value="QSFP+">QSFP+</option>
+                <option value="QSFP28">QSFP28</option>
+            </select>
+        </div>
+        <div class="col-2">
+            <input type="text" name="nic_speed[]" class="form-control form-control-sm font-monospace" placeholder="1GbE">
+        </div>
+        <div class="col-2">
+            <input type="text" name="nic_qty[]" class="form-control form-control-sm" placeholder="Port: 4">
+        </div>
+        <div class="col-4">
+            <input type="text" name="nic_detail[]" class="form-control form-control-sm" placeholder="Chi tiết (Intel i350 / bond0 LACP...)">
+        </div>
+        <div class="col-1 text-end">
+            <button type="button" class="btn btn-xs btn-outline-danger w-100" onclick="this.closest('.nic-item-row').remove()"><i class="bi bi-x-lg"></i></button>
         </div>
     `;
     container.appendChild(div);
