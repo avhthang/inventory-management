@@ -25,6 +25,10 @@ import subprocess
 import platform as sys_platform
 import pytz
 import re
+import hmac
+import hashlib
+import ipaddress
+import secrets
 import unicodedata
 from contextlib import contextmanager
 from functools import wraps
@@ -1587,6 +1591,17 @@ class StockItemUnitMovement(db.Model):
 # --- (Deleted Server Room Extra Info) ---
 
 # --- Attendance & Hikvision Timekeeping Models ---
+
+# Mã nguồn dữ liệu chấm công. Giữ ở dạng hằng số để chuỗi lưu trong DB, truy vấn
+# tổng hợp và nhãn hiển thị không bị lệch nhau.
+ATTENDANCE_SOURCE_HIKVISION = 'hikvision'
+ATTENDANCE_SOURCE_CAMERA_AI = 'camera_ai'
+ATTENDANCE_SOURCE_LABELS = {
+    ATTENDANCE_SOURCE_HIKVISION: 'MCC vân tay',
+    ATTENDANCE_SOURCE_CAMERA_AI: 'Camera AI',
+}
+
+
 class AttendanceUser(db.Model):
     """Attendance user catalog, managed independently from warehouse users."""
     id = db.Column(db.Integer, primary_key=True)
@@ -1595,6 +1610,9 @@ class AttendanceUser(db.Model):
     user_type = db.Column(db.String(50), nullable=False, default='Nhân viên')  # 'Nhân viên', 'Bảo vệ', 'Lao công', 'Khách đặc biệt', 'Khác'
     card_no = db.Column(db.String(50))
     department = db.Column(db.String(100))
+    # Email dùng để khớp danh tính với hệ chấm công camera AI (bên đó định danh
+    # người dùng bằng email, mỗi người một email duy nhất).
+    email = db.Column(db.String(255), index=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     system_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1611,8 +1629,26 @@ class AttendanceRecord(db.Model):
     verify_mode = db.Column(db.String(50), default='Vân tay')  # 'Vân tay', 'Thẻ', 'Khuôn mặt', 'Mật khẩu', 'Khác'
     event_type = db.Column(db.String(50), default='Check-in')  # 'Check-in', 'Check-out', 'Quẹt vân tay'
     device_name = db.Column(db.String(100), default='Hikvision Device')
+    # Nguồn dữ liệu đã chuẩn hóa: 'hikvision' (máy chấm công vân tay) hoặc
+    # 'camera_ai'. device_name là chữ tự do nên không dùng để lọc/gộp được.
+    # Bản ghi cũ có giá trị NULL và được coi là 'hikvision' khi đọc.
+    source = db.Column(db.String(20), default=ATTENDANCE_SOURCE_HIKVISION, index=True)
     raw_event_id = db.Column(db.String(100), unique=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class AttendanceUnmatchedIdentity(db.Model):
+    """Định danh từ camera AI chưa khớp được với người chấm công nào.
+
+    Sự kiện không khớp không bị bỏ đi im lặng: gom vào đây để quản trị viên biết
+    cần điền email cho ai trong danh sách người chấm công.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    display_name = db.Column(db.String(120))
+    source = db.Column(db.String(20), default=ATTENDANCE_SOURCE_CAMERA_AI)
+    hit_count = db.Column(db.Integer, default=1)
+    first_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Resource(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -10050,6 +10086,80 @@ def save_hikvision_config(data):
     os.replace(tmp_path, _hikvision_cfg_path)
     return cfg
 
+# ------------------------------------------------------------------------------
+# Cấu hình hệ chấm công Camera AI (nhận dữ liệu qua webhook)
+# ------------------------------------------------------------------------------
+_camera_ai_cfg_path = os.path.join(instance_path, 'camera_ai_config.json')
+camera_ai_config_defaults = {
+    'enabled': False,
+    'secret': '',          # Khóa chia sẻ để ký/xác thực webhook
+    'allow_ips': '',       # Danh sách IP hoặc dải CIDR, cách nhau bằng dấu phẩy
+    'dedup_window': 60,    # Gộp các khung hình lặp trong N giây của cùng một người
+    'device_label': 'Camera AI',
+}
+
+
+def _camera_ai_env_config():
+    """Cấu hình dự phòng lấy từ biến môi trường (giống cơ chế của Hikvision)."""
+    env_map = {
+        'secret': os.environ.get('CAMERA_AI_WEBHOOK_SECRET'),
+        'allow_ips': os.environ.get('CAMERA_AI_ALLOW_IPS'),
+        'device_label': os.environ.get('CAMERA_AI_DEVICE_LABEL'),
+    }
+    return {k: v.strip() for k, v in env_map.items() if v not in (None, '')}
+
+
+def get_camera_ai_config():
+    """Cấu hình camera AI (gồm khóa bí mật) - chỉ dùng cho luồng xác thực webhook.
+
+    Không truyền trực tiếp kết quả này vào template: dùng _camera_ai_public_config().
+    Thứ tự ưu tiên giống Hikvision: file cấu hình > biến môi trường > mặc định.
+    """
+    cfg = dict(camera_ai_config_defaults)
+    saved = {}
+    try:
+        if os.path.exists(_camera_ai_cfg_path):
+            with open(_camera_ai_cfg_path, 'r', encoding='utf-8') as f:
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    saved = {k: v for k, v in loaded.items() if v is not None}
+    except Exception:
+        saved = {}
+    cfg.update({k: v for k, v in _camera_ai_env_config().items() if k not in saved})
+    cfg.update(saved)
+    try:
+        cfg['dedup_window'] = max(0, int(cfg.get('dedup_window') or 0))
+    except Exception:
+        cfg['dedup_window'] = 60
+    cfg['enabled'] = bool(cfg.get('enabled'))
+    return cfg
+
+
+def _camera_ai_public_config(cfg=None):
+    """Bản cấu hình an toàn để hiển thị: không chứa khóa bí mật."""
+    cfg = cfg if cfg is not None else get_camera_ai_config()
+    return {
+        'enabled': bool(cfg.get('enabled')),
+        'allow_ips': cfg.get('allow_ips') or '',
+        'dedup_window': cfg.get('dedup_window') or 0,
+        'device_label': cfg.get('device_label') or 'Camera AI',
+        'has_secret': bool(cfg.get('secret')),
+    }
+
+
+def save_camera_ai_config(data):
+    cfg = get_camera_ai_config()
+    cfg.update(data)
+    # Ghi kiểu atomic: tránh mất/hỏng cấu hình nếu tiến trình bị dừng giữa lúc ghi.
+    os.makedirs(os.path.dirname(_camera_ai_cfg_path) or '.', exist_ok=True)
+    tmp_path = f'{_camera_ai_cfg_path}.tmp'
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, _camera_ai_cfg_path)
+    return cfg
+
 _cached_hikvision_base_url = None
 _hikvision_session = None
 
@@ -10496,6 +10606,7 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
                     verify_mode=verify_mode,
                     event_type=event_type,
                     device_name='Hikvision Terminal',
+                    source=ATTENDANCE_SOURCE_HIKVISION,
                     raw_event_id=raw_id
                 )
                 db.session.add(record)
@@ -10516,6 +10627,266 @@ def _hikvision_sync_events(start_date=None, end_date=None, days=7):
     except Exception as exc:
         db.session.rollback()
         return False, f"Lỗi xử lý nhật ký sự kiện: {exc}"
+
+# ------------------------------------------------------------------------------
+# Nhận dữ liệu chấm công từ hệ camera AI
+# ------------------------------------------------------------------------------
+_VN_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
+
+
+def _attendance_source_label(value):
+    """Nhãn hiển thị của nguồn dữ liệu. Bản ghi cũ (NULL) coi như máy chấm công."""
+    key = (value or ATTENDANCE_SOURCE_HIKVISION).strip().lower()
+    return ATTENDANCE_SOURCE_LABELS.get(key, key or '-')
+
+
+app.jinja_env.filters['attendance_source_label'] = _attendance_source_label
+
+
+def _parse_camera_event_time(raw_value):
+    """Đổi mốc thời gian camera AI gửi lên thành giờ Việt Nam, dạng naive.
+
+    Bản ghi Hikvision đang lưu theo đồng hồ tại chỗ của thiết bị và không mang
+    timezone. Dữ liệu camera phải về cùng hệ quy chiếu, nếu không phép so sánh
+    "ai đến trước" giữa hai nguồn sẽ lệch đúng 7 tiếng.
+    """
+    if raw_value in (None, ''):
+        return None
+
+    # Epoch giây hoặc mili giây
+    if isinstance(raw_value, (int, float)) or str(raw_value).strip().isdigit():
+        try:
+            epoch = float(str(raw_value).strip())
+            if epoch > 1e11:  # mili giây
+                epoch = epoch / 1000.0
+            return datetime.fromtimestamp(epoch, tz=pytz.utc).astimezone(_VN_TZ).replace(tzinfo=None)
+        except Exception:
+            return None
+
+    text_value = str(raw_value).strip().replace('Z', '+00:00')
+    parsed = None
+    try:
+        parsed = datetime.fromisoformat(text_value)
+    except Exception:
+        for fmt in ('%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M'):
+            try:
+                parsed = datetime.strptime(text_value[:len('2026-09-05T07:58:30')], fmt)
+                break
+            except Exception:
+                continue
+    if parsed is None:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(_VN_TZ).replace(tzinfo=None)
+    return parsed.replace(microsecond=0)
+
+
+def _resolve_attendance_identity(email='', employee_no='', name=''):
+    """Tìm mã chấm công tương ứng với một danh tính từ camera AI.
+
+    Thứ tự tra: mã chấm công gửi kèm > cột email của người chấm công > email của
+    User hệ thống đã liên kết. Trả về (mã chấm công, tên hiển thị, đã khớp danh mục).
+    """
+    emp_no = (employee_no or '').strip()
+    if emp_no:
+        found = AttendanceUser.query.filter_by(employee_no=emp_no).first()
+        if found:
+            return found.employee_no, found.name, True
+
+    email_clean = (email or '').strip().lower()
+    if email_clean:
+        found = AttendanceUser.query.filter(func.lower(AttendanceUser.email) == email_clean).first()
+        if found:
+            return found.employee_no, found.name, True
+        sys_user = User.query.filter(func.lower(User.email) == email_clean).first()
+        if sys_user:
+            found = AttendanceUser.query.filter_by(system_user_id=sys_user.id).first()
+            if found:
+                return found.employee_no, found.name, True
+
+    # Camera gửi mã chấm công chưa có trong danh mục: vẫn ghi nhật ký để không mất
+    # dữ liệu, tên hiển thị tạm theo mã (giống cách luồng Hikvision đang làm).
+    if emp_no:
+        return emp_no, ((name or '').strip() or f"NV #{emp_no}"), False
+
+    return None, None, False
+
+
+def _record_unmatched_identity(email, display_name=''):
+    """Gom email camera AI chưa khớp để quản trị viên biết cần bổ sung email cho ai."""
+    email_clean = (email or '').strip().lower()
+    if not email_clean:
+        return
+    try:
+        with db.session.begin_nested():
+            row = AttendanceUnmatchedIdentity.query.filter_by(email=email_clean).first()
+            if row:
+                row.hit_count = (row.hit_count or 0) + 1
+                row.last_seen = datetime.utcnow()
+                if display_name and not row.display_name:
+                    row.display_name = display_name[:120]
+            else:
+                db.session.add(AttendanceUnmatchedIdentity(
+                    email=email_clean,
+                    display_name=(display_name or '')[:120] or None,
+                    source=ATTENDANCE_SOURCE_CAMERA_AI,
+                    hit_count=1
+                ))
+    except Exception as exc:
+        print(f"Unmatched camera identity info: {exc}")
+
+
+def _clear_unmatched_identity(email):
+    """Bỏ email khỏi danh sách chờ khớp sau khi đã gán cho một người chấm công."""
+    email_clean = (email or '').strip().lower()
+    if not email_clean:
+        return
+    try:
+        row = AttendanceUnmatchedIdentity.query.filter_by(email=email_clean).first()
+        if row:
+            db.session.delete(row)
+            db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        print(f"Clear unmatched camera identity info: {exc}")
+
+
+_CAM_ID_SAFE_RE = re.compile(r'[^A-Za-z0-9_.:-]+')
+
+
+def _ingest_camera_event(evt, cfg=None):
+    """Ghi một sự kiện nhận diện từ camera AI vào nhật ký chấm công.
+
+    Trả về (trạng thái, thông tin); trạng thái thuộc 'added' / 'duplicate' /
+    'unmatched' / 'invalid'. Việc commit do bên gọi thực hiện một lần cho cả lô.
+    """
+    if not isinstance(evt, dict):
+        return 'invalid', 'Sự kiện không phải đối tượng JSON.'
+    cfg = cfg if cfg is not None else get_camera_ai_config()
+
+    email = str(evt.get('email') or evt.get('user_email') or evt.get('userEmail') or '').strip()
+    name = str(evt.get('name') or evt.get('full_name') or evt.get('userName') or '').strip()
+    emp_hint = str(evt.get('employee_no') or evt.get('employeeNo') or evt.get('employee_code') or '').strip()
+    raw_time = evt.get('time') or evt.get('event_time') or evt.get('eventTime') or evt.get('timestamp')
+
+    event_dt = _parse_camera_event_time(raw_time)
+    if event_dt is None:
+        return 'invalid', f'Không đọc được mốc thời gian: {raw_time!r}'
+    if not email and not emp_hint:
+        return 'invalid', 'Sự kiện thiếu cả email và mã chấm công.'
+
+    emp_no, user_name, _matched = _resolve_attendance_identity(email, emp_hint, name)
+    if not emp_no:
+        _record_unmatched_identity(email, name)
+        return 'unmatched', email
+
+    ext_id = str(evt.get('event_id') or evt.get('eventId') or evt.get('id') or '').strip()
+    if ext_id:
+        raw_id = f"CAM_{_CAM_ID_SAFE_RE.sub('-', ext_id)}"[:100]
+    else:
+        raw_id = f"CAM_{emp_no}_{event_dt.strftime('%Y%m%d%H%M%S')}"[:100]
+
+    if AttendanceRecord.query.filter_by(raw_event_id=raw_id).first():
+        return 'duplicate', raw_id
+
+    # Camera thường bắn nhiều khung hình cho cùng một lần đi qua. Gộp trong cửa sổ
+    # N giây, nhưng CHỈ so với bản ghi cùng nguồn: một lượt camera không bao giờ
+    # được che lượt vân tay và ngược lại, vì bảng tổng hợp cần cả hai để so sánh.
+    window = int(cfg.get('dedup_window') or 0)
+    if window > 0:
+        near = AttendanceRecord.query.filter(
+            AttendanceRecord.employee_no == emp_no,
+            AttendanceRecord.source == ATTENDANCE_SOURCE_CAMERA_AI,
+            AttendanceRecord.event_time >= event_dt - timedelta(seconds=window),
+            AttendanceRecord.event_time <= event_dt + timedelta(seconds=window)
+        ).first()
+        if near:
+            return 'duplicate', raw_id
+
+    device_label = str(evt.get('camera') or evt.get('device') or evt.get('device_name') or '').strip()
+    record = AttendanceRecord(
+        employee_no=emp_no,
+        user_name=user_name or f"NV #{emp_no}",
+        event_time=event_dt,
+        verify_mode='Khuôn mặt',
+        event_type='Check-in' if event_dt.hour < 12 else 'Check-out',
+        device_name=(device_label or cfg.get('device_label') or 'Camera AI')[:100],
+        source=ATTENDANCE_SOURCE_CAMERA_AI,
+        raw_event_id=raw_id
+    )
+    try:
+        # Savepoint: nếu trùng raw_event_id do gọi song song thì chỉ hủy đúng sự
+        # kiện này, các sự kiện đã nhận trong cùng lô vẫn được giữ.
+        with db.session.begin_nested():
+            db.session.add(record)
+    except Exception:
+        return 'duplicate', raw_id
+    return 'added', raw_id
+
+
+def _camera_ai_remote_ip():
+    """IP thật của bên gọi webhook.
+
+    Chỉ đọc X-Real-IP vì nginx của hệ thống *ghi đè* header này bằng $remote_addr.
+    X-Forwarded-For dùng $proxy_add_x_forwarded_for (nối thêm) nên phần tử đầu do
+    client tự đặt — dùng nó để lọc IP là tự mở cửa cho việc giả mạo.
+    """
+    return (request.headers.get('X-Real-IP') or request.remote_addr or '').strip()
+
+
+def _ip_in_allowlist(remote_ip, allow_raw):
+    """Kiểm tra IP nằm trong danh sách cho phép (IP đơn hoặc dải CIDR)."""
+    try:
+        addr = ipaddress.ip_address(remote_ip)
+    except Exception:
+        return False
+    for entry in re.split(r'[,\s;]+', allow_raw or ''):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            if '/' in entry:
+                if addr in ipaddress.ip_network(entry, strict=False):
+                    return True
+            elif addr == ipaddress.ip_address(entry):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _camera_ai_verify_request(cfg, raw_body):
+    """Xác thực lời gọi webhook: danh sách IP + chữ ký HMAC hoặc khóa tĩnh.
+
+    Ưu tiên HMAC-SHA256 trên nguyên văn body (header X-Signature). Vẫn chấp nhận
+    khóa tĩnh X-Api-Key vì nhiều đầu ghi/hệ camera chỉ gắn được header cố định.
+    """
+    secret = str(cfg.get('secret') or '')
+    if not secret:
+        return False, 'Chưa cấu hình khóa bí mật cho webhook camera AI.'
+
+    allow_raw = (cfg.get('allow_ips') or '').strip()
+    if allow_raw and not _ip_in_allowlist(_camera_ai_remote_ip(), allow_raw):
+        return False, 'IP gọi tới không nằm trong danh sách cho phép.'
+
+    signature = (request.headers.get('X-Signature') or request.headers.get('X-Hub-Signature-256') or '').strip()
+    if signature:
+        if signature.lower().startswith('sha256='):
+            signature = signature.split('=', 1)[1].strip()
+        expected = hmac.new(secret.encode('utf-8'), raw_body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, signature.lower()):
+            return False, 'Chữ ký không hợp lệ.'
+        ts_header = (request.headers.get('X-Timestamp') or '').strip()
+        if ts_header.isdigit() and abs(time.time() - int(ts_header)) > 300:
+            return False, 'Gói tin quá cũ (lệch hơn 5 phút so với giờ máy chủ).'
+        return True, ''
+
+    api_key = (request.headers.get('X-Api-Key') or '').strip()
+    if api_key and hmac.compare_digest(api_key, secret):
+        return True, ''
+
+    return False, 'Thiếu chữ ký X-Signature hoặc khóa X-Api-Key.'
+
 
 def get_all_attendance_user_types():
     try:
@@ -10671,30 +11042,61 @@ def attendance_logs():
         aggregated_in_sql = False
         try:
             date_expr = func.date(AttendanceRecord.event_time)
-            grouped_rows = query.with_entities(
+            source_expr = func.coalesce(AttendanceRecord.source, ATTENDANCE_SOURCE_HIKVISION)
+            group_cols = [AttendanceRecord.employee_no, date_expr]
+            # Dùng window function để lấy được *nguồn* của đúng lượt sớm nhất và
+            # muộn nhất. MIN()/MAX() chỉ trả về mốc thời gian; kéo thêm cột source
+            # ngoài GROUP BY là cú pháp chỉ SQLite bỏ qua, PostgreSQL sẽ báo lỗi.
+            ranked = query.with_entities(
                 AttendanceRecord.employee_no.label('employee_no'),
                 date_expr.label('log_date'),
-                func.min(AttendanceRecord.event_time).label('first_in'),
-                func.max(AttendanceRecord.event_time).label('last_out'),
-                func.count(AttendanceRecord.id).label('total_scans'),
-                func.max(AttendanceRecord.user_name).label('user_name')
-            ).group_by(AttendanceRecord.employee_no, date_expr).all()
-            for row in grouped_rows:
+                AttendanceRecord.event_time.label('event_time'),
+                AttendanceRecord.user_name.label('user_name'),
+                source_expr.label('source'),
+                func.row_number().over(
+                    partition_by=group_cols, order_by=AttendanceRecord.event_time.asc()
+                ).label('rn_first'),
+                func.row_number().over(
+                    partition_by=group_cols, order_by=AttendanceRecord.event_time.desc()
+                ).label('rn_last'),
+                func.count().over(partition_by=group_cols).label('total_scans')
+            ).subquery()
+
+            boundary_rows = db.session.query(
+                ranked.c.employee_no, ranked.c.log_date, ranked.c.event_time,
+                ranked.c.user_name, ranked.c.source, ranked.c.rn_first,
+                ranked.c.rn_last, ranked.c.total_scans
+            ).filter(or_(ranked.c.rn_first == 1, ranked.c.rn_last == 1)).all()
+
+            for row in boundary_rows:
                 log_date_value = row.log_date
                 if hasattr(log_date_value, 'strftime'):
                     log_date_str = log_date_value.strftime('%Y-%m-%d')
                 else:
                     log_date_str = str(log_date_value)[:10]
-                summary_map[(row.employee_no, log_date_str)] = {
-                    'employee_no': row.employee_no,
-                    'user_name': row.user_name or 'Chưa rõ',
-                    'user_type': 'Nhân viên',
-                    'department': '-',
-                    'log_date': log_date_str,
-                    'first_in': row.first_in,
-                    'last_out': row.last_out,
-                    'total_scans': row.total_scans or 0
-                }
+                key = (row.employee_no, log_date_str)
+                entry = summary_map.get(key)
+                if entry is None:
+                    entry = {
+                        'employee_no': row.employee_no,
+                        'user_name': row.user_name or 'Chưa rõ',
+                        'user_type': 'Nhân viên',
+                        'department': '-',
+                        'log_date': log_date_str,
+                        'first_in': None,
+                        'first_in_source': None,
+                        'last_out': None,
+                        'last_out_source': None,
+                        'total_scans': row.total_scans or 0
+                    }
+                    summary_map[key] = entry
+                if row.rn_first == 1:
+                    entry['first_in'] = row.event_time
+                    entry['first_in_source'] = row.source
+                    entry['user_name'] = row.user_name or entry['user_name']
+                if row.rn_last == 1:
+                    entry['last_out'] = row.event_time
+                    entry['last_out_source'] = row.source
             aggregated_in_sql = True
         except Exception as agg_exc:
             db.session.rollback()
@@ -10705,11 +11107,13 @@ def attendance_logs():
             raw_rows = query.with_entities(
                 AttendanceRecord.employee_no,
                 AttendanceRecord.event_time,
-                AttendanceRecord.user_name
+                AttendanceRecord.user_name,
+                AttendanceRecord.source
             ).order_by(AttendanceRecord.event_time.asc()).all()
-            for emp_no, event_time, rec_user_name in raw_rows:
+            for emp_no, event_time, rec_user_name, rec_source in raw_rows:
                 if not event_time:
                     continue
+                rec_source = rec_source or ATTENDANCE_SOURCE_HIKVISION
                 log_date_str = event_time.strftime('%Y-%m-%d')
                 key = (emp_no, log_date_str)
                 existing = summary_map.get(key)
@@ -10721,11 +11125,14 @@ def attendance_logs():
                         'department': '-',
                         'log_date': log_date_str,
                         'first_in': event_time,
+                        'first_in_source': rec_source,
                         'last_out': event_time,
+                        'last_out_source': rec_source,
                         'total_scans': 1
                     }
                 else:
                     existing['last_out'] = event_time
+                    existing['last_out_source'] = rec_source
                     existing['total_scans'] += 1
 
         # Chỉ tra thông tin của những mã chấm công thực sự xuất hiện trong kỳ.
@@ -10752,6 +11159,7 @@ def attendance_logs():
                 s['department'] = u_row[3] or '-'
             if s['last_out'] == s['first_in']:
                 s['last_out'] = None
+                s['last_out_source'] = None
             summary_list.append(s)
 
         # Apply Numeric & Date Sorting on Summary List
@@ -10949,7 +11357,7 @@ def attendance_export():
         writer = csv.writer(output)
 
         if export_type == 'summary':
-            writer.writerow(['STT', 'Ngày', 'Mã NV', 'Account', 'Đối tượng', 'Phòng ban', 'Giờ Vào (Sớm nhất)', 'Giờ Ra (Muộn nhất)', 'Tổng lượt'])
+            writer.writerow(['STT', 'Ngày', 'Mã NV', 'Account', 'Đối tượng', 'Phòng ban', 'Giờ Vào (Sớm nhất)', 'Nguồn giờ vào', 'Giờ Ra (Muộn nhất)', 'Nguồn giờ ra', 'Tổng lượt'])
             
             query = AttendanceRecord.query.filter(
                 AttendanceRecord.event_time >= start_dt,
@@ -10981,6 +11389,7 @@ def attendance_export():
             for rec in all_raw_records:
                 log_date_str = rec.event_time.strftime('%Y-%m-%d')
                 key = (rec.employee_no, log_date_str)
+                rec_source = rec.source or ATTENDANCE_SOURCE_HIKVISION
                 if key not in summary_map:
                     u_obj = users_map.get(rec.employee_no)
                     summary_map[key] = {
@@ -10990,17 +11399,21 @@ def attendance_export():
                         'department': u_obj.department if u_obj else '-',
                         'log_date': log_date_str,
                         'first_in': rec.event_time,
+                        'first_in_source': rec_source,
                         'last_out': rec.event_time,
+                        'last_out_source': rec_source,
                         'total_scans': 1
                     }
                 else:
                     summary_map[key]['last_out'] = rec.event_time
+                    summary_map[key]['last_out_source'] = rec_source
                     summary_map[key]['total_scans'] += 1
 
             summary_list = []
             for s in summary_map.values():
                 if s['last_out'] == s['first_in']:
                     s['last_out'] = None
+                    s['last_out_source'] = None
                 summary_list.append(s)
 
             if sort_by == 'first_in_asc': summary_list.sort(key=lambda x: x['first_in'])
@@ -11022,12 +11435,14 @@ def attendance_export():
                     r['user_type'],
                     r['department'],
                     first_in_str,
+                    _attendance_source_label(r.get('first_in_source')) if r['first_in'] else '',
                     last_out_str,
+                    _attendance_source_label(r.get('last_out_source')) if r['last_out'] else '',
                     r['total_scans']
                 ])
             filename = f"Tong_hop_cham_cong_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv"
         else:
-            writer.writerow(['STT', 'Thời gian quẹt', 'Mã NV', 'Account', 'Phương thức', 'Sự kiện', 'Thiết bị', 'Mã sự kiện'])
+            writer.writerow(['STT', 'Thời gian quẹt', 'Mã NV', 'Account', 'Nguồn', 'Phương thức', 'Sự kiện', 'Thiết bị', 'Mã sự kiện'])
             query = AttendanceRecord.query.filter(
                 AttendanceRecord.event_time >= start_dt,
                 AttendanceRecord.event_time <= end_dt,
@@ -11057,6 +11472,7 @@ def attendance_export():
                     rec.event_time.strftime('%d-%m-%Y %H:%M:%S'),
                     rec.employee_no,
                     rec.user_name,
+                    _attendance_source_label(rec.source),
                     rec.verify_mode,
                     rec.event_type,
                     rec.device_name,
@@ -11091,6 +11507,7 @@ def attendance_users():
         user_type = (request.form.get('user_type') or 'Nhân viên').strip()
         department = (request.form.get('department') or '').strip()
         card_no = (request.form.get('card_no') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
         system_user_id = request.form.get('system_user_id', type=int)
         
         page = request.form.get('page', 1, type=int)
@@ -11113,9 +11530,12 @@ def attendance_users():
                 user_type=user_type,
                 department=department,
                 card_no=card_no,
+                email=email or None,
                 system_user_id=system_user_id if system_user_id else None
             ))
             db.session.commit()
+            # Email vừa khai báo có thể đang nằm trong danh sách camera AI chờ khớp.
+            _clear_unmatched_identity(email)
             flash('Đã thêm người chấm công mới.', 'success')
         return redirect(url_for('attendance_users', page=page, q=q, user_type=user_type_f))
 
@@ -11173,6 +11593,7 @@ def edit_attendance_user(user_id):
     user_type = (request.form.get('user_type') or 'Nhân viên').strip()
     department = (request.form.get('department') or '').strip()
     card_no = (request.form.get('card_no') or '').strip()
+    email = (request.form.get('email') or '').strip().lower()
     system_user_id = request.form.get('system_user_id', type=int)
 
     try:
@@ -11181,12 +11602,20 @@ def edit_attendance_user(user_id):
         duplicate = AttendanceUser.query.filter(AttendanceUser.id != user_obj.id, AttendanceUser.employee_no == emp_no).first()
         if duplicate:
             raise ValueError(f'Mã chấm công {emp_no} đã trùng với người khác.')
-        
+        if email:
+            email_owner = AttendanceUser.query.filter(
+                AttendanceUser.id != user_obj.id,
+                func.lower(AttendanceUser.email) == email
+            ).first()
+            if email_owner:
+                raise ValueError(f'Email {email} đã gán cho {email_owner.name} ({email_owner.employee_no}).')
+
         user_obj.employee_no = emp_no
         user_obj.name = name
         user_obj.user_type = user_type
         user_obj.department = department
         user_obj.card_no = card_no
+        user_obj.email = email or None
         user_obj.system_user_id = system_user_id if system_user_id else None
         if system_user_id:
             sys_user = User.query.get(system_user_id)
@@ -11194,6 +11623,8 @@ def edit_attendance_user(user_id):
                 user_obj.department = sys_user.department_info.name
         user_obj.updated_at = datetime.utcnow()
         db.session.commit()
+        # Email vừa gán có thể đang nằm trong danh sách camera AI chờ khớp.
+        _clear_unmatched_identity(email)
         flash('Đã cập nhật thông tin người chấm công.', 'success')
     except ValueError as exc:
         db.session.rollback()
@@ -11216,6 +11647,120 @@ def delete_attendance_user(user_id):
     db.session.commit()
     flash('Đã xóa người chấm công.', 'success')
     return redirect(url_for('attendance_users'))
+
+@app.route('/api/attendance/camera-webhook', methods=['POST'])
+def camera_ai_webhook():
+    """Nhận sự kiện nhận diện từ hệ chấm công camera AI.
+
+    Đây là endpoint duy nhất mở cho hệ thống bên ngoài gọi vào, nên luôn phải qua
+    khóa chia sẻ (HMAC hoặc X-Api-Key) và tùy chọn thêm danh sách IP. Khi chưa bật
+    hoặc chưa đặt khóa thì trả 404 để không quảng cáo sự tồn tại của endpoint.
+    """
+    cfg = get_camera_ai_config()
+    if not cfg.get('enabled') or not cfg.get('secret'):
+        return jsonify({'success': False, 'message': 'Not found'}), 404
+
+    raw_body = request.get_data() or b''
+    ok, err = _camera_ai_verify_request(cfg, raw_body)
+    if not ok:
+        return jsonify({'success': False, 'message': err}), 401
+
+    try:
+        payload = json.loads(raw_body.decode('utf-8')) if raw_body else {}
+    except Exception as exc:
+        return jsonify({'success': False, 'message': f'JSON không hợp lệ: {exc}'}), 400
+
+    if isinstance(payload, list):
+        events = payload
+    elif isinstance(payload, dict):
+        events = payload.get('events') or payload.get('data') or [payload]
+    else:
+        events = []
+    if not isinstance(events, list):
+        events = [events]
+    if not events:
+        return jsonify({'success': False, 'message': 'Gói tin không có sự kiện nào.'}), 400
+    if len(events) > 500:
+        return jsonify({'success': False, 'message': 'Mỗi lần gửi tối đa 500 sự kiện.'}), 413
+
+    counters = {'added': 0, 'duplicate': 0, 'unmatched': 0, 'invalid': 0}
+    problems = []
+    try:
+        for evt in events:
+            status, info = _ingest_camera_event(evt, cfg)
+            counters[status] = counters.get(status, 0) + 1
+            if status in ('invalid', 'unmatched') and len(problems) < 20:
+                problems.append({'status': status, 'detail': info})
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        print(f"Camera AI webhook error: {exc}")
+        return jsonify({'success': False, 'message': f'Lỗi ghi dữ liệu: {exc}'}), 500
+
+    return jsonify({
+        'success': True,
+        'received': len(events),
+        'added': counters['added'],
+        'duplicate': counters['duplicate'],
+        'unmatched': counters['unmatched'],
+        'invalid': counters['invalid'],
+        'problems': problems
+    })
+
+
+@app.route('/attendance/config/camera-ai', methods=['POST'])
+def attendance_camera_ai_config():
+    """Lưu cấu hình nhận dữ liệu từ camera AI (chỉ người có quyền cấu hình)."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if not _require_permission('attendance.config'):
+        flash('Bạn không có quyền cấu hình nguồn dữ liệu chấm công.', 'danger')
+        return redirect(url_for('attendance_logs'))
+
+    saved_cfg = get_camera_ai_config()
+    # Ô khóa bí mật không bao giờ được đổ giá trị cũ ra HTML, nên để trống nghĩa là
+    # "giữ nguyên khóa đang lưu".
+    secret = request.form.get('secret')
+    if not secret:
+        secret = saved_cfg.get('secret') or ''
+    if request.form.get('generate_secret') == '1':
+        secret = secrets.token_hex(32)
+
+    try:
+        dedup_window = int(request.form.get('dedup_window') or 0)
+    except Exception:
+        dedup_window = saved_cfg.get('dedup_window') or 60
+
+    enabled = bool(request.form.get('enabled'))
+    if enabled and not secret:
+        flash('Phải đặt khóa bí mật trước khi bật nhận dữ liệu từ camera AI.', 'warning')
+        enabled = False
+
+    save_camera_ai_config({
+        'enabled': enabled,
+        'secret': secret,
+        'allow_ips': (request.form.get('allow_ips') or '').strip(),
+        'dedup_window': max(0, min(dedup_window, 3600)),
+        'device_label': (request.form.get('device_label') or 'Camera AI').strip() or 'Camera AI',
+    })
+    flash('Đã lưu cấu hình nguồn dữ liệu Camera AI.', 'success')
+    return redirect(url_for('attendance_config_page'))
+
+
+@app.route('/attendance/config/camera-ai/unmatched/<int:row_id>/delete', methods=['POST'])
+def attendance_camera_unmatched_delete(row_id):
+    """Bỏ một email camera AI khỏi danh sách chưa khớp (sau khi đã gán hoặc bỏ qua)."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if not _require_permission('attendance.config'):
+        flash('Bạn không có quyền cấu hình nguồn dữ liệu chấm công.', 'danger')
+        return redirect(url_for('attendance_logs'))
+    row = AttendanceUnmatchedIdentity.query.get_or_404(row_id)
+    db.session.delete(row)
+    db.session.commit()
+    flash('Đã xóa email khỏi danh sách chờ khớp.', 'success')
+    return redirect(url_for('attendance_config_page'))
+
 
 @app.route('/attendance/config', methods=['GET', 'POST'])
 def attendance_config_page():
@@ -11245,7 +11790,22 @@ def attendance_config_page():
         flash('Đã lưu cấu hình kết nối máy chấm công Hikvision.', 'success')
         return redirect(url_for('attendance_config_page'))
 
-    return render_template('attendance_config.html', cfg=_hikvision_public_config())
+    unmatched = []
+    try:
+        unmatched = AttendanceUnmatchedIdentity.query.order_by(
+            AttendanceUnmatchedIdentity.last_seen.desc()
+        ).limit(50).all()
+    except Exception as exc:
+        db.session.rollback()
+        print(f"Unmatched identity list info: {exc}")
+
+    return render_template(
+        'attendance_config.html',
+        cfg=_hikvision_public_config(),
+        camera_cfg=_camera_ai_public_config(),
+        camera_webhook_path=url_for('camera_ai_webhook'),
+        unmatched_identities=unmatched
+    )
 
 @app.route('/attendance/test-connection', methods=['POST'])
 def attendance_test_connection():
@@ -11394,6 +11954,8 @@ def _run_lazy_startup_migrations():
         _ensure_license_schema()
         _safe_add_column('attendance_user', 'department', 'VARCHAR(100)')
         _safe_add_column('attendance_user', 'system_user_id', 'INTEGER')
+        _safe_add_column('attendance_user', 'email', 'VARCHAR(255)')
+        _safe_add_column('attendance_record', 'source', 'VARCHAR(20)')
         _safe_add_column('stock_item_movement', 'reason', 'VARCHAR(255)')
         _safe_add_column('stock_item_movement', 'notes', 'TEXT')
 

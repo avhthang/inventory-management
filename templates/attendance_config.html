@@ -5,11 +5,21 @@
 {% block content %}
 <div class="container py-3" style="max-width: 750px;">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3><i class="bi bi-gear text-primary"></i> Cấu hình Kết nối Máy chấm công Hikvision</h3>
+        <h3><i class="bi bi-gear text-primary"></i> Cấu hình Nguồn dữ liệu Chấm công</h3>
         <a href="{{ url_for('attendance_logs') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Quay lại Chấm công</a>
     </div>
 
-    <div class="card shadow-sm border-0">
+    <div class="alert alert-light border small text-muted mb-3">
+        <i class="bi bi-diagram-3 text-primary"></i>
+        Bảng tổng hợp lấy <strong>mốc sớm nhất trong ngày của mọi nguồn</strong> làm giờ vào và
+        mốc muộn nhất làm giờ ra, kèm nhãn nguồn. Nhật ký chi tiết vẫn giữ đủ từng lượt của
+        cả máy chấm công vân tay và camera AI.
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white fw-bold py-3">
+            <i class="bi bi-fingerprint text-success"></i> Máy chấm công Hikvision (vân tay)
+        </div>
         <div class="card-body p-4">
             <div class="alert alert-light border mb-4">
                 <div class="fw-bold text-primary mb-1"><i class="bi bi-info-circle"></i> Cách lấy thông tin kết nối:</div>
@@ -59,12 +69,158 @@
             </form>
         </div>
     </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white fw-bold py-3 d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-camera-video text-info"></i> Hệ chấm công Camera AI (nhận qua webhook)</span>
+            {% if camera_cfg.enabled %}
+            <span class="badge bg-success">Đang bật</span>
+            {% else %}
+            <span class="badge bg-secondary">Đang tắt</span>
+            {% endif %}
+        </div>
+        <div class="card-body p-4">
+            <div class="alert alert-light border mb-4">
+                <div class="fw-bold text-primary mb-1"><i class="bi bi-info-circle"></i> Cách kết nối:</div>
+                <ul class="mb-0 ps-3 small text-muted">
+                    <li>Hệ camera AI gửi <code>POST</code> tới địa chỉ dưới đây mỗi khi nhận diện được người.</li>
+                    <li>Mỗi lời gọi phải mang khóa bí mật: ký <code>HMAC-SHA256</code> nguyên văn body và
+                        đặt vào header <code>X-Signature</code>, hoặc gửi khóa tĩnh qua <code>X-Api-Key</code>.</li>
+                    <li>Người dùng được khớp bằng <strong>email</strong> — email này phải khớp email trong
+                        danh sách người chấm công (hoặc email của tài khoản hệ thống đã liên kết).</li>
+                    <li>Sự kiện có email lạ sẽ hiện ở mục "Chờ khớp danh tính" bên dưới, không bị bỏ im lặng.</li>
+                </ul>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Địa chỉ nhận dữ liệu (Webhook URL)</label>
+                <div class="input-group">
+                    <input type="text" class="form-control font-monospace small" id="camWebhookUrl" readonly
+                           value="{{ request.url_root.rstrip('/') }}{{ camera_webhook_path }}">
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyWebhookUrl()">
+                        <i class="bi bi-clipboard"></i> Sao chép
+                    </button>
+                </div>
+                <div class="form-text hint-text">Chỉ nhận phương thức POST với body JSON.</div>
+            </div>
+
+            <form method="POST" action="{{ url_for('attendance_camera_ai_config') }}" autocomplete="off">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" name="enabled" id="camEnabled" value="1"
+                           {% if camera_cfg.enabled %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold" for="camEnabled">
+                        Bật nhận dữ liệu từ Camera AI
+                    </label>
+                    <div class="form-text hint-text">Khi tắt, địa chỉ webhook trả về 404 và không ghi nhận sự kiện nào.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Khóa bí mật (Secret)</label>
+                    <input type="password" class="form-control hint-placeholder" name="secret" autocomplete="new-password"
+                           placeholder="{% if camera_cfg.has_secret %}Để trống nếu giữ khóa hiện tại{% else %}Dán khóa hoặc tick tạo khóa mới{% endif %}">
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="generate_secret" value="1" id="camGenSecret">
+                        <label class="form-check-label small" for="camGenSecret">
+                            Tạo khóa mới ngẫu nhiên (ghi đè khóa cũ — phải cập nhật lại bên hệ camera)
+                        </label>
+                    </div>
+                    <div class="form-text hint-text">
+                        {% if camera_cfg.has_secret %}Đã có khóa được lưu. Khóa không được hiển thị lại; chỉ nhập khi cần thay đổi.
+                        {% else %}Chưa có khóa. Phải đặt khóa trước khi bật nhận dữ liệu.{% endif %}
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-7">
+                        <label class="form-label fw-semibold">IP được phép gọi (tùy chọn)</label>
+                        <input type="text" class="form-control font-monospace hint-placeholder" name="allow_ips"
+                               value="{{ camera_cfg.allow_ips }}" placeholder="VD: 192.168.1.50, 10.0.0.0/24">
+                        <div class="form-text hint-text">Để trống là cho phép mọi IP (vẫn phải có khóa đúng). Cách nhau bằng dấu phẩy.</div>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold">Gộp khung hình trùng (giây)</label>
+                        <input type="number" class="form-control" name="dedup_window" min="0" max="3600"
+                               value="{{ camera_cfg.dedup_window }}">
+                        <div class="form-text hint-text">Camera bắn nhiều khung cho một lần đi qua. Chỉ gộp trong cùng nguồn camera, không ảnh hưởng lượt vân tay.</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Tên nguồn hiển thị</label>
+                    <input type="text" class="form-control hint-placeholder" name="device_label"
+                           value="{{ camera_cfg.device_label }}" placeholder="VD: Camera AI - Cổng chính">
+                </div>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Lưu cấu hình Camera AI</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white fw-bold py-3">
+            <i class="bi bi-person-exclamation text-warning"></i> Chờ khớp danh tính
+            <span class="badge bg-light text-dark border ms-1">{{ unmatched_identities|length }}</span>
+        </div>
+        <div class="card-body p-0">
+            {% if unmatched_identities %}
+            <div class="alert alert-warning border-0 rounded-0 small mb-0">
+                Các email dưới đây được camera AI gửi lên nhưng chưa gán cho người chấm công nào, nên
+                <strong>chưa được ghi vào nhật ký</strong>. Vào
+                <a href="{{ url_for('attendance_users') }}" class="fw-semibold">Người chấm công</a>
+                điền email tương ứng, sau đó dữ liệu mới sẽ tự khớp.
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Email từ camera AI</th>
+                            <th>Tên hiển thị</th>
+                            <th class="text-center">Số lượt</th>
+                            <th>Lần cuối</th>
+                            <th class="text-center" style="width: 60px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in unmatched_identities %}
+                        <tr>
+                            <td class="font-monospace small">{{ row.email }}</td>
+                            <td>{{ row.display_name or '-' }}</td>
+                            <td class="text-center"><span class="badge bg-light text-dark border">{{ row.hit_count }}</span></td>
+                            <td class="small text-muted">{{ row.last_seen.strftime('%H:%M %d/%m/%Y') if row.last_seen else '-' }}</td>
+                            <td class="text-center">
+                                <form method="POST" action="{{ url_for('attendance_camera_unmatched_delete', row_id=row.id) }}"
+                                      onsubmit="return confirm('Bỏ email này khỏi danh sách chờ khớp?')">
+                                    <button class="btn btn-sm btn-outline-danger p-1" title="Bỏ khỏi danh sách"><i class="bi bi-x-lg"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-4 text-center text-muted small">
+                Không có email nào đang chờ khớp.
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
+function copyWebhookUrl() {
+    const el = document.getElementById('camWebhookUrl');
+    el.select();
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(el.value);
+    } else {
+        document.execCommand('copy');
+    }
+}
+
 function testConnection() {
     const btn = document.getElementById('btnTestConn');
     const alertEl = document.getElementById('testResultAlert');

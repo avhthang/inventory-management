@@ -79,6 +79,7 @@
                         <th>Phân loại đối tượng</th>
                         <th>Phòng ban / Đơn vị</th>
                         <th>Mã thẻ</th>
+                        <th>Email (Camera AI)</th>
                         <th>Liên kết User Kho</th>
                         <th class="text-center" style="width: 100px;">Hành động</th>
                     </tr>
@@ -97,6 +98,13 @@
                         </td>
                         <td>{{ u.department or '-' }}</td>
                         <td>{{ u.card_no or '-' }}</td>
+                        <td>
+                            {% if u.email %}
+                            <span class="font-monospace small">{{ u.email }}</span>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if u.system_user %}
                             <span class="badge bg-light text-dark border"><i class="bi bi-link-45deg text-primary"></i> {{ u.system_user.full_name or u.system_user.username }}</span>
@@ -146,6 +154,11 @@
                                             <input type="text" class="form-control font-monospace" name="card_no" value="{{ u.card_no or '' }}">
                                         </div>
                                         <div class="mb-3">
+                                            <label class="form-label">Email dùng cho Camera AI</label>
+                                            <input type="email" class="form-control font-monospace" name="email" value="{{ u.email or '' }}" placeholder="VD: nguyenvana@congty.vn">
+                                            <div class="form-text hint-text">Phải trùng email mà hệ camera AI dùng để định danh người này. Bỏ trống nếu chỉ chấm công vân tay.</div>
+                                        </div>
+                                        <div class="mb-3">
                                             <label class="form-label">Liên kết User Kho (Tùy chọn)</label>
                                             <select class="form-select" name="system_user_id">
                                                 <option value="">-- Không liên kết --</option>
@@ -164,10 +177,10 @@
                         </div>
                     </div>
                     {% else %}
-                    <tr><td colspan="8" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
                     {% endfor %}
                     {% else %}
-                    <tr><td colspan="8" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">Chưa có người dùng nào. Bấm "Tải danh sách từ máy Hikvision" hoặc "Thêm người mới".</td></tr>
                     {% endif %}
                 </tbody>
             </table>
@@ -210,6 +223,11 @@
                     <div class="mb-3">
                         <label class="form-label">Mã thẻ (Nếu có)</label>
                         <input type="text" class="form-control font-monospace" name="card_no">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email dùng cho Camera AI</label>
+                        <input type="email" class="form-control font-monospace" name="email" placeholder="VD: nguyenvana@congty.vn">
+                        <div class="form-text hint-text">Phải trùng email mà hệ camera AI dùng để định danh người này. Bỏ trống nếu chỉ chấm công vân tay.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Liên kết User Kho (Tùy chọn)</label>

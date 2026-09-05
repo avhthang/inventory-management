@@ -209,10 +209,20 @@
                                 <td>{{ s.department }}</td>
                                 <td class="text-center text-success fw-bold">
                                     {{ s.first_in.strftime('%H:%M:%S') }}
+                                    {% if s.first_in_source == 'camera_ai' %}
+                                    <div><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-normal small"><i class="bi bi-camera-video"></i> Camera AI</span></div>
+                                    {% else %}
+                                    <div><span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-normal small"><i class="bi bi-fingerprint"></i> MCC</span></div>
+                                    {% endif %}
                                 </td>
                                 <td class="text-center text-primary fw-bold">
                                     {% if s.last_out %}
                                     {{ s.last_out.strftime('%H:%M:%S') }}
+                                    {% if s.last_out_source == 'camera_ai' %}
+                                    <div><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-normal small"><i class="bi bi-camera-video"></i> Camera AI</span></div>
+                                    {% else %}
+                                    <div><span class="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-normal small"><i class="bi bi-fingerprint"></i> MCC</span></div>
+                                    {% endif %}
                                     {% else %}
                                     <span class="text-muted small">-</span>
                                     {% endif %}
@@ -282,6 +292,7 @@
                                 <th>Thời gian quẹt</th>
                                 <th style="width: 100px;">Mã NV</th>
                                 <th>Account</th>
+                                <th>Nguồn</th>
                                 <th>Phương thức</th>
                                 <th>Sự kiện</th>
                                 <th>Thiết bị</th>
@@ -309,7 +320,15 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if rec.verify_mode == 'Vân tay' %}<span class="badge bg-success"><i class="bi bi-fingerprint"></i> Vân tay</span>
+                                    {% if rec.source == 'camera_ai' %}
+                                    <span class="badge bg-info text-dark"><i class="bi bi-camera-video"></i> Camera AI</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary"><i class="bi bi-hdd-network"></i> MCC vân tay</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if rec.verify_mode == 'Khuôn mặt' %}<span class="badge bg-info text-dark"><i class="bi bi-person-badge"></i> Khuôn mặt</span>
+                                    {% elif rec.verify_mode == 'Vân tay' %}<span class="badge bg-success"><i class="bi bi-fingerprint"></i> Vân tay</span>
                                     {% elif rec.verify_mode == 'Thẻ' %}<span class="badge bg-info text-dark"><i class="bi bi-credit-card"></i> Thẻ</span>
                                     {% else %}<span class="badge bg-success"><i class="bi bi-fingerprint"></i> Vân tay</span>{% endif %}
                                 </td>
@@ -321,10 +340,10 @@
                                 <td><code class="small text-muted">{{ rec.raw_event_id }}</code></td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="8" class="text-center text-muted py-4">Chưa có lượt quẹt vân tay nào được ghi nhận. Bấm "Đồng bộ từ máy Hikvision" để tải log mới.</td></tr>
+                            <tr><td colspan="9" class="text-center text-muted py-4">Chưa có lượt chấm công nào được ghi nhận. Bấm "Đồng bộ từ máy Hikvision" để tải log mới.</td></tr>
                             {% endfor %}
                             {% else %}
-                            <tr><td colspan="8" class="text-center text-muted py-4">Chưa có lượt quẹt vân tay nào được ghi nhận. Bấm "Đồng bộ từ máy Hikvision" để tải log mới.</td></tr>
+                            <tr><td colspan="9" class="text-center text-muted py-4">Chưa có lượt chấm công nào được ghi nhận. Bấm "Đồng bộ từ máy Hikvision" để tải log mới.</td></tr>
                             {% endif %}
                         </tbody>
                     </table>
